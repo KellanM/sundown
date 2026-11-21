@@ -467,9 +467,9 @@
       if(t >= 1 && H1(j0 * .77 + t) > .8){ const sa = .1 + H1(j0 * 2.1) * .08; poly(xa, ya, xb, yb, xb, yb - sa * ub, xa, ya - sa * ua, F('#b4c0d8')); }
       // dwarf pine and shrub on the ledge: a low dark mat at every distance, single pines standing out of it once they are a few pixels tall
       if(t < 2 && H1(Math.floor(j0 / 4) * 2.9 + t * 5) > .45){ const ba = .12 + H1(i * 1.1 + t) * .14, bb = .12 + H1(j1 * 1.1 + t) * .14; poly(xa, ya, xb, yb, xb, yb - bb * ub, xa, ya - ba * ua, F(FOR[1]));
-        if(sub) pines(m, t, 3, 1, .6, F); }
+        if(sub && ua > W * .015) pines(m, t, 2, 1, .55, F); }
       if(close && t === 1 && j0 % 44 === 20){ const h0 = Math.max(lo, CA[1]), wx = xa + (xb - xa) * .5; R(wx, ya, PX, Math.max(PX, (CA[5] - h0) * ua), F(i % 22 === 5 ? '#7c8cae' : RKC[0])); }
-      if(t === 0 && !sp.g && !KBX.includes('cT')){ // talus heaped at the foot: fresh broken granite, paler than the wall, with a moonlit top edge and pebbles up close
+      if(t === 0 && !sp.g && ua > W * .006 && !KBX.includes('cT')){ // talus heaped at the foot: fresh broken granite, paler than the wall, with a moonlit top edge and pebbles up close
         const sa = .06 + .22 * (H1(j0 * .37 + 3) + (H1((j0 + CC4) * .37 + 3) - H1(j0 * .37 + 3)) * pf), sb = .06 + .22 * H1(j1 * .37 + 3), Xa = Math.min(X0, CA[0] + .3), Xb = Math.min(X0, CB[0] + .3);
         const qa = SX(Xa, 0), qb = SX(Xb, 1), ga = SY(lo + sa, 0), gb = SY(lo + sb, 1); poly(xa0, ga, xb0, gb, qb, SY(lo, 1), qa, SY(lo, 0), F(RKC[3]));
         poly(xa0, ga, xb0, gb, xb0, gb + PX, xa0, ga + PX, F(RKC[4]));
@@ -479,7 +479,7 @@
     // the rim's forest: a dark mat with a moonlit crown line at every distance; dwarf pines up close
     const fa = .3 + H1(j0 * .71) * .3, fb = .3 + H1(j1 * .71) * .3; poly(px0, ay - ha * ua, px1, by - hb * ub, px1, by - (hb + fb) * ub, px0, ay - (ha + fa) * ua, F(FOR[1]));
     if(ua > W * .012) poly(px0, ay - (ha + fa) * ua, px1, by - (hb + fb) * ub, px1, by - (hb + fb) * ub + PX, px0, ay - (ha + fa) * ua + PX, F(FOR[3]));
-    if(sub){ cvert(j0, 2, lo, cliffH(j0), CP, 0); cvert(j0 + CC4, 2, lo, cliffH(j0 + CC4), CB, 0); pines(m, 2, 2, 1.5, .25, F); }
+    if(sub){ cvert(j0, 2, lo, cliffH(j0), CP, 0); cvert(j0 + CC4, 2, lo, cliffH(j0 + CC4), CB, 0); if(ua > W * .015) pines(m, 2, 1, 1.6, .3, F); }
     if(!sp.g){ // the concrete toe wall along the road and its coping
       const ta = x0 + X0 * ua, tb2 = e.x + X0 * ub;
       poly(ta, ay, tb2, by, tb2, by - .32 * ub, ta, ay - .32 * ua, F(CO[2])); poly(ta, ay - .32 * ua, tb2, by - .32 * ub, tb2, by - .32 * ub + Math.max(PX, ub * .03), ta, ay - .32 * ua + Math.max(PX, ua * .03), F(CO[4]));
