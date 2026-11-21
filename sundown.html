@@ -428,6 +428,8 @@ body.paused .banner,body.paused .float{animation-play-state:paused!important}
 /* the title's first appearance composes in order (jo-ha-kyu): the night and the logo first, PRESS START once the sign has caught, the side
    chrome last. It is all live and pressable at once: only the paint is staggered, never the input. Once per page load; reduced motion: none. */
 .attract.first>.btn.press{animation:t1in .3s steps(3) .75s both}
+.gatew{position:fixed;left:50%;top:calc(14px + env(safe-area-inset-top,0px));transform:translateX(-50%);z-index:20;display:flex;align-items:center;gap:8px;padding:6px 10px;background:rgba(7,6,12,.72);box-shadow:inset 0 0 0 1px #3a3350;font-family:var(--font-display);font-size:12px;color:var(--muted);pointer-events:none}
+.gatew b{font-weight:normal;letter-spacing:1px}.gatew i{display:block;width:96px;height:4px;background:#1c1628}.gatew u{display:block;height:4px;width:0;background:#ffd04a}
 .attract.going>*{opacity:0!important;transition:opacity .15s steps(2)!important;animation:none!important}   /* START pressed: the words go, the night stays */
 .attract.first>.vcol,.attract.first>.cab,.attract.first>.fplay,.attract.first>.bikezone .arr{animation:t1in .3s steps(3) 1.1s both}
 @keyframes t1in{from{opacity:0}to{opacity:1}}
@@ -2551,9 +2553,11 @@ const frameGap = () => new Promise(r => { let ok = false; const go = () => { if(
 async function warmGate(){ if(BOOT_SYNC || !WARM.q.length) return; const ids = new Set(); for(let z = 0; z <= 2; z++){ const L = LANDS[landIdx(z)]; if(L) ids.add('env.' + L.key); }
   forkChoices(2); for(const f of FORKS) if(Array.isArray(f)) f.forEach(i => LANDS[i] && ids.add('env.' + LANDS[i].key));   // zones 0-2 and the first fork's two roads: well over a minute of riding
   const need = j => ids.has(j[2]) || (!j[2].startsWith('env.') && !/Late$/.test(j[2]));   // a module's '...Late' job (MECH.arrivalLate) is never waited for   // the roads of the first minute and every mechanic (cards, cut-ins, set pieces); far roads wait
-  WARM.gating = true; const t0 = performance.now(); let t = t0, n = 0, rev = 0;
-  try{ for(const j of WARM.q.filter(need)){ if(performance.now() - t > 40){ await frameGap(); t = performance.now(); if(t - rev > 330){ rev = t; M.rev = 1; } } warmTake(j); n++; } }   // the bike blips its throttle (the call) while the engine warms
-  finally{ WARM.gating = false; } WARM.gateMs = Math.round(performance.now() - t0); WARM.gateN = n; WARM.idleOn = true; warmIdle(); }
+  WARM.gating = true; const t0 = performance.now(), list = WARM.q.filter(need); let t = t0, n = 0, rev = 0, el = null;
+  const shown = () => { if(!el && t - t0 > 1200){ el = document.createElement('div'); el.className = 'gatew'; el.setAttribute('role', 'status'); el.innerHTML = '<span class="tabk">暖機</span><b>WARMING UP</b><i><u></u></i>'; document.body.appendChild(el); }   // a slow device is told, quietly, after 1.2 s
+    if(el) el.querySelector('u').style.width = Math.round(n / Math.max(1, list.length) * 24) * 4 + 'px'; };
+  try{ for(const j of list){ if(performance.now() - t > 40){ await frameGap(); t = performance.now(); shown(); if(t - rev > 330){ rev = t; M.rev = 1; } } warmTake(j); n++; } }   // the bike blips its throttle (the call) while the engine warms
+  finally{ WARM.gating = false; if(el) el.remove(); } WARM.gateMs = Math.round(performance.now() - t0); WARM.gateN = n; WARM.idleOn = true; warmIdle(); }
 async function warmFinish(){ if(WARM.finishing || !WARM.q.length) return; WARM.finishing = true; const B = window.BOOT; if(B && B.again) B.again(WARM.q.length);
   let t = performance.now(); while(WARM.q.length){ const j = WARM.q[0]; if(B) B.label(j[0]); if(performance.now() - t > 40){ await frameGap(); t = performance.now(); } warmTake(j); if(B) B.step(); }
   WARM.finishing = false; if(B){ await frameGap(); B.done(); } }
@@ -2595,7 +2599,7 @@ function frame(){ if(PSE.on){ pzPad(); if(PSE.dirty){ PSE.dirty = false; try{ dr
    A new version downloads in the background and waits. It is applied only on the title (never mid-ride): by itself once
    the title has sat untouched for a few seconds, or at once when the player taps "Update ready". Tap the version to check now. */
 (() => {
-  const VER = 'v6 · be689d', $id = (i) => document.getElementById(i);
+  const VER = 'v7 · 9d3bf0', $id = (i) => document.getElementById(i);
   const SDU = window.SDUPDATE = { version: VER, waiting: null, applied: false, checks: 0 };
   let reg = null, applying = false, asked = false, needReload = false, note = '', noteT = 0, lastInput = performance.now();
   ['keydown', 'pointerdown', 'touchstart', 'wheel'].forEach((t) => addEventListener(t, () => { lastInput = performance.now(); }, { capture: true, passive: true }));
@@ -2657,5 +2661,5 @@ function frame(){ if(PSE.on){ pzPad(); if(PSE.dirty){ PSE.dirty = false; try{ dr
   }, 1000);
 })();
 </script>
-<!-- __sdbuild:6 be689dce301d --></body>
+<!-- __sdbuild:7 9d3bf03426d9 --></body>
 </html>

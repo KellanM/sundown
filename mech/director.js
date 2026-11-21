@@ -161,7 +161,8 @@ const D = MECH.director = {
   isFirstSighting(id){ rideCheck(); return G.isFirst(id); },
   dress(id){ rideCheck(); const v = visitOf(curI >= 0 ? curI : pSeg()); return G.dress(id, v.visit); },
   bus(){ duckSetup(); return BUS || (M && M.out); },
-  quietOn(){ return QT.on; }, endQuiet(){ if(QT.on) quietEnd(); },   // a hero moment's own card ends the quiet stretch (ui/cutin.js, MECH.quiet.claim) get quiet(){ return QT; },
+  quietOn(){ return QT.on; }, endQuiet(){ if(QT.on) quietEnd(); }, get quiet(){ return QT; },   // a hero moment's own card ends the quiet stretch (ui/cutin.js, MECH.quiet.claim)
+  cardOn(){ return bandOn(); },   // a hazard band card is on screen (mech/arrival.js can hold its road card meanwhile)
   get debug(){ const s = typeof position === 'number' && segs ? G.snapshot(pSeg()) : null;
     return { cfg:CFG, persisted:G.P, ride:s, force:FORCE, cines:CINES.map(c => ({ id:c.o.id, t:+(T - c.t0).toFixed(2), ending:c.endT != null })), time:window.TIME, cam:window.CAM, duck:DUCK ? { gain:DUCK.gain.value, target:duckWas, ac:M.ac.state } : null,
       clear(){ try{ localStorage.removeItem(CFG.key); }catch(e){} }, gov:G }; },
@@ -200,11 +201,12 @@ function quietStep(){ if(state !== 'play' || typeof playT !== 'number'){ if(QT.o
 function warmCards(){ if(typeof cx === 'undefined' || !cx) return;   // before the game's canvas exists (fonts can land first): the game's own warm() call builds them
   const A = MECH.arrival, seen = new Set();
   for(const src of [CATALOGUE, G.live]) for(const id in src){ const c = src[id] && src[id].card; if(!c || c.kanji === undefined) continue; const k = c.kanji + '|' + c.name + '|' + (c.sub || '') + '|' + (c.col || ''); if(seen.has(k)) continue; seen.add(k);
-    try{ if(A && A.momentWarm) A.momentWarm(c); else cardArt(c); }catch(e){ console.warn('director card warm', id, e); } } }
+    try{ if(A && A.momentWarm) A.momentWarm(c); else cardArt(c); }catch(e){ console.warn('director card warm', id, e); }
+    try{ bandArt(c); }catch(e){ console.warn('director band warm', id, e); } } }   // the hazard band too (any card may be shown as one), so nothing is built mid-ride
 function warmBuf(){ if(typeof cx === 'undefined' || !cx) return; const cv = cx.canvas; if(!BUF) BUF = document.createElement('canvas'); if(BUF.width !== cv.width || BUF.height !== cv.height){ BUF.width = cv.width; BUF.height = cv.height; } }
 function warm(){ try{ if(typeof cx !== 'undefined' && cx){ txt3('0', CREAM, INK); warmBuf(); warmCards(); } }catch(e){ console.warn('director warm', e); } }
-addEventListener('resize', () => { clearTimeout(warm.t); warm.t = setTimeout(() => { for(const k in CARDC) delete CARDC[k]; warm(); }, 150); });   // after the game's own resize (registered later) has sized the canvas
-if(document.fonts) document.fonts.load('16px DotGothic16', '大波爆発').then(() => setTimeout(() => { for(const k in CARDC) delete CARDC[k]; warmCards(); }, 0)).catch(() => {});   // offline: the fallback face is already built
+addEventListener('resize', () => { clearTimeout(warm.t); warm.t = setTimeout(() => { for(const k in CARDC) delete CARDC[k]; for(const k in BANDC) delete BANDC[k]; warm(); }, 150); });   // after the game's own resize (registered later) has sized the canvas
+if(document.fonts) document.fonts.load('16px DotGothic16', '大波爆発').then(() => setTimeout(() => { for(const k in CARDC) delete CARDC[k]; for(const k in BANDC) delete BANDC[k]; warmCards(); }, 0)).catch(() => {});   // offline: the fallback face is already built
 
 /* ================================================================== the cinematic director */
 const CINES = [];
@@ -216,7 +218,8 @@ function cine(o){ o = Object.assign({ dur:3 }, o || {}); rideCheck();
   if(c.card && c.card.kanji === undefined) c.card = null;
   if(o.guard){ const g = o.guard === true ? {} : o.guard; c.guard = { ahead:g.ahead || 90, behind:g.behind == null ? 4 : g.behind, from:g.from, to:g.to }; clearHazards(c); }
   if(o.shake && !reduce) shake = Math.max(shake || 0, o.shake);
-  if(c.card && MECH.arrival && MECH.arrival.moment) c.cardExt = true;   // mech/arrival.js draws it, when it offers moment cards
+  if(c.card) c.band = isBand(o, c.card);   // a hazard set piece's card: the slim band at the top (drawn here, never by mech/arrival.js)
+  if(c.card && !c.band && MECH.arrival && MECH.arrival.moment) c.cardExt = true;   // mech/arrival.js draws it, when it offers moment cards
   CINES.push(c);
   const h = { o, end(){ if(c.endT == null) c.endT = T; }, hit(n){ if(!reduce) shake = Math.max(shake || 0, n || 6); },
     get t(){ return T - c.t0; }, get alive(){ return CINES.includes(c); } };
@@ -248,7 +251,8 @@ function stepCines(ug, dt){ duckSetup();
     if(c.card && !c.cardShown && T - c.t0 >= (c.card.at || .2)){ c.cardShown = true; c.cardT0 = T;
       const CU = MECH.cutin, cid = CU && CU.idFor ? (c.o.id && CU.has(c.o.id) ? c.o.id : CU.idFor(c.card)) : null;   // ui/cutin.js: a full anime title cut-in when this moment has one
       if(cid && CU.show(cid, { card:c.card }) !== false){ c.cardExt = true; D.cardBy = 'cutin'; }
-      else if(c.cardExt){ let ok = false; try{ ok = MECH.arrival.moment(c.card) !== false; }catch(e2){ console.warn(e2); } c.cardExt = ok; D.cardBy = ok ? 'arrival' : 'director'; } else D.cardBy = 'director'; } }
+      else if(c.cardExt){ let ok = false; try{ ok = MECH.arrival.moment(c.card) !== false; }catch(e2){ console.warn(e2); } c.cardExt = ok; D.cardBy = ok ? 'arrival' : 'director'; }
+      else { D.cardBy = c.band ? 'band' : 'director'; if(c.band && MECH.quiet && MECH.quiet.claim) try{ MECH.quiet.claim(2, B_END + (c.card.hold || 0)); }catch(e2){} } } }   // the band always shows (Kellan's rule); the claim only makes callouts wait for it
   // mech/arrival.js draws moment cards in drawScreen, before this module's post pass; ui/cutin.js draws after it: hold the camera level while either is up, so the card is never rolled or zoomed
   const AM = MECH.arrival, CU = MECH.cutin, extCard = (CU && CU.on && CU.on()) || (AM && typeof AM.momentOn === 'function' ? !!AM.momentOn() : CINES.some(c => c.cardExt && c.cardShown && T - c.cardT0 < (reduce ? R_END : T_END) + (c.card.hold || 0) + .1));
   const dkC = dk; if(QT.on){ dk = Math.min(dk, CFG.quietDuck); swell = false; }   // the quiet stretch: the music steps back (slowly, below)
@@ -332,6 +336,7 @@ function cardArt(card){ const cw = cx.canvas.width, chh = cx.canvas.height, key 
   return CARDC[key] = o; }
 const T_IN = .16, T_HIT = .18, T_TXT = .24, T_OUT = 1.9, T_END = 2.25, R_END = 2.5;
 function drawCards(){ for(const c of CINES){ if(!c.card || !c.cardShown || c.cardExt) continue; const t = T - c.cardT0, hold = (c.card.hold || 0);
+    if(c.band){ if(t <= (reduce ? B_REND : B_END) + hold) drawBand(c, t, hold); continue; }
     const tOut = T_OUT + hold, tEnd = T_END + hold, rEnd = R_END + hold; if(t > (reduce ? rEnd : tEnd)) continue; drawCard(c, t, tOut, tEnd, rEnd); } }
 function drawCard(c, t, tOut, tEnd, rEnd){ const o = cardArt(c.card), cw = cx.canvas.width, ch = cx.canvas.height;
   cx.save(); cx.setTransform(1, 0, 0, 1, 0, 0); cx.imageSmoothingEnabled = false;
@@ -353,6 +358,56 @@ function drawCard(c, t, tOut, tEnd, rEnd){ const o = cardArt(c.card), cw = cx.ca
     const slide = reduce ? 0 : tt < .12 ? Math.round((1 - stepq(tt / .12, 4)) * 60) : tt < .16 ? -3 : 0; cx.drawImage(o.name, o.tx + slide, y); y += o.name.height + o.gap;
     if(o.sub){ let left = reduce ? 1e9 : Math.max(0, Math.floor((tt - .12) / .014)) * 4;   // typed out, line by line
       for(const ln of o.sub){ const n = Math.min(ln.width, left); left -= ln.width; if(n > 0) cx.drawImage(ln, 0, 0, n, ln.height, o.tx, y, n, ln.height); y += 7; } } }
+  cx.restore(); }
+
+/* the hazard band (kodawari audit #2): a hazard set piece's card must never hide the hazard it announces. The stage card covered the top
+   third for seconds, its kanji arrived as a grey ghost, and its focus lines crossed the road just as the first rocks, bombs or gates
+   were telegraphed. The band is a slim strip at the very top of the frame (the letterbox's own sky strip, ~10% of the height): a 1x
+   pixel kanji in the moment's colour, the name and a typed subtitle. It drops in in three whole-pixel steps with everything at full
+   opacity (the kanji is crisp from its first frame: one white impact frame, never a translucent ghost), holds, and retracts upward;
+   gone 2.0 s after it appears (+ the card's hold), before any set piece's first hazard. No focus lines, no speed lines, nothing below the
+   band. Reduced motion: four-step fade in and out. Which cards: a card cine with letterbox:false and no guard (the set pieces' own card
+   beat: rockslide, cavein, flood, lava, naruto, screenfall, teiden, yoiyama, kanpo) and the runaway wheel's card. */
+const B_IN = .1, B_HIT = .1, B_TXT = .12, B_OUT = 1.85, B_END = 2.0, B_REND = 2.2, BAND_K = { '観覧車':1 };
+const isBand = (o, card) => !!card && ((o.letterbox === false && !o.guard) || !!BAND_K[card.kanji]);
+const bandOn = () => CINES.some(c => c.band && c.cardShown && !c.cardExt && T - c.cardT0 <= (reduce ? B_REND : B_END) + (c.card.hold || 0));
+const BANDC = {};
+function bandArt(card){ const cw = cx.canvas.width, chh = cx.canvas.height, key = card.kanji + '|' + card.name + '|' + (card.sub || '') + '|' + (card.col || '') + '|' + cw + 'x' + chh; if(BANDC[key]) return BANDC[key];
+  const col = card.col || GOLD, narrow = cw < 260;
+  const m = typeof pixText === 'function' ? pixText(card.kanji || '', 16, false) : txt3(card.kanji || '', '#fff', null, 2);
+  const kj = mk(m.width + 1, m.height + 1), kk = kj.getContext('2d');   // 1 px dark drop, the moment's colour, a lit top row
+  kk.drawImage(recolor(m, mixc(col, INK, .6)), 1, 1); kk.drawImage(recolor(m, col), 0, 0);
+  { const lit = recolor(m, mixc(col, '#ffffff', .55)); let top = 0; const d = m.getContext('2d').getImageData(0, 0, m.width, m.height).data;
+    outer: for(let y = 0; y < m.height; y++) for(let x = 0; x < m.width; x++) if(d[(y * m.width + x) * 4 + 3] > 0){ top = y; break outer; }
+    kk.drawImage(lit, 0, top, m.width, 1, 0, top, m.width, 1); }
+  const white = recolor(kj, '#ffffff');
+  // the glyph's inked rows (pixText pads its canvas), so the kanji is centred in the band by its ink, not its box
+  let y0 = 0, y1 = kj.height - 1; { const d = kk.getImageData(0, 0, kj.width, kj.height).data, row = y => { for(let x = 0; x < kj.width; x++) if(d[(y * kj.width + x) * 4 + 3] > 0) return true; return false; };
+    while(y0 < y1 && !row(y0)) y0++; while(y1 > y0 && !row(y1)) y1--; }
+  const kh = y1 - y0 + 1, kr = kj.width + (narrow ? 4 : 7), avail = Math.max(30, (narrow ? cw - 6 : Math.round(cw * .72)) - kr);
+  let ns = narrow ? 1 : 2; if((card.name || '').length * 4 * ns + ns > avail) ns = 1;
+  const name = txt3(card.name || '', CREAM, INK, ns), tag = narrow ? null : boxLabel(card.tag || 'MOMENT', CREAM, col);
+  const subs = card.sub ? wrap3(card.sub, Math.max(6, Math.floor((avail - 1) / 4))).slice(0, narrow ? 2 : 1).map(l => txt3(l, mixc(CREAM, col, .25), INK, 1)) : [];
+  const lineW = name.width + (tag ? 5 + tag.width : 0), textW = Math.max(lineW, ...subs.map(s => s.width)), textH = Math.max(name.height, tag ? 10 : 0) + (subs.length ? 2 + subs.length * 7 - 1 : 0);
+  const pad = narrow ? 3 : 4, bh = Math.max(Math.round(chh * .095), Math.max(kh, textH) + pad * 2), gw = kr + textW, gx = narrow ? 3 : Math.round((cw - gw) / 2);
+  const o = { col, kj, white, name, tag, subs, bh, kx:gx, ky:Math.round(bh / 2 - kh / 2) - y0, tx:gx + kr, ty:Math.round((bh - textH) / 2), nh:Math.max(name.height, tag ? 10 : 0) };
+  return BANDC[key] = o; }
+function drawBand(c, t, hold){ const o = bandArt(c.card), cw = cx.canvas.width, out = B_OUT + hold, end = B_END + hold, rEnd = B_REND + hold;
+  cx.save(); cx.setTransform(1, 0, 0, 1, 0, 0); cx.imageSmoothingEnabled = false;
+  let dy = 0, alpha = 1;
+  if(reduce){ alpha = t < .3 ? stepq(t / .3, 4) : t > rEnd - .4 ? 1 - stepq((t - (rEnd - .4)) / .4, 4) : 1; if(alpha <= 0){ cx.restore(); return; } cx.globalAlpha = alpha; }
+  else { const bt = o.bh + 2; if(t < B_IN) dy = -Math.round(bt * (1 - (Math.floor(t / B_IN * 3) + 1) / 3));   // three whole steps down: 2/3 up, 1/3 up, home (its first frame is already a third in)
+    if(t > out) dy = -Math.round(bt * stepq((t - out) / (end - out - .02), 3));
+    if(!c.cardShook && t >= B_HIT){ c.cardShook = true; shake = Math.max(shake || 0, 3); } }
+  const bh = o.bh;
+  cx.fillStyle = 'rgba(7,6,12,.9)'; cx.fillRect(0, dy, cw, bh);
+  cx.fillStyle = o.col; cx.fillRect(0, dy + bh, cw, 1); cx.fillStyle = mixc(o.col, INK, .6); cx.fillRect(0, dy + bh + 1, cw, 1);   // the tokko stripe under it, quiet
+  const img = !reduce && t >= B_HIT && t < B_HIT + .05 ? o.white : o.kj;   // one white impact frame, always at full opacity
+  cx.drawImage(img, o.kx, o.ky + dy);
+  if(reduce || t >= B_TXT){ const tt = reduce ? 9 : t - B_TXT, slide = reduce ? 0 : tt < .1 ? Math.round((1 - stepq(tt / .1, 3)) * 24) : 0;
+    let y = o.ty + dy; cx.drawImage(o.name, o.tx + slide, y + Math.round((o.nh - o.name.height) / 2)); if(o.tag) cx.drawImage(o.tag, o.tx + slide + o.name.width + 5, y + Math.round((o.nh - 10) / 2)); y += o.nh + 2;
+    let left = reduce ? 1e9 : Math.max(0, Math.floor((tt - .08) / .012)) * 4;   // the subtitle types out
+    for(const ln of o.subs){ const n = Math.min(ln.width, left); left -= ln.width; if(n > 0) cx.drawImage(ln, 0, 0, n, ln.height, o.tx, y, n, ln.height); y += 7; } }
   cx.restore(); }
 
 let devC = null, devKey = '';
