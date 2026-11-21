@@ -467,7 +467,7 @@
       if(t >= 1 && H1(j0 * .77 + t) > .8){ const sa = .1 + H1(j0 * 2.1) * .08; poly(xa, ya, xb, yb, xb, yb - sa * ub, xa, ya - sa * ua, F('#b4c0d8')); }
       // dwarf pine and shrub on the ledge: a low dark mat at every distance, single pines standing out of it once they are a few pixels tall
       if(t < 2 && H1(Math.floor(j0 / 4) * 2.9 + t * 5) > .45){ const ba = .12 + H1(i * 1.1 + t) * .14, bb = .12 + H1(j1 * 1.1 + t) * .14; poly(xa, ya, xb, yb, xb, yb - bb * ub, xa, ya - ba * ua, F(FOR[1]));
-        if(sub && ua > W * .015) pines(m, t, 2, 1, .55, F); }
+        if(sub && ua > W * .022) pines(m, t, 2, 1, .72, F); }
       if(close && t === 1 && j0 % 44 === 20){ const h0 = Math.max(lo, CA[1]), wx = xa + (xb - xa) * .5; R(wx, ya, PX, Math.max(PX, (CA[5] - h0) * ua), F(i % 22 === 5 ? '#7c8cae' : RKC[0])); }
       if(t === 0 && !sp.g && ua > W * .006 && !KBX.includes('cT')){ // talus heaped at the foot: fresh broken granite, paler than the wall, with a moonlit top edge and pebbles up close
         const sa = .06 + .22 * (H1(j0 * .37 + 3) + (H1((j0 + CC4) * .37 + 3) - H1(j0 * .37 + 3)) * pf), sb = .06 + .22 * H1(j1 * .37 + 3), Xa = Math.min(X0, CA[0] + .3), Xb = Math.min(X0, CB[0] + .3);
@@ -479,13 +479,13 @@
     // the rim's forest: a dark mat with a moonlit crown line at every distance; dwarf pines up close
     const fa = .3 + H1(j0 * .71) * .3, fb = .3 + H1(j1 * .71) * .3; poly(px0, ay - ha * ua, px1, by - hb * ub, px1, by - (hb + fb) * ub, px0, ay - (ha + fa) * ua, F(FOR[1]));
     if(ua > W * .012) poly(px0, ay - (ha + fa) * ua, px1, by - (hb + fb) * ub, px1, by - (hb + fb) * ub + PX, px0, ay - (ha + fa) * ua + PX, F(FOR[3]));
-    if(sub){ cvert(j0, 2, lo, cliffH(j0), CP, 0); cvert(j0 + CC4, 2, lo, cliffH(j0 + CC4), CB, 0); if(ua > W * .015) pines(m, 2, 1, 1.6, .3, F); }
+    if(sub){ cvert(j0, 2, lo, cliffH(j0), CP, 0); cvert(j0 + CC4, 2, lo, cliffH(j0 + CC4), CB, 0); if(ua > W * .022) pines(m, 2, 1, 1.6, .4, F); }
     if(!sp.g){ // the concrete toe wall along the road and its coping
       const ta = x0 + X0 * ua, tb2 = e.x + X0 * ub;
       poly(ta, ay, tb2, by, tb2, by - .32 * ub, ta, ay - .32 * ua, F(CO[2])); poly(ta, ay - .32 * ua, tb2, by - .32 * ub, tb2, by - .32 * ub + Math.max(PX, ub * .03), ta, ay - .32 * ua + Math.max(PX, ua * .03), F(CO[4]));
       if(near && i % 6 === 0){ const d = Math.max(PX, snp(ua * .04)); R(ta + PX, ay - .18 * ua, d, d, F(CO[0])); } } }
   // pines standing on tier t's top edge at the world boundaries this piece spans: a stacked pixel conifer, dark, moonlit on its right flank
-  function pines(m, t, per, hs, thr, F){ if(KBX.includes('cP')) return; for(let d = 0; d <= m; d++){ const u = BWs[d]; for(let q = 0; q < per; q++){ const s = (PI0 + d) * 1.9 + t * 3.3 + q * .61; if(H1(s) < thr) continue;
+  function pines(m, t, per, hs, thr, F){ if(KBX.includes('cP')) return; for(let d = 0; d < m; d++){ const u = BWs[d]; for(let q = 0; q < per; q++){ const s = (PI0 + d) * 1.9 + t * 3.3 + q * .61; if(H1(s) < thr) continue;
       const f = q / per, X = (CP[4] + (CB[4] - CP[4]) * ((PI0 + d - PJ0) / CC4)) - .1 - f * .5 * H1(s * 1.7), h = CP[5] + (CB[5] - CP[5]) * ((PI0 + d - PJ0) / CC4), ph = (.35 + .45 * H1(s * 2.3)) * hs, sz = ph * u; if(sz < 3 * PX) continue;
       if(sz < 4 * PX) continue; const bx = BXs[d] + X * u, byy = BYs[d] - h * u + PX, hw = Math.max(PX, sz * .3);
       tri(bx - hw, byy, bx + hw, byy, bx, byy - sz * .62, F(FOR[1])); tri(bx - hw * .7, byy - sz * .42, bx + hw * .7, byy - sz * .42, bx, byy - sz, F(FOR[1]));
