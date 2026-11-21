@@ -475,7 +475,7 @@
     const q = segs[j]; let bx = W / 2, by = HZ, w = 0;
     if(q && q.p1.camera.z > DEPTH && q.p1.screen.scale){ bx = q.p1.screen.x + p.m * 1.75 * q.p1.screen.w; by = q.p1.screen.y - q.p1.screen.w * .15; w = q.p1.screen.w; }
     fountain(p, bx, by, fountH(w), fk, now); }
-  function fountain(p, bx, by, Hs, fk, now){ const t = reduce ? now * .00035 : now * .001, m = p.m, sz = Math.max(PX, snp(Hs * .011)), Wc = Hs * .13, hf = Hs * fk;
+  function fountain(p, bx, by, Hs, fk, now){ const t = reduce ? now * .00035 : now * .001, m = p.m, sz = Math.max(PX, Math.min(PX * 2, snp(Hs * .011))), Wc = Hs * .13, hf = Hs * fk;
     // the glow under its plume (additive; the plume itself is the crater's ash and the lit smoke it sheds)
     glow(bx, by - hf * .62, Hs * .8, '#ff4a14', .24 * fk); glow(bx, by - hf * .28, Hs * .45, '#ff7a20', .3 * fk); glow(bx, by - PX * 2, Hs * .2, '#ffd060', .4 * fk);
     // the core column: one strip per pixel column, hard colour steps, hotter low and in the middle, its top torn per column
@@ -492,7 +492,7 @@
       for(let tr = 2; tr >= 1; tr--){ const pq = ph - tr * .022; if(pq < 0) continue; cx.fillStyle = FCOL[Math.min(5, ci + tr)]; cx.fillRect(snp(bx + x0 + vx * pq), snp(by - 4 * hk * pq * (1 - pq)), sz, sz); }
       cx.fillStyle = FCOL[ci]; cx.fillRect(snp(bx + x0 + vx * ph), snp(by - 4 * hk * ph * (1 - ph)), s2, s2); }
     // clots thrown wide: a hot core with a cooling trail, falling away behind the horizon
-    const big = Math.max(PX * 2, snp(sz * 2));
+    const big = Math.min(PX * 3, Math.max(PX * 2, snp(sz * 2)));   // (capped: near the camera bigger squares read as blocks, not clots)
     for(let k = 0; k < (reduce ? 3 : 8); k++){ const T = 1.5 + .7 * H1(k * 4.1 + 9), ph = ((t / T + H1(k * 2.7 + 5)) % 1) * 1.15, hk = hf * (.85 + .3 * H1(k * 6.3)), vx = (k & 1 ? 1 : -1) * Hs * (.3 + .4 * H1(k * 8.9)) - m * Hs * .1;
       for(let tr = 4; tr >= 0; tr--){ const q = ph - tr * .028; if(q < 0) continue; const X = bx + vx * q, Y = by - 4 * hk * q * (1 - q); if(Y > by + PX) continue;
         if(tr){ cx.fillStyle = FCOL[Math.min(5, 1 + tr)]; cx.fillRect(snp(X - sz / 2), snp(Y - sz / 2), sz, sz); }

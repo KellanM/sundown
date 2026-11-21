@@ -230,23 +230,31 @@ CARDS.kaiju = { dur:2.1, out:.36, exit:'split', hold:1.2, kanji:['怪獣', '怪�
     pass(bg, g => { g.strokeStyle = K.ink; g.lineWidth = 2; g.beginPath(); g.arc(dcx, dcy, dr * 1.1 + 1, 0, 6.2832); g.stroke(); });
     const bil = paint(textM('東京湾 大怪獣', 'dot', 16, { track:2 }), K.cream);
     L.bg = bg; L.dcx = dcx; L.dcy = dcy; L.dr = dr; L.sw0 = sw0;
-    // the titan: OUR Sairyū, taken from setpiece/kaiju.js's own baked roar pose (the hunched body, long snout with its one nose horn, three
-    // swept-back frills, and the Dimetrodon sail fanned along the spine). The sail is the hero: its plum membrane prints as oxblood against
-    // the black body, its ribs carry the game's own amber charge glow. Mirrored to roar across the card at the title.
-    L.sil = null; L.ribs = null;
-    try{ const KS = MECH.sp_kaiju; if(KS && KS.warm) KS.warm(); const src = KS && KS.S && (KS.S.t_beam || KS.S.t_idle0), glow = KS && KS.S && (KS.S.tG_beam4 || KS.S.tG_idle04);   // the beam pose: head level, jaw open, the sail broadside
-      if(src){ const k = Math.max(1, Math.floor(dr * 2.6 / src.height)), w = src.width, h = src.height, sd = (() => { const t = mk(w, h); ctx(t).drawImage(src, 0, 0); return t.getContext('2d').getImageData(0, 0, w, h).data; })();
-        const sil = mk(w * k, h * k), sg = ctx(sil), ink = K.ink, mem = '#4a1a5a', eye = K.amber;   // the sail's membrane prints violet (the game's plum), the hero shape
-        for(let y = 0; y < h; y++) for(let x = 0; x < w; x++){ const i = (y * w + x) * 4; if(sd[i + 3] < 40) continue; const r = sd[i], g2 = sd[i + 1], bb = sd[i + 2];   // the membrane is baked translucent: keep it
-          const col = (r > 200 && g2 > 150 && bb < 120) ? eye : (r > bb * 2 && r > g2 * 3 && r > 30) ? K.red : (bb > g2 + 6 && bb >= r * .55) ? mem : ink; sg.fillStyle = col; sg.fillRect((w - 1 - x) * k, y * k, k, k); }
-        L.sil = sil; L.half = dr * 2.6 < h * .75;   // narrow screens: Sairyū at half scale (2x nearest downsample) so he fits his small sun
-        if(glow){ const gd = (() => { const t = mk(glow.width, glow.height); ctx(t).drawImage(glow, 0, 0); return t.getContext('2d').getImageData(0, 0, glow.width, glow.height).data; })(), gw = glow.width, gh = glow.height, rb = mk(w * k, h * k), rg = ctx(rb);
-          // the glow canvas and the baked sprite share the same 1 px border, so they mirror with the same offset
-          const ox = w - gw; for(let y = 0; y < gh; y++) for(let x = 0; x < gw; x++){ const i = (y * gw + x) * 4; if(gd[i + 3] < 128) continue; rg.fillStyle = 'rgb(' + gd[i] + ',' + gd[i + 1] + ',' + gd[i + 2] + ')'; rg.fillRect((w - 1 - x - ox) * k, y * k, k, k); }
-          L.ribs = rb; }
-        const wl = (src.meta && src.meta.wl) || h * .91;
-        if(L.half){ const hv = c => { const o = mk(Math.ceil(c.width / 2), Math.ceil(c.height / 2)), og = ctx(o); og.drawImage(c, 0, 0, o.width, o.height); bin(o); return o; }; L.sil = hv(L.sil); if(L.ribs) L.ribs = hv(L.ribs); }
-        const sc = L.half ? .5 : 1; L.silX = Math.round(dcx - w * k * sc * .5); L.silY = Math.round(dcy + dr * 1.05 - wl * k * sc); } }
+    // the titan: OUR Sairyū as the ride shows it, composed from setpiece/kaiju.js's stacked titan (each part's front view: the tail lashing
+    // high, the body with its fanned Dimetrodon sail and amber rib tips, the head roaring with its long crested snout, nose horn and frills,
+    // the arm wound back). He wades: the bay cuts him at the thigh, so no legs or feet show; a foam band where he meets it, a dark broken
+    // reflection below. Animated while the card holds (draw): the water laps in three frames, he breathes a pixel, the rib tips flicker
+    // with the charge, embers drift up, a searchlight sweeps behind him. Reduced motion: one held frame.
+    L.sil = null; L.ribs = null; L.refl = null;
+    try{ const KS = MECH.sp_kaiju; if(KS && KS.warm) KS.warm(); const TT = KS && KS.TT && KS.TT.s;
+      const order = [['tail', 'high'], ['hips', 'idle'], ['body', 'idle'], ['head', 'idle'], ['arm', 'strike'], ['leg', 'planted']];
+      const parts = TT ? order.map(([n, ps]) => { const P = TT.parts[n]; const st = P && (P.poses[ps] || P.poses[P.pose]); return st && st.L.length ? { st, L:st.L[st.L.length - 1] } : null; }).filter(Boolean) : [];
+      if(parts.length >= 4){ let X0 = 1e9, X1 = -1e9, Y1 = -1e9; for(const q of parts){ X0 = Math.min(X0, q.st.x0); X1 = Math.max(X1, q.st.x0 + q.st.w); Y1 = Math.max(Y1, q.st.y0 + q.st.h); }
+        const WL = 40, w = X1 - X0, h = Y1 - WL, comp = mk(w, h), cg = ctx(comp);   /* the water line at model height 40: mid-thigh */
+        for(const q of parts){ const top = Y1 - (q.st.y0 + q.st.h); cg.drawImage(q.L.cv, 0, 0, q.st.w, q.st.h, q.st.x0 - X0, top, q.st.w, q.st.h); }
+        const sd = cg.getImageData(0, 0, w, h).data, fit = Math.min(dr * 1.45 / h, dr * 2.1 / w), k = Math.max(1, Math.floor(fit));
+        const sil = mk(w * k, h * k), sg = ctx(sil), rb = mk(w * k, h * k), rg = ctx(rb), mem = '#4a1a5a', lum = (r, g2, b) => r * .3 + g2 * .59 + b * .11;
+        for(let y = 0; y < h; y++) for(let x = 0; x < w; x++){ const i = (y * w + x) * 4; if(sd[i + 3] < 128) continue; const r = sd[i], g2 = sd[i + 1], b = sd[i + 2], X = (w - 1 - x) * k, Y = y * k;
+          if(r > 200 && g2 > 190 && b < 140){ sg.fillStyle = K.amber; sg.fillRect(X, Y, k, k); continue; }   // the eye
+          if(r > 200 && g2 > 120 && b < 110){ rg.fillStyle = K.amber; rg.fillRect(X, Y, k, k); sg.fillStyle = K.dark; sg.fillRect(X, Y, k, k); continue; }   // a rib tip (charge layer)
+          const col = r > g2 * 1.8 && b > g2 * 1.6 ? mem : (r > b * 1.25 && r > 70) ? K.red : lum(r, g2, b) > 150 ? K.cream : K.ink;   // sail membrane, fire rim, moon rim, the body
+          sg.fillStyle = col; sg.fillRect(X, Y, k, k); }
+        // the reflection: the lowest rows, flipped, broken into dithered rows, darker
+        const rh = Math.min(h, Math.round(h * .35)), refl = mk(w * k, rh * k), fg = ctx(refl);
+        for(let y = 0; y < rh; y++){ if(y % 2) continue; for(let x = 0; x < w; x++){ const i = ((h - 1 - y) * w + x) * 4; if(sd[i + 3] < 128 || (x + y) % 3 === 0) continue; fg.fillStyle = y < rh * .4 ? '#3a0a18' : '#24060e'; fg.fillRect((w - 1 - x) * k, y * k, k, k); } }
+        L.sil = sil; L.ribs = rb; L.refl = refl; L.k = k;
+        if(fit < 1){ const hv = c => { const o = mk(Math.ceil(c.width / 2), Math.ceil(c.height / 2)), og = ctx(o); og.imageSmoothingEnabled = false; og.drawImage(c, 0, 0, o.width, o.height); bin(o); return o; }; L.sil = hv(sil); L.ribs = hv(rb); L.refl = hv(refl); }   /* narrow screens: half scale */
+        const sw2 = L.sil.width, sh2 = L.sil.height; L.silX = Math.round(dcx - sw2 * .5); L.wlY = Math.round(dcy + dr * .42); L.silY = L.wlY - sh2; } }
     catch(e){ console.warn('cutin kaiju titan', e); L.sil = null; }
     // 怪獣決戦: brushed (Potta), red with a ragged cream paper border and a hard black shadow
     const ks = nar ? Math.round(Math.min((cw - 10) / 4, ch * .11)) : Math.round(Math.min(ch * .17, cw * .14)), two = false;
@@ -273,9 +281,21 @@ CARDS.kaiju = { dur:2.1, out:.36, exit:'split', hold:1.2, kanji:['怪獣', '怪�
     // the titan rises out of the sun's lower rim, ribs charging amber
     // ゴゴゴ, one by one, each humming a pixel: set BEHIND the titan (the menace hum), so the sail silhouette stays whole in front of it
     for(let i = 0; i < 3; i++){ if(!rm && t < .32 + i * .08) continue; const j = rm ? 0 : (Math.floor(t * 20 + i) % 2), p = L.goP[i]; B(g, L.go[i], p[0] + j, p[1] - (i === 1 ? j : 0)); }
-    const rise = rm || !L.sil ? 0 : (1 - stepq((t - .08) / .3, 5)) * L.sil.height * .55;
+    const rise = rm || !L.sil ? 0 : Math.round((1 - stepq((t - .08) / .3, 5)) * L.sil.height * .55), f3 = rm ? 0 : Math.floor(t * 7) % 3, br = rm ? 0 : (Math.floor(t * 2.2) % 2) * Math.max(1, L.k || 1);
     g.save(); g.beginPath(); g.arc(L.dcx, L.dcy, L.dr * 1.1, 0, 6.2832); g.rect(L.dcx - L.dr * 1.6, L.dcy - L.dr * 1.9, L.dr * 3.2, L.dr * 1.9); g.clip();
-    if(L.sil){ B(g, L.sil, L.silX, L.silY + rise); if(L.ribs && (rm || t > .45)) B(g, L.ribs, L.silX, L.silY + rise); } g.restore();
+    if(L.sil){ const wl = L.wlY;
+      // a searchlight sweeping behind him: a pale wedge in hard steps
+      { const a = rm ? -1.9 : -2.5 + Math.round(Math.sin(t * 1.6) * 6) / 6 * .7, len = L.dr * 2.4, sx = L.dcx + L.dr * .9, sy = wl; g.save(); g.globalAlpha = .22; g.fillStyle = '#f4ecdf'; g.beginPath(); g.moveTo(sx, sy); g.lineTo(sx + Math.cos(a - .09) * len, sy + Math.sin(a - .09) * len); g.lineTo(sx + Math.cos(a + .09) * len, sy + Math.sin(a + .09) * len); g.closePath(); g.fill(); g.restore(); }
+      g.save(); g.beginPath(); g.rect(L.dcx - L.dr * 1.6, L.dcy - L.dr * 2, L.dr * 3.2, wl - (L.dcy - L.dr * 2)); g.clip();
+      B(g, L.sil, L.silX, L.silY + rise + br); if(L.ribs && (rm || t > .45) && (rm || Math.floor(t * 9) % 3 !== 1)) B(g, L.ribs, L.silX, L.silY + rise + br); g.restore();
+      // the bay: dark water below the line, his broken reflection, and the foam band lapping against him in three frames
+      g.fillStyle = '#1a0206'; g.fillRect(L.dcx - L.dr * 1.6, wl, L.dr * 3.2, L.dr * 2); if(L.refl) B(g, L.refl, L.silX + (f3 - 1), wl + 2);
+      const fw = L.sil.width, fx0 = L.silX + Math.round(fw * .1), fx1 = L.silX + Math.round(fw * .85); g.fillStyle = K.cream;
+      for(let x = fx0; x < fx1; x += 2){ const hgt = ((x >> 1) + f3) % 3; g.fillRect(x, wl - (hgt === 0 ? 1 : 0), 2, hgt === 2 ? 1 : 2); }
+      g.fillStyle = '#f4ecdf'; for(let x = L.dcx - L.dr * 1.1; x < L.dcx + L.dr * 1.1; x += 6){ if(((x / 6 | 0) + f3) % 3 === 0) g.fillRect(Math.round(x), wl + 4 + ((x / 6 | 0) % 2) * 3, 3, 1); }
+      // embers drifting up from the burning bay
+      g.fillStyle = K.amber; for(let i = 0; i < 6; i++){ const ph = rm ? (i / 6) : ((t * .6 + i / 6) % 1), ex = L.dcx - L.dr * .7 + ((i * 37) % 100) / 100 * L.dr * 1.4 + Math.round(Math.sin(ph * 6 + i) * 2), ey = wl - ph * L.dr * 1.5; if(ph > .05 && ph < .9) g.fillRect(Math.round(ex), Math.round(ey), 2, 2); } }
+    g.restore();
     B(g, L.bil, L.bx, L.by);
     g.restore();
     // the kanji slams down

@@ -1,15 +1,26 @@
 <!doctype html>
-<html lang="en">
+<html lang="en" class="webapp">
 <head>
 <script>/* Embedded in the review player (an iframe, or ?review=1): hide the "← Arcade" exit so the game can't navigate away. Standalone play keeps it. */
 try{ if(window.top !== window || /[?&]review=1(&|$)/.test(location.search)) document.documentElement.classList.add('embedded'); }catch(e){ document.documentElement.classList.add('embedded'); }</script>
 <style>html.embedded .top a.home{display:none!important}</style>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
+<meta name="theme-color" content="#0a0810">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<meta name="theme-color" content="#0a0810">
+<meta name="apple-mobile-web-app-title" content="Sundown">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="apple-touch-icon" href="icons/icon-180.png">
+<link rel="icon" href="icons/favicon-64.png" type="image/png">
+<style>/* web app (tools/deploy-sundown.mjs): no way out to the arcade hub, which isn't on this site */
+html.webapp .top a.home,html.webapp a[href*="arcade.html"]{display:none!important}
+#attract>.sdver{position:absolute;left:16px;bottom:14px;line-height:0;padding:5px 6px;border:0;margin:0;background:rgba(7,6,12,.72);box-shadow:inset 0 0 0 1px #3a3350;cursor:pointer;font:inherit;color:inherit}
+#attract>.sdver:active{transform:translate(1px,1px)}
+#attract>.sdupd{position:absolute;top:12px;left:16px;z-index:2;display:inline-flex;align-items:center;gap:6px;height:36px;padding:0 10px 0 8px;font-size:12px;line-height:1}   /* top left, level with OPTIONS: where the Arcade exit was, clear of the bike and its arrows */
+#attract>.sdupd .dot{font-family:var(--font-display);color:#f4ecdf;font-size:12px;line-height:1}
+</style>
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
 <title>Sundown</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=DotGothic16&family=Inter:wght@400;500;600&display=swap">
@@ -2530,5 +2541,71 @@ function frame(){ if(PSE.on){ pzPad(); if(PSE.dirty){ PSE.dirty = false; try{ dr
   if(SHEET.hidden || state === 'over'){ if(state !== 'ready') update(real * TIME.scale * ASSIST.speed); else pollPad(); }   // ASSIST.speed: game speed (1 by default), on top of any slow-mo
   if(state === 'play') hud(); draw(now); requestAnimationFrame(frame); }
 </script>
-</body>
+<script>/* web app (added by tools/deploy-sundown.mjs, not in the source): the offline cache and quiet updates.
+   A new version downloads in the background and waits. It is applied only on the title (never mid-ride): by itself once
+   the title has sat untouched for a few seconds, or at once when the player taps "Update ready". Tap the version to check now. */
+(() => {
+  const VER = 'v2 · 6a4df2', $id = (i) => document.getElementById(i);
+  const SDU = window.SDUPDATE = { version: VER, waiting: null, applied: false, checks: 0 };
+  let reg = null, applying = false, asked = false, needReload = false, note = '', noteT = 0, lastInput = performance.now();
+  ['keydown', 'pointerdown', 'touchstart', 'wheel'].forEach((t) => addEventListener(t, () => { lastInput = performance.now(); }, { capture: true, passive: true }));
+  const caps = (s, col) => { try { return px3(s, col, 2); } catch (e) { return s; } };
+  // calm = the title, nothing open over it, no ride (titleUp() is the game's own test: #attract up, sheet shown, state 'ready')
+  const calm = () => { try { return state === 'ready' && !!$id('attract') && titleUp() && !PSE.on; } catch (e) { return false; } };
+  function render() {
+    const at = $id('attract'); if (!at) return;
+    let v = $id('sdVer');
+    if (!v) { v = document.createElement('button'); v.type = 'button'; v.id = 'sdVer'; v.className = 'sdver'; v.onclick = checkNow; v.dataset.k = ''; at.appendChild(v); }
+    const text = note && performance.now() < noteT ? note : VER.replace(/·/g, ' ').replace(/\s+/g, ' ').toUpperCase();
+    if (v.dataset.k !== text) { v.dataset.k = text; v.innerHTML = '<span class="sr-only">Version ' + VER + '. Check for an update</span>' + caps(text, '#b9adc4'); }
+    let u = $id('sdUpd');
+    if (SDU.waiting && !u) { u = document.createElement('button'); u.type = 'button'; u.id = 'sdUpd'; u.className = 'cab sdupd';
+      u.innerHTML = '<span class="tabk g">新</span>' + caps('UPDATE READY', '#f4ecdf') + '<span class="dot" aria-hidden="true">·</span>' + caps('TAP', '#ffd04a') + '<span class="sr-only">Update ready, tap to update</span>';
+      u.onclick = (e) => { e.stopPropagation(); apply(); }; at.appendChild(u); }
+    else if (!SDU.waiting && u) u.remove();
+  }
+  function apply() {
+    if (needReload) { location.reload(); return; }
+    const w = SDU.waiting; if (!w || applying) return;
+    applying = true; SDU.applied = true; w.postMessage({ type: 'SKIP_WAITING' });
+    setTimeout(() => location.reload(), 4000);   // in case controllerchange never comes
+  }
+  function checkNow() {
+    if (!reg) { note = 'OFFLINE'; noteT = performance.now() + 2000; render(); return; }
+    asked = true; note = 'CHECKING'; noteT = performance.now() + 8000; render();
+    reg.update().then(() => {
+      if (SDU.waiting) apply();
+      else if (!reg.installing) { asked = false; note = 'UP TO DATE'; noteT = performance.now() + 2000; render(); }
+    }).catch(() => { asked = false; note = 'OFFLINE'; noteT = performance.now() + 2000; render(); });
+  }
+  new MutationObserver(render).observe(document.getElementById('card'), { childList: true });
+  render();
+  const local = /^(localhost|127\.0\.0\.1)$/.test(location.hostname);
+  if (!('serviceWorker' in navigator) || !(location.protocol === 'https:' || local)) return;
+  let hadController = !!navigator.serviceWorker.controller;
+  const track = (w) => {
+    if (!w) return;
+    const ready = () => { if (w.state === 'installed' && navigator.serviceWorker.controller) { SDU.waiting = w; render(); if (asked) apply(); } };
+    ready(); w.addEventListener('statechange', ready);
+  };
+  // updateViaCache 'none': sw.js is always fetched fresh (GitHub Pages lets browsers reuse files for 10 minutes)
+  navigator.serviceWorker.register('sw.js', { updateViaCache: 'none' }).then((r) => {
+    reg = r; track(r.waiting); track(r.installing);
+    r.addEventListener('updatefound', () => track(r.installing));
+    const check = () => { SDU.checks++; r.update().catch(() => {}); };
+    document.addEventListener('visibilitychange', () => { if (!document.hidden) check(); });
+    setInterval(check, 30 * 60 * 1000);
+  }).catch(() => {});
+  navigator.serviceWorker.addEventListener('controllerchange', () => {
+    if (!hadController) { hadController = true; return; }   // the first install: nothing to refresh
+    if (applying) location.reload(); else needReload = true;   // another tab updated: reload here at the next calm moment
+  });
+  setInterval(() => {
+    render();
+    if (document.hidden || !(SDU.waiting || needReload) || !calm()) return;
+    if (performance.now() - lastInput > 4000) apply();
+  }, 1000);
+})();
+</script>
+<!-- __sdbuild:2 6a4df23d58fa --></body>
 </html>

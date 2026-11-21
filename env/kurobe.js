@@ -152,18 +152,28 @@
     for(let y = 0; y < c.height; y++) for(let x = 0; x < w; x++){ const col = fn(x, y); if(!col) continue; const [r, gg, b] = hx(col); u[y * w + x] = (255 << 24 | b << 16 | gg << 8 | r) >>> 0; }
     g.putImageData(d, 0, 0); return c; }
   const wrapD = (a, b, w) => { let d = a - b; d -= Math.round(d / w) * w; return d; };
-  // the Tateyama range: jagged snow peaks, lit from the moon's side (left), couloirs of snow down the dark rock, forest at the foot
-  function buildPeak(){ const w = 512, h = 76, PK = [[34, 16, .62], [96, 30, .7], [140, 7, .58], [196, 22, .66], [250, 3, .55], [292, 15, .6], [360, 11, .64], [420, 27, .72], [470, 9, .6]];
-    const top = new Int16Array(w), own = new Int16Array(w);
-    for(let x = 0; x < w; x++){ let best = 1e9, bi = 0; for(let p = 0; p < PK.length; p++){ const d = Math.abs(wrapD(x, PK[p][0], w)), v = PK[p][1] + d * PK[p][2]; if(v < best){ best = v; bi = p; } }
-      best += (H1(Math.floor(x / 3) * 1.7 + 4) * 2.2) | 0; top[x] = Math.min(h - 20, best); own[x] = bi; }
-    PEAK = paint(mkCanvas(w, h), (x, y) => { const t = top[x]; if(y < t) return null; const p = PK[own[x]], dx = wrapD(x, p[0], w), lit = dx < (y - p[1]) * .32 + (H1(y * .7 + own[x]) - .5) * 2;
-      const snowL = p[1] + 13 + ((H1(own[x] * 3.1 + Math.floor(x / 9)) * 6) | 0), sg = dx < 0 ? 1 : -1, gq = x + sg * Math.round((y - p[1]) * .55), gully = (gq & 7) < 2 && H1(Math.floor(gq / 8) * 3.3 + own[x]) > .45 && y < snowL + 4 + ((H1(Math.floor(gq / 8) * 1.9) * 12) | 0);
-      const forest = y > h - 16 + ((H1(Math.floor(x / 4) * 2.9) * 4) | 0);
-      if(forest) return y > h - 8 && bay(x, y) < (y - (h - 8)) / 9 ? '#121a2a' : '#0c121c';
-      if(y === t) return lit ? SNOW[4] : SNOW[2];
-      if(y < snowL || gully) return lit ? SNOW[3] : SNOW[1];
-      return lit ? '#3a4262' : '#20253a'; });
+  /* The Tateyama range (round 13, from "Kurobe kyokoku view" and "Lake Kurobe 1-1" at zoom, Kawase Hasui's night ranges for the layering):
+     a long jagged granite ridgeline, not cones: asymmetric peaks with fractal crags, the rock pale and flat with distance and lit on the
+     moon's side (left); snow lingering only in the gullies and a few high patches, never as caps. In front, a cooler forested middle ridge
+     with a moonlit rim, valley mist lying between the two, and the dark forest at the foot. Each layer darker and nearer than the last. */
+  function buildPeak(){ const w = 512, h = 76, PK = [[30, 14, .5, .9], [88, 24, .8, .45], [150, 5, .55, .7], [205, 18, .9, .5], [262, 2, .45, .62], [318, 12, .7, .85], [372, 20, .6, .5], [430, 8, .5, .75], [482, 22, .85, .6]];
+    const vn = (x, p, s) => { const k = Math.floor(x / p), f = x / p - k, a = H1(((k % (w / p)) + w / p) % (w / p) * 1.37 + s), b = H1((((k + 1) % (w / p)) + w / p) % (w / p) * 1.37 + s); return a + (b - a) * sm(f); };
+    const top = new Int16Array(w), mr = new Int16Array(w);
+    for(let x = 0; x < w; x++){ let best = 1e9; for(const p of PK){ const d = wrapD(x, p[0], w), v = p[1] + Math.abs(d) * (d < 0 ? p[2] : p[3]); if(v < best) best = v; }
+      best += (vn(x, 32, 1) - .5) * 9 + (vn(x, 8, 2) - .5) * 4 + (H1(Math.floor(x / 2) * 2.3 + 4) - .5) * 2; top[x] = Math.round(Math.min(h - 30, Math.max(1, best)));
+      mr[x] = Math.round(43 + 4 * Math.sin(Math.PI * 2 * 3 * x / w + 1.3) + 3 * Math.sin(Math.PI * 2 * 7 * x / w) + (vn(x, 16, 5) - .5) * 4 - Math.round(1.4 * Math.sqrt(Math.max(0, 1 - Math.pow(((x % 5) - 2) / 2.5, 2))))); }
+    const lt = x => top[(x + w - 1) % w] > top[(x + 1) % w];   // the ridge rises to the right: the slope faces the moon
+    PEAK = paint(mkCanvas(w, h), (x, y) => { const t = top[x], m = mr[x];
+      if(y >= h - 9 + ((H1(Math.floor(x / 4) * 2.9) * 3) | 0)) return y > h - 4 && bay(x, y) < .3 ? '#111a26' : '#0b111a';   // the forest at the foot
+      if(y >= m){ if(y === m) return (x % 5) < 3 ? '#33435c' : '#26344a'; const mist = (y > h - 16 ? Math.min(1, (y - (h - 16)) / 6) * .45 : 0); if(mist > 0 && bay(x, y) < mist) return '#28344e'; return (H1(Math.floor(x / 3) * 3.1 + Math.floor(y / 3) * 1.7) > .82) ? '#18222f' : '#121a27'; }   // the middle ridge
+      if(y < t) return null;
+      // valley mist lying on the range's foot, above the middle ridge (dithered, densest just over it)
+      const md = 1 - (m - y) / 9; if(md > 0 && bay(x, y) < md * .6) return md > .6 ? '#4a5878' : '#3a4666';
+      const d = y - t, sg = lt(x) ? 1 : -1, xf = x + Math.round(d * .5) * (lt(x) ? -1 : 1), lit = lt(((xf % w) + w) % w) !== (H1(Math.floor(xf / 6) * 1.9 + Math.floor(d / 5)) > .78);
+      const gx = ((xf % w) + w) % w, gully = (gx % 9) < 2 && H1(Math.floor(gx / 9) * 3.3 + 1) > .5 && d < 6 + H1(Math.floor(gx / 9) * 1.9) * 18 && d > 1, patch = d < 4 && H1(Math.floor(x / 7) * 2.7) > .6;
+      if(d === 0) return lit ? '#8a98bc' : '#4a5476';
+      if(gully || patch) return lit ? SNOW[3] : SNOW[2];
+      return lit ? (d < 12 ? '#4c5778' : '#424c6c') : '#2e3552'; });
     PEAKM = mirror(PEAK); }
   const SNOW = ['#3a4466', '#5a6890', '#8e9ec2', '#c6d2ea', '#eef4ff'];
   // the gorge's far wall: buttresses of pale granite with forest on the ledges and the rim, falling below the horizon into mist, the river far below
@@ -246,15 +256,17 @@
   function rockSides(A, Ze, Xe, F){ const { HC, HB } = A, AW = A.aw || 5, NA = 6, NH = 6, sd0 = A.XC * 1.7 + A.HS;
     for(const sd of (A.rk || RK2)){ const u = sd;
       for(let ga = 0; ga <= NA; ga++) for(let gh = 0; gh <= NH; gh++){ const o = (ga * (NH + 1) + gh) * 3, a = sd * (AW - 2.5 + ga * 5.5), ft = gh / NH, ridge = HC + 9 + 8 * Math.sin(ga * 1.3 + sd0) * .5 + H1(ga * 3.1 + sd * 7 + sd0) * 5 - ga * .6;
-        const h = HB - 4 + (ridge - HB + 4) * ft, j = gh === 0 || gh === NH ? 0 : 1, d = (H1(ga * 5.3 + gh * 2.1 + sd * 11 + sd0) - .5) * 4 * j - ft * 3, dh = (H1(ga * 1.9 + gh * 7.3 + sd * 3 + sd0) - .5) * 2.4 * j;
+        const h = HB - 4 + (ridge - HB + 4) * ft, j = gh === 0 || gh === NH ? 0 : 1, d = (H1(ga * 5.3 + Math.floor(gh / 3) * 2.1 + sd * 11 + sd0) - .5) * 4 * j - ft * 3, dh = (H1(ga * 1.9 + gh * 7.3 + sd * 3 + sd0) - .5) * 2.4 * j;
         RV[o] = Ze(u, a, d); RV[o + 1] = Xe(u, a, d); RV[o + 2] = h + dh; }
-      const T = (o1, o2, o3) => { PJ(RV[o1], RV[o1 + 1], RV[o1 + 2]); const x1 = PJX, y1 = PJY; PJ(RV[o2], RV[o2 + 1], RV[o2 + 2]); const x2 = PJX, y2 = PJY; PJ(RV[o3], RV[o3 + 1], RV[o3 + 2]);
-        if(Math.max(x1, x2, PJX) < -PX || Math.min(x1, x2, PJX) > W + PX) return;
-        const ax = (RV[o2] - RV[o1]) / 10, ay = RV[o2 + 1] - RV[o1 + 1], az = RV[o2 + 2] - RV[o1 + 2], bx = (RV[o3] - RV[o1]) / 10, by = RV[o3 + 1] - RV[o1 + 1], bz = RV[o3 + 2] - RV[o1 + 2];
+      const T = (o1, o2, o3, tn) => { PJ(RV[o1], RV[o1 + 1], RV[o1 + 2]); const x1 = PJX, y1 = PJY; PJ(RV[o2], RV[o2 + 1], RV[o2 + 2]); const x2 = PJX, y2 = PJY; PJ(RV[o3], RV[o3 + 1], RV[o3 + 2]);
+        if(Math.max(x1, x2, PJX) < -PX || Math.min(x1, x2, PJX) > W + PX) return; tri(x1, y1, x2, y2, PJX, PJY, F(GR[tn])); };
+      // round 13: one tone per cell (a column of slabs, its depth shared down each block of three rows: vertical joints and sheet joints,
+      // not a triangle mosaic), the bottom row in the warm-violet shadow
+      const TN = (o1, o2, o3) => { const ax = (RV[o2] - RV[o1]) / 10, ay = RV[o2 + 1] - RV[o1 + 1], az = RV[o2 + 2] - RV[o1 + 2], bx = (RV[o3] - RV[o1]) / 10, by = RV[o3 + 1] - RV[o1 + 1], bz = RV[o3 + 2] - RV[o1 + 2];
         let nz = ay * bz - az * by, nX = az * bx - ax * bz, nh = ax * by - ay * bx; if(nz > 0){ nz = -nz; nX = -nX; nh = -nh; } const l = Math.hypot(nz, nX, nh) || 1, dl = (nX * -.5 + nh * .7 + nz * -.5) / l;
-        tri(x1, y1, x2, y2, PJX, PJY, F(GR[dl > .7 ? 4 : dl > .5 ? 3 : dl > .25 ? 2 : 1])); };
+        return dl > .7 ? 4 : dl > .5 ? 3 : dl > .25 ? 2 : 1; };
       for(let ga = NA - 1; ga >= 0; ga--) for(let gh = 0; gh < NH; gh++){ const o00 = (ga * (NH + 1) + gh) * 3, o01 = o00 + 3, o10 = o00 + (NH + 1) * 3, o11 = o10 + 3;
-        if(H1(ga * 2.7 + gh * 1.1 + sd) > .5){ T(o00, o10, o11); T(o00, o11, o01); } else { T(o00, o10, o01); T(o10, o11, o01); } }
+        let tn = TN(o00, o10, o01); if(gh === 0) tn = Math.max(1, tn - 1); if(H1(ga * 2.7 + gh * 1.1 + sd) > .5){ T(o00, o10, o11, tn); T(o00, o11, o01, tn); } else { T(o00, o10, o01, tn); T(o10, o11, o01, tn); } }
       // the ridge: a moonlit line and a fringe of forest along the top
       for(let ga = 0; ga < NA; ga++){ const o0 = (ga * (NH + 1) + NH) * 3, o1 = ((ga + 1) * (NH + 1) + NH) * 3; PJ(RV[o0], RV[o0 + 1], RV[o0 + 2]); const x0 = PJX, y0 = PJY, u0 = PJU; PJ(RV[o1], RV[o1 + 1], RV[o1 + 2]);
         poly(x0, y0, PJX, PJY, PJX, PJY - Math.max(PX, PJU * .9), x0, y0 - Math.max(PX, u0 * .9), F(FOR[1])); poly(x0, y0 - Math.max(PX, u0 * .9), PJX, PJY - Math.max(PX, PJU * .9), PJX, PJY - Math.max(PX, PJU * .9) + PX, x0, y0 - Math.max(PX, u0 * .9) + PX, F(FOR[3])); } } }
@@ -394,39 +406,90 @@
   const CA = new Float64Array(6), CB = new Float64Array(6), tt = (t, n) => t === 2 && n > 1 ? n - 1 : n;
   function tri(x1, y1, x2, y2, x3, y3, col){ pxPoly(CLX(x1), CLY(y1), CLX(x2), CLY(y2), CLX(x3), CLY(y3), col); }
   const CC4 = 4, CP = new Float64Array(6), CQ = new Float64Array(6);
-  function drawCliff(sp, x, y, uw, fog){ const i = sp.k, j0 = i - i % CC4, part = i % CC4 !== 0; if(part && i !== baseIdx() + 1) return; const pf = (i - j0) / CC4, m = j0 + CC4 - i, e = endPt(i, m); if(!e) return;
+  /* Round 13: the crag as pixel-art granite (Kurobe's S-ji-kyo walls; Octopath's and Sea of Stars' cliffs for technique). The same
+     world-anchored tiers and cell vertices as before, so every shape holds at every distance, but each tier of a cell is now ONE planar face
+     (one tone from its true facing, not four triangles), broken the way real granite breaks: a vertical joint at every cell boundary and
+     hashed minor joints between, a sheet joint along the tier's jittered middle row, slabs a tone up or down, a warm-violet shadow at each
+     tier's foot, wet streaks below the ledges, snow lying in a few gullies, a 1 px moonlit edge on every ledge, dwarf pines standing on the
+     ledges and the rim, and talus heaped at the foot. Detail depends on distance (fine joints, streaks and pebbles drop out first; the faces,
+     ledges, rim forest and talus stay), and every detail sits on a world segment boundary, so nothing slides or morphs. */
+  const RKC = ['#09070f', '#18121f', '#221b2d', '#2d2c42', '#3a405a', '#56627f', '#8c9aba'];   // crack, warm-violet shadow .. cool moonlit lit face, moon edge
+  let PI0 = 0, PJ0 = 0; const BXs = new Float64Array(CC4 + 1), BYs = new Float64Array(CC4 + 1), BWs = new Float64Array(CC4 + 1), CV0 = new Float64Array(6);
+  function drawCliff(sp, x, y, uw, fog){ const i = sp.k, j0 = i - i % CC4, part = i % CC4 !== 0; if(part && i !== baseIdx() + 1) return; PI0 = i; PJ0 = j0; const pf = (i - j0) / CC4, m = j0 + CC4 - i, e = endPt(i, m); if(!e) return;
     const X0 = -1.32, x0 = x - sp.x * uw, ay = y, by = e.y, ua = uw, ub = e.w, F = c => fc(c, fog * .9), lo = sp.g ? 1.86 : .32;
-    const ha = part ? cliffH(j0) + (cliffH(j0 + CC4) - cliffH(j0)) * pf : cliffH(i), hb = cliffH(i + m), near = ua > W * .03, fine = ua > W * .003, j1 = i + m;
+    const ha = part ? cliffH(j0) + (cliffH(j0 + CC4) - cliffH(j0)) * pf : cliffH(i), hb = cliffH(i + m), j1 = i + m;
+    const fine = ua > W * .003, mid = ua > W * .012, near = ua > W * .03, close = ua > W * .05;
+    // the screen point of every world boundary this piece spans (0 = its near edge, m = j1)
+    let nb = 1; BXs[0] = x0; BYs[0] = ay; BWs[0] = ua; if(mid){ for(let d = 1; d < m; d++){ const p = endPt(i, d); if(!p) break; BXs[d] = p.x; BYs[d] = p.y; BWs[d] = p.w; nb = d + 1; } } if(nb === m || !mid){ BXs[m] = e.x; BYs[m] = by; BWs[m] = ub; }
+    const sub = mid && nb === m;
     const SX = (X, w) => w === 0 ? x0 + X * ua : e.x + X * ub, SY = (h, w) => w === 0 ? ay - h * ua : by - h * ub;
+    const KX = (X, d) => BXs[d] + X * BWs[d], KY = (h, d) => BYs[d] - h * BWs[d];
+    const V = (o, d) => CP[o] + (CB[o] - CP[o]) * ((i + d - j0) / CC4);   // a vertex value on this cell's plane at boundary d
     let px0 = 0, px1 = 0;
-    for(let t = 2; t >= 0; t--){ cvert(j0, t, lo, ha, CP, 0); cvert(j1, t, lo, hb, CB, 0); if(part){ for(let k = 0; k < 6; k++) CA[k] = CP[k] + (CB[k] - CP[k]) * pf; } else for(let k = 0; k < 6; k++) CA[k] = CP[k]; if(CA[5] <= CA[1] + .02 && CB[5] <= CB[1] + .02) continue;
-      if(fine){ // two rows of two triangles each lit by its own facing; a merged (farther) slice keeps one row of two, between the same world vertices
-        const rows = 2; for(let r = 0; r < rows; r++){ const o0 = r * 2, o1 = r * 2 + 2, flip = H1(j0 * 3.7 + t * 11 + r) > .5;
-          // corners: p0 (i, low), p1 (j1, low), p2 (j1, high), p3 (i, high)
-          const q0x = SX(CA[o0], 0), q0y = SY(CA[o0 + 1], 0), q1x = SX(CB[o0], 1), q1y = SY(CB[o0 + 1], 1), q2x = SX(CB[o1], 1), q2y = SY(CB[o1 + 1], 1), q3x = SX(CA[o1], 0), q3y = SY(CA[o1 + 1], 0);
-          if(flip){ tri(q0x, q0y, q1x, q1y, q2x, q2y, F(GR[tt(t, facet(i, CA[o0], CA[o0 + 1], j1, CB[o0], CB[o0 + 1], j1, CB[o1], CB[o1 + 1]))]));
-            tri(q0x, q0y, q2x, q2y, q3x, q3y, F(GR[tt(t, facet(i, CA[o0], CA[o0 + 1], j1, CB[o1], CB[o1 + 1], i, CA[o1], CA[o1 + 1]))])); }
-          else { tri(q0x, q0y, q1x, q1y, q3x, q3y, F(GR[tt(t, facet(i, CA[o0], CA[o0 + 1], j1, CB[o0], CB[o0 + 1], i, CA[o1], CA[o1 + 1]))]));
-            tri(q1x, q1y, q2x, q2y, q3x, q3y, F(GR[tt(t, facet(j1, CB[o0], CB[o0 + 1], j1, CB[o1], CB[o1 + 1], i, CA[o1], CA[o1 + 1]))])); } } }
-      else { let tn = facet(i, CA[0], CA[1], j1, CB[0], CB[1], i, CA[4], CA[5]); if(t === 2 && tn > 1) tn--; poly(SX(CA[0], 0), SY(CA[1], 0), SX(CB[0], 1), SY(CB[1], 1), SX(CB[4], 1), SY(CB[5], 1), SX(CA[4], 0), SY(CA[5], 0), F(GR[tn])); }
-      // the tier's top lip catches the moon
-      const lp = Math.max(PX, ua * .045), lq = Math.max(PX, ub * .045), xa = SX(CA[4], 0), xb = SX(CB[4], 1), ya = SY(CA[5], 0), yb = SY(CB[5], 1);
-      poly(xa, ya, xb, yb, xb, yb + lq, xa, ya + lp, F(GR[5]));
-      // pines on the ledge where the tier steps back: a dark clump with a moonlit crown
-      if(t < 2 && H1(Math.floor(j0 / 4) * 2.9 + t * 5) > .45){ const ba = .2 + H1(i * 1.1 + t) * .32, bb = .2 + H1(j1 * 1.1 + t) * .32; poly(xa, ya, xb, yb, xb, yb - bb * ub, xa, ya - ba * ua, F(FOR[2]));
-        if(ua > W * .012) poly(xa, ya - ba * ua, xb, yb - bb * ub, xb, yb - bb * ub + PX, xa, ya - ba * ua + PX, F(FOR[3])); }
-      // snow lying on a few high ledges, and thin threads of water running down the face below a ledge (near only)
+    for(let t = 2; t >= 0; t--){ cvert(j0, t, lo, cliffH(j0), CP, 0); cvert(j0 + CC4, t, lo, cliffH(j0 + CC4), CB, 0); for(let k = 0; k < 6; k++) CA[k] = CP[k] + (CB[k] - CP[k]) * pf;
+      if(CA[5] <= CA[1] + .02 && CB[5] <= CB[1] + .02) continue;
+      let tn = facet(i, CA[0], CA[1], j1, CB[0], CB[1], i, CA[4], CA[5]); if(t === 2 && tn > 1) tn--;
+      const xa = SX(CA[4], 0), xb = SX(CB[4], 1), ya = SY(CA[5], 0), yb = SY(CB[5], 1), xa0 = SX(CA[0], 0), xb0 = SX(CB[0], 1), ya0 = SY(CA[1], 0), yb0 = SY(CB[1], 1);
+      // the face: one plane, one tone; up close it is cut into three stacked bands (the warm-violet shadow at its foot, the face, the upper
+      // face catching the moon a tone up), each band's edge hashed per world boundary so it is ragged, never a ruled stripe
+      const th = (CA[5] - CA[1]), tb = (CB[5] - CB[1]);
+      if(fine && !KBX.includes('cA')){
+        const fa = .12 + .14 * (H1(j0 * 2.9 + t) + (H1((j0 + CC4) * 2.9 + t) - H1(j0 * 2.9 + t)) * pf), fb = .12 + .14 * H1(j1 * 2.9 + t);
+        const la = tn < 4 ? .2 + .2 * (H1(j0 * 1.7 + t * 4) + (H1((j0 + CC4) * 1.7 + t * 4) - H1(j0 * 1.7 + t * 4)) * pf) : 0, lb = tn < 4 ? .2 + .2 * H1(j1 * 1.7 + t * 4) : 0;
+        const PA = q => SX(CA[0] + (CA[4] - CA[0]) * q, 0), QA = q => SY(CA[1] + th * q, 0), PB = q => SX(CB[0] + (CB[4] - CB[0]) * q, 1), QB = q => SY(CB[1] + tb * q, 1);
+        poly(xa0, ya0, xb0, yb0, PB(fb), QB(fb), PA(fa), QA(fa), F(RKC[1]));
+        poly(PA(fa), QA(fa), PB(fb), QB(fb), PB(1 - lb), QB(1 - lb), PA(1 - la), QA(1 - la), F(RKC[tn]));
+        if(tn < 4) poly(PA(1 - la), QA(1 - la), PB(1 - lb), QB(1 - lb), xb, yb, xa, ya, F(RKC[tn + 1]));
+        // slabs between the minor joints a tone up or down (each slab is one world segment), within the face band
+        if(sub && near) for(let d = 0; d < m; d++){ const k = i + d, hs = H1(k * 1.31 + t * 7.7); if(hs > .3 && hs < .66) continue; const s = clamp(tn + (hs >= .66 ? 1 : -1), 2, 4); if(s === tn) continue;
+          const g0 = d / m, g1 = (d + 1) / m, q0 = fa + (fb - fa) * g0, q1 = fa + (fb - fa) * g1, r0 = 1 - (la + (lb - la) * g0), r1 = 1 - (la + (lb - la) * g1), P = (o, dd, q) => V(o, dd) + (V(o + 4, dd) - V(o, dd)) * q;
+          poly(KX(P(0, d, q0), d), KY(P(1, d, q0), d), KX(P(0, d + 1, q1), d + 1), KY(P(1, d + 1, q1), d + 1), KX(P(0, d + 1, r1), d + 1), KY(P(1, d + 1, r1), d + 1), KX(P(0, d, r0), d), KY(P(1, d, r0), d), F(RKC[s])); } }
+      else poly(xa0, ya0, xb0, yb0, xb, yb, xa, ya, F(RKC[tn]));
+      if(fine && !KBX.includes('cA')){
+        // the sheet joint along the jittered middle row
+        if(mid && H1(j0 * .9 + t * 3.1) > .3){ const ma = SY(CA[3], 0), mb = SY(CB[3], 1); poly(xa0, ma, xb0, mb, xb0, mb + PX, xa0, ma + PX, F(RKC[0])); if(near) poly(xa0, ma + PX, xb0, mb + PX, xb0, mb + 2 * PX, xa0, ma + 2 * PX, F(RKC[Math.min(5, tn + 1)])); }
+        if(sub) for(let d = 1; d <= m; d++){ const k = i + d, major = k % CC4 === 0;
+          if(!major && (!near || H1(k * 2.3 + t * 5.3) < .55)) continue;
+          const xb_ = KX(V(0, d), d), yb_ = KY(V(1, d), d), xt_ = KX(V(4, d), d), yt_ = KY(V(5, d), d), ln = major ? 1 : .35 + .5 * H1(k * 3.7 + t);
+          // snow lying in a high gully at a major joint, instead of the crack
+          if(major && t >= 1 && H1(k * .53 + t * 1.7) > .78){ const w2 = .1 * BWs[d], yl = yt_ + (yb_ - yt_) * (.35 + .3 * H1(k * 1.3)); poly(xt_ - w2, yt_, xt_ + w2, yt_, xt_ + PX, yl, xt_, yl, F('#9eabc8')); if(near) poly(xt_ - w2, yt_, xt_ - w2 + PX, yt_, xt_, yl, xt_ - PX, yl, F('#d4def0')); continue; }
+          const yl = yt_ + (yb_ - yt_) * ln, xl = xt_ + (xb_ - xt_) * ln;
+          // the crack wanders: three legs, each kinked sideways by a hashed amount (world-anchored), the lit lip on its left up close
+          let qx = xt_, qy = yt_; for(let g = 1; g <= 3; g++){ const f = g / 3, nx = xt_ + (xl - xt_) * f + (g < 3 ? (H1(k * 5.9 + t * 2 + g) - .5) * .09 * BWs[d] : 0), ny = yt_ + (yl - yt_) * f;
+            R(qx, qy, PX, ny - qy + PX, F(RKC[0])); if(nx !== qx) R(Math.min(qx, nx), ny, Math.abs(nx - qx) + PX, PX, F(RKC[0])); if(close) R(qx - PX, qy + PX, PX, ny - qy, F(RKC[Math.min(5, tn + 1)])); qx = nx; qy = ny; } }
+        // wet streaks running down from the ledge
+        if(sub && ua > W * .022) for(let d = 0; d < m; d++){ const k = i + d; if(H1(k * 4.1 + t * 2.2) < .7) continue; const f0 = .25 + .4 * H1(k * 6.1 + t), L = .3 + .45 * H1(k * 2.7 + t * 1.3);
+          const xt_ = KX(V(4, d), d) + (KX(V(4, d + 1), d + 1) - KX(V(4, d), d)) * f0, yt_ = KY(V(5, d), d) + (KY(V(5, d + 1), d + 1) - KY(V(5, d), d)) * f0, hh = (V(5, d) - V(1, d)) * L * BWs[d], ww = Math.max(PX, .05 * BWs[d]);
+          R(xt_, yt_, ww, hh * .85, F('#100e1a')); if(close) R(xt_ + ww, yt_ + PX, PX, hh * .6, F('#46506c')); } }
+      // the ledge's moonlit edge
+      poly(xa, ya, xb, yb, xb, yb + PX, xa, ya + PX, F(RKC[5]));
+      // snow lying on a few high ledges
       if(t >= 1 && H1(j0 * .77 + t) > .8){ const sa = .1 + H1(j0 * 2.1) * .08; poly(xa, ya, xb, yb, xb, yb - sa * ub, xa, ya - sa * ua, F('#b4c0d8')); }
-      if(ua > W * .04 && t === 1 && j0 % 44 === 20){ const h0 = Math.max(lo, CA[1]), wx = xa + (xb - xa) * .5; R(wx, ya, PX, Math.max(PX, (CA[5] - h0) * ua), F(i % 22 === 5 ? '#7c8cae' : GR[0])); }
+      // dwarf pine and shrub on the ledge: a low dark mat at every distance, single pines standing out of it once they are a few pixels tall
+      if(t < 2 && H1(Math.floor(j0 / 4) * 2.9 + t * 5) > .45){ const ba = .12 + H1(i * 1.1 + t) * .14, bb = .12 + H1(j1 * 1.1 + t) * .14; poly(xa, ya, xb, yb, xb, yb - bb * ub, xa, ya - ba * ua, F(FOR[1]));
+        if(sub) pines(m, t, 3, 1, .6, F); }
+      if(close && t === 1 && j0 % 44 === 20){ const h0 = Math.max(lo, CA[1]), wx = xa + (xb - xa) * .5; R(wx, ya, PX, Math.max(PX, (CA[5] - h0) * ua), F(i % 22 === 5 ? '#7c8cae' : RKC[0])); }
+      if(t === 0 && !sp.g && !KBX.includes('cT')){ // talus heaped at the foot: fresh broken granite, paler than the wall, with a moonlit top edge and pebbles up close
+        const sa = .06 + .22 * (H1(j0 * .37 + 3) + (H1((j0 + CC4) * .37 + 3) - H1(j0 * .37 + 3)) * pf), sb = .06 + .22 * H1(j1 * .37 + 3), Xa = Math.min(X0, CA[0] + .3), Xb = Math.min(X0, CB[0] + .3);
+        const qa = SX(Xa, 0), qb = SX(Xb, 1), ga = SY(lo + sa, 0), gb = SY(lo + sb, 1); poly(xa0, ga, xb0, gb, qb, SY(lo, 1), qa, SY(lo, 0), F(RKC[3]));
+        poly(xa0, ga, xb0, gb, xb0, gb + PX, xa0, ga + PX, F(RKC[4]));
+        if(close && sub) for(let d = 0; d < m; d++){ const k = i + d; for(let q = 0; q < 3; q++){ const f = H1(k * 7.3 + q * 1.7), g = H1(k * 3.9 + q * 5.1) * .8, px = BXs[d] + (BXs[d + 1] - BXs[d]) * f + (CA[0] + .15) * BWs[d], py = BYs[d] + (BYs[d + 1] - BYs[d]) * f - (lo + g * .3) * BWs[d];
+          R(snp(px), snp(py), 2 * PX, PX, F(q ? RKC[5] : RKC[1])); } } }
       if(t === 2){ px0 = xa; px1 = xb; } }
-    // forest along the top, with a moonlit crown line
-    const fa = .35 + H1(j0 * .71) * .45, fb = .35 + H1(j1 * .71) * .45; poly(px0, ay - ha * ua, px1, by - hb * ub, px1, by - (hb + fb) * ub, px0, ay - (ha + fa) * ua, F(FOR[1]));
+    // the rim's forest: a dark mat with a moonlit crown line at every distance; dwarf pines up close
+    const fa = .3 + H1(j0 * .71) * .3, fb = .3 + H1(j1 * .71) * .3; poly(px0, ay - ha * ua, px1, by - hb * ub, px1, by - (hb + fb) * ub, px0, ay - (ha + fa) * ua, F(FOR[1]));
     if(ua > W * .012) poly(px0, ay - (ha + fa) * ua, px1, by - (hb + fb) * ub, px1, by - (hb + fb) * ub + PX, px0, ay - (ha + fa) * ua + PX, F(FOR[3]));
-    if(!sp.g){ // the concrete toe wall along the road, its coping, and the rubble ledge between it and the rock
-      const ta = x0 + X0 * ua, tb2 = e.x + X0 * ub, ra = x0 + cliffX(i) * ua, rb = e.x + cliffX(j1) * ub;
-      poly(ta, ay - .32 * ua, tb2, by - .32 * ub, rb, by - .32 * ub, ra, ay - .32 * ua, F(GR[1]));
+    if(sub){ cvert(j0, 2, lo, cliffH(j0), CP, 0); cvert(j0 + CC4, 2, lo, cliffH(j0 + CC4), CB, 0); pines(m, 2, 2, 1.5, .25, F); }
+    if(!sp.g){ // the concrete toe wall along the road and its coping
+      const ta = x0 + X0 * ua, tb2 = e.x + X0 * ub;
       poly(ta, ay, tb2, by, tb2, by - .32 * ub, ta, ay - .32 * ua, F(CO[2])); poly(ta, ay - .32 * ua, tb2, by - .32 * ub, tb2, by - .32 * ub + Math.max(PX, ub * .03), ta, ay - .32 * ua + Math.max(PX, ua * .03), F(CO[4]));
       if(near && i % 6 === 0){ const d = Math.max(PX, snp(ua * .04)); R(ta + PX, ay - .18 * ua, d, d, F(CO[0])); } } }
+  // pines standing on tier t's top edge at the world boundaries this piece spans: a stacked pixel conifer, dark, moonlit on its right flank
+  function pines(m, t, per, hs, thr, F){ if(KBX.includes('cP')) return; for(let d = 0; d <= m; d++){ const u = BWs[d]; for(let q = 0; q < per; q++){ const s = (PI0 + d) * 1.9 + t * 3.3 + q * .61; if(H1(s) < thr) continue;
+      const f = q / per, X = (CP[4] + (CB[4] - CP[4]) * ((PI0 + d - PJ0) / CC4)) - .1 - f * .5 * H1(s * 1.7), h = CP[5] + (CB[5] - CP[5]) * ((PI0 + d - PJ0) / CC4), ph = (.35 + .45 * H1(s * 2.3)) * hs, sz = ph * u; if(sz < 3 * PX) continue;
+      if(sz < 4 * PX) continue; const bx = BXs[d] + X * u, byy = BYs[d] - h * u + PX, hw = Math.max(PX, sz * .3);
+      tri(bx - hw, byy, bx + hw, byy, bx, byy - sz * .62, F(FOR[1])); tri(bx - hw * .7, byy - sz * .42, bx + hw * .7, byy - sz * .42, bx, byy - sz, F(FOR[1]));
+      if(sz > 6 * PX){ poly(bx, byy - sz, bx + PX, byy - sz + PX, bx + hw * .7, byy - sz * .42, bx + hw * .7 - PX, byy - sz * .42, F(FOR[3])); } } } }
   function drawRail(sp, x, y, uw, fog){ const i = sp.k, m = strideOf(uw); if(i % m) return; const e = endPt(i, m); if(!e) return;
     const X = sp.x, x0 = x - X * uw, ax = x0 + X * uw, bx = e.x + X * e.w, ay = y, by = e.y, ua = uw, ub = e.w, F = c => fc(c, fog * .9);
     // the W-beam (white in moonlight), its lit top lip and dark lower edge
@@ -517,7 +580,7 @@
   // a camera-facing rock facet: its tone from its normal (turned toward the camera) to a key light from the upper left front
   function triC(x, y, u, x0, h0, z0, x1, h1, z1, x2, h2, z2, F){ const ax = x1 - x0, ay = h1 - h0, az = z1 - z0, bx = x2 - x0, by = h2 - h0, bz = z2 - z0;
     let nx = ay * bz - az * by, ny = az * bx - ax * bz, nz = ax * by - ay * bx; if(nz > 0){ nx = -nx; ny = -ny; nz = -nz; } const l = Math.hypot(nx, ny, nz) || 1, d = (nx * -.45 + ny * .7 + nz * -.5) / l;
-    tri(x + x0 * u, y - h0 * u, x + x1 * u, y - h1 * u, x + x2 * u, y - h2 * u, F(GR[d > .78 ? 4 : d > .62 ? 3 : d > .46 ? 2 : 1])); }
+    return d > .78 ? 4 : d > .62 ? 3 : d > .46 ? 2 : 1; }
   function portal(B, x, y, u, fog, now){ const F = c => fc(c, fog * .8), id = B.a;
     if(B.kind === 0){ const pw = OW + .95, lt = CH + .34, lh = .55;
       R(x - pw * u, y - lt * u, (pw - OW - .36) * u, lt * u, F(CO[2])); R(x + (OW + .36) * u, y - lt * u, (pw - OW - .36) * u, lt * u, F(CO[2]));
@@ -528,24 +591,29 @@
     // the spur the bore goes into: one granite mass with a ragged crest, highest over the bore, forest on top with a moonlit rim
     const cw = Math.max(PX, snp(u * .25)), n = 56, top = PTOP;
     const gorge = B.kind !== 1; for(let k = -n; k <= n; k++){ const xk = k * .25, f = Math.min(1, Math.abs(xk) / 14), g = Math.floor((k + 400) / 3), j = H1(g * 1.7 + id) * .6 + H1(k * .9 + id) * .12;
-      top[k + n] = gorge && xk > 0 ? (xk > 2.2 ? 0 : 2.2 + (1 - xk / 2.2) * .6 + j * .3) : (gorge ? 2.6 + 4.4 * Math.pow(1 - f * f, 1.1) : 2.3 + 3.6 * Math.pow(1 - f * f, 1.4)) + j; }
+      top[k + n] = gorge && xk > 0 ? (xk > 2.2 ? 0 : 2.2 + (1 - xk / 2.2) * .6 + j * .3) : ((gorge ? 2.6 + 4.4 * Math.pow(1 - f * f, 1.1) : 2.3 + 3.6 * Math.pow(1 - f * f, 1.4)) + j) * Math.min(1, Math.max(0, (14 - Math.abs(xk)) / 3.5)); }   // round 13: the mass slopes away to nothing at its ends (no cut-off vertical edge)
     // the rock face as a triangle mesh like the cliff's: columns of a jittered lower and upper row, each triangle in one of four granite tones
     // from its facing (a jittered depth per vertex) to the key light; over the hood the face starts at the hood's top
-    const st = 2, vz = (k, r) => (H1(k * 3.1 + r * 7.7 + id) - .5) * (r === 1 ? .9 : .4);
+    const st = 2, vz = (k, r) => (H1(Math.floor((k + 400) / 6) * 3.1 + r * 7.7 + id) - .5) * (r === 1 ? .9 : .4);
     const bot = k => Math.abs(k * .25) < OW + .36 ? CH + .34 : 0, mid = k => { const b = bot(k), t = top[k + n]; return b + (t - b) * (.38 + .28 * H1(k * 1.7 + id)); };
     for(let k = -n; k + st <= n; k += st){ const k2 = k + st, ta = top[k + n], tb = top[k2 + n]; if(ta <= 0 && tb <= 0) continue; const xa = x + k * .25 * u, xb = x + k2 * .25 * u; if(xa > W + PX || xb < -PX) continue;
       const Xa = k * .25, Xb = k2 * .25, ba = bot(k), bb = bot(k2), ma = Math.max(ba, Math.min(mid(k), Math.max(ta, ba))), mb = Math.max(bb, Math.min(mid(k2), Math.max(tb, bb))), Ta = Math.max(ta, ma), Tb = Math.max(tb, mb);
       for(let r = 0; r < 2; r++){ const h0a = r ? ma : ba, h0b = r ? mb : bb, h1a = r ? Ta : ma, h1b = r ? Tb : mb; if(h1a <= h0a && h1b <= h0b) continue;
         const za0 = vz(k, r), zb0 = vz(k2, r), zb1 = vz(k2, r + 1), za1 = vz(k, r + 1);
-        if(H1(k * 5.3 + r + id) > .5){ triC(x, y, u, Xa, h0a, za0, Xb, h0b, zb0, Xb, h1b, zb1, F); triC(x, y, u, Xa, h0a, za0, Xb, h1b, zb1, Xa, h1a, za1, F); }
-        else { triC(x, y, u, Xa, h0a, za0, Xb, h0b, zb0, Xa, h1a, za1, F); triC(x, y, u, Xb, h0b, zb0, Xb, h1b, zb1, Xa, h1a, za1, F); } }
+        // round 13: each column-row is one planar face in the crag's granite ramp (slabs of three columns share a depth, so a joint is a step)
+        const tn = triC(x, y, u, Xa, h0a, za0, Xb, h0b, zb0, Xa, h1a, za1, F); poly(xa, y - h0a * u, xb, y - h0b * u, xb, y - h1b * u, xa, y - h1a * u, F(RKC[Math.min(4, tn + 1)]));
+        if(r === 0){ poly(xa, y - h0a * u, xb, y - h0b * u, xb, y - (h0b + (h1b - h0b) * .18) * u, xa, y - (h0a + (h1a - h0a) * .18) * u, F(RKC[1])); }
+        else if(u > W * .008 && H1(k * .7 + id) > .35) poly(xa, y - h0a * u, xb, y - h0b * u, xb, y - h0b * u + PX, xa, y - h0a * u + PX, F(RKC[0])); }
+      if(u > W * .008 && k % 6 === 0 && ta > 0){ const ln = .5 + .5 * H1(k * 2.3 + id); let qx = xa, qy = y - Math.max(ta, ba) * u; const yl = qy + (Math.max(ta, ba) - ba) * u * ln;
+        for(let g = 1; g <= 3; g++){ const nx = xa + (g < 3 ? (H1(k * 5.9 + g + id) - .5) * .12 * u : 0), ny = qy + (yl - (y - Math.max(ta, ba) * u)) / 3; poly(qx, qy, qx + PX, qy, nx + PX, ny, nx, ny, F(RKC[0])); if(u > W * .02) poly(qx - PX, qy + PX, qx, qy + PX, nx, ny, nx - PX, ny, F(RKC[5])); qx = nx; qy = ny; } }
       // the crest of the spur: a moonlit lip and forest on top
       if(ta > 0 && tb > 0){ poly(xa, y - ta * u, xb, y - tb * u, xb, y - tb * u + Math.max(PX, u * .05), xa, y - ta * u + Math.max(PX, u * .05), F(GR[5])); const fa = .25 + H1(k * 3.1 + id) * .45, fb = .25 + H1(k2 * 3.1 + id) * .45;
         poly(xa, y - ta * u, xb, y - tb * u, xb, y - (tb + fb) * u, xa, y - (ta + fa) * u, F(FOR[1])); poly(xa, y - (ta + fa) * u, xb, y - (tb + fb) * u, xb, y - (tb + fb) * u + PX, xa, y - (ta + fa) * u + PX, F(FOR[3])); } }
     // a rockfall net draped over the slope above the hood, and snow lying in a hollow high on the spur
-    if(u > W * .012){ const nx0 = x - (OW + 1.2) * u, nx1 = x + (OW + 1.2) * u, ny0 = y - (CH + .9) * u, ny1 = y - (CH + 2.2) * u, stp = Math.max(PX * 2, snp(u * .3)); cx.fillStyle = F('#4a5468');
-      for(let xx = nx0; xx < nx1; xx += stp) for(let yy = ny1; yy < ny0; yy += PX){ const k2 = (yy - ny1) / stp; pxRect(xx + (k2 % 1) * stp, yy, PX, PX); }
-      R(nx0, ny1, nx1 - nx0, PX, F('#6a7488')); }
+    if(u > W * .012){ const nx0 = x - (OW + .7) * u, nx1 = x + (OW + .7) * u, ny0 = y - (CH + .7) * u, ny1 = y - (CH + 1.6) * u, hh = ny0 - ny1, c1 = F('#2e3346');
+      // round 13: a coarse screen-sized lattice read as a chain-link fence; the net is now its pale top cable and a few dim hanging cables
+      for(let a = .2; a < 2 * OW + 1.4; a += .7) poly(nx0 + a * u, ny1, nx0 + a * u + PX, ny1, nx0 + a * u + PX + .1 * u, ny0, nx0 + a * u + .1 * u, ny0, c1);
+      R(nx0, ny1, nx1 - nx0, PX, F('#565f76')); }
     { const sx = x - 3.5 * u, sy = y - (top[Math.round(-3.5 / .25) + n] - .5) * u; if(top[Math.round(-3.5 / .25) + n] > 1) { R(sx - .9 * u, sy, 1.8 * u, Math.max(PX, .18 * u), F('#b4c0d8')); R(sx - .5 * u, sy - Math.max(PX, .1 * u), u, Math.max(PX, .1 * u), F('#d4dcea')); } }
     // the hood: pale concrete round the opening, its top edge catching the floodlights
     ringFill(x, y, u, OW + .36, CH + .34, F(CO[4]), F(CO[4]), F(CO[4]), F(CO[3]));
@@ -583,7 +651,8 @@
     poly(ax, ay - Hh * ua, bx, by - Hh * ub, bx, by - Hh * ub + Math.max(PX, ub * .04), ax, ay - Hh * ua + Math.max(PX, ua * .04), F(CO[6]));
     if(i % 2 === 0 && ua > W * .01){ const wy0 = .45, wy1 = .78, mx = ax + (bx - ax) * .2, nx = ax + (bx - ax) * .8, my = ay + (by - ay) * .2, ny = ay + (by - ay) * .8, mu = ua + (ub - ua) * .2, nu = ua + (ub - ua) * .8;
       poly(mx, my - wy0 * mu, nx, ny - wy0 * nu, nx, ny - wy1 * nu, mx, my - wy1 * mu, H1(i * 3.1) > .3 ? WARM : F('#2a2c38')); }
-    if(i === sp.a){ const xe = x0 + (X + 1.2) * ua; R(ax, ay - Hh * ua, xe - ax, Hh * ua, F(CO[4])); R(ax, ay - Hh * ua, xe - ax, Math.max(PX, ua * .04), F(CO[6])); if(ua > W * .02){ R(ax + (xe - ax) * .35, ay - .7 * ua, (xe - ax) * .3, .35 * ua, WARM); R(ax + (xe - ax) * .35, ay - .7 * ua, (xe - ax) * .3, PX, WARMH); } halo(ax + (xe - ax) * .5, ay - .55 * ua, Math.min(ua * .8, H * .1), '#ffc070', .2 * (1 - fog)); } }
+    if(i === sp.a){ const xe = x0 + (X + 1.2) * ua; R(ax, ay - Hh * ua, xe - ax, Hh * ua, F(CO[4])); R(ax, ay - Hh * ua, xe - ax, Math.max(PX, ua * .04), F(CO[6])); if(ua > W * .02){ const dw = (xe - ax) * .16, dx = ax + (xe - ax) * .42; R(dx - PX, ay - .5 * ua - PX, dw + 2 * PX, .5 * ua + PX, F(CO[1])); R(dx, ay - .5 * ua, dw, .5 * ua, '#c8955a'); R(dx, ay - .5 * ua, dw, PX, WARMH); R(dx + dw * .5, ay - .5 * ua, PX, .5 * ua, F('#7a5434')); }   // round 13: a framed door at the foot, not a lit square on the wall
+      halo(ax + (xe - ax) * .5, ay - .3 * ua, Math.min(ua * .6, H * .08), '#ffc070', .16 * (1 - fog)); } }
   /* The observation terrace at the crest's east end (the real crest has its lookout terrace and stairs at the abutment): a deck cantilevered
      out over the drop beyond the parapet, its railing of thin posts and a pale top rail, a flat canopy on slim columns, warm lamps under the
      canopy pooling on the deck, people-height glass panels catching the floodlight. Projected slices, crisp near. */
