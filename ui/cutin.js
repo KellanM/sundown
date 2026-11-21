@@ -236,13 +236,13 @@ CARDS.kaiju = { dur:2.1, out:.36, exit:'split', hold:1.2, kanji:['怪獣', '怪�
     // reflection below. Animated while the card holds (draw): the water laps in three frames, he breathes a pixel, the rib tips flicker
     // with the charge, embers drift up, a searchlight sweeps behind him. Reduced motion: one held frame.
     L.sil = null; L.ribs = null; L.refl = null;
-    try{ const KS = MECH.sp_kaiju; if(KS && KS.warm) KS.warm(); const TT = KS && KS.TT && KS.TT.s;
-      const order = [['tail', 'high'], ['hips', 'idle'], ['body', 'idle'], ['head', 'idle'], ['arm', 'strike'], ['leg', 'planted']];
-      const parts = TT ? order.map(([n, ps]) => { const P = TT.parts[n]; const st = P && (P.poses[ps] || P.poses[P.pose]); return st && st.L.length ? { st, L:st.L[st.L.length - 1] } : null; }).filter(Boolean) : [];
-      if(parts.length >= 4){ let X0 = 1e9, X1 = -1e9, Y1 = -1e9; for(const q of parts){ X0 = Math.min(X0, q.st.x0); X1 = Math.max(X1, q.st.x0 + q.st.w); Y1 = Math.max(Y1, q.st.y0 + q.st.h); }
-        const WL = 40, w = X1 - X0, h = Y1 - WL, comp = mk(w, h), cg = ctx(comp);   /* the water line at model height 40: mid-thigh */
+    try{ const KS = MECH.sp_kaiju; if(KS && KS.warm) KS.warm(); const TT = KS && KS.TT && KS.TT.s, CT = KS && KS.cardTitan ? KS.cardTitan() : null;
+      const parts = CT ? [{ st:CT, L:CT.L[CT.L.length - 1] }] : [];
+      { const F = KS && KS.TT && KS.TT.f, P = F && F.parts.claw, st = P && (P.poses.strike || P.poses[P.pose]); L.clawSt = st ? { st, L:st.L[st.L.length - 1] } : null; }
+      if(parts.length >= 1){ let X0 = 1e9, X1 = -1e9, Y1 = -1e9; for(const q of parts){ X0 = Math.min(X0, q.st.x0); X1 = Math.max(X1, q.st.x0 + q.st.w); Y1 = Math.max(Y1, q.st.y0 + q.st.h); }
+        const WL = 40, w = X1 - X0, h = Y1 - WL, comp = mk(w, h), cg = ctx(comp);   /* the water line at model height 46: the body rides on it, the legs under it */
         for(const q of parts){ const top = Y1 - (q.st.y0 + q.st.h); cg.drawImage(q.L.cv, 0, 0, q.st.w, q.st.h, q.st.x0 - X0, top, q.st.w, q.st.h); }
-        const sd = cg.getImageData(0, 0, w, h).data, fit = Math.min(dr * 1.45 / h, dr * 2.1 / w), k = Math.max(1, Math.floor(fit));
+        const sd = cg.getImageData(0, 0, w, h).data, fit = Math.min(dr * 1.3 / h, dr * 2.15 / w), k = Math.max(1, Math.floor(fit));
         const sil = mk(w * k, h * k), sg = ctx(sil), rb = mk(w * k, h * k), rg = ctx(rb), mem = '#4a1a5a', lum = (r, g2, b) => r * .3 + g2 * .59 + b * .11;
         for(let y = 0; y < h; y++) for(let x = 0; x < w; x++){ const i = (y * w + x) * 4; if(sd[i + 3] < 128) continue; const r = sd[i], g2 = sd[i + 1], b = sd[i + 2], X = (w - 1 - x) * k, Y = y * k;
           if(r > 200 && g2 > 190 && b < 140){ sg.fillStyle = K.amber; sg.fillRect(X, Y, k, k); continue; }   // the eye
@@ -254,7 +254,10 @@ CARDS.kaiju = { dur:2.1, out:.36, exit:'split', hold:1.2, kanji:['怪獣', '怪�
         for(let y = 0; y < rh; y++){ if(y % 2) continue; for(let x = 0; x < w; x++){ const i = ((h - 1 - y) * w + x) * 4; if(sd[i + 3] < 128 || (x + y) % 3 === 0) continue; fg.fillStyle = y < rh * .4 ? '#3a0a18' : '#24060e'; fg.fillRect((w - 1 - x) * k, y * k, k, k); } }
         L.sil = sil; L.ribs = rb; L.refl = refl; L.k = k;
         if(fit < 1){ const hv = c => { const o = mk(Math.ceil(c.width / 2), Math.ceil(c.height / 2)), og = ctx(o); og.imageSmoothingEnabled = false; og.drawImage(c, 0, 0, o.width, o.height); bin(o); return o; }; L.sil = hv(sil); L.ribs = hv(rb); L.refl = hv(refl); }   /* narrow screens: half scale */
-        const sw2 = L.sil.width, sh2 = L.sil.height; L.silX = Math.round(dcx - sw2 * .5); L.wlY = Math.round(dcy + dr * .42); L.silY = L.wlY - sh2; } }
+        const sw2 = L.sil.width, sh2 = L.sil.height; L.silX = Math.round(dcx - sw2 * .42); L.wlY = Math.round(dcy + dr * .42); L.silY = L.wlY - sh2;
+        if(L.clawSt){ const cs = L.clawSt, cw2 = cs.st.w, ch2 = cs.st.h, cc = mk(cw2, ch2), ccg = ctx(cc); ccg.drawImage(cs.L.cv, 0, 0, cw2, ch2, 0, 0, cw2, ch2); const cd = ccg.getImageData(0, 0, cw2, ch2).data, ratio = L.sil.width / w * cs.st.vs / 125, ck = Math.max(1, Math.round(ratio)), stp = ratio < 1 ? Math.max(1, Math.round(1 / ratio)) : 1;   /* (the claw's voxels are finer: scaled to the titan's) */
+          const cl = mk(Math.ceil(cw2 / stp * ck), Math.ceil(ch2 / stp * ck)), clg = ctx(cl); for(let y = 0; y < ch2; y += stp) for(let x = 0; x < cw2; x += stp){ const i = (y * cw2 + x) * 4; if(cd[i + 3] < 128) continue; const r = cd[i], g2 = cd[i + 1], b = cd[i + 2]; clg.fillStyle = g2 > r * 1.2 && b > r ? '#0e2a2a' : r > b * 1.25 && r > 70 ? K.red : (r * .3 + g2 * .59 + b * .11) > 140 ? '#8af0e0' : K.ink; clg.fillRect(Math.floor((cw2 - 1 - x) / stp) * ck, Math.floor(y / stp) * ck, ck, ck); }
+          L.claw = cl; L.clawX = Math.round(Math.max(dcx - dr * 1.02, L.silX - cl.width * .62)); L.clawY = Math.round(L.wlY - cl.height * .9); } } }
     catch(e){ console.warn('cutin kaiju titan', e); L.sil = null; }
     // 怪獣決戦: brushed (Potta), red with a ragged cream paper border and a hard black shadow
     const ks = nar ? Math.round(Math.min((cw - 10) / 4, ch * .11)) : Math.round(Math.min(ch * .17, cw * .14)), two = false;
@@ -287,6 +290,7 @@ CARDS.kaiju = { dur:2.1, out:.36, exit:'split', hold:1.2, kanji:['怪獣', '怪�
       // a searchlight sweeping behind him: a pale wedge in hard steps
       { const a = rm ? -1.9 : -2.5 + Math.round(Math.sin(t * 1.6) * 6) / 6 * .7, len = L.dr * 2.4, sx = L.dcx + L.dr * .9, sy = wl; g.save(); g.globalAlpha = .22; g.fillStyle = '#f4ecdf'; g.beginPath(); g.moveTo(sx, sy); g.lineTo(sx + Math.cos(a - .09) * len, sy + Math.sin(a - .09) * len); g.lineTo(sx + Math.cos(a + .09) * len, sy + Math.sin(a + .09) * len); g.closePath(); g.fill(); g.restore(); }
       g.save(); g.beginPath(); g.rect(L.dcx - L.dr * 1.6, L.dcy - L.dr * 2, L.dr * 3.2, wl - (L.dcy - L.dr * 2)); g.clip();
+      if(L.claw){ const jab = rm ? 0 : [0, 1, 2, 1][Math.floor(t * 5) % 4] * Math.max(1, L.k || 1); B(g, L.claw, L.clawX + jab, L.clawY + rise); }
       B(g, L.sil, L.silX, L.silY + rise + br); if(L.ribs && (rm || t > .45) && (rm || Math.floor(t * 9) % 3 !== 1)) B(g, L.ribs, L.silX, L.silY + rise + br); g.restore();
       // the bay: dark water below the line, his broken reflection, and the foam band lapping against him in three frames
       g.fillStyle = '#1a0206'; g.fillRect(L.dcx - L.dr * 1.6, wl, L.dr * 3.2, L.dr * 2); if(L.refl) B(g, L.refl, L.silX + (f3 - 1), wl + 2);

@@ -193,7 +193,8 @@
       // mist lying in the gorge below the horizon, thickest a little below it
       const mist = Math.exp(-Math.pow((y - (GHZ + 14)) / 7, 2)) * .8; if(mist > .12 && bay(x, y) < mist * .75) return mist > .55 ? '#4e5c7e' : '#344060';
       if(d === 0) return n === 2 ? (tops[n][x - 1 < 0 ? w - 1 : x - 1] >= t ? L.rim : FOR[2]) : L.rim;
-      if(L.rock && d > 3 && d < 52){ const xs = (x - Math.round(d * .4) + 1024) % w, cell = Math.floor(xs / 17), c2 = xs % 17; if(H1(cell * 3.3 + 1) > .55 && c2 >= 3 && c2 < 10 + ((H1(cell * 1.9) * 5) | 0) && d < 8 + H1(cell) * 12) return c2 === 3 ? GR[4] : dz > 0 ? GR[1] : GR[2]; }
+      // round 13: granite ribs hanging from the rim and narrowing downward (they read as floating tiles when they started below it)
+      if(L.rock && d > 0 && d < 30){ const xs = (x - Math.round(d * .3) + 1024) % w, cell = Math.floor(xs / 17), c2 = xs % 17, len = 8 + H1(cell) * 18, wd = (5 + H1(cell * 1.9) * 5) * (1 - d / len); if(H1(cell * 3.3 + 1) > .55 && d < len && c2 >= 3 && c2 < 3 + wd) return c2 === 3 ? GR[3] : dz > 0 ? GR[1] : GR[2]; }
       return dz > 6 ? (n === 2 ? '#06090c' : '#0b1018') : L.col; }); }
   function buildShore(){ const w = 512, h = 40, top = new Int16Array(w);
     for(let x = 0; x < w; x++){ const k = Math.floor(x / 48), f = (x % 48) / 48, a = H1(k * 1.9 + 7), b = H1(((k + 1) % 11) * 1.9 + 7), base = 10 + 18 * (a + (b - a) * sm(f)), c = x % 6; top[x] = Math.round(base - Math.round(2 * Math.sqrt(Math.max(0, 1 - Math.pow((c - 2.5) / 3, 2))))); }
@@ -418,7 +419,7 @@
   function drawCliff(sp, x, y, uw, fog){ const i = sp.k, j0 = i - i % CC4, part = i % CC4 !== 0; if(part && i !== baseIdx() + 1) return; PI0 = i; PJ0 = j0; const pf = (i - j0) / CC4, m = j0 + CC4 - i, e = endPt(i, m); if(!e) return;
     const X0 = -1.32, x0 = x - sp.x * uw, ay = y, by = e.y, ua = uw, ub = e.w, F = c => fc(c, fog * .9), lo = sp.g ? 1.86 : .32;
     const ha = part ? cliffH(j0) + (cliffH(j0 + CC4) - cliffH(j0)) * pf : cliffH(i), hb = cliffH(i + m), j1 = i + m;
-    const fine = ua > W * .003, mid = ua > W * .012, near = ua > W * .03, close = ua > W * .05;
+    const fine = ua > W * .007, mid = ua > W * .012, near = ua > W * .03, close = ua > W * .05;
     // the screen point of every world boundary this piece spans (0 = its near edge, m = j1)
     let nb = 1; BXs[0] = x0; BYs[0] = ay; BWs[0] = ua; if(mid){ for(let d = 1; d < m; d++){ const p = endPt(i, d); if(!p) break; BXs[d] = p.x; BYs[d] = p.y; BWs[d] = p.w; nb = d + 1; } } if(nb === m || !mid){ BXs[m] = e.x; BYs[m] = by; BWs[m] = ub; }
     const sub = mid && nb === m;
@@ -433,7 +434,7 @@
       // the face: one plane, one tone; up close it is cut into three stacked bands (the warm-violet shadow at its foot, the face, the upper
       // face catching the moon a tone up), each band's edge hashed per world boundary so it is ragged, never a ruled stripe
       const th = (CA[5] - CA[1]), tb = (CB[5] - CB[1]);
-      if(fine && !KBX.includes('cA')){
+      if(fine && !KBX.includes('cB')){
         const fa = .12 + .14 * (H1(j0 * 2.9 + t) + (H1((j0 + CC4) * 2.9 + t) - H1(j0 * 2.9 + t)) * pf), fb = .12 + .14 * H1(j1 * 2.9 + t);
         const la = tn < 4 ? .2 + .2 * (H1(j0 * 1.7 + t * 4) + (H1((j0 + CC4) * 1.7 + t * 4) - H1(j0 * 1.7 + t * 4)) * pf) : 0, lb = tn < 4 ? .2 + .2 * H1(j1 * 1.7 + t * 4) : 0;
         const PA = q => SX(CA[0] + (CA[4] - CA[0]) * q, 0), QA = q => SY(CA[1] + th * q, 0), PB = q => SX(CB[0] + (CB[4] - CB[0]) * q, 1), QB = q => SY(CB[1] + tb * q, 1);
@@ -441,7 +442,7 @@
         poly(PA(fa), QA(fa), PB(fb), QB(fb), PB(1 - lb), QB(1 - lb), PA(1 - la), QA(1 - la), F(RKC[tn]));
         if(tn < 4) poly(PA(1 - la), QA(1 - la), PB(1 - lb), QB(1 - lb), xb, yb, xa, ya, F(RKC[tn + 1]));
         // slabs between the minor joints a tone up or down (each slab is one world segment), within the face band
-        if(sub && near) for(let d = 0; d < m; d++){ const k = i + d, hs = H1(k * 1.31 + t * 7.7); if(hs > .3 && hs < .66) continue; const s = clamp(tn + (hs >= .66 ? 1 : -1), 2, 4); if(s === tn) continue;
+        if(sub && near && !KBX.includes('cS')) for(let d = 0; d < m; d++){ const k = i + d, hs = H1(k * 1.31 + t * 7.7); if(hs > .3 && hs < .66) continue; const s = clamp(tn + (hs >= .66 ? 1 : -1), 2, 4); if(s === tn) continue;
           const g0 = d / m, g1 = (d + 1) / m, q0 = fa + (fb - fa) * g0, q1 = fa + (fb - fa) * g1, r0 = 1 - (la + (lb - la) * g0), r1 = 1 - (la + (lb - la) * g1), P = (o, dd, q) => V(o, dd) + (V(o + 4, dd) - V(o, dd)) * q;
           poly(KX(P(0, d, q0), d), KY(P(1, d, q0), d), KX(P(0, d + 1, q1), d + 1), KY(P(1, d + 1, q1), d + 1), KX(P(0, d + 1, r1), d + 1), KY(P(1, d + 1, r1), d + 1), KX(P(0, d, r0), d), KY(P(1, d, r0), d), F(RKC[s])); } }
       else poly(xa0, ya0, xb0, yb0, xb, yb, xa, ya, F(RKC[tn]));
@@ -449,14 +450,14 @@
         // the sheet joint along the jittered middle row
         if(mid && H1(j0 * .9 + t * 3.1) > .3){ const ma = SY(CA[3], 0), mb = SY(CB[3], 1); poly(xa0, ma, xb0, mb, xb0, mb + PX, xa0, ma + PX, F(RKC[0])); if(near) poly(xa0, ma + PX, xb0, mb + PX, xb0, mb + 2 * PX, xa0, ma + 2 * PX, F(RKC[Math.min(5, tn + 1)])); }
         if(sub) for(let d = 1; d <= m; d++){ const k = i + d, major = k % CC4 === 0;
-          if(!major && (!near || H1(k * 2.3 + t * 5.3) < .55)) continue;
+          if(!major && (!near || H1(k * 2.3 + t * 5.3) < .55)) continue; if(major && !near && H1(k * .37 + t * 1.9) < .5) continue;   // calmer at mid range: half the joints, in the shadow tone, not black
           const xb_ = KX(V(0, d), d), yb_ = KY(V(1, d), d), xt_ = KX(V(4, d), d), yt_ = KY(V(5, d), d), ln = major ? 1 : .35 + .5 * H1(k * 3.7 + t);
           // snow lying in a high gully at a major joint, instead of the crack
           if(major && t >= 1 && H1(k * .53 + t * 1.7) > .78){ const w2 = .1 * BWs[d], yl = yt_ + (yb_ - yt_) * (.35 + .3 * H1(k * 1.3)); poly(xt_ - w2, yt_, xt_ + w2, yt_, xt_ + PX, yl, xt_, yl, F('#9eabc8')); if(near) poly(xt_ - w2, yt_, xt_ - w2 + PX, yt_, xt_, yl, xt_ - PX, yl, F('#d4def0')); continue; }
           const yl = yt_ + (yb_ - yt_) * ln, xl = xt_ + (xb_ - xt_) * ln;
           // the crack wanders: three legs, each kinked sideways by a hashed amount (world-anchored), the lit lip on its left up close
-          let qx = xt_, qy = yt_; for(let g = 1; g <= 3; g++){ const f = g / 3, nx = xt_ + (xl - xt_) * f + (g < 3 ? (H1(k * 5.9 + t * 2 + g) - .5) * .09 * BWs[d] : 0), ny = yt_ + (yl - yt_) * f;
-            R(qx, qy, PX, ny - qy + PX, F(RKC[0])); if(nx !== qx) R(Math.min(qx, nx), ny, Math.abs(nx - qx) + PX, PX, F(RKC[0])); if(close) R(qx - PX, qy + PX, PX, ny - qy, F(RKC[Math.min(5, tn + 1)])); qx = nx; qy = ny; } }
+          let qx = xt_, qy = yt_; const NL = near ? 3 : 1; for(let g = 1; g <= NL; g++){ const f = g / NL, nx = xt_ + (xl - xt_) * f + (g < NL ? (H1(k * 5.9 + t * 2 + g) - .5) * .09 * BWs[d] : 0), ny = yt_ + (yl - yt_) * f;
+            const cc = F(RKC[near ? 0 : 1]); R(qx, qy, PX, ny - qy + PX, cc); if(nx !== qx) R(Math.min(qx, nx), ny, Math.abs(nx - qx) + PX, PX, cc); if(close) R(qx - PX, qy + PX, PX, ny - qy, F(RKC[Math.min(5, tn + 1)])); qx = nx; qy = ny; } }
         // wet streaks running down from the ledge
         if(sub && ua > W * .022) for(let d = 0; d < m; d++){ const k = i + d; if(H1(k * 4.1 + t * 2.2) < .7) continue; const f0 = .25 + .4 * H1(k * 6.1 + t), L = .3 + .45 * H1(k * 2.7 + t * 1.3);
           const xt_ = KX(V(4, d), d) + (KX(V(4, d + 1), d + 1) - KX(V(4, d), d)) * f0, yt_ = KY(V(5, d), d) + (KY(V(5, d + 1), d + 1) - KY(V(5, d), d)) * f0, hh = (V(5, d) - V(1, d)) * L * BWs[d], ww = Math.max(PX, .05 * BWs[d]);

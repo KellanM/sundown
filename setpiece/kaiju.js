@@ -576,6 +576,32 @@
     for(let i = 1; i < 4; i++){ const a = pts[i], b = pts[i + 1], m = [lerp(a[0], b[0], .3), lerp(a[1], b[1], .3)], t = v3n(a, b), nrm = [-t[1], t[0]], up = nrm[1] > 0 ? nrm : [-nrm[0], -nrm[1]], r = rr[i] * .85 + .5;   // dorsal plates down the tail, shrinking
       p.fin([[m[0] - t[0] * 3, m[1] - t[1] * 3], [m[0] + up[0] * (r + 5 - i) - t[0], m[1] + up[1] * (r + 5 - i) - t[1]], [m[0] + t[0] * 3, m[1] + t[1] * 3]].map(q => [q[0] + up[0] * (r - 2), q[1] + up[1] * (r - 2)]), a[2] - 1, a[2], 9); }   // (scute, not bone: pale plates on a dark tail floated like scraps)
     return p; }
+  // ---------------------------------------------------------------- the title card's Sairyū (ui/cutin.js reads it)
+  /* The card shows Sairyū broadside, in its own stance (never an upright biped): the body slung low and level like a crocodile's, a long
+     neck reaching forward, the game's own head (sHead: the long snout held level, jaw open, nose horn, three swept frills) moved onto it,
+     one great fanned sail over the back (a single membrane on seven ribs with the amber tips), the tail stretched out behind; the legs are
+     under the water line the card draws. The same voxel builder and the same materials as the ride's titan. */
+  function vMove(P, dx, dy){ const mv = v => [v[0] + dx, v[1] + dy, v[2] || 0];
+    return P.map(p => { const t = p[0]; if(t === 0) return [0, mv(p[1]), mv(p[2]), p[3], p[4], p[5], p[6], p[7]]; if(t === 1) return [1, mv(p[1]), p[2], p[3], p[4], p[5]];
+      if(t === 2) return [2, p[1].map(q => [q[0] + dx, q[1] + dy]), p[2], p[3], p[4], p[5]]; if(t === 3) return [3, p[1] + dx, p[2] + dy, p[3], p[4]]; if(t === 5) return [5, p[1] + dx, p[2] + dy, p[3], p[4]]; return p; }); }
+  function sCardPose(){ const p = new VP(), HD = 1, BE = 2, BO = 3, SA = 4;
+    p.cap([-26, 52, 0], [20, 60, 0], 17, 14, HD, .8).ell([-24, 52, 0], 16, 14, 14, HD);   // the body, slung low and level
+    p.cap([-8, 42, 0], [18, 48, 0], 10, 8, BE, .6);   // the belly plates
+    for(const [a, b, r0, r1] of [[[-36, 50, 2], [-62, 46, 6], 12, 8], [[-62, 46, 6], [-86, 44, 8], 8, 5], [[-86, 44, 8], [-104, 46, 6], 5, 2]]) p.cap(a, b, r0, r1, HD, .85);   // the tail, stretched out behind
+    p.cap([16, 62, 0], [34, 84, 0], 11, 8, HD, .85);   // the long neck, reaching forward and up
+    p.cap([20, 50, -10], [32, 40, -12], 6, 5, HD).cap([32, 40, -12], [42, 38, -12], 5, 4, HD);   // the near arm reaching for the foe
+    for(const da of [-.5, 0, .5]){ const a = da - .15; p.cap([42, 38, -12 + da * 4], [42 + Math.cos(a) * 8, 38 + Math.sin(a) * 8, -12 + da * 5], 1.8, .5, BO); }
+    // the sail: one great membrane on seven ribs fanned from the back, tallest over the shoulders, with the amber tips
+    const N = 7, bases = [], tips = [];
+    for(let i = 0; i < N; i++){ const t = i / (N - 1), x = lerp(-34, 12, t), y = 64 + Math.sin(t * Math.PI) * 4, hh = 26 + 46 * Math.sin(Math.PI * (.15 + .75 * t)), lean = -.38 + t * .2; bases.push([x, y]); tips.push([x + Math.sin(lean) * hh, y + Math.cos(lean) * hh]); }
+    const mem = bases.slice(); for(let i = N - 1; i >= 0; i--){ mem.push(tips[i]); if(i > 0){ const a = tips[i], c = tips[i - 1], bm = [(bases[i][0] + bases[i - 1][0]) / 2, (bases[i][1] + bases[i - 1][1]) / 2]; mem.push([(a[0] + c[0]) / 2 + (bm[0] - (a[0] + c[0]) / 2) * .16, (a[1] + c[1]) / 2 + (bm[1] - (a[1] + c[1]) / 2) * .16]); } }
+    p.fin(mem, -1, 1, SA);
+    for(let i = 0; i < N; i++){ p.cap([bases[i][0], bases[i][1], 0], [tips[i][0], tips[i][1], 0], 1.5, .9, BO); p.cap([tips[i][0], tips[i][1], 0], [tips[i][0] + (tips[i][0] - bases[i][0]) * .1, tips[i][1] + 3, 0], 1.1, .6, 10); }
+    // the head: the game's own, its neck root moved onto the end of the long neck, the snout held level, the jaw open
+    const hd = sHead(.02, .85); p.P.push(...vMove(hd.p.P, 34 - 15 - 6, 84 - 111 + 2)); return p; }
+  let CARD = null;
+  function cardTitan(){ if(CARD) return CARD; const run = g => { let r; while(!(r = g.next()).done); return r.value; }, T = TT.s; if(!T.mat) T.mat = T.mk();
+    const G = run(vGrid(sCardPose().P)), st = run(vBake('scard', G, T.mat, T.ht, 1, 0, 1)); st.G = null; st.L = [st.L[st.L.length - 1]]; return CARD = st; }   /* (only the whole view: the card draws nothing else) */
   // ---------------------------------------------------------------- Kanigaru in voxels (faces -x, toward the road and the titan)
   const FMAT_ = () => ({ 1:VM('#06121a', '#102836', '#1c3e52', '#2e5e74', '#b8eef2', '#4e3634', '#cc7448', 1),   // shell: sea-steel
     2:VM('#0a0812', '#181226', '#2a2040', '#44385e', '#b0a2d4', '#542838', '#bc5e78'),   // wings: dusk violet
@@ -1275,7 +1301,7 @@
   // ---------------------------------------------------------------- the module
   MECH.sp_kaiju = {
     debrisHits:0, debris(){ const t = K.dt, d = t >= 0 ? t - pSeg() : 0, gen = !!(window.ASSIST && ASSIST.jumps); return t < 0 || K.trig !== t ? [] : DEB.filter((D0, i) => !(gen && i > 0)).map(D0 => ({ seg:t + D0.rel, x:D0.x, falling:d <= D0.d0 })); },   // tests: the debris of the live fight
-    INTS, dbg:null, S, TT,   // TT: the stacked titans (tests and contact sheets read it)
+    INTS, dbg:null, S, TT, cardTitan,   /* cardTitan(): the title card's broadside Sairyu (ui/cutin.js) */   // TT: the stacked titans (tests and contact sheets read it)
     // storm wind 0..1 at the rider: 0 outside the typhoon stretch, ramps in and out, peaks with each gust (smooth, deterministic)
     wind(){ const t = activeTy(pSeg()); return t < 0 ? 0 : clamp(wind(t, pSeg()).w, 0, 1); },
     probe(){ return { tsP:K.tsP.filter(q => q.r === segs).map(q => q.pk), pass:PASS, kj:kjTrig.slice(), ty:tyTrig.slice(), p:Math.round(pSeg()), zones:zones.map(z => ({ pk:z.pk, B:z.B, blown:z.blown, launched:z.launched, landed:z.landed, helper:!!z.helper, live:!!zoneLive(z) })) }; },
