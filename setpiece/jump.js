@@ -95,6 +95,12 @@
   let plans = [], lastPlaced = -1, visits = { harbour:0, haneda:0 };
   let air = null, ride = null, jh = 0, pitch = 0, jumps = 0, bellT = 0, lastSi = -1, tiltSgn = -1;
   let jet = null, jets = 0, sndT = 0;
+  /* feel (research/sundown-craft/jumps.md): the approach winds up (deck-joint ticks synced to the amber bars, a rumble, an on-key riser,
+     the bike rising in frame as the camera crouches under it), the lip hangs for a beat (LIP_T s of world at LIP_K slower), the landing
+     lands (a few frames of hit-stop, the bike sinking into its forks and springing back, then the shake), and a level, centred touchdown
+     is a PERFECT landing. One BIG AIR a ride: the second landmark jump flies higher and hangs longer. */
+  const LIP_T = .16, LIP_K = .55, PERF_X = .14, BIG_PK = 2800, BIG_HANG = .34;
+  let hold = 0, sqT = -1, sqA = 0, sqSet = false, perfects = 0, bigs = 0, tickSeg = -1;
   let low = '#24103a', warmed = false;
 
   // ---------------------------------------------------------------- pixel helpers
@@ -455,7 +461,7 @@
   function drawPuffs(s){ for(const f of puffs){ if(Math.floor(f.z / SEG) !== s.index) continue; const f2 = (f.z % SEG) / SEG, w = s.p1.screen.w + (s.p2.screen.w - s.p1.screen.w) * f2, x = s.p1.screen.x + (s.p2.screen.x - s.p1.screen.x) * f2 + f.x * w, y = s.p1.screen.y + (s.p2.screen.y - s.p1.screen.y) * f2, a = 1 - f.t / .7;
     for(let k = 0; k < 6; k++){ const ang = k / 6 * Math.PI, rr2 = w * (.06 + f.t * .25); cx.fillStyle = `rgba(200,190,180,${.35 * a})`; cx.fillRect(Math.round(x + Math.cos(ang) * rr2 - PX), Math.round(y - Math.sin(ang) * rr2 * .4 - PX), PX * 2, PX * 2); }
     if(!reduce && f.t < .25) for(let k = 0; k < 5; k++){ cx.fillStyle = k % 2 ? '#ffd04a' : '#fff0c4'; cx.fillRect(Math.round(x + (k - 2) * w * .04), Math.round(y - f.t * w * .3 * (1 + k % 3)), PX, PX); } } }
-  J.reset = () => { for(const d of SHD) d.on = false; for(const c of CHK) c.on = false; CBP_ = null; camDown(); camSeg = null; camExt = 0; floatW = 0; pitchOff(); if(owning){ owning = false; AIR.h = 0; POSE.pitch = 0; } air = null; ride = null; jh = 0; pitch = 0; jumps = 0; cleanT = 0; jet = null; jets = 0; lastSi = -1; bellT = 0; warm(); };
+  J.reset = () => { for(const d of SHD) d.on = false; for(const c of CHK) c.on = false; CBP_ = null; camDown(); camSeg = null; camExt = 0; floatW = 0; pitchOff(); if(owning){ owning = false; AIR.h = 0; POSE.pitch = 0; } air = null; ride = null; jh = 0; pitch = 0; jumps = 0; cleanT = 0; hold = 0; sqT = -1; if(sqSet){ sqSet = false; AIR.h = 0; } perfects = 0; bigs = 0; tickSeg = -1; jet = null; jets = 0; lastSi = -1; bellT = 0; warm(); };
   const bikeHalf = () => { const bk = Math.max(PX, Math.round(Math.min(W * .2, H * .27) / 30 / PX) * PX); return 13 * bk / W; };
   function scrape(side){ speed = Math.max(MAXS * .45, speed - ACCEL * 1.2 / 60); if(!reduce) for(let k = 0; k < 2; k++) sparks.push({ x:W / 2 + side * W * .05, y:H - 30, vx:-side * rr(60, 220), vy:rr(-200, -60), life:.4, c:'#ffd04a' }); M.scrape && M.scrape(); }
   // ---- the traffic gates at the base of the leaf: real 3D boom barriers that break.
@@ -581,16 +587,30 @@
     air = { p:null, lip, len:Math.max(4, (o.landSeg == null ? lip + 30 : o.landSeg) - lip), h0:o.startH || 0, h1:o.landH || 0, pk:o.peakH == null ? 1600 : o.peakH, slowmo:o.slowmo !== false, onLand:o.onLand };
     tiltSgn = -tiltSgn; M.noise(.6, 500, .08); return true; };
   J.flying = () => !!air;
+  /* the landing hit, shared with mech/skill.js (kickers, crest hops): stop = seconds of hit-stop (the world nearly holds while the sparks
+     fly: Vlambeer's "sleep"), squash = px the bike sinks into its forks before it springs back (a damped spring, ~.25 s) */
+  J.impact = (o = {}) => { if(ATT() || state !== 'play') return; hold = Math.max(hold, o.stop || 0); const a = (o.squash || 0) * (reduce ? .5 : 1); if(a > 0){ sqA = Math.max(a, sqT >= 0 && sqT < .1 ? sqA : 0); sqT = 0; } };
   /* for other set pieces: the first segment after a landmark jump's window (approach, flight, landing and a settle), or i itself when
      segment i is not in one. Valid at placement for segments up to 160 ahead of the one being placed (jump.js places first). */
   J.clearAfter = i => { const s = segs[i], p = s && s.spjP; return p && p.kind === 'bridge' ? Math.max(i, p.b0 + TOT + 60) : i; };
-  function landFX(th){ jumps++; shake = reduce ? 0 : 11; M.noise(.5, 160, .22); M.tone(55, .45, { v:.12 }); M.noise(.25, th.id === 'snow' ? 900 : 2600, .06);
-    const steering = keys.left || keys.right || touchSteer || padSteer, gen = window.ASSIST && ASSIST.jumps, clean = (!steering || gen) && Math.abs(playerX - (XL + SPLIT) / 2) < (gen ? .6 : .3);   // assists: generous landings
+  function landFX(th, a){ jumps++; shake = reduce ? 0 : 11; M.noise(.5, 160, .22); M.tone(55, .45, { v:.12 }); M.noise(.25, th.id === 'snow' ? 900 : 2600, .06);
+    // level: not steering and the lean settled, now or within the last .12 s (the kicker's landing buffer: judged on intent, not one frame)
+    const steering = keys.left || keys.right || touchSteer || padSteer, gen = window.ASSIST && ASSIST.jumps, dx = Math.abs(playerX - (XL + SPLIT) / 2),
+      lvl = gen || (!steering && Math.abs(leanV) < .13) || (a && a.ok !== undefined && a.t - a.ok <= .12), clean = lvl && dx < (gen ? .6 : .3), perfect = lvl && dx < (gen ? .3 : PERF_X);   // assists: generous landings
+    const big = a && a.big, bs = Math.min(W * .2, H * .27);
+    J.impact({ stop:perfect ? .083 : clean ? .066 : .05, squash:bs * (perfect || big ? .04 : .03) });   // 5 / 4 / 3 frames of hit-stop, then the shake
+    if(perfect || big) M.tone(41, .6, { v:.11 });   // the sub under a big touchdown
+    if(perfect && !reduce) for(let k = 0; k < 28; k++){ const ang = Math.PI * (k / 27), v = rr(380, 560); sparks.push({ x:W / 2, y:H - 14, vx:Math.cos(ang) * v, vy:-Math.sin(ang) * v * .55, life:rr(.4, .6), c:k % 3 ? th.edge : '#ffffff' }); }   // a fan of sparks from the tyres: the touchdown zone hit
     const cols = th.id === 'snow' ? ['#ffffff', '#d8ecff', '#a8c8f0'] : th.id === 'sakurajima' ? ['#ffd04a', '#ff7a1a', '#ff3a10'] : ['#fff0c4', '#ffd04a', '#ff9a2a'];
     const n = reduce ? 10 : th.id === 'snow' ? 90 : 46; for(let k = 0; k < n; k++){ const sd = k % 2 ? 1 : -1; sparks.push({ x:W / 2 + sd * rr(4, W * .08), y:H - 12, vx:sd * rr(60, 460), vy:rr(-420, -60), life:rr(.35, .9), c:cols[k % 3] }); }
-    const tierL = clean ? 3 : 2; boostTier = tierL; boostT = Math.max(boostT, clean ? 2.3 : 1.7); speed = Math.max(speed, MAXS * (clean ? 1.25 : 1.15)); M.boost(tierL, flow);
-    flow += clean ? 2 : 1; bestFlow = Math.max(bestFlow, flow); if(copT > 0) copT = Math.max(.01, copT - 3);
-    if(!(MECH.arrival && MECH.arrival.callout && MECH.arrival.callout(th.name + '!', { kanji:th.kj, col:th.edge, size:'m' }))) floatText(th.name + '!', W / 2, H * .36, 40, th.edge); if(clean){ cleans++; cleanT = .22; /* CLEAN LANDING a beat after the name, on game time */ } hud(); }
+    const tierL = clean ? 3 : 2; boostTier = tierL; boostT = Math.max(boostT, perfect ? 2.9 : clean ? 2.3 : 1.7); speed = Math.max(speed, MAXS * (perfect ? 1.3 : clean ? 1.25 : 1.15)); M.boost(tierL, flow);
+    flow += perfect ? 3 : clean ? 2 : 1; bestFlow = Math.max(bestFlow, flow); if(copT > 0) copT = Math.max(.01, copT - 3);
+    if(!(MECH.arrival && MECH.arrival.callout && MECH.arrival.callout(th.name + '!', { kanji:th.kj, col:th.edge, size:'m' }))) floatText(th.name + '!', W / 2, H * .36, 40, th.edge);
+    if(clean){ cleans++; cleanT = .22; cleanP = perfect; /* CLEAN / PERFECT LANDING a beat after the name, on game time */ }
+    if(perfect){ perfects++; if(MECH.style && MECH.style.act) MECH.style.act('style', big ? 600 : 400); }
+    else if(big && MECH.style && MECH.style.act) MECH.style.act('bigair', 300);
+    hud(); }
+  let cleanP = false;
   J.drawScreen = now => { if(cardT <= 0 || !cardTh) return; const c = SP['card' + cardTh.id]; if(!c) return; const k = PX * Math.max(1, Math.round(W / 1400)), a = Math.min(1, cardT * 2.5, (2.8 - cardT) * 6);
     const slide = reduce ? 0 : Math.round((1 - Math.min(1, (2.8 - cardT) * 5)) * W * .3 / PX) * PX; cx.globalAlpha = clamp(a, 0, 1); blit(c, W / 2 + slide, H * .2 + c.height * k / 2, k); cx.globalAlpha = 1; };
 
@@ -630,17 +650,26 @@
     // after a first launch (p.jumped): the first is the launch below, which carries the whoosh (this line used to beat it to every launch)
     if(p.jumped && !air && !ride && ps >= lip && ps < lip + len - 1 && !p.landed){ p.jumped = true; air = { p, lip, len, h0:HT, h1:HT * (1 - LAND / NL), pk:PK, slowmo:p.dress !== false && !att, att }; tiltSgn = -tiltSgn; cardT = att ? 0 : 2.8;   /* the card on every jump (Kellan: always show the event cards); the apex slow-mo stays on dressed visits */ cardTh = p.th; if(cardT && ((MECH.cutin && MECH.cutin.show('jump:' + p.th.id)) || (MECH.arrival && MECH.arrival.callout && MECH.arrival.callout(p.th.name, { kanji:p.th.card, sub:'LANDMARK JUMP', col:p.th.edge, size:'m', hold:.8 })))) cardT = 0; }
     if(!air && !ride && !p.jumped){
-      if(ps >= p.b0 && ps < lip){ jh = HT * p.r * (ps - p.b0) / leafLen(p.r); pitch = .3; speed = Math.max(speed, MAXS * .75); }
-      else if(ps >= lip){ p.jumped = true; air = { p, lip, len, h0:HT, h1:HT * (1 - LAND / NL), pk:PK, slowmo:p.dress !== false && !att, att }; tiltSgn = -tiltSgn; cardT = att ? 0 : 2.8;   /* the card on every jump (Kellan: always show the event cards); the apex slow-mo stays on dressed visits */ cardTh = p.th; if(cardT && ((MECH.cutin && MECH.cutin.show('jump:' + p.th.id)) || (MECH.arrival && MECH.arrival.callout && MECH.arrival.callout(p.th.name, { kanji:p.th.card, sub:'LANDMARK JUMP', col:p.th.edge, size:'m', hold:.8 })))) cardT = 0; if(!att){ M.noise(.6, 500, .08); M.tone(220, .5, { type:'triangle', v:.04 }); } }   // the launch whoosh and tone, once a launch; none behind the title
+      if(ps >= p.b0 && ps < lip){ jh = HT * p.r * (ps - p.b0) / leafLen(p.r); pitch = .3; speed = Math.max(speed, MAXS * .75);
+        if(!att){ const v = (ps - p.b0) / NL, sg = Math.floor(ps);
+          if(!p.wound){ p.wound = true; const dur = (lip - ps) * SEG / Math.max(speed, 1); M.noise(dur + .1, 70, .1); M.noise(dur, 190, .035);   // the deck's rumble under the tyres
+            if(M.ac && M.cur && M.ladder){ const L = M.ladder(), t0 = M.ac.currentTime; for(let k = 0; k < 4; k++) M.tone(midi(L[3 + k]), .16, { type:'triangle', v:.022 + k * .006, at:t0 + dur * k / 4 }); } }   // an on-key riser up the ramp: the music lifts with you
+          if(sg !== tickSeg && sg % 4 === 0){ tickSeg = sg; M.noise(.04, 320 + 240 * v, .05); }   // deck-joint ticks, in step with the amber bars rushing at you
+          if(!reduce) shake = Math.max(shake, .6 + 1.6 * v); } }
+      else if(ps >= lip){ p.jumped = true; const big = !att && state === 'play' && jumps === 1 && !bigs; if(big) bigs++;   // jo-ha-kyu: the first jump of a ride sets the bar, the second is the BIG AIR
+        air = { p, lip, len, h0:HT, h1:HT * (1 - LAND / NL), pk:big ? BIG_PK : PK, slowmo:big || (p.dress !== false && !att), att, big };
+        if(!att && !reduce){ shake = Math.max(shake, 3); for(let k = 0; k < 12; k++){ const sd = k % 2 ? 1 : -1; sparks.push({ x:W / 2 + sd * rr(2, W * .03), y:H - 10, vx:sd * rr(40, 200), vy:rr(-120, 40), life:rr(.2, .4), c:k % 3 ? '#ffd04a' : '#fff0c4' }); } }   /* the rear tyre bites the lip */ tiltSgn = -tiltSgn; cardT = att ? 0 : 2.8;   /* the card on every jump (Kellan: always show the event cards); the apex slow-mo stays on dressed visits */ cardTh = p.th; if(cardT && ((MECH.cutin && MECH.cutin.show('jump:' + p.th.id)) || (MECH.arrival && MECH.arrival.callout && MECH.arrival.callout(p.th.name, { kanji:p.th.card, sub:'LANDMARK JUMP', col:p.th.edge, size:'m', hold:.8 })))) cardT = 0; if(!att){ M.noise(.6, 500, .08); M.tone(220, .5, { type:'triangle', v:.04 }); } }   // the launch whoosh and tone, once a launch; none behind the title
     }
   }
   function updateAir(dt, ps){
-    if(air){ const u = clamp((ps - air.lip) / air.len, 0, 1);
+    if(air){ const u = clamp((ps - air.lip) / air.len, 0, 1); air.t = (air.t || 0) + dt;
+      if(!(keys.left || keys.right || touchSteer || padSteer) && Math.abs(leanV) < .13) air.ok = air.t;   // last moment the rider was level (the landing buffer)
       jh = lerp(air.h0, air.h1, u) + 4 * air.pk * u * (1 - u); pitch = .5 * (1 - u * 1.6);
       speed = Math.max(speed, MAXS * .8);
-      const ts = !air.slowmo ? 1 : reduce ? 1 - .12 * Math.sin(Math.PI * u) : 1 - .25 * Math.pow(Math.sin(Math.PI * u), 2), back = 1 - ts;   // a light hang over the top (was to .42 of speed: it stalled the ride; quiet.md)
+      const hang = air.big ? BIG_HANG : .25, ts = !air.slowmo ? 1 : reduce ? 1 - .12 * Math.sin(Math.PI * u) : 1 - hang * Math.pow(Math.sin(Math.PI * u), 2);   // a light hang over the top (was to .42 of speed: it stalled the ride; quiet.md)
+      const lipB = air.p && !air.att && air.t < LIP_T ? (reduce ? .3 : LIP_K) * (1 - air.t / LIP_T) : 0, back = Math.max(1 - ts, lipB);   // the lip: a beat of hang as the deck drops away
       position -= speed * dt * back; for(const c of cars) c.z -= c.speed * dt * back; if(state === 'play') sunLeft = Math.min(SUN_MAX, sunLeft + dt * back);
-      if(u >= 1){ const lp = air.p, cb = air.onLand; if(lp){ ride = { p:lp }; lp.landed = true; const q = air.att; air = null; if(!q) landFX(lp.th); } else { air = null; jh = 0; thump(); if(cb) try{ cb(); }catch(e){ console.error(e); } } } }
+      if(u >= 1){ const lp = air.p, cb = air.onLand; if(lp){ ride = { p:lp }; lp.landed = true; const q = air.att, a0 = air; air = null; if(!q) landFX(lp.th, a0); } else { air = null; jh = 0; thump(); if(cb) try{ cb(); }catch(e){ console.error(e); } } } }
     else if(ride){ const bE = ride.p.b0 + TOT; if(ps >= bE){ ride = null; jh = 0; } else jh = HT * (bE - ps) / NL; pitch = 0; }
   }
   // ---------------------------------------------------------------- jets: every one comes from behind, swoops over and climbs away
@@ -711,7 +740,10 @@
   J.update = dt => {
     updateShards(dt);
     for(const f of puffs) f.t += dt; puffs = puffs.filter(f => f.t < .7);
-    cardT = Math.max(0, cardT - dt); if(cleanT > 0 && (cleanT -= dt) <= 0 && state === 'play') floatText('CLEAN LANDING', W / 2, H * .46, 26, '#ffffff');
+    cardT = Math.max(0, cardT - dt); if(cleanT > 0 && (cleanT -= dt) <= 0 && state === 'play') floatText(cleanP ? 'PERFECT LANDING' : 'CLEAN LANDING', W / 2, H * .46, cleanP ? 30 : 26, cleanP ? '#ffe9a0' : '#ffffff');
+    // the landing's hit-stop: the world nearly holds (position and traffic wound back, as the apex hang does) while sparks and the squash play on
+    if(hold > 0 && state === 'play'){ const k = Math.min(hold, dt) / dt * .9; hold -= dt; position -= speed * dt * k; for(const c of cars) c.z -= c.speed * dt * k; sunLeft = Math.min(SUN_MAX, sunLeft + dt * k); }
+    if(sqSet){ sqSet = false; AIR.h = 0; } if(sqT >= 0 && (sqT += dt) > .3) sqT = -1;
     if(state !== 'play' && !ATT()){ if(state === 'ready'){ camDown(); camSeg = null; air = null; ride = null; jh = 0; ownAir(); pitchOff(); } return; }
     const ps = (position + PZ) / SEG;
     if(!air && !ride) jh = 0;
@@ -722,9 +754,12 @@
     // little above the camera's ride height so its shadow and lift still read; it stays in the lower third.
     const u = air ? clamp(((position + PZ) / SEG - air.lip) / air.len, 0, 1) : 0;
     floatW = air ? 300 * Math.sin(Math.PI * u) + 60 : 0;
+    // up the ramp the camera crouches under the bike (it lags the deck by up to the flight's opening 60), so the bike rises in frame into
+    // the lip and leaves it with no pop (the bike used to jump 23 px in one frame at the launch)
+    if(!air && !ride && jh > 0 && !ATT()){ const p = activeBridge(ps), v = p ? clamp((ps - p.b0) / NL, 0, 1) : 0; floatW = 60 * v * v; }
     // camera pitch-down over the gap (core CAM.pitch, px, + = look down): the floor below and its heroes rise into view at the apex,
     // the landing ramp stays in frame. Eased; none under reduced motion; handed back to 0 after landing. Every launch() flight gets it.
-    { const tgt = air && !reduce && !air.att ? H * .15 * Math.pow(Math.sin(Math.PI * u), 1.3) : 0; camPitch += (tgt - camPitch) * (1 - Math.exp(-(tgt > camPitch ? 5 : 7) * dt)); if(!air && camPitch < .5) camPitch = 0;
+    { const tgt = air && !reduce && !air.att ? H * (air.big ? .2 : .15) * Math.pow(Math.sin(Math.PI * u), 1.3) : 0; camPitch += (tgt - camPitch) * (1 - Math.exp(-(tgt > camPitch ? 5 : 7) * dt)); if(!air && camPitch < .5) camPitch = 0;
       if(window.CAM && (camPitch > 0 || pitchOwn)){ CAM.pitch = camPitch; pitchOwn = camPitch > 0; } }
     camUp(segAt(position + PZ), Math.max(0, jh - floatW));
     ownAir();
@@ -745,7 +780,10 @@
   // (and on reset). The bridge reserves its segments (skRes) so skill.js never runs a kicker there at the same time.
   let owning = false;
   function ownAir(){ if(jh > 0){ owning = true; AIR.h = floatW * H / 2000; POSE.pitch = clamp(pitch, 0, 1); } else if(owning){ owning = false; AIR.h = 0; POSE.pitch = 0; } }
-  J.drawUnderBike = now => { if(jh > 0) ownAir(); };   // (the screen-space look-down band is gone: the floor below is real geometry, revealed by the camera)
+  J.drawUnderBike = now => { if(jh > 0) ownAir();
+    // the landing squash: the bike sinks into its forks and springs back (AIR.h below 0 lowers it; written only while nothing lifts it, and
+    // handed back as 0 at the next update)
+    if(sqT >= 0 && (AIR.h <= 0 || sqSet)){ const y = sqA * Math.exp(-sqT / .08) * Math.cos(sqT * 34); AIR.h = -Math.round(y); sqSet = true; } };   // (the screen-space look-down band is gone: the floor below is real geometry, revealed by the camera)
   // Looking down into the gap at the top of a landmark jump. The road engine can't pitch its camera, so the frame is lifted by S and the
   // band it uncovers at the bottom is the view straight down: the theme's world below, streaming past, with its hero right under the bike.
   let dbuf = null;
@@ -791,6 +829,7 @@
     } }
   J.hitCar = c => !!air || jh > 60;
   J._proj = (a, b, c) => proj(a, b, c); J._draw = () => drawJet(0); J._items = () => depthItems.map(i => [Math.round(i.z), !!i.done]);
+  J._setJumps = n => { jumps = n; bigs = 0; };   // test hook: the next landmark jump is the ride's BIG AIR when n = 1
   J._plans = () => plans; J._active = ps => activeBridge(ps);
   J._dbg = () => ({ jet:jet && { t:+jet.t.toFixed(2), type:jet.type, zr:Math.round(jet.zr), alt:jet.cur ? Math.round(jet.cur.J.alt) : 0, c:jet.c && { t:+jet.c.t.toFixed(2), g:+jet.c.g.toFixed(3), ge:+jet.c.ge.toFixed(2), fa:+jet.c.fa.toFixed(2), k:+jet.c.k.toFixed(2) } }, lastSi, jh:Math.round(jh), r3:rStats });   // test hook
   J._shards = () => CHK.filter(c => c.on).map(c => [c.kind, Math.round(c.zw / SEG), Math.round(c.hE), Math.round(c.ax * 10) / 10]);   // test hook
@@ -819,6 +858,7 @@
       if(i % 4 === 0){ const fm = lerp(f0, f1, .35), hm = lerp(h0, h1, .35); for(let k = 0; k < 6; k++){ const X0 = XL + (SPLIT - XL) * (k + .15) / 6; strip(s, f0, fm, X0, X0 + (SPLIT - XL) * .7 / 6, h0, hm, fc(T.bar[k % 2], fog)); } }   // amber cross-bars rush at you up the leaf
       strip(s, f0, f1, XL, XL + .06, h0, h1, fc(T.edge, fog * .6)); strip(s, f0, f1, SPLIT - .06, SPLIT, h0, h1, fc(T.edge, fog * .6)); strip(s, f0, f1, XL + .06, XL + .1, h0, h1, fc(T.edge2, fog)); strip(s, f0, f1, SPLIT - .1, SPLIT - .06, h0, h1, fc(T.edge2, fog));
       if(!near && i % 2 === 0) strip(s, f0, f1, (XL + SPLIT) / 2 - .1, (XL + SPLIT) / 2 + .1, h0, h1, fc(i % 4 ? T.edge : '#ffffff', fog * .5));   // the landing target: line up on it
+      { const o = i - p.b0, c = (XL + SPLIT) / 2; if(!near && o >= NL + G + LAND - 2 && o <= NL + G + LAND + 1) for(const sd of [-1, 1]) strip(s, f0, f1, c + sd * PERF_X - .03, c + sd * PERF_X + .03, h0, h1, fc(o % 2 ? '#ffffff' : T.edge, fog * .4)); }   // the touchdown zone: land level between these bars for a PERFECT
       if(i % 4 < 2 && near) strip(s, f0, f1, -1 / 3 - .035, -1 / 3 + .035, h0, h1, fc(T.paint, fog));
       strip(s, f0, f1, -.06, -.04, h0, h1, fc(T.under[1], fog));   // a plate seam
       // hazard stripes on the last stretch of a near leaf tip

@@ -28,6 +28,8 @@
      0.12 s buffer), but pay only a style act, no boost. ASSIST.jumps (gentle jumps): fewer, lower hops and the generous landing. */
   const CREST = { G:36000, span:1, minSp:.75, T0:.3, T1:.8, h0:.14, h1:.36, cd:.9, judge:.45, pre:.06 };
   const ZLEN = 30;                               // roadworks length in segments, past the lip
+  const DBL = 40, DBL_P = .4;                    // a double's second kicker, segments after the first; chance for an open-road kicker
+  const PERF_LVL = .3;                           // a PERFECT kicker landing: level (not steering, lean settled) for this long before touchdown
   // state
   let dm = 0, dCar = null, dScr = null, dTow = 0, streaks = [], puffs = [];
   let air = null, deck = null, lastPZ = null, lastCrashes = 0, lastBoosts = 0, lastRamp = -1e9, zones = [];
@@ -137,14 +139,20 @@
     for(let j = a; j <= b; j++){ const q = segs[j]; if(Math.abs(q.curve) > (j >= i - 6 && j <= i + 8 ? .5 : 1.2) || q.gore || q.tunnel || q.skRes || gates.includes(j)) return; }
     for(const g of gates) if(g >= a - 20 && g <= b + 30) return;
     if(window.inForkWindow && inForkWindow(a, b)) return;   // the visible fork (?split=1) keeps its window clear
-    lastRamp = i; placed++; makeRamp(i, LANES[(Math.random() * 3) | 0], Math.random() < .55, a, b);
+    const x = LANES[(Math.random() * 3) | 0], zone = Math.random() < .55;
+    // a double (Excitebike's double hill): a second kicker in the same lane DBL segments on, landed on by distance, so holding the line flies
+    // you off both. Only on a clear straight stretch, and never at the head of roadworks.
+    let dbl = !zone && Math.random() < DBL_P && segs[i + DBL + 10]; if(dbl) for(let j = b; j <= i + DBL + 10; j++){ const q = segs[j]; if(Math.abs(q.curve) > .5 || q.gore || q.tunnel || q.skRes || gates.includes(j)) { dbl = false; break; } }
+    if(dbl && window.inForkWindow && inForkWindow(a, i + DBL + 10)) dbl = false;
+    lastRamp = i; placed++; const R = makeRamp(i, x, zone, a, dbl ? i + DBL + 10 : b);
+    if(dbl){ const R2 = makeRamp(i + DBL, x, false, i + DBL, i + DBL + 10, true); R.next = R2; R2.second = true; lastRamp = i + DBL; }
   };
-  function makeRamp(i, x, zone, a, b){ const open = x === 0 ? (Math.random() < .5 ? -1 : 1) : -Math.sign(x);
+  function makeRamp(i, x, zone, a, b, solo){ const open = x === 0 ? (Math.random() < .5 ? -1 : 1) : -Math.sign(x);
     const R = { r0:i, z0:i * SEG, x, zone, used:false, za:i + 7, zb:i + 7 + ZLEN, hit:false, open };
     zones.push(R);
     for(let j = a; j <= b; j++){ segs[j].skRes = 1; if(j < i) segs[j].hz = null; }
     for(let j = i; j < i + 4; j++) segs[j].skR = R;
-    for(const d of [36, 24, 12]) (segs[i - d].sk = segs[i - d].sk || []).push({ t:'arrow', x, len:2 * SEG });
+    if(!solo) for(const d of [36, 24, 12]) (segs[i - d].sk = segs[i - d].sk || []).push({ t:'arrow', x, len:2 * SEG });
     const put = (j, e) => { const q = segs[j]; (q.sk = q.sk || []).push(e); };
     if(zone){ put(R.za, { t:'board', x, dir:open });
       for(let j = R.za; j <= R.zb; j++){ const k = j - R.za;
@@ -152,7 +160,7 @@
         if(k % 6 === 0) for(const o of [-.17, .17]) put(j, { t:'bar', x:x + o }); }
     }
     R.end = zone ? R.zb : i + 4; return R; }
-  S.force = (i, x, zone) => makeRamp(i, x, zone, i - 44, i + 4 + ZLEN + 5);   // testing: put a kicker at segment i
+  S.force = (i, x, zone, dbl) => { const R = makeRamp(i, x, zone, i - 44, dbl ? i + DBL + 10 : i + 4 + ZLEN + 5); if(dbl){ R.next = makeRamp(i + DBL, x, false, i + DBL, i + DBL + 10, true); R.next.second = true; } return R; };   // testing: put a kicker (or a double) at segment i   // testing: put a kicker at segment i
 
   /* ---------------------------------------------------------------- update */
   const bsz = () => Math.min(W * .2, H * .27);
@@ -177,7 +185,12 @@
     // among the barricades, a crash right after a good jump); held to 2.2 s at most
     const z0 = position + PZ, D = R.zone ? (R.zb + 2) * SEG - z0 : 0;
     air = { t:0, T, h0:RH * H / ROADW, hpk:bs * (.22 + .4 * clamp((T - .6) / .6, 0, 1)), R, z0, D }; st.jumps++;
+    if(R.next){ air.dbl = R.next; air.D = R.next.z0 + RLEN * .5 - z0; air.T = Math.max(.6, air.D / Math.max(speed, 1)); air.hpk = bs * (.22 + .3 * clamp((air.T - .5) / .6, 0, 1)); air.h1 = 0; }
     M.noise(.35, 600, .08); M.tone(220, .3, { type:'triangle', v:.04 }); }
+  // touching down on a double's second deck: a thud, a short hit, a style beat, and you ride it up and off its lip
+  function doubleHit(){ M.noise(.18, 240, .12); M.tone(70, .2, { v:.06 }); const J = MECH.sp_jump; if(J && J.impact) J.impact({ stop:.033, squash:bsz() * .02 });
+    if(!reduce){ shake = Math.max(shake, 3); for(let k = 0; k < 8; k++) spark(W / 2 + rr(-14, 14), H - 10, rr(-220, 220), rr(-160, -40), .25, '#ffd04a'); }
+    st.doubles = (st.doubles || 0) + 1; if(MECH.style && MECH.style.act) MECH.style.act('style', 250); floatText('Double', W / 2, H * .46, 24, '#ffb35a'); }
   function land(){ const a = air; air = null; AIR.h = 0; lift = 0;
     if(a.crest){ crestLand(a); return; }
     if(!a.R){ M.noise(.25, 220, .14); return; }   // a side drop off the deck: just the thump (no jump, so no landing callout or reward)
@@ -187,7 +200,10 @@
     for(let k = 0; k < 8; k++) puffs.push({ x:(k % 2 ? 1 : -1) * rr(14, 60), y:-rr(6, 16), vx:(k % 2 ? 1 : -1) * rr(80, 220), vy:rr(-60, 0), life:rr(.4, .65), max:.65, r:2 + (k % 4), dust:1 });
     if(!reduce){ shake = Math.max(shake, 4); for(let k = 0; k < 8; k++) sparks.push({ x:W / 2 + rr(-14, 14), y:H - 10, vx:rr(-260, 260), vy:rr(-200, -40), life:.3, c:'#ffd04a' }); }
     M.noise(.25, 220, .14); if(state !== 'play') return;
-    if(clean){ const big = a.T >= .95, had = boostT > 0; boostT = Math.max(boostT, big ? 1.1 : .7); if(!had || boostTier < (big ? 2 : 1)) boostTier = big ? 2 : 1;
+    const big0 = a.T >= .95, perfect = clean && a.lvl0 !== undefined && a.t - a.lvl0 >= PERF_LVL, J = MECH.sp_jump;
+    if(J && J.impact) J.impact({ stop:perfect ? .066 : clean ? (big0 ? .05 : .033) : .033, squash:bsz() * (perfect ? .034 : clean ? .026 : .02) });   // the landing hit (setpiece/jump.js): hit-stop, then the forks
+    if(perfect){ M.tone(46, .45, { v:.09 }); if(MECH.style && MECH.style.act) MECH.style.act('style', big0 ? 300 : 200); if(!reduce) for(let k = 0; k < 16; k++){ const ang = Math.PI * k / 15; spark(W / 2, H - 12, Math.cos(ang) * rr(300, 460), -Math.sin(ang) * rr(150, 260), rr(.3, .45), k % 3 ? '#4ff0ff' : '#ffffff'); } }   // a level touchdown: a style beat and a fan of sparks
+    if(clean){ const big = a.T >= .95, had = boostT > 0; boostT = Math.max(boostT, (big ? 1.1 : .7) + (perfect ? .4 : 0)); if(!had || boostTier < (big ? 2 : 1)) boostTier = big ? 2 : 1;
       speed = Math.max(speed, MAXS * (big ? 1.1 : 1.05)); M.boost(big ? 2 : 1, flow); if(copT > 0) copT = Math.max(.01, copT - (big ? 2 : 1));
       if(big){ st.bigAir++; flow++; bestFlow = Math.max(bestFlow, flow); }
       const sc = a.R && a.R.zone; if(sc){ st.shortcuts++; if(copT > 0) copT = Math.max(.01, copT - 1); }
@@ -210,6 +226,7 @@
   function crestLand(a){ const I = a.I || 0; S._landT = playT;
     M.noise(.18 + .1 * I, 240, .1 + .06 * I);
     for(let k = 0; k < 4 + Math.round(4 * I); k++) puffs.push({ x:(k % 2 ? 1 : -1) * rr(10, 44), y:-rr(4, 12), vx:(k % 2 ? 1 : -1) * rr(60, 180), vy:rr(-50, 0), life:rr(.3, .5), max:.5, r:2 + (k % 3), dust:1 });
+    { const J = MECH.sp_jump; if(J && J.impact) J.impact({ stop:a.T >= .65 ? .033 : 0, squash:bsz() * (.01 + .018 * I) }); }   // a hop lands too: the forks take it (and a big one holds two frames)
     if(!reduce){ shake = Math.max(shake, 2 + 3 * I); for(let k = 0; k < 4 + Math.round(6 * I); k++) spark(W / 2 + rr(-14, 14), H - 10, rr(-240, 240), rr(-180, -40), .28, '#ffd04a'); }
     if(state !== 'play' || a.T < CREST.judge) return;
     const clean = (Math.abs(leanV) < landThr() || (a.ok !== undefined && a.t - a.ok <= LAND_BUF)) && Math.abs(playerX) < wallX();
@@ -234,7 +251,11 @@
     if(air && air.crest){ air.t += dt; if(Math.abs(leanV) < landThr()) air.ok = air.t; if(state === 'play') M.rev = Math.max(M.rev, .55);   // the engine note climbs as the rear wheel spins free
       if(air.t < 0){ AIR.h = 2 * (1 + air.t / CREST.pre); airPitch = 0; }   // the suspension unloads for a beat before the wheels leave the road
       else { const u = air.t / air.T; if(u >= 1) land(); else { AIR.h = 4 * air.hpk * u * (1 - u); airPitch = clamp(.28 - u * .7, 0, .28); } } }
-    else if(air){ air.t += dt; if(Math.abs(leanV) < landThr()) air.ok = air.t; const u = air.D > 0 ? Math.min(air.t / air.T, Math.max((pz - air.z0) / air.D, air.t / 2.2)) : air.t / air.T; if(u >= 1) land(); else { lift = air.h0 * (1 - u) + 4 * air.hpk * u * (1 - u); airPitch = clamp(.55 - u * 1.4, 0, .55); } }
+    else if(air){ air.t += dt; const lv = Math.abs(leanV) < landThr() && !(keys.left || keys.right || touchSteer || padSteer); if(Math.abs(leanV) < landThr()) air.ok = air.t; if(lv){ if(air.lvl0 === undefined) air.lvl0 = air.t; } else air.lvl0 = undefined;
+      if(air.dbl){ const on = Math.abs(playerX - air.dbl.x) < RHW + bw * .5 && !air.dbl.used; air.h1 += ((on ? RH * .5 * H / ROADW : 0) - air.h1) * (1 - Math.exp(-6 * dt)); }   // lined up on the second deck, the arc comes down onto it
+      const u = air.dbl ? Math.max((pz - air.z0) / air.D, air.t / 2.2) : air.D > 0 ? Math.min(air.t / air.T, Math.max((pz - air.z0) / air.D, air.t / 2.2)) : air.t / air.T;
+      if(u >= 1){ const R2 = air.dbl; if(R2 && !R2.used && Math.abs(playerX - R2.x) < RHW + bw * .5 && state === 'play'){ air = null; deck = R2; doubleHit(); } else land(); }
+      else { lift = air.h0 * (1 - u) + (air.h1 || 0) * u + 4 * air.hpk * u * (1 - u); airPitch = clamp(.55 - u * 1.4, 0, .55); } }
     else { const pR = deck;
       if(R && state === 'play' && (dR < RHW + bw * .5 || (R === pR && dR < RHW + bw))){ deck = R; const v = clamp((pz - R.z0) / RLEN, 0, 1); lift = RH * v * H / ROADW; airPitch = .35 * v; }
       else if(pR && pz >= pR.z0 + RLEN && prev < pR.z0 + RLEN + 400){ deck = null; if(!pR.used){ pR.used = true; launch(pR); } }

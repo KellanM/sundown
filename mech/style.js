@@ -59,6 +59,7 @@ const ACT = {
   dodge:    { p:150, l:'DODGE',     fold:true },
   fire:     { p:500, l:'ESCAPED' },
   gate:     { p:200, l:'GATE' },
+  weave:    { p:300, l:'THREADED' },   // a designed formation threaded clean (mech/formations.js passes the formation's name as the label)
   style:    { p:150, l:'STYLE' } };
 S.LABELS = ['BANK', 'CHAIN LOST']; for(const k in ACT) if(!S.LABELS.includes(ACT[k].l)) S.LABELS.push(ACT[k].l);   // hud.js prebuilds these
 // the strings the game already shows, mapped to an act (or a break). Exact strings first, then prefixes.
@@ -94,12 +95,12 @@ function sLost(){ if(!audioOn()) return; const L = lad(), t = M.ac.currentTime, 
   M.tone(a, .1, { type:'square', v:.016, at:t }); M.tone(a * .749, .22, { type:'square', v:.016, at:t + .09 }); }   // down a fourth: "aw"
 
 /* ---------------- the chain ---------------- */
-function act(kind, pts){ if(state !== 'play') return false; const A = ACT[kind] || ACT.style;
+function act(kind, pts, lbl){ if(state !== 'play') return false; const A = ACT[kind] || ACT.style;
   if(kind === 'gate' && chain === 0) return false;   // a gate carries a chain, never starts one
   const p = pts != null ? +pts || 0 : A.p, m0 = mult;
   chain++; pend += p; mult = multFor(chain); win = Math.max(WIN_MIN, WIN - (mult - 1) * WIN_STEP); left = win;
   if(V.beat) V.beat = 0;   // a new chain takes the display back from a bank or loss beat
-  V.label = A.l; V.actT = 0; if(mult > m0) V.multT = 0;
+  V.label = lbl && S.LABELS.includes(lbl) ? lbl : A.l; V.actT = 0; if(mult > m0) V.multT = 0;
   st.acts++; st.kinds[kind] = (st.kinds[kind] || 0) + 1; if(chain > st.bestChain) st.bestChain = chain; if(mult > st.maxMult) st.maxMult = mult;
   sTick(chain); emit('act', kind, p); return true; }
 function bank(quiet){ if(!chain) return; const pts = pend * mult, m = mult; total += pts; st.banks++; if(pts > st.bestBank){ st.bestBank = pts; st.bestBankChain = chain; }
@@ -120,7 +121,7 @@ S.hear = (text, o) => { if(state !== 'play' || typeof text !== 'string') return 
 // crash), and that crash has already thrown the unbanked chain away (lose()) and zeroed flow, so a crash never comes out ahead
 // (bots: research/sundown-craft/heat.md). Never consumes the hook (police.js shows the card).
 S.escaped = () => { if(state === 'play' && QN.n < Q.length) Q[QN.n++] = 'escape'; };
-S.act = (kind, pts) => act(String(kind), pts);
+S.act = (kind, pts, lbl) => act(String(kind), pts, lbl);   // lbl: an optional display label from S.LABELS (pushed there before hud.js warms)
 S.onAction = fn => { if(typeof fn === 'function' && !subs.includes(fn)) subs.push(fn); return () => { const i = subs.indexOf(fn); if(i >= 0) subs.splice(i, 1); }; };
 Object.defineProperties(S, {
   chain:{ get:() => chain }, mult:{ get:() => mult }, pending:{ get:() => pend }, total:{ get:() => total },

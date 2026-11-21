@@ -161,8 +161,15 @@ function cardFor(L, i){ const cw = cx.canvas.width, chh = cx.canvas.height, key 
 // warmAll() builds everything now; warmAllSteps() is the same build with stopping points for the staged warm-up (sundown.html WARM.q). Every piece is
 // also built on first use (cached in C), so a card is never missing because the build was still under way.
 function warmAll(){ for(const _ of warmAllSteps()); }
-function* warmAllSteps(){ if(typeof pixText !== 'function' || !cx) return; warmKey = sizeKey(); askFonts(); for(let i = 0; i < LANDS.length; i++){ card(i); yield; } for(let n = 1; n <= 24; n++) seal(n); coWarm(); yield;
+function* warmAllSteps(){ yield* warmNowSteps(); yield* warmLateSteps(); }
+/* first 60 s (research/sundown-craft/first60.md): split in two so START waits only for what the first minute shows. Now: the cards of the first three
+   roads, the seals, the callouts, the labels and the countdown, the moment cards. Late (MECH.arrivalLate, built while the title or the results idle,
+   or in safe slices of a ride): the other roads' cards and the pull-over's figures; any of them is still built on first use if it is asked for early. */
+function* warmNowSteps(){ if(typeof pixText !== 'function' || !cx) return; warmKey = sizeKey(); askFonts(); const soon = new Set([0]); try{ for(let z = 0; z <= 2; z++) soon.add(landIdx(z)); }catch(e){}
+  for(const i of soon){ card(i); yield; } for(let n = 1; n <= 24; n++) seal(n); coWarm(); yield;
   try{ extLabel(); boxLabel('POLICE', CREAM, SIREN_B); cdWarm(); }catch(e){ console.warn('arrival warm labels', e); } yield;
+  try{ for(const k in MOML) cardFor(MOML[k].L, 97); }catch(e){ console.warn('moment rewarm', e); } }
+function* warmLateSteps(){ if(typeof pixText !== 'function' || !cx) return; for(let i = 0; i < LANDS.length; i++){ card(i); yield; }
   try{ pullWarm(); }catch(e){ console.warn('arrival warm pull', e); } yield;
   try{ cardFor(POL_L, 99); sealStr('御用', 0); glintSpr(); }catch(e){ console.warn('arrival warm', e); } yield;   // the pull-over: every figure pose, so nothing is built mid-arrest
   try{ if(MECH.police && MECH.police.officer) for(const p of ['idle', 'look', 'radio', 'point', 'reach', 'cuff', 'escort', 'head', 'kneel', 'kneel2', 'run', 'wave0', 'wave1']) for(let f = 0; f < 4; f++){ MECH.police.officer(p, f); MECH.police.officer(p, f, 'angry'); } }catch(e){ console.warn('arrival warm', e); } yield;
@@ -191,7 +198,7 @@ function sting(L){ if(!M.ac) return; const a = M.ac.currentTime + T_HIT, chord =
 let warmKey = null; const sizeKey = () => cx ? cx.canvas.width + 'x' + cx.canvas.height : '';
 A.reset = () => { cur = null; pol = null; mom = null; momQ = []; cd = null; CO = []; TK.length = 0; riderSwap('orig');
   if(warmKey !== null && warmKey !== sizeKey()) warmAll(); else if(warmKey !== null && typeof BIKE !== 'undefined'){ try{ mugInk(0); mugInk(1); }catch(e){} } };
-A.warm = warmAll; A.warmSteps = warmAllSteps; A._atlas = () => AT; A._slots = () => SLOTS; A._card = card; A._seal = seal; A._rider = (...a) => rider(...a); A._riderH = (...a) => riderH(...a);
+A.warm = () => { for(const _ of warmNowSteps()); }; A.warmSteps = warmNowSteps; MECH.arrivalLate = { warm:() => { for(const _ of warmLateSteps()); }, warmSteps:warmLateSteps }; A._atlas = () => AT; A._slots = () => SLOTS; A._card = card; A._seal = seal; A._rider = (...a) => rider(...a); A._riderH = (...a) => riderH(...a);
 // every kanji a card stamps (the font loads in unicode-range subsets: a subset not loaded when a card is built leaves its kanji blank)
 const cardChars = () => { let t = '一二三四五六七八九十〇逮捕御用走れ三二一'; try{ for(const L of LANDS) t += L.kanji; for(const k in MOML) t += MOML[k].L.kanji; for(const t2 of coList()) t += t2; }catch(e){} return [...new Set(t)].join(''); };
 // asked once, from the first warm-up (LANDS and the director's moments exist by then); when the subsets are in, everything is rebuilt

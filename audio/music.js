@@ -54,7 +54,16 @@ const INST = {
   cowbell:{ t:'sub', osc:['square', 'square'], det:[0, 680], cut:1100, bp:true, q:1.8, fenv:0, a:.001, d:.25, s:0, r:.08, vol:.12 },
   // the build's overlay voices (see "the build" below): the chase's driving pulse and its siren wail
   pulse: { t:'sub', osc:['sawtooth', 'sawtooth'], det:[-6, 6], cut:420, fenv:1600, fa:.002, fd:.07, q:3, a:.002, d:.09, s:.25, r:.05, vol:.15 },
-  siren: { t:'sub', osc:['sawtooth', 'square'], det:[0, 5], cut:1900, fenv:0, q:1, a:.08, d:.3, s:.85, r:.2, vib:[.05, 25, 5.5], vol:.045, gl:.3 } };
+  siren: { t:'sub', osc:['sawtooth', 'square'], det:[0, 5], cut:1900, fenv:0, q:1, a:.08, d:.3, s:.85, r:.2, vib:[.05, 25, 5.5], vol:.045, gl:.3 },
+  // the five new roads and the results (2026-11-21):
+  // drone: a dark held fifth (Kurobe's cold air, Akihabara's dead mains hum); slow in, slow out, filtered low so it never hisses
+  drone: { t:'sub', osc:['sawtooth', 'sawtooth', 'sawtooth'], det:[-7, 0, 7], cut:380, fenv:250, fa:.8, fd:1.5, q:1.8, a:1.1, d:1.5, s:.9, r:1.4, vol:.05 },
+  // chip: Akihabara's arcade square, a short blip with a quiet octave on top, lowpassed under 3 kHz (squares get harsh fast)
+  chip:  { t:'sub', osc:['square', 'square'], det:[0, 1200], mix:[1, .22], cut:2600, fenv:900, fa:.001, fd:.05, q:.8, a:.001, d:.07, s:.22, r:.03, vol:.032 },
+  // sham: a shamisen-like pluck for Gion: FM with a 3:1 ratio for the buzz (sawari), a bachi snap of pitch from above, a short body
+  sham:  { t:'fm', ratio:3, idx:4.2, idxEnd:.35, idxT:.07, a:.001, d:.75, s:0, r:.18, bend:35, vol:.075 },
+  // dawn: the results melody, a warm triangle-and-saw with a delayed vibrato (no voice, no bell)
+  dawn:  { t:'sub', osc:['triangle', 'sawtooth'], det:[0, 6], mix:[1, .3], cut:1500, fenv:500, fa:.03, fd:.4, q:.7, a:.03, d:.6, s:.75, r:.35, vib:[.35, 9, 5], vol:.08 } };
 const VOWEL = { a:[[730, 1, 7], [1090, .55, 9], [2440, .3, 11]], o:[[570, 1, 7], [840, .5, 9], [2410, .18, 11]], u:[[320, 1, 7], [870, .3, 9], [2240, .12, 11]], e:[[530, 1, 7], [1840, .55, 11], [2480, .35, 12]] };
 
 /* ================================================================== the score: themes as data
@@ -67,7 +76,9 @@ const VOWEL = { a:[[730, 1, 7], [1090, .55, 9], [2440, .3, 11]], o:[[570, 1, 7],
    o open hat, r ride, C crash, j shime-daiko, J o-daiko, g gong, t/m toms, e anvil, b cowbell, v engine rev (the bosozoku call).
    A section may say rise:true (a noise riser and a reverse cymbal into the next section) or drop:true (an impact on its downbeat).
    lay: the intensity (0-4) a part needs: 0 cruising, 1 riding, 2 fast, 3 in flow, 4 boosting (the drop). */
-const KIT_LAY = { k:1, K:1, s:1, c:1, h:0, h2:3, y:3, o:2, a:0, C:0, t:1, m:1, j:1, J:0, g:0, e:1, b:2, i:2, q:2, r:3, v:2, R:0, V:0, I:0 };
+const KIT_LAY = { k:1, K:1, s:1, c:1, h:0, h2:3, y:3, o:2, a:0, C:0, t:1, m:1, j:1, J:0, g:0, e:1, b:2, i:2, q:2, r:3, v:2, R:0, V:0, I:0, w:0, P:0, z:0, E:0 };
+// new kit hits (2026-11-21): w the dam's water roar (a bar-long swell of low noise and spray), P a power-down (a saw falling three
+// octaves), z the atarigane (the ohayashi's hand gong: kon-chiki-chin), E an eruption (a deep dive, a rumbling crack and a crash)
 const MOTIF = 'the sundown figure: scale steps 1 5 4 3 2 in 3+3+2+4+4 sixteenths, falling like the sun; dawn turns it upward (1 2 3 4 5)';
 const R16 = '................';
 const CALL = '4.4.5-..4.4.2---' + R16, RESP = R16 + '2.2.0-..2.2.0---', CALL2 = '0.2.4.5-4-2.0---' + R16;   // chant call and response, two bars
@@ -246,27 +257,26 @@ T.coast = { name:'Shonan Coast', kanji:'湘', bpm:160, key:'D', mode:'minor', ga
     C:{ bars:4, ch:'Gm7 Am Bb A7', play:'pad ost kit', kit:'C', rise:true },
     A3:{ bars:8, ch:'@A', lead:'@A', play:'lead pad ost bass kit gtr stab', kit:'B', drop:true } } };
 
-// ---------------------------------------------------------------- 雪 Snow Onsen (C minor, 146 in half time): the calm one, gamelan over a slow beat
-// Darker, harder. Was C major at 140 (Cmaj9 Am9 G6 Abmaj7, soft kit): cold and tense now, C minor (Cm9 Fm9 Gm Ab), G7 (the raised 7th) in B,
-// the gamelan and bonang down a fourth, the sub in a 3+3+2 pulse, a full-strength kit with 16th hats and an o-daiko. Still the calm road.
-T.snow = { name:'Snow Onsen', kanji:'雪', bpm:146, key:'C', mode:'minor', gain:1.135, bedGain:0.861, dly:{ b:1.5, fb:.4 }, bassLow:'C1', padLow:'Eb3', arpLow:'G4',
-  parts:{ lead:{ inst:'glock', pan:.05, dly:.3, rev:.5, vol:1.2 }, lead2:{ inst:'glock', src:'lead', pan:-.1, dly:.35, rev:.5, vol:.8 }, gam:{ inst:'gamelan', arp:true, fig:'0.2.4.2.1.3.4.3.', wide:.5, dly:.3, rev:.45, vol:0.902 },
-    bon:{ inst:'bonang', arp:true, fig:'4.......3.......', low:'G4', wide:.4, dly:.4, rev:.5, lay:1, vol:1.66 }, pad:{ inst:'spad', fig:'hold', rev:.6, wide:.8, vol:1.12 },
-    bass:{ inst:'subB', fig:'1..1..1.8..1..5.', vol:0.427 }, kit:{ kit:true, rev:.3, vol:1.33 } },
-  kit:{ I:{ g:'x...............' }, A:{ k:'x.........x.....', s:'........X.....g.', h:'x.x.x.x.x.x.x.x.', h2:'.x.x.x.x.x.x.x.x', J:'x...............' },
-    B:{ k:'x.....x...x.....', s:'........X..g..g.', h:'x.x.x.x.x.x.x.x.', h2:'.x.x.x.x.x.x.x.x', J:'x...............' }, C:{ g:'x...............', h:'..x...x...x...x.' }, fill:{ s:'..............gx' } },
-  form:['I', 'A', 'B', 'A2', 'D', 'B2', 'C', 'A3'], loop:'A', style:{},
-  sec:{ I:{ bars:4, ch:'Cm9 Fm9 Gm Ab', play:'gam pad bass kit', kit:'I' },
-    A:{ bars:8, ch:'Cm9 Fm9 Gm Ab Cm9 Eb Fm9 Gsus4', play:'lead lead2 gam pad bass kit',
-      lead:'Eb5:4 G5:4 Ab5:4 G5:4 | Eb5:12 .:4 | D5:4 Eb5:4 G5:4 Bb5:4 | C6:8 G5:8 | Eb5:4 G5:4 C6:4 D6:4 | Eb6:8 D6:4 Bb5:4 | Ab5:4 C6:4 Eb6:4 G6:4 | F6:8 D6:4 C6:4' },
-    B:{ bars:8, ch:'Fm7 G7 Cm9 Ab Dm7b5 G7 Ab G7sus4', play:'lead lead2 gam bon pad bass kit', kit:'B',
-      lead:'Ab5:8 C6:4 Eb6:4 | D6:8 B5:4 G5:4 | Eb6:8 D6:4 Bb5:4 | C6:12 .:4 | F6:8 Eb6:4 D6:4 | D6:8 B5:8 | C6:4 Eb6:4 G6:8 | F6:8 D6:8' },
-    A2:{ bars:8, ch:'@A', lead:'@A', play:'lead lead2 gam bon pad bass kit' },
-    D:{ bars:8, ch:'Ab Bb Cm9 Cm9 Ab Bb Fm9 Gsus4', play:'lead lead2 gam bon pad bass kit', kit:'C', rise:true,
-      lead:'C6:16 | D6:8 F6:8 | Eb6:8 G5:8 | C6:16 | Eb6:8 C6:8 | D6:8 Bb5:8 | Ab5:8 C6:8 | D6:16' },
+// ---------------------------------------------------------------- 雪 Snow Onsen (G# minor, 124 in half time): the hush, ice over a warm sub
+// Re-composed 2026-11-21 (the old theme went silent with the voices). A hush: no lead, no impact in the body; the identity is a glock
+// figure stepping in threes (crystal drops) high over a warm sine sub in 3+3+2 and a low muted pluck heartbeat, Emaj7 (bVI) for the
+// steam, D#7 (the raised 7th) at the cadences for the cold. D is the hush itself: the kit leaves for 8 bars, only ice, pad and sub.
+T.snow = { name:'Snow Onsen', kanji:'雪', bpm:124, key:'G#', mode:'minor', gain:1.29, bedOnly:true, dly:{ b:1.5, fb:.45 }, bassLow:'F#1', padLow:'D#3', arpLow:'G#5',
+  parts:{ ice:{ inst:'glock', arp:true, fig:'0..3..1..4..2...', wide:.6, dly:.5, rev:.6, vol:1 },
+    ice2:{ inst:'glock', arp:true, fig:'................5.......3.......', o:{ d:2.4 }, low:'D#5', wide:.4, dly:.6, rev:.7, lay:2, vol:1.4 },
+    mot:{ inst:'pluck', arp:true, fig:'0.0.1.0.2.0.1.0.', low:'G#2', o:{ cut:280, fenv:900 }, rev:.2, lay:1, vol:2.2 },
+    bass:{ inst:'subB', fig:'1..1....1..8.5..', vol:.4 }, pad:{ inst:'spad', fig:'hold', o:{ cut:850 }, rev:.7, wide:.8, vol:1 }, kit:{ kit:true, rev:.35, vol:1 } },
+  kit:{ I:{ g:'x...............' }, A:{ k:'x.........x.....', s:'........X.......', h:'x.x.x.x.x.x.x.x.', J:'x...............' },
+    B:{ k:'x.....x...x.....', s:'........X.....g.', h:'x.x.x.x.x.x.x.x.', h2:'.x.x.x.x.x.x.x.x', J:'x...............' }, C:{ h:'..x...x...x...x.', J:'x...............' }, fill:{ s:'..............gx' } },
+  form:['I', 'A', 'B', 'A2', 'D', 'B2', 'C', 'A3'], loop:'A', style:{ soft:true },
+  sec:{ I:{ bars:4, ch:'G#m9 Emaj7 C#m9 D#7sus4', play:'ice pad bass kit', kit:'I' },
+    A:{ bars:8, ch:'G#m9 Emaj7 C#m9 D#7sus4 G#m9 Emaj7 C#m9 D#7', play:'ice mot pad bass kit' },
+    B:{ bars:8, ch:'Emaj7 F#6 D#m7 G#m9 Emaj7 F#6 C#m9 D#7sus4', play:'ice ice2 mot pad bass kit', kit:'B', rise:true },
+    A2:{ bars:8, ch:'@A', play:'ice ice2 mot pad bass kit', drop:true },
+    D:{ bars:8, ch:'Emaj7 Emaj7 C#m9 C#m9 Emaj7 Emaj7 D#7sus4 D#7', play:'ice ice2 pad bass' },
     B2:{ like:'B', rise:false, drop:true },
-    C:{ bars:4, ch:'Ab Bb Cm9 G7', play:'gam bon pad bass kit', kit:'C' },
-    A3:{ bars:8, ch:'@A', lead:'@A', play:'lead lead2 gam bon pad bass kit', kit:'B' } } };
+    C:{ bars:4, ch:'Emaj7 F#6 C#m9 D#7', play:'ice pad bass kit', kit:'C', rise:true },
+    A3:{ bars:8, ch:'@A', play:'ice ice2 mot pad bass kit', kit:'B', drop:true } } };
 
 // ---------------------------------------------------------------- 田 Rice Paddies (G minor, 156): a taiko ensemble and gamelan in the moonlit fields
 // Darker, harder. Was G mixolydian at 150 (Gadd9 Em7 Dsus2 F6: folk-bright): G minor (Gm(add9) Eb Dsus2 F), D major at the cadences and
@@ -337,25 +347,110 @@ T.shimanami = { name:'Shimanami Kaido', kanji:'島', bpm:158, key:'G', mode:'min
     C:{ bars:4, ch:'Cm7 D Eb D', play:'pad bass arp kit', kit:'C', rise:true },
     A3:{ bars:8, ch:'@A', lead:'@A', play:'lead lead2 pad bass kit stab arp', kit:'B', drop:true } } };
 
-// ---------------------------------------------------------------- 灰 Sakurajima (A minor, 140 in half time): ash, a ritual chant over taiko
-T.sakurajima = { name:'Sakurajima', kanji:'灰', bpm:140, key:'A', mode:'minor', gain:1.257, bedGain:0.851, dly:{ b:.75, fb:.3 }, bassLow:'A0', padLow:'E3', arpLow:'A3',
-  parts:{ lead:{ inst:'gamelan', pan:.03, dly:.2, rev:.45, vol:1.15 }, lead2:{ inst:'gamelan', src:'lead', pan:-.12, dly:.25, rev:.4, vol:.7, lay:1 }, 
-    gam:{ inst:'gamelan', arp:true, fig:'0.0.2.0.3.0.2.0.', wide:.5, dly:.25, rev:.4, lay:1, vol:0.785 }, pad:{ inst:'spad', fig:'hold', rev:.6, wide:.8, vol:1.08 },
-    bass:{ inst:'b808', fig:'1-------1-----n-', drive:4, vol:0.16 }, stab:{ inst:'stab', fig:'x-------........', o:{ cut:300, fenv:2500 }, wide:.6, rev:.4, lay:2, vol:2.66 }, kit:{ kit:true, rev:.3, vol:0.55 } },
-  kit:{ I:{ g:'x...............', J:'x...............' }, A:{ J:'x..x..x...x..x..', j:'..x...x...x...x.', k:'x.........x.....', s:'........X.......' },
-    B:{ J:'x.x...x.x.x...x.', j:'xxxxxxxxxxxxxxxx', k:'x.........x.....', s:'........X.......', g:'x...............' }, C:{ g:'x...............', J:'x.......x.......' }, fill:FILL_T },
+// ---------------------------------------------------------------- 灰 Sakurajima (Bb phrygian, 140 in half time): the volcano, magma under ash
+// Re-composed 2026-11-21 (the old chant theme went silent with the voices). Heavy: a down-tuned power-chord chug (its square an octave
+// under) through a dark cabinet, a driven 808 that slides, a low muted pluck galloping like magma, a dark held fifth for the ash, o-daiko.
+// Phrygian: the bII (B over Bb) is the menace, F7 the raised dominant. Eruptions (the E hit: a sub dive, rock cracking upward, a crash)
+// land on given bars, never on a grid, so they surprise.
+T.sakurajima = { name:'Sakurajima', kanji:'灰', bpm:140, key:'Bb', mode:'phrygian', gain:1.3, bedOnly:true, dly:{ b:.75, fb:.3 }, bassLow:'C1', padLow:'F3', arpLow:'Bb3',
+  parts:{ gtr:{ inst:'gtr', pow:true, low:'Bb1', fig:'x-------x--x-x--', o:{ mix:[1, 1, .15] }, drive:10, cab:2400, wide:.8, rev:.15, vol:.28 },
+    bass:{ inst:'b808', fig:'1------.1--.1-n-', glide:true, drive:4, vol:.09 },
+    magma:{ inst:'pluck', arp:true, fig:'0.00.0.00.0.00.3', low:'Bb2', o:{ cut:450, fenv:1800 }, drive:2, rev:.15, lay:1, vol:1.7 },
+    ash:{ inst:'drone', pow:true, low:'F2', fig:'hold', rev:.5, wide:.6, vol:1 },
+    stab:{ inst:'stab', fig:'x-------........', o:{ cut:300, fenv:2500 }, wide:.6, rev:.4, lay:2, vol:2 }, kit:{ kit:true, rev:.25, vol:.55 } },
+  kit:{ I:{ g:'x...............', J:'x.......x.......' }, A:{ k:'x.........x.....', s:'........X.......', J:'x..x..x...x..x..', h:'x.x.x.x.x.x.x.x.' },
+    B:{ k:'x.....x...x.....', s:'........X.......', J:'x.x...x.x.x...x.', j:'..x...x...x...x.', h:'x.x.x.x.x.x.x.x.', o:'..............x.' }, C:{ J:'x.......x.......', g:'x...............' }, fill:FILL_T },
   form:['I', 'A', 'B', 'A2', 'D', 'B2', 'C', 'A3'], loop:'A', style:{},
-  sec:{ I:{ bars:4, ch:'Am G#dim7 F Gm', play:'pad bass kit', kit:'I', rise:true },
-    A:{ bars:8, ch:'Am G#dim7 F Gm Am G#dim7 Fmaj7 E', play:'lead lead2 pad bass kit gam stab', drop:true,
-      lead:'A5:2 A5:2 .:2 C6:2 .:2 A5:2 E5:4 | G#5:2 G#5:2 .:2 B5:2 .:2 D6:2 B5:4 | A5:2 A5:2 .:2 C6:2 .:2 F6:2 C6:4 | Bb5:2 Bb5:2 .:2 D6:2 .:2 G5:2 D6:4 | E6:2 E6:2 .:2 C6:2 .:2 A5:2 E6:4 | F6:4 D6:4 B5:4 G#5:4 | A5:2 C6:2 E6:4 F6:8 | E6:8 B5:4 G#5:4' },
-    B:{ bars:8, ch:'Dm Bb F E Dm Bb Gm E7', play:'lead lead2 pad bass kit gam stab', kit:'B', rise:true,
-      lead:'D6:4 F6:4 A5:8 | D6:4 F6:4 Bb5:8 | C6:4 F6:4 A5:8 | G#5:8 B5:8 | A5:4 D6:4 F6:8 | F6:4 D6:4 Bb5:8 | G5:4 Bb5:4 D6:8 | E6:8 D6:4 B5:4' },
-    A2:{ bars:8, ch:'@A', lead:'@A', play:'lead lead2 pad bass kit gam stab', drop:true },
-    D:{ bars:8, ch:'Am Am F F Gm Gm E E', play:'lead lead2 pad bass kit gam', kit:'C', rise:true,
-      lead:'E5:16 | .:16 | F5:8 A5:8 | C6:16 | D6:8 Bb5:8 | G5:16 | G#5:8 B5:8 | E6:16' },
+  sec:{ I:{ bars:4, ch:'Bbm B Bbm F', play:'ash bass magma kit', kit:'I', rise:true },
+    A:{ bars:8, ch:'Bbm B Bbm Ab Bbm B Gb F', play:'gtr bass magma ash kit', drop:true, hits:[[4, 0, 'E']] },
+    B:{ bars:8, ch:'Gb Ab Bbm Bbm Gb Ab B F7', play:'gtr bass magma ash stab kit', kit:'B', rise:true, hits:[[2, 0, 'E'], [6, 8, 'E']] },
+    A2:{ bars:8, ch:'@A', play:'gtr bass magma ash stab kit', drop:true, hits:[[4, 0, 'E']] },
+    D:{ bars:8, ch:'Bbm Bbm B B Bbm Bbm F F', play:'ash bass magma kit', kit:'C', rise:true },
     B2:{ like:'B', rise:false, drop:true },
-    C:{ bars:4, ch:'Am F Gm E', play:'pad kit', kit:'C', rise:true },
-    A3:{ bars:8, ch:'@A', lead:'@A', play:'lead lead2 pad bass kit gam stab', kit:'B', drop:true } } };
+    C:{ bars:4, ch:'Gb Ab B F', play:'ash gtr kit', kit:'C', rise:true, figs:{ gtr:'x---------------' } },
+    A3:{ bars:8, ch:'@A', play:'gtr bass magma ash stab kit', kit:'B', drop:true, hits:[[0, 0, 'E'], [4, 0, 'E']] } } };
+
+// ---------------------------------------------------------------- 黒部 Kurobe Dam (B minor, 136 in half time): the wall of water in the cold
+// Written 2026-11-21. Vast and cold: a dark held fifth (the drone) under a pad, a reese in 3+3+2, a muted pluck motor thrown far by a
+// dotted-quarter echo (spray in the gorge), a high glock glint, and the water itself in the kit (w: a bar-long roar). Gmaj7#11 (bVI
+// lydian) is the cold air; F#7 the raised dominant. The form builds: D gathers the o-daiko, B2 drops, A3 adds the guitar wall.
+// Set piece 観光放水 (the gates open): G holds a taiko gathering from the card until the first gate opens; then the kanpo sting
+// and O (the wall, the roar, an impact) for four bars, back into A3.
+T.kurobe = { name:'Kurobe Dam', kanji:'黒部', bpm:136, key:'B', mode:'minor', gain:1.165, bedOnly:true, dly:{ b:1.5, fb:.42 }, bassLow:'D1', padLow:'D3', arpLow:'B3',
+  parts:{ drone:{ inst:'drone', pow:true, low:'F#1', fig:'hold', rev:.5, wide:.6, vol:1 }, bass:{ inst:'reese', fig:'1..1..1...1.8..5', drive:2.5, vol:.9 },
+    arp:{ inst:'pluck', arp:true, fig:'0212021202120213', o:{ cut:500, fenv:2200 }, wide:.6, dly:.45, rev:.35, lay:1, vol:1.2 },
+    glint:{ inst:'glock', arp:true, fig:'3.......1.....2.', low:'F#5', wide:.5, dly:.5, rev:.6, lay:2, vol:.9 },
+    pad:{ inst:'spad', fig:'hold', o:{ cut:900 }, rev:.6, wide:.8, pump:.4, vol:1 },
+    gtr:{ inst:'gtr', pow:true, low:'B1', fig:'x---------------', drive:8, cab:2200, wide:.8, rev:.2, lay:1, vol:.18 },
+    stab:{ inst:'stab', fig:'x.......x..x....', o:{ cut:500, fenv:2600 }, wide:.6, rev:.35, lay:4, vol:1.3 }, kit:{ kit:true, rev:.3, vol:1 } },
+  kit:{ I:{ w:'x...............', J:'x.......x.......' }, A:{ k:'x.........x.....', s:'........X.......', h:'x.x.x.x.x.x.x.x.', J:'x...............', o:'..............x.' },
+    B:{ k:'x.....x...x.....', s:'........X.....g.', h:'x.x.x.x.x.x.x.x.', h2:'.x.x.x.x.x.x.x.x', J:'x.......x.......', w:'x...............' },
+    C:{ w:'x...............', J:'x.......x..x.x..', h:'..x...x...x...x.' }, D:{ J:'x.......x..x.x..', h:'..x...x...x...x.' }, G:{ J:'x...x...x.x.xxxx', w:'x...............' },
+    O:{ k:'x.....x...x.....', s:'........X.......', h:'xxxxxxxxxxxxxxxx', J:'x.......x.......', w:'x...............', o:'..............x.' }, fill:FILL_T },
+  form:['I', 'A', 'B', 'A2', 'D', 'B2', 'C', 'A3'], loop:'A', extra:['G', 'O'], style:{},
+  sec:{ I:{ bars:4, ch:'Bm Bm/A Gmaj7#11 F#7sus4', play:'drone pad bass kit', kit:'I', rise:true },
+    A:{ bars:8, ch:'Bm Bm/A Gmaj7#11 Em9 Bm Bm/A Gmaj7#11 F#7sus4', play:'drone pad bass arp kit stab', drop:true },
+    B:{ bars:8, ch:'Em9 F#m7 Gmaj7#11 Asus2 Em9 F#m7 Gmaj7#11 F#7', play:'drone pad bass arp glint kit stab', kit:'B', rise:true },
+    A2:{ bars:8, ch:'@A', play:'drone pad bass arp glint gtr kit stab', drop:true },
+    D:{ bars:8, ch:'Gmaj7#11 Gmaj7#11 Bm Bm Gmaj7#11 Gmaj7#11 Asus2 F#7sus4', play:'drone pad bass glint kit', kit:'D', rise:true, figs:{ bass:'1-------........' } },
+    B2:{ like:'B', rise:false, drop:true, play:'drone pad bass arp glint gtr kit stab' },
+    C:{ bars:4, ch:'Gmaj7#11 Asus2 Bm F#7', play:'drone pad arp kit', kit:'C', rise:true },
+    A3:{ bars:8, ch:'@A', play:'drone pad bass arp glint gtr kit stab', kit:'B', drop:true },
+    G:{ bars:1, ch:'F#7sus4', play:'drone pad kit', kit:'G', hold:true, bare:true },
+    O:{ bars:4, ch:'Bm Gmaj7#11 Em9 F#7', play:'drone pad bass arp glint gtr kit stab', kit:'O', drop:true, rise:true, ret:'A3' } } };
+
+// ---------------------------------------------------------------- 秋 Akihabara (F# minor, 152): electro under the signs, arcade chips, the blackout
+// Written 2026-11-21. Dense and electric: four on the floor, a 16th reese with ghosts, off-beat stabs, and the motor is an arcade
+// square arpeggio (chip) in call and response, its 3/16 echo smearing it into a 16th stream. i bVI bVII v / V7 (C#7, raised).
+// Set piece 停電 (the blackout): when the dark reaches you, the teiden sting (the power sags) and X: the chips and the beat die, only
+// the mains hum and an 808 heartbeat, held. Every sign at once: the relight sting (an impact, chips racing up) and Y, everything back
+// at once for four bars, then A2.
+T.akiba = { name:'Akihabara', kanji:'秋', bpm:152, key:'F#', mode:'minor', gain:1.322, bedOnly:true, dly:{ b:.75, fb:.3 }, bassLow:'F#1', padLow:'A3', arpLow:'F#4',
+  parts:{ chip:{ inst:'chip', arp:true, fig:'02420242024202421353135313531353', wide:.45, dly:.22, rev:.15, vol:4 },
+    bass:{ inst:'reese', fig:'18x818x818x8188n', drive:2.5, vol:.6 },
+    stab:{ inst:'stab', fig:'..x...x...x...x.', o:{ cut:600, fenv:2600 }, wide:.6, rev:.25, lay:1, vol:1.1 },
+    pad:{ inst:'spad', fig:'hold', o:{ cut:1100 }, rev:.4, wide:.8, pump:.7, lay:1, vol:1 },
+    hum:{ inst:'drone', pow:true, low:'F#1', fig:'hold', rev:.45, wide:.5, vol:.45 }, kit:{ kit:true, rev:.15, vol:1 } },
+  kit:{ I:{ k:'x...x...x...x...', q:'..x...x...x...x.' }, A:{ k:'x...x...x...x...', c:'....X.......X...', h2:'.x.x.x.x.x.x.x.x', o:'..x...x...x...x.', q:'...x.....x....x.' },
+    B:{ K:'x.....x...x.....', c:'....X.......X...', h:'x.x.x.x.x.x.x.x.', y:'.......x.......x', q:'..x..x..x..x..x.' }, C:{ k:'x...............', q:'..x...x...x...x.', h:'..x...x...x...x.' },
+    X:{ K:'x..g............' }, Y:{ k:'x...x...x...x...', c:'....X.......X...', h:'x.x.x.x.x.x.x.x.', h2:'.x.x.x.x.x.x.x.x', o:'..x...x...x...x.', q:'...x.....x....x.' },
+    fill:{ c:'............xxXX', k:'............x...' } },
+  form:['I', 'A', 'B', 'A2', 'D', 'B2', 'C', 'A3'], loop:'A', extra:['X', 'Y'], style:{},
+  sec:{ I:{ bars:4, ch:'F#m D E C#7sus4', play:'chip bass kit', kit:'I', rise:true },
+    A:{ bars:8, ch:'F#m D E C#m F#m D Bm C#7', play:'chip bass pad kit', drop:true },
+    B:{ bars:8, ch:'Bm7 C#m7 Dsus2 E Bm7 G#m7b5 C#7sus4 C#7', play:'chip bass pad stab kit', kit:'B', rise:true },
+    A2:{ bars:8, ch:'@A', play:'chip bass pad stab kit', drop:true },
+    D:{ bars:8, ch:'D D E E Bm Bm C#7sus4 C#7', play:'chip pad bass kit', kit:'C', rise:true, figs:{ chip:'0...2...4...2...' } },
+    B2:{ like:'B', rise:false, drop:true },
+    C:{ bars:4, ch:'D E Bm C#7', play:'chip pad stab kit', kit:'C', rise:true },
+    A3:{ bars:8, ch:'@A', play:'chip bass pad stab kit', kit:'Y', drop:true },
+    X:{ bars:1, ch:'F#m', play:'hum kit', kit:'X', hold:true, bare:true },
+    Y:{ bars:4, ch:'F#m D E C#7', play:'chip bass pad stab kit', kit:'Y', drop:true, rise:true, ret:'A2' } } };
+
+// ---------------------------------------------------------------- 祇 Kyoto Gion (F, the in scale, 90): the lonely lane, a shamisen and space
+// Written 2026-11-21. Restrained: ma is the point. A shamisen-like pluck (sham) says a phrase and then says nothing for a bar; a koto
+// answers sparsely in call and response; a deep, slow groove (an 808 kick, a gated snare on 3, a sine sub with long gaps). F in-scale
+// (F Gb Bb C Db): Fm, Gbmaj7 (the phrygian bII), Dbmaj7, Bbm7, and Csus4 / C7 at the seams. No bells in the song itself.
+// Set piece 宵山 (yoiyama): Y holds while the festival is out: the ohayashi's atarigane (kon-chiki-chin) and shime-daiko under the
+// koto, then back where the song was.
+T.gion = { name:'Kyoto Gion', kanji:'祇', bpm:90, key:'F', mode:'in', gain:2.15, bedOnly:true, dly:{ b:1.5, fb:.38 }, bassLow:'F1', padLow:'Ab3', arpLow:'F4',
+  parts:{ sham:{ inst:'sham', pan:.08, dly:.3, rev:.45, vol:1.6 }, sham2:{ inst:'sham', src:'sham', tr:-12, pan:-.15, dly:.2, rev:.35, lay:2, vol:.9 },
+    koto:{ inst:'koto', arp:true, fig:'0.....3.....2...4.......1...2...', wide:.5, dly:.4, rev:.45, vol:.9 },
+    bass:{ inst:'subB', fig:'1.......5..1....', vol:.4 }, pad:{ inst:'spad', fig:'hold', o:{ cut:700 }, rev:.6, wide:.8, lay:1, vol:.9 }, kit:{ kit:true, rev:.3, vol:.6 } },
+  kit:{ I:{ j:'x...............' }, A:{ K:'x.........x.....', s:'........X.......', h:'..x...x...x.x.x.', j:'.............x..' },
+    B:{ K:'x......x..x.....', s:'........X.....g.', h:'x.x.x.x.x.x.x.x.', j:'...x.......x....' }, C:{ K:'x...............', j:'........x.......' },
+    Y:{ K:'x.........x.....', s:'........X.......', z:'X.x.x...X.x.x...', j:'x.xx..x.x.xx..x.' }, fill:{ j:'............x.xx' } },
+  form:['I', 'A', 'B', 'A2', 'D', 'C', 'A3'], loop:'A', extra:['Y'], style:{},
+  sec:{ I:{ bars:4, ch:'Fm Gbmaj7 Fm Csus4', play:'koto bass pad', kit:'I' },
+    A:{ bars:8, ch:'Fm Gbmaj7 Fm Dbmaj7 Bbm7 Gbmaj7 Fm Csus4', play:'sham koto bass pad kit',
+      sham:'C5:2 .:1 Db5:1 C5:4 .:2 Ab4:2 F4:4 | .:16 | F5:3 Eb5:1 Db5:2 C5:2 .:4 Bb4:2 C5:2 | Ab4:8 .:8 | Bb4:2 .:1 Db5:1 F5:4 .:2 Eb5:2 Db5:4 | Bb4:4 .:12 | C5:2 Db5:2 C5:2 Ab4:2 F4:8 | .:16' },
+    B:{ bars:8, ch:'Dbmaj7 Gbmaj7 Bbm7 Fm Dbmaj7 Gbmaj7 Bbm7 C7', play:'sham koto bass pad kit', kit:'B',
+      sham:'F5:4 .:2 Gb5:2 F5:2 Db5:2 .:4 | Bb4:8 .:8 | Db5:2 F5:2 Ab5:4 .:2 Gb5:2 F5:4 | C5:12 .:4 | F5:4 .:2 Gb5:2 Bb5:4 Ab5:2 Gb5:2 | F5:8 .:8 | Db5:2 C5:2 Bb4:2 Ab4:2 Bb4:8 | C5:4 .:12' },
+    A2:{ bars:8, ch:'@A', sham:'@A', play:'sham sham2 koto bass pad kit' },
+    D:{ bars:4, ch:'Gbmaj7 Gbmaj7 Fm Fm', play:'koto bass pad kit', kit:'C' },
+    C:{ bars:4, ch:'Dbmaj7 Gbmaj7 Bbm7 C7', play:'koto bass pad kit', kit:'C', rise:true },
+    A3:{ bars:8, ch:'@A', sham:'@A', play:'sham sham2 koto bass pad kit', kit:'B', drop:true },
+    Y:{ bars:2, ch:'Fm Gbmaj7', play:'koto bass pad kit', kit:'Y', hold:true, bare:true } } };
 
 // ---------------------------------------------------------------- 空 Haneda (E minor, 150): jets overhead, a hybrid ostinato machine to the dawn
 // Darker, harder. Was E major at 140 (Emaj7 F#m7 C#m7 D#m7: city-pop maj7 sheen, whole-note bass): the parallel minor (Em9 F#m7b5 C ...),
@@ -432,17 +527,22 @@ T.minato = { name:'Minato Mirai', kanji:'浜', bpm:132, key:'D', mode:'minor', g
     C:{ bars:4, ch:'Bb Csus2 Am7 A7', play:'wheel pad kit', kit:'C', rise:true },
     A3:{ bars:8, ch:'@A', lead:'@A', fog:'@A', play:'lead wheel fog pad bass kit stab', kit:'B', drop:true } } };
 
-// ---------------------------------------------------------------- results: 朝 Morning (E major, 120 in half time): the dawn figure on gamelan
-T.results = { name:'Morning', kanji:'朝', bpm:120, key:'E', mode:'major', gain:1.230, dly:{ b:.75, fb:.35 }, bassLow:'E1', padLow:'G#3', arpLow:'E5', lp:false,
+// ---------------------------------------------------------------- results: 朝 Morning (E major, 120 in half time): the dawn figure, cooling down
+// The bed (gamelan figure, pad, sub, soft kit) is the one approved by ear and is untouched. 2026-11-21: the melody lost with the voices
+// comes back on a warm triangle-and-saw voice (dawn: no voice, no bell): the sundown figure turned upward (1 2 3 4 5, in 3+3+2+4+4) at the
+// top of A, breathing a bar after every phrase; B answers higher and climbs back into the figure at the seam; A2 doubles it an octave down.
+T.results = { name:'Morning', kanji:'朝', bpm:120, key:'E', mode:'major', gain:1.121, dly:{ b:.75, fb:.35 }, bassLow:'E1', padLow:'G#3', arpLow:'E5', lp:false,
   parts:{ gam:{ inst:'gamelan', arp:true, fig:'0.1.2.4.2.1.0.4.', wide:.5, dly:.25, rev:.45, vol:1.14 },
-    pad:{ inst:'spad', fig:'hold', rev:.6, wide:.8, vol:0.891 }, bass:{ inst:'subB', fig:'1-------5---8---', vol:0.427 }, kit:{ kit:true, rev:.3, vol:1.8 } },
+    pad:{ inst:'spad', fig:'hold', rev:.6, wide:.8, vol:0.891 }, bass:{ inst:'subB', fig:'1-------5---8---', vol:0.427 }, kit:{ kit:true, rev:.3, vol:1.8 },
+    mel:{ inst:'dawn', pan:.05, dly:.3, rev:.45, vol:1.8 }, mel2:{ inst:'dawn', src:'mel', tr:-12, pan:-.12, dly:.2, rev:.35, vol:.95 } },
   kit:{ A:{ k:'x.........x.....', s:'........X.......', h:'..x...x...x...x.' }, I:{ g:'x...............' }, fill:{ s:'..............gx' } },
-  form:['I', 'A', 'B'], loop:'A', style:{ soft:true }, energy:3,
+  form:['I', 'A', 'B', 'A2'], loop:'A', style:{ soft:true }, energy:3,
   sec:{ I:{ bars:2, ch:'Emaj9 B7sus4', play:'gam pad bass kit', kit:'I' },
-    A:{ bars:8, ch:'Emaj9 C#m9 Amaj7 B7sus4 Emaj9 G#m7 Amaj7 B7sus4', play:'gam pad bass kit',
-      lead:'E5:3 F#5:3 G#5:2 A5:4 B5:4 | G#5:6 E5:2 D#5:4 C#5:4 | C#5:4 E5:4 G#5:6 .:2 | F#5:8 E5:4 .:4 | B4:2 E5:2 F#5:2 G#5:2 B5:6 .:2 | B5:4 A5:2 G#5:2 F#5:4 D#5:4 | E5:4 C#5:4 G#5:4 A5:4 | F#5:12 .:4' },
-    B:{ bars:8, ch:'Amaj7 B G#m7 C#m9 F#m9 B7sus4 Emaj9 B7sus4', play:'gam pad bass kit',
-      lead:'C#6:6 B5:2 G#5:4 E5:4 | D#6:6 C#6:2 B5:8 | B5:4 G#5:4 F#5:4 D#5:4 | E5:8 D#5:4 .:4 | A5:4 G#5:4 F#5:2 E5:2 C#5:4 | E5:6 F#5:2 A5:8 | G#5:4 F#5:2 E5:2 D#5:4 B4:4 | E5:3 F#5:3 A5:2 B5:8' } } };
+    A:{ bars:8, ch:'Emaj9 C#m9 Amaj7 B7sus4 Emaj9 G#m7 Amaj7 B7sus4', play:'mel gam pad bass kit',
+      mel:'E5:3 F#5:3 G#5:2 A5:4 B5:4 | G#5:6 .:2 E5:4 D#5:4 | C#5:4 E5:2 G#5:6 .:4 | F#5:8 .:8 | B4:2 .:1 E5:1 F#5:2 G#5:2 B5:6 .:2 | B5:3 A5:3 G#5:2 F#5:4 D#5:4 | E5:4 C#5:2 E5:2 G#5:8 | F#5:4 E5:4 .:8' },
+    B:{ bars:8, ch:'Amaj7 B G#m7 C#m9 F#m9 B7sus4 Emaj9 B7sus4', play:'mel gam pad bass kit',
+      mel:'C#6:6 B5:2 G#5:4 .:4 | D#6:6 C#6:2 B5:4 .:4 | B5:4 G#5:4 F#5:4 D#5:4 | E5:8 .:8 | A5:4 G#5:2 F#5:2 C#5:4 .:4 | E5:6 F#5:2 A5:4 .:4 | G#5:4 F#5:2 E5:2 D#5:4 B4:4 | E5:3 F#5:3 A5:2 B5:8' },
+    A2:{ bars:8, ch:'@A', mel:'@A', play:'mel mel2 gam pad bass kit' } } };
 
 /* ================================================================== stingers: one-shots, written relative to the song's tonic (octave 3).
    ev: [beat, inst, semitones (a number or a chord array), length in beats, velocity]; kit: [beat, hit, vel]. Taiko, chant shouts and
@@ -480,6 +580,17 @@ ST.dawn = { bpm:92, gain:1.300, note:'明: the figure turned upward on gamelan, 
       [3, 'spad', [4, 11, 16, 18], 3, .8], [0, 'subB', -8, 6, .7]],
   kit:[[2, 'V', .6], [3, 'C', .6], [3, 'J', .7]], key:'E' };
 
+// the new roads' set pieces (2026-11-21), cued by the owner (see spTick) on the song's next beat, over the director's duck
+ST.kanpo = { bpm:136, gain:0.8, note:'観光放水: the gates open: two o-daiko, the roar of the water, a low open-fifth wall and an impact',
+  ev:[[0, 'spad', [-12, -5, 0, 7], 5, .7], [1, 'stab', [-12, -5, 0, 7], 3, 1], [1, 'b808', -12, 3, 1]],
+  kit:[[0, 'J', 1], [.5, 'J', .9], [0, 'w', 1], [1, 'I', 1]] };
+ST.teiden = { bpm:152, gain:0.8, note:'停電: the power dies: the mains note sags three octaves, a low thump, the dark',
+  ev:[[0, 'b808', -12, 2, .7]], kit:[[0, 'P', 1], [0, 'J', .6]] };
+ST.relight = { bpm:152, gain:0.8, note:'復電: every sign at once: an impact and a wide stab, arcade chips racing up two octaves',
+  ev:[[0, 'stab', [0, 7, 12, 15], 2, 1], [0, 'b808', -12, 2, 1], [.25, 'chip', 12, .25, .9], [.5, 'chip', 15, .25, .9], [.75, 'chip', 19, .25, .9], [1, 'chip', 24, .25, .9],
+      [1.25, 'chip', 27, .25, .9], [1.5, 'chip', 31, .25, .9], [1.75, 'chip', 36, .5, 1]],
+  kit:[[0, 'I', 1], [0, 'c', .9]] };
+
 /* ================================================================== the compiler (pure; node can run it) */
 function parseNotes(str, warn, where){ const bars = []; let cur = [], len = 0, lastN = null;
   const close = () => { if(len !== 16) warn(where + ' bar ' + (bars.length + 1) + ' has ' + len + ' sixteenths'); bars.push(cur); cur = []; len = 0; };
@@ -506,7 +617,8 @@ function compile(th){ const W = [], warn = w => W.push(th.name + ': ' + w), part
   const lo = { bass:nm(th.bassLow || 'E1'), pad:nm(th.padLow || 'G3'), arp:nm(th.arpLow || 'E4') }, keyPc = pcOf(th.key);
   const kitOf = name => th.kit[name] || th.kit.A || {}, bars = [], secStart = {}, lastN = {};
   const resolveStr = (sec, part) => { let s = sec[part]; for(let g = 0; typeof s === 'string' && s[0] === '@' && g < 4; g++){ const [sn, pn] = s.slice(1).split('.'); s = (th.sec[sn] || {})[pn || part]; } return s; };
-  for(const sn of th.form){ const sec = th.sec[sn] && th.sec[sn].like ? Object.assign({}, th.sec[th.sec[sn].like], th.sec[sn]) : th.sec[sn]; if(!sec){ warn('no section ' + sn); continue; } secStart[sn] = bars.length;
+  // a section's bars go into the main form (bars) or, for a set-piece section (th.extra), into its own list (xs[name])
+  const emit = (sn, bars) => { const sec = th.sec[sn] && th.sec[sn].like ? Object.assign({}, th.sec[th.sec[sn].like], th.sec[sn]) : th.sec[sn]; if(!sec){ warn('no section ' + sn); return; }
     let chSpec = sec.ch; if(chSpec && chSpec[0] === '@') chSpec = th.sec[chSpec.slice(1)].ch;
     const chs = chordsOf(chSpec, sec.bars, warn, sn), play = new Set((sec.play || parts.join(' ')).split(/\s+/)), mel = {};
     for(const p of parts){ const P = th.parts[p]; if(!play.has(p)) continue; const src = P.src ? resolveStr(sec, P.src) : resolveStr(sec, p);
@@ -520,6 +632,7 @@ function compile(th){ const W = [], warn = w => W.push(th.name + ': ' + w), part
           put(K, 0, 16, ev); if(bar.last && !sec.nofill && th.kit.fill){ bar.fill = Array.from({ length:16 }, () => []); put(th.kit.fill, 12, 16, bar.fill); }
           if(sec.rise && bar.last){ ev[0].push({ p:pi, kit:'R', v:.8, lay:0 }); ev[12].push({ p:pi, kit:'V', v:.8, lay:0 }); }   // into the next section
           if(sec.drop && b === 0){ ev[0].push({ p:pi, kit:'I', v:.85, lay:1 }); }                                                // the drop lands
+          if(sec.hits) for(const [hb, hs, hk] of sec.hits) if(hb === b){ ev[hs].push({ p:pi, kit:hk, v:.9, lay:KIT_LAY[hk] != null ? KIT_LAY[hk] : 1 }); }   // one-off hits on given bars ([bar, step, hit])
           continue; }
         if(mel[p]){ const tr = P.tr || 0; for(const n of mel[p][b] || []) if(n.s < 16) ev[n.s].push({ p:pi, n:n.n + tr, d:n.d, v:n.v, gl:n.gl ? n.gl + tr : 0, lay }); continue; }
         let fig = (sec.figs && sec.figs[p]) || P.fig; if(!fig) continue;
@@ -534,9 +647,13 @@ function compile(th){ const W = [], warn = w => W.push(th.name + ': ' + w), part
             ev[s].push({ p:pi, n, d:c === 'x' ? .5 : d, v:c === 'x' ? .4 : s % 4 === 0 ? 1 : .8, gl, lay }); }
           else if(P.arp || p === 'arp'){ if(!DIGIT(c)){ warn(sn + '.' + p + ' bad arp char ' + c); continue; } const L = ladder(chAt(s), plo || lo.arp); ev[s].push({ p:pi, n:L[+c], d:Math.max(d, 1), v:s % 4 === 0 ? .9 : .72, lay }); }
           else ev[s].push({ p:pi, n:voice(chAt(s)), d, v:c === 'X' ? 1 : .85, lay }); } }
-      bars.push(bar); } }
+      bars.push(bar); } };
+  for(const sn of th.form){ secStart[sn] = bars.length; emit(sn, bars); }
+  // set-piece sections: played only when the owner jumps there (hold: loop from bar holdFrom until released; else go on to next, or
+  // back into the form at ret); bare: no build overlays (the swell's hats and pad) while it plays
+  const xs = {}, xm = {}; for(const sn of th.extra || []){ const a = []; emit(sn, a); xs[sn] = a; const q = th.sec[sn] || {}; xm[sn] = { hold:!!q.hold, holdFrom:q.holdFrom || 0, next:q.next || null, ret:q.ret || null, bare:!!q.bare }; }
   const loopAt = secStart[th.loop || th.form[1]] || 0, s16 = 60 / th.bpm / 4;
-  return { th, parts, PI, bars, loopAt, secStart, warnings:W, s16, keyPc, loopSec:(bars.length - loopAt) * 16 * s16, introSec:loopAt * 16 * s16 }; }
+  return { th, parts, PI, bars, loopAt, secStart, xs, xm, warnings:W, s16, keyPc, loopSec:(bars.length - loopAt) * 16 * s16, introSec:loopAt * 16 * s16 }; }
 
 /* ================================================================== the synth (Web Audio) */
 function makeEngine(ac, dest){ const E = { ac, dest, decks:[], waves:{}, live:true };
@@ -566,13 +683,13 @@ function makeDeck(E, C, at, opts){ const ac = E.ac, th = C.th, D = { E, C, th, b
   if(opts && opts.from && C.secStart[opts.from] != null) D.bi = C.secStart[opts.from];   // a border may enter at the intro or straight at A
   D.out = ac.createGain(); D.out.gain.value = 0; D.out.gain.setValueAtTime(0, Math.max(0, at - .02)); const off = !(opts && opts.leads) && !leadsOn(C.key);
   // lead switch: muted parts; a chant melody (chantLead) stays, an octave down in the mid register
-  D.mute = C.parts.map(p => (th.keep && !th.keep.includes(p)) || (off && LEAD_PARTS.includes(p) && !(p === 'lead' && th.chantLead))); D.tr = C.parts.map(p => off && p === 'lead' && th.chantLead ? -12 : 0); D.pDb = PRES[C.key] != null ? PRES[C.key] : 5; D.g0 = th.gain * (D.mute.some(Boolean) ? (th.bedGain || 1) * Math.pow(10, -.2 * (D.pDb - 5) / 20) : 1);
+  D.mute = C.parts.map(p => (th.keep && !th.keep.includes(p)) || (off && LEAD_PARTS.includes(p) && !(p === 'lead' && th.chantLead))); D.tr = C.parts.map(p => off && p === 'lead' && th.chantLead ? -12 : 0); D.pDb = PRES[C.key] != null ? PRES[C.key] : 5; D.bed = D.mute.some(Boolean) || !!th.bedOnly; D.g0 = th.gain * (D.bed ? (th.bedGain || 1) * Math.pow(10, -.2 * (D.pDb - 5) / 20) : 1);
   D.out.gain.linearRampToValueAtTime(D.g0, at + .01);
   D.lp = ac.createBiquadFilter(); D.lp.type = 'lowpass'; D.lp.frequency.value = 20000; D.lp.Q.value = .5; D.lpF = 20000;
   // the build's air: a high shelf, 0 dB in the approved mix, opened by the swell and closed by a quiet stretch (always on a bar line)
   D.air = ac.createBiquadFilter(); D.air.type = 'highshelf'; D.air.frequency.value = 6500; D.air.gain.value = 0;
   D.lp.connect(D.air).connect(D.out).connect(E.bus);   // (a presence lift is spliced in below when the lead is off)
-  if(D.mute.some(Boolean)){ D.pres = ac.createBiquadFilter(); D.pres.type = 'peaking'; D.pres.frequency.value = 2200; D.pres.Q.value = .7; D.pres.gain.value = D.pDb; D.air.disconnect(); D.air.connect(D.pres).connect(D.out); }   // without a lead the bed needs presence for laptop speakers (measured 2-9 % in 1-4 kHz without it)
+  if(D.bed){ D.pres = ac.createBiquadFilter(); D.pres.type = 'peaking'; D.pres.frequency.value = 2200; D.pres.Q.value = .7; D.pres.gain.value = D.pDb; D.air.disconnect(); D.air.connect(D.pres).connect(D.out); }   // without a lead the bed needs presence for laptop speakers (measured 2-9 % in 1-4 kHz without it)
   D.dly = ac.createDelay(2); D.dly.delayTime.value = (th.dly ? th.dly.b : .75) * 60 / th.bpm; D.fb = ac.createGain(); D.fb.gain.value = th.dly ? th.dly.fb : .3;
   D.fbLp = ac.createBiquadFilter(); D.fbLp.type = 'lowpass'; D.fbLp.frequency.value = 3200; D.dIn = ac.createGain(); D.dIn.gain.value = 1;
   // a ping-pong feel: the repeats sit wide
@@ -689,11 +806,27 @@ function drum(E, c, hit, t, v, style, s16){ const st = style || {}, soft = st.so
     case 'V': { const ac = E.ac, L = q * 4, src = ac.createBufferSource(), hp = ac.createBiquadFilter(), g = ac.createGain(); src.buffer = E.noise; src.loop = true;   // a reverse cymbal into the next downbeat
       hp.type = 'highpass'; hp.frequency.value = 4200; g.gain.setValueAtTime(.001, t); g.gain.exponentialRampToValueAtTime(.4 * v, t + L); g.gain.linearRampToValueAtTime(0, t + L + .03);
       src.connect(hp).connect(g).connect(c.hat); src.start(t); src.stop(t + L + .05); src.onended = () => g.disconnect(); break; }
+    case 'w': { const L = q * 16;
+      // the water: a low roar swelling over half a bar and falling away, spray a little higher on the other side
+      noiseHit(E, c.perc, t, 'lowpass', 420, .6, .5 * v, L * .45, L * .9); noiseHit(E, c.hat, t + .011, 'bandpass', 1300, .7, .16 * v, L * .5, L * .6); break; }
+    case 'P': { const ac = E.ac, o = ac.createOscillator(), lp = ac.createBiquadFilter(), g = ac.createGain(); o.type = 'sawtooth';
+      // the power dies: the mains note sags three octaves as the filter closes
+      o.frequency.setValueAtTime(370, t); o.frequency.exponentialRampToValueAtTime(46, t + .9); lp.type = 'lowpass'; lp.Q.value = 2; lp.frequency.setValueAtTime(2200, t); lp.frequency.exponentialRampToValueAtTime(140, t + .9);
+      g.gain.setValueAtTime(0, t); g.gain.linearRampToValueAtTime(.3 * v, t + .01); g.gain.setTargetAtTime(0, t + .5, .15); o.connect(lp).connect(g).connect(c.perc); o.start(t); o.stop(t + 1.3); o.onended = () => g.disconnect(); break; }
+    case 'z':
+      // the atarigane: a small hand gong, struck (kon) or damped (chiki); an accent rings longer (chin)
+      fmHit(E, c.hat, t, 1480, 1.47, 2.2, .07 * v, v > .9 ? .5 : .16); fmHit(E, c.hat, t, 2210, 1.41, 1.4, .03 * v, v > .9 ? .35 : .1); break;
+    case 'E': { const ac = E.ac, src = ac.createBufferSource(), bp = ac.createBiquadFilter(), g = ac.createGain(); src.buffer = E.noise; src.loop = true;
+      // the eruption: a sub dive, then a crack of rock opening upward (band-passed noise rising), and the crash
+      toneHit(E, c.body, t, 'sine', 64, 22, .9, .9 * v, 2.2); bp.type = 'bandpass'; bp.Q.value = 1.1; bp.frequency.setValueAtTime(160, t); bp.frequency.exponentialRampToValueAtTime(2600, t + .7);
+      g.gain.setValueAtTime(0, t); g.gain.linearRampToValueAtTime(.32 * v, t + .03); g.gain.setTargetAtTime(0, t + .35, .25); src.connect(bp).connect(g).connect(c.body); src.start(t); src.stop(t + 1.8); src.onended = () => g.disconnect();
+      drum(E, c, 'C', t, v / KIT_TOP * .8, st, s16); break; }
     case 'I': toneHit(E, c.body, t, 'sine', 80, 28, .5, 1.1 * v, 1.6); noiseHit(E, c.body, t, 'lowpass', 900, .7, .5 * v, .002, .7); drum(E, c, 'C', t, v / KIT_BODY, st, s16); break; } }   // impact: sub boom, a wash and a crash
 
 /* ================================================================== the deck scheduler: one compiled song on the audio clock */
 function stepDeck(D, until, onBar){ const C = D.C, th = D.th, s16 = C.s16, sw = (th.swing || 0) * s16, E = D.E;
-  while(D.alive && D.t < until){ const bar = C.bars[D.bi], s = D.st, t = D.t + (s % 2 ? sw : 0);
+  while(D.alive && D.t < until){ if(D.st === 0 && D.xq) jumpNow(D);
+    const bar = curBar(D), s = D.st, t = D.t + (s % 2 ? sw : 0);
     if(s === 0 && onBar && onBar(D, bar) === false) return;   // the owner may switch songs on this bar line
     const X = D.x; if(s === 0) latch(D); if(s % 4 === 0) latchBeat(D, t);
     const tk = X.tk, drop = X.esc === 1, eCap = tk >= 1 ? Math.min(D.e, 1) : tk > 0 ? Math.min(D.e, 2) : D.e;
@@ -707,11 +840,20 @@ function stepDeck(D, until, onBar){ const C = D.C, th = D.th, s16 = C.s16, sw = 
       else if(drop && D.isBass[ev.p]) continue;
       if(ev.kit){ drum(E, c, ev.kit, t, ev.v, th.style, s16); if((ev.kit === 'k' || ev.kit === 'K') && D.pumps.length) pump(D, t); }
       else { const tr = D.tr[ev.p]; playVoice(E, c.inst, c.in, tr ? (Array.isArray(ev.n) ? ev.n.map(x => x + tr) : ev.n + tr) : ev.n, t, ev.d * s16, ev.v, ev.gl && tr ? ev.gl + tr : ev.gl); } }
-    if(!D.solo) layers(D, bar, s, t, hatHere);
+    if(!D.solo && !(D.xs && D.xs.bare)) layers(D, bar, s, t, hatHere);
     const fill = (D.fillReq || bar.last) && s >= 12 && bar.fill && tk <= 0 && !drop ? bar.fill[s] : null;
     if(fill && D.e >= 1) for(let i = 0; i < fill.length; i++){ const ev = fill[i]; const c = D.ch[ev.p]; if(D.solo && !soloHas(D.solo, 'kit')) continue; drum(E, c, ev.kit, t, ev.v, th.style, s16); }
     D.st++; D.t += s16; D.gs++;
-    if(D.st >= 16){ D.st = 0; D.fillReq = false; D.bi++; if(D.bi >= C.bars.length){ D.bi = C.loopAt; D.loops = (D.loops || 0) + 1; } } } }
+    if(D.st >= 16){ D.st = 0; D.fillReq = false;
+      if(D.xs){ const X = D.xs; if(++X.i >= X.bars.length){ if(X.hold) X.i = Math.min(X.holdFrom, X.bars.length - 1); else if(X.next && C.xs[X.next]) setXs(D, X.next); else { D.xs = null; D.bi = C.secStart[X.ret] != null ? C.secStart[X.ret] : D.bi; } } }
+      else { D.bi++; if(D.bi >= C.bars.length){ D.bi = C.loopAt; D.loops = (D.loops || 0) + 1; } } } } }
+/* set-piece sections (C.xs): the owner asks with D.xq = a section name, or 'main' to leave a held one; the jump lands on the next bar
+   line. The form's place is kept: leaving goes to the section's ret if it names one, else back where the form was. */
+const curBar = D => D.xs ? D.xs.bars[D.xs.i] : D.C.bars[D.bi];
+function setXs(D, name){ const m = D.C.xm[name]; D.xs = Object.assign({ name, bars:D.C.xs[name], i:0 }, m); }
+function jumpNow(D){ const q = D.xq, C = D.C; D.xq = null;
+  if(q === 'main'){ if(D.xs){ const r = D.xs.ret; D.xs = null; if(C.secStart[r] != null) D.bi = C.secStart[r]; } return; }
+  if(!C.xs || !C.xs[q] || (D.xs && D.xs.name === q)) return; setXs(D, q); }
 
 const STING_TRIM = { b808:.5, subB:.55, J:.65, I:.7, chantA:1.6, chantO:1.6 };   // measured: stings were 80-94 % under 120 Hz; the chant shouts must reach laptop speakers
 function playSting(E, S, at, rootMidi, dest){ const spb = 60 / S.bpm, d0 = dest || E.sting, C = { body:d0, hat:d0, perc:d0, in:d0 };
@@ -769,7 +911,7 @@ const LEAD_PARTS = ['lead', 'lead2', 'solo'], LEADS = { neon:true };
    phone-speaker model these beds lost 5.4-7.1 LU against their full-range loudness while the others lost 2-4, so a phone heard Pass ~5 dB
    quieter than Aqua-Line at the same setting. Each +2 dB here won back ~1 LU on the phone; the bed gain is trimmed 0.2 dB per dB so the
    full-range loudness holds. */
-const PRES = { title:9, bay:7, pass:9, refinery:7, coast:7, shimanami:7, haneda:7, sakurajima:9, snow:7, shuto:7, minato:7 };   // sakurajima, snow: after the chant voices were removed
+const PRES = { title:9, bay:7, pass:9, refinery:7, coast:7, shimanami:7, haneda:7, sakurajima:11, snow:7, shuto:7, minato:7, kurobe:9, akiba:7, gion:9 };   // the five beds written 2026-11-21 (bedOnly) take it too; sakurajima 11: its bed is all guitar chug and sub
 const leadsOn = k => !!LEADS[k];
 /* The gritty roads (user, 2026-11-19, after the drums-and-808 title: "i also really like the gritty soundtrack on the title screen can we
    have the in game music match that vibe better"). A sound and mix change, nothing re-composed; harmonies, leads, PRES and the build stay:
@@ -781,11 +923,12 @@ const leadsOn = k => !!LEADS[k];
    - GRIT[key]: the road's level trim in dB, measured so its loudness holds (research/sundown-craft/fork_music.md).
    Title and Results are not listed (the title has its own treatment; Results was approved by ear). */
 // Darker, harder (2026-11-19): coast, shimanami, snow and haneda re-trimmed after the re-composition so each holds its loudness.
-const GRIT = { harbour:-0.5, bay:-0.1, neon:-0.6, tunnels:-1.1, pass:-1.6, refinery:-0.2, coast:-1.9, snow:0.5, paddies:-0.5, aqua:-1, shimanami:-1.4, sakurajima:2, haneda:-0.4, shuto:-0.6, minato:0.3 };
+// snow, sakurajima, kurobe, akiba, gion (written 2026-11-21): 0 here; their loudness is set by the theme's gain, measured.
+const GRIT = { harbour:-0.5, bay:-0.1, neon:-0.6, tunnels:-1.1, pass:-1.6, refinery:-0.2, coast:-1.9, snow:0, paddies:-0.5, aqua:-1, shimanami:-1.4, sakurajima:0, haneda:-0.4, shuto:-0.6, minato:0.3, kurobe:0, akiba:0, gion:0 };
 const GRIT_BASS = { b808:{ k:10, g:3 }, subB:{ k:10, g:2 }, reese:{ k:10, g:.25 } };
 const DIRT = { kit:{ vol:1.22, drive:1.6, rev:.5, dly:1 }, bass:{ vol:1, drive:0, rev:1, dly:1 }, lead:{ vol:1, drive:0, rev:.8, dly:.8 }, bed:{ vol:1, drive:1.5, lp:5200, rev:.6, dly:.7 } };
 for(const k in GRIT) if(T[k]) T[k].style = Object.assign({}, T[k].style, { tight:true });
-const ROAD_THEME = { harbour:'harbour', bay:'bay', neon:'neon', tunnels:'tunnels', pass:'pass', refinery:'refinery', coast:'coast', snow:'snow', paddies:'paddies', aqua:'aqua', shimanami:'shimanami', sakurajima:'sakurajima', haneda:'haneda', minato:'minato', shuto:'shuto' };
+const ROAD_THEME = { harbour:'harbour', bay:'bay', neon:'neon', tunnels:'tunnels', pass:'pass', refinery:'refinery', coast:'coast', snow:'snow', paddies:'paddies', aqua:'aqua', shimanami:'shimanami', sakurajima:'sakurajima', haneda:'haneda', minato:'minato', shuto:'shuto', kurobe:'kurobe', akiba:'akiba', gion:'gion' };
 const CD_B = 60 / 126 * 1.5, CD_0 = .15, CD_GO = CD_0 + 3 * CD_B;   // mech/arrival.js's countdown timing (a count every 1.5 beats at 126)
 const LOOK = .35, TICK_MS = 50;
 const S = { M:null, E:null, deck:null, want:null, mode:'off', road:-1, eHold:0, eTgt:0, lastState:'', overT:0, caught:false, countT:0, countDeck:null,
@@ -798,11 +941,12 @@ function bindGame(){ if(GA) return GA; const has = n => g(n) !== undefined;
   GA = new Function('return { st:() => state, sp:() => (typeof speed === "number" && typeof MAXS === "number" ? speed / MAXS : 0), flow:() => (typeof flow === "number" ? flow : 0),' +
     'boost:() => (typeof boostT === "number" ? boostT : 0), btier:() => (typeof boostTier === "number" ? boostTier : 0), sheet:() => (typeof SHEET !== "undefined" && SHEET ? !SHEET.hidden : false),' +
     'land:() => (typeof landIdx === "function" && typeof zone === "function" && typeof LANDS !== "undefined" ? LANDS[landIdx(zone())] : null),' +
-    'cop:() => (typeof copT === "number" ? copT : 0), land0:() => (typeof landIdx === "function" && typeof LANDS !== "undefined" ? LANDS[landIdx(0)] : null), pseg:() => (typeof position === "number" && typeof PZ === "number" && typeof SEG === "number" ? (position + PZ) / SEG : 0) }')();
+    'cop:() => (typeof copT === "number" ? copT : 0), land0:() => (typeof landIdx === "function" && typeof LANDS !== "undefined" ? LANDS[landIdx(0)] : null), pseg:() => (typeof position === "number" && typeof PZ === "number" && typeof SEG === "number" ? (position + PZ) / SEG : 0),' +
+    'cs:() => (typeof position === "number" && typeof SEG === "number" ? position / SEG : 0) }')();
   return GA; }
 function themeForLand(L){ return L && ROAD_THEME[L.key] ? ROAD_THEME[L.key] : 'harbour'; }
 function energyNow(A){ const sp = A.sp(), fl = A.flow(); let e = sp < .4 ? 0 : sp < .75 ? 1 : 2; if(fl >= 3) e++; if(fl >= 6) e++; if(A.boost() > 0) e = Math.max(e, A.btier() >= 2 ? 4 : 3); return Math.min(4, e); }
-function setCur(D){ const bar = D.C.bars[D.bi]; if(!bar || !S.M) return; S.M.cur = D.st < 8 ? bar.cm[0] : bar.cm[1]; }
+function setCur(D){ const bar = curBar(D); if(!bar || !S.M) return; S.M.cur = D.st < 8 ? bar.cm[0] : bar.cm[1]; }
 function startSong(key, at, opts){ const E = S.E, C = comp(key); if(S.deck && S.deck.alive) killDeck(S.deck, at, opts && opts.tau || .12);
   const D = makeDeck(E, C, at, Object.assign({ crash:true }, opts || {})); D.key = key; E.decks.push(D); S.deck = D; S.want = null; return D; }
 function onBar(D, bar){ if(D !== S.deck) return true;
@@ -827,7 +971,7 @@ function tick(){ const M = S.M; if(!M || !M.ac) return; const ac = M.ac; if(!S.E
       const sty = HAS_WIN && window.MECH && MECH.style, ht = HAS_WIN && window.MECH && MECH.heat;
       IN.sp = A.sp(); IN.mult = sty && typeof sty.mult === 'number' ? sty.mult : 1; IN.cs = ht && ht.owns && ht.owns() ? Math.max(1, Math.min(4, ht.stage() | 0)) : A.cop() > 0 ? 1 : 0;
       IN.thin = S.thinK; IN.play = st === 'play'; steer(S.deck, IN);
-      setPieces(A, now); } }
+      setPieces(A, now); spTick(A); } }
   if(mode === 'over' && !S.deck && S.resultsAt && now >= S.resultsAt){ S.resultsAt = 0; startSong('results', now + .1, { energy:3, crash:false }); if(S.deck){ S.deck.lp.frequency.value = 20000; } }
   // schedule ahead on the audio clock; free decks that have faded out
   if(S.deck && S.deck.alive){ stepDeck(S.deck, now + LOOK, onBar); setCur(S.deck); publishClock(now); }
@@ -836,6 +980,7 @@ function tick(){ const M = S.M; if(!M || !M.ac) return; const ac = M.ac; if(!S.E
 function publishClock(now){ const D = S.deck, M = S.M; if(!D || !M) return; const s16_126 = 60 / 126 / 4, ahead = D.t - now;   // festival.js reads M.step and M.next on a 126 grid
   if(ahead < 0 || D.gs === 0) return; const fs = D.gs - ahead / D.C.s16; M.step = Math.ceil(fs); M.next = now + (M.step - fs) * s16_126; }
 function enterMode(mode, prev, A, now){ const E = S.E;
+  if(mode === 'count' || mode === 'wait' || mode === 'title') S.sp = null;   // a new ride: the set pieces' memory starts clean
   if(mode === 'title'){ E.route(S.M.out); const og = S.M.out.gain; if(og.value < .5){ og.cancelScheduledValues(now); og.setTargetAtTime(.85, now, .3); }   // home from the results: M.resolve faded M.out (as the Again button does)
     startSong('title', now + .15, { energy:3, crash:false }); S.deck.lp.frequency.value = 20000; return; }
   if(mode === 'count'){ E.route(S.M.out); if(S.deck && S.deck.alive) killDeck(S.deck, now, .15); S.deck = null;
@@ -859,6 +1004,20 @@ function setPieces(A, now){ if(!HAS_WIN || !window.MECH) return; if((S.spT = (S.
   const p = A.pseg(), L = A.land(); if(!L) return;
   if(L.key === 'bay' && MECH.sp_kaiju && MECH.sp_kaiju.probe){ const z = MECH.sp_kaiju.probe().zones; for(const q of z){ const d = q.pk - p; if(d > 0 && d < 240 && !S.stung['k' + q.pk]){ S.stung['k' + q.pk] = 1; cue('kaiju'); } } }
   if((L.key === 'paddies' || L.key === 'coast') && MECH.sp_festival && MECH.sp_festival.anchors){ for(const sh of MECH.sp_festival.anchors().shows){ const d = sh.peak - p; if(d > 0 && d < 130 && !S.stung['h' + sh.peak]){ S.stung['h' + sh.peak] = 1; cue('hanabi'); } } } }
+/* the new roads' set pieces (2026-11-21): read each tick from the env modules' own state (never the clock), the song jumps to a set-piece
+   section on its next bar line and the sting lands on its next beat. Kurobe: G (a taiko gathering) from the card until the first gate,
+   then the kanpo sting and O. Akihabara: when the dark reaches the rider, the teiden sting and X (held); every sign at once, the relight
+   sting and Y. Gion: Y (the ohayashi) while the festival is out. A held section is let go when its moment ends (or the rider leaves). */
+function spTick(A){ const D = S.deck; if(!D || !D.alive || !D.C.xs || !HAS_WIN || !window.ENV) return; const k = D.key, EN = window.ENV; let want = null, L = null;
+  try{ const cs = A.cs();
+    if(k === 'akiba'){ const Z = EN.akiba && EN.akiba._spa; if(Z && Z.on){ L = Z.L; want = Z.rel ? 'Y' : Z.fr <= cs ? 'X' : null; } }
+    else if(k === 'gion'){ const Z = EN.gion && EN.gion._spa; if(Z && Z.on && Z.lit && Z.wave < 791){ L = Z.L; want = 'Y'; } }
+    else if(k === 'kurobe'){ const V = EN.kurobe && EN.kurobe._visit, Q = V && V(Math.floor(cs)); if(Q && Q.sp && Q.card && !Q.fin){ L = Q; want = Q.g1 ? 'O' : 'G'; } }
+  }catch(e){ return; }
+  const P = S.sp || (S.sp = { want:null, L:null, done:{} }); if(L && L !== P.L){ P.L = L; P.done = {}; }
+  if(want === P.want) return; const was = P.want; P.want = want;
+  if(want && !P.done[want]){ P.done[want] = 1; D.xq = want; const st = k === 'kurobe' && want === 'O' ? 'kanpo' : k === 'akiba' ? (want === 'X' ? 'teiden' : 'relight') : null; if(st) cue(st); return; }
+  if(!want && was && D.xs && D.xs.hold) D.xq = 'main'; }
 function wrapDirector(){ const D = HAS_WIN && window.MECH && MECH.director; if(!D || D.__music) return; const orig = D.cine; D.__music = true;
   D.cine = function(o){ const h = orig.apply(this, arguments); try{ const k = o && o.card && o.card.kanji, A = bindGame(), L = A && A.land(), key = L && L.key;
       const name = k === '大波' ? 'wave' : k === '爆発' ? 'inferno' : k === '雪崩' ? 'avalanche' : key === 'coast' ? 'wave' : key === 'refinery' ? 'inferno' : key === 'snow' ? 'avalanche' : null;
@@ -890,6 +1049,8 @@ function render(name, o){ o = o || {}; const OAC = window.OfflineAudioContext ||
     const SI = { sp:0, mult:1, cs:0, thin:0, play:true }; let eT = cur.e, dk = 1;
     const sb = o.script ? (Dk, bar) => { if(Dk.x.lift > 0) Dk.x.lift--; else if(eT < Dk.e) Dk.e = eT; return sw ? sw(Dk, bar) : true; } : sw;
     const bt = C.s16 * 16, CHUNK = .5, step = t => { if(o.ramp) cur.e = Math.min(4, Math.floor((t - .05) / bt / o.ramp));
+      if(o.jumps) for(const [jt, jn] of o.jumps) if(jt >= t && jt < t + CHUNK) cur.xq = jn;
+      if(o.cues) for(const [ct, cn] of o.cues) if(ct >= t && ct < t + CHUNK){ const pc = pcOf(cur.th.key); playSting(E, ST[cn], ct, 48 + pc - (pc > 6 ? 12 : 0), E.sting); E.routeSting(out); }
       if(o.script){ const k = o.script(t); eT = k.e; if(eT > cur.e) cur.e = eT; SI.sp = k.sp; SI.mult = k.mult; SI.cs = k.cs; SI.thin = k.thin; steer(cur, SI);
         const d = k.duck != null ? k.duck : 1; if(d !== dk){ out.gain.setTargetAtTime((o.outGain != null ? o.outGain : .85) * d, t, d < dk ? 2.2 : .25); dk = d; } } stepDeck(cur, Math.min(secs, t + CHUNK + LOOK), sb); if(cur.alive) stepDeck(cur, Math.min(secs, t + CHUNK + LOOK), sb); };
     step(0); for(let t = CHUNK; t < secs; t += CHUNK){ const tt = t; ac.suspend(tt).then(() => { step(tt); ac.resume(); }); } }
@@ -907,7 +1068,7 @@ const MUSIC = { THEMES:T, STINGS:ST, INST, MOTIF, compile, render, ROAD_THEME,
   thin(k){ S.thinK = Math.max(0, Math.min(1, +k || 0)); },
   road(i){ /* optional: the game may call this at a road border; the owner also polls the road itself */ if(typeof LANDS !== 'undefined' && LANDS[i] && S.deck && S.mode === 'ride'){ const k = themeForLand(LANDS[i]); if(k !== S.deck.key){ S.want = k; S.deck.fillReq = S.deck.st <= 12; } } },
   end(caught){ S.caught = !!caught; },
-  clock(){ const D = S.deck; if(!D) return null; const bar = D.C.bars[D.bi]; return { key:D.key, bpm:D.th.bpm, bar:D.bi, step:D.st, beat:D.gs / 4, chord:bar ? (D.st < 8 ? bar.ch[0] : bar.ch[1]).name : null, energy:D.e }; },
+  clock(){ const D = S.deck; if(!D) return null; const bar = curBar(D); return { key:D.key, bpm:D.th.bpm, bar:D.bi, step:D.st, beat:D.gs / 4, chord:bar ? (D.st < 8 ? bar.ch[0] : bar.ch[1]).name : null, energy:D.e, xs:D.xs ? D.xs.name : null }; },
   get debug(){ return { mode:S.mode, song:S.deck && S.deck.key, energy:S.deck && S.deck.e, build:S.deck && S.deck.x ? Object.assign({}, S.deck.x) : null, thinK:S.thinK, want:S.want, decks:S.E ? S.E.decks.length : 0, avgTickMs:S.ticks ? S.tickMs / S.ticks : 0, ticks:S.ticks, cues:Object.assign({}, S.cues), countT:S.countT }; } };
 if(HAS_WIN){ window.MUSIC = MUSIC; if(window.MECH) MECH.music = MUSIC; try{ wrapDirector(); wrapCountdown(); }catch(e){ console.warn('music wrap', e); }
   S.iv = setInterval(() => { try{ if(!S.M && typeof M !== 'undefined') S.M = M; tick(); }catch(e){ if(!S.err){ S.err = e; console.warn('music tick', e); } } }, TICK_MS);

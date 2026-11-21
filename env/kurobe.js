@@ -419,7 +419,7 @@
   function drawCliff(sp, x, y, uw, fog){ const i = sp.k, j0 = i - i % CC4, part = i % CC4 !== 0; if(part && i !== baseIdx() + 1) return; PI0 = i; PJ0 = j0; const pf = (i - j0) / CC4, m = j0 + CC4 - i, e = endPt(i, m); if(!e) return;
     const X0 = -1.32, x0 = x - sp.x * uw, ay = y, by = e.y, ua = uw, ub = e.w, F = c => fc(c, fog * .9), lo = sp.g ? 1.86 : .32;
     const ha = part ? cliffH(j0) + (cliffH(j0 + CC4) - cliffH(j0)) * pf : cliffH(i), hb = cliffH(i + m), j1 = i + m;
-    const fine = ua > W * .007, mid = ua > W * .012, near = ua > W * .03, close = ua > W * .05;
+    const fine = ua > W * .01, mid = ua > W * .015, near = ua > W * .03, close = ua > W * .05;
     // the screen point of every world boundary this piece spans (0 = its near edge, m = j1)
     let nb = 1; BXs[0] = x0; BYs[0] = ay; BWs[0] = ua; if(mid){ for(let d = 1; d < m; d++){ const p = endPt(i, d); if(!p) break; BXs[d] = p.x; BYs[d] = p.y; BWs[d] = p.w; nb = d + 1; } } if(nb === m || !mid){ BXs[m] = e.x; BYs[m] = by; BWs[m] = ub; }
     const sub = mid && nb === m;
@@ -434,7 +434,7 @@
       // the face: one plane, one tone; up close it is cut into three stacked bands (the warm-violet shadow at its foot, the face, the upper
       // face catching the moon a tone up), each band's edge hashed per world boundary so it is ragged, never a ruled stripe
       const th = (CA[5] - CA[1]), tb = (CB[5] - CB[1]);
-      if(fine && !KBX.includes('cB')){
+      if(ua > W * .022 && !KBX.includes('cB')){
         const fa = .12 + .14 * (H1(j0 * 2.9 + t) + (H1((j0 + CC4) * 2.9 + t) - H1(j0 * 2.9 + t)) * pf), fb = .12 + .14 * H1(j1 * 2.9 + t);
         const la = tn < 4 ? .2 + .2 * (H1(j0 * 1.7 + t * 4) + (H1((j0 + CC4) * 1.7 + t * 4) - H1(j0 * 1.7 + t * 4)) * pf) : 0, lb = tn < 4 ? .2 + .2 * H1(j1 * 1.7 + t * 4) : 0;
         const PA = q => SX(CA[0] + (CA[4] - CA[0]) * q, 0), QA = q => SY(CA[1] + th * q, 0), PB = q => SX(CB[0] + (CB[4] - CB[0]) * q, 1), QB = q => SY(CB[1] + tb * q, 1);
@@ -448,7 +448,7 @@
       else poly(xa0, ya0, xb0, yb0, xb, yb, xa, ya, F(RKC[tn]));
       if(fine && !KBX.includes('cA')){
         // the sheet joint along the jittered middle row
-        if(mid && H1(j0 * .9 + t * 3.1) > .3){ const ma = SY(CA[3], 0), mb = SY(CB[3], 1); poly(xa0, ma, xb0, mb, xb0, mb + PX, xa0, ma + PX, F(RKC[0])); if(near) poly(xa0, ma + PX, xb0, mb + PX, xb0, mb + 2 * PX, xa0, ma + 2 * PX, F(RKC[Math.min(5, tn + 1)])); }
+        if(near && H1(j0 * .9 + t * 3.1) > .3){ const ma = SY(CA[3], 0), mb = SY(CB[3], 1); poly(xa0, ma, xb0, mb, xb0, mb + PX, xa0, ma + PX, F(RKC[0])); if(near) poly(xa0, ma + PX, xb0, mb + PX, xb0, mb + 2 * PX, xa0, ma + 2 * PX, F(RKC[Math.min(5, tn + 1)])); }
         if(sub) for(let d = 1; d <= m; d++){ const k = i + d, major = k % CC4 === 0;
           if(!major && (!near || H1(k * 2.3 + t * 5.3) < .55)) continue; if(major && !near && H1(k * .37 + t * 1.9) < .5) continue;   // calmer at mid range: half the joints, in the shadow tone, not black
           const xb_ = KX(V(0, d), d), yb_ = KY(V(1, d), d), xt_ = KX(V(4, d), d), yt_ = KY(V(5, d), d), ln = major ? 1 : .35 + .5 * H1(k * 3.7 + t);
@@ -459,7 +459,7 @@
           let qx = xt_, qy = yt_; const NL = near ? 3 : 1; for(let g = 1; g <= NL; g++){ const f = g / NL, nx = xt_ + (xl - xt_) * f + (g < NL ? (H1(k * 5.9 + t * 2 + g) - .5) * .09 * BWs[d] : 0), ny = yt_ + (yl - yt_) * f;
             const cc = F(RKC[near ? 0 : 1]); R(qx, qy, PX, ny - qy + PX, cc); if(nx !== qx) R(Math.min(qx, nx), ny, Math.abs(nx - qx) + PX, PX, cc); if(close) R(qx - PX, qy + PX, PX, ny - qy, F(RKC[Math.min(5, tn + 1)])); qx = nx; qy = ny; } }
         // wet streaks running down from the ledge
-        if(sub && ua > W * .022) for(let d = 0; d < m; d++){ const k = i + d; if(H1(k * 4.1 + t * 2.2) < .7) continue; const f0 = .25 + .4 * H1(k * 6.1 + t), L = .3 + .45 * H1(k * 2.7 + t * 1.3);
+        if(sub && near) for(let d = 0; d < m; d++){ const k = i + d; if(H1(k * 4.1 + t * 2.2) < .7) continue; const f0 = .25 + .4 * H1(k * 6.1 + t), L = .3 + .45 * H1(k * 2.7 + t * 1.3);
           const xt_ = KX(V(4, d), d) + (KX(V(4, d + 1), d + 1) - KX(V(4, d), d)) * f0, yt_ = KY(V(5, d), d) + (KY(V(5, d + 1), d + 1) - KY(V(5, d), d)) * f0, hh = (V(5, d) - V(1, d)) * L * BWs[d], ww = Math.max(PX, .05 * BWs[d]);
           R(xt_, yt_, ww, hh * .85, F('#100e1a')); if(close) R(xt_ + ww, yt_ + PX, PX, hh * .6, F('#46506c')); } }
       // the ledge's moonlit edge
@@ -468,19 +468,19 @@
       if(t >= 1 && H1(j0 * .77 + t) > .8){ const sa = .1 + H1(j0 * 2.1) * .08; poly(xa, ya, xb, yb, xb, yb - sa * ub, xa, ya - sa * ua, F('#b4c0d8')); }
       // dwarf pine and shrub on the ledge: a low dark mat at every distance, single pines standing out of it once they are a few pixels tall
       if(t < 2 && H1(Math.floor(j0 / 4) * 2.9 + t * 5) > .45){ const ba = .12 + H1(i * 1.1 + t) * .14, bb = .12 + H1(j1 * 1.1 + t) * .14; poly(xa, ya, xb, yb, xb, yb - bb * ub, xa, ya - ba * ua, F(FOR[1]));
-        if(sub && ua > W * .022) pines(m, t, 2, 1, .72, F); }
+        if(sub && ua > W * .045) pines(m, t, 1, 1, .6, F); }
       if(close && t === 1 && j0 % 44 === 20){ const h0 = Math.max(lo, CA[1]), wx = xa + (xb - xa) * .5; R(wx, ya, PX, Math.max(PX, (CA[5] - h0) * ua), F(i % 22 === 5 ? '#7c8cae' : RKC[0])); }
-      if(t === 0 && !sp.g && ua > W * .006 && !KBX.includes('cT')){ // talus heaped at the foot: fresh broken granite, paler than the wall, with a moonlit top edge and pebbles up close
+      if(t === 0 && !sp.g && ua > W * .01 && !KBX.includes('cT')){ // talus heaped at the foot: fresh broken granite, paler than the wall, with a moonlit top edge and pebbles up close
         const sa = .06 + .22 * (H1(j0 * .37 + 3) + (H1((j0 + CC4) * .37 + 3) - H1(j0 * .37 + 3)) * pf), sb = .06 + .22 * H1(j1 * .37 + 3), Xa = Math.min(X0, CA[0] + .3), Xb = Math.min(X0, CB[0] + .3);
         const qa = SX(Xa, 0), qb = SX(Xb, 1), ga = SY(lo + sa, 0), gb = SY(lo + sb, 1); poly(xa0, ga, xb0, gb, qb, SY(lo, 1), qa, SY(lo, 0), F(RKC[3]));
         poly(xa0, ga, xb0, gb, xb0, gb + PX, xa0, ga + PX, F(RKC[4]));
-        if(close && sub) for(let d = 0; d < m; d++){ const k = i + d; for(let q = 0; q < 3; q++){ const f = H1(k * 7.3 + q * 1.7), g = H1(k * 3.9 + q * 5.1) * .8, px = BXs[d] + (BXs[d + 1] - BXs[d]) * f + (CA[0] + .15) * BWs[d], py = BYs[d] + (BYs[d + 1] - BYs[d]) * f - (lo + g * .3) * BWs[d];
+        if(close && sub) for(let d = 0; d < m; d++){ const k = i + d; for(let q = 0; q < 2; q++){ const f = H1(k * 7.3 + q * 1.7), g = H1(k * 3.9 + q * 5.1) * .8, px = BXs[d] + (BXs[d + 1] - BXs[d]) * f + (CA[0] + .15) * BWs[d], py = BYs[d] + (BYs[d + 1] - BYs[d]) * f - (lo + g * .3) * BWs[d];
           R(snp(px), snp(py), 2 * PX, PX, F(q ? RKC[5] : RKC[1])); } } }
       if(t === 2){ px0 = xa; px1 = xb; } }
     // the rim's forest: a dark mat with a moonlit crown line at every distance; dwarf pines up close
     const fa = .3 + H1(j0 * .71) * .3, fb = .3 + H1(j1 * .71) * .3; poly(px0, ay - ha * ua, px1, by - hb * ub, px1, by - (hb + fb) * ub, px0, ay - (ha + fa) * ua, F(FOR[1]));
     if(ua > W * .012) poly(px0, ay - (ha + fa) * ua, px1, by - (hb + fb) * ub, px1, by - (hb + fb) * ub + PX, px0, ay - (ha + fa) * ua + PX, F(FOR[3]));
-    if(sub){ cvert(j0, 2, lo, cliffH(j0), CP, 0); cvert(j0 + CC4, 2, lo, cliffH(j0 + CC4), CB, 0); if(ua > W * .022) pines(m, 2, 1, 1.6, .4, F); }
+    if(sub){ cvert(j0, 2, lo, cliffH(j0), CP, 0); cvert(j0 + CC4, 2, lo, cliffH(j0 + CC4), CB, 0); if(ua > W * .03) pines(m, 2, 1, 1.6, .4, F); }
     if(!sp.g){ // the concrete toe wall along the road and its coping
       const ta = x0 + X0 * ua, tb2 = e.x + X0 * ub;
       poly(ta, ay, tb2, by, tb2, by - .32 * ub, ta, ay - .32 * ua, F(CO[2])); poly(ta, ay - .32 * ua, tb2, by - .32 * ub, tb2, by - .32 * ub + Math.max(PX, ub * .03), ta, ay - .32 * ua + Math.max(PX, ua * .03), F(CO[4]));

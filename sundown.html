@@ -417,10 +417,25 @@ body.paused .banner,body.paused .float{animation-play-state:paused!important}
 #loader .ldbar i.on:nth-child(n+9){background:#ffd04a;box-shadow:inset 0 2px 0 #fff2c0}#loader .ldbar i.on:nth-child(n+17){background:#4ff0ff;box-shadow:inset 0 2px 0 #d8fcff}
 #loader .ldlab{min-height:13px;font-size:13px;line-height:1;letter-spacing:1px;color:var(--muted);text-transform:uppercase;white-space:nowrap}
 @media (prefers-reduced-motion: reduce){ #loader .ldmoon{animation:none} #loader .ldd{animation-play-state:paused} #loader.out{transition-duration:.2s} }
+/* first 60 s (research/sundown-craft/first60.md): the loader is a mood piece, not a title card. The wordmark is held back for the title's own
+   strike-on (drawLogo), so the loader keeps only the night: the moon rising, the road, and a lone headlight far down it that grows as it comes
+   (it is the bike you are about to ride). The plate drops low and small; its bar still moves only on real steps. */
+#loader .ldlogo{display:none}
+#loader .ldplate{top:auto;bottom:clamp(14px,6vh,48px);transform:translateX(-50%);padding:8px 12px 10px;gap:6px;background:rgba(7,6,12,.72)}
+#loader .ldhl{position:absolute;z-index:2;left:50%;top:calc(63% + 6px);width:2px;height:2px;margin-left:-1px;background:#fff8e0;box-shadow:0 0 0 1px #ffd04a,0 0 0 3px rgba(255,208,74,.25);animation:ldhl 9s steps(36) both}
+@keyframes ldhl{0%{transform:translateY(0) scale(1);opacity:0}6%{opacity:1}100%{transform:translateY(22vh) scale(5)}}
+@media (prefers-reduced-motion: reduce){ #loader .ldhl{animation:none;opacity:1} }
+/* the title's first appearance composes in order (jo-ha-kyu): the night and the logo first, PRESS START once the sign has caught, the side
+   chrome last. It is all live and pressable at once: only the paint is staggered, never the input. Once per page load; reduced motion: none. */
+.attract.first>.btn.press{animation:t1in .3s steps(3) .75s both}
+.attract.going>*{opacity:0!important;transition:opacity .15s steps(2)!important;animation:none!important}   /* START pressed: the words go, the night stays */
+.attract.first>.vcol,.attract.first>.cab,.attract.first>.fplay,.attract.first>.bikezone .arr{animation:t1in .3s steps(3) 1.1s both}
+@keyframes t1in{from{opacity:0}to{opacity:1}}
+@media (prefers-reduced-motion: reduce){ .attract.first>*,.attract.first>.bikezone .arr{animation:none!important} }
 </style>
 </head>
 <body>
-<div id="loader" role="status" aria-label="Loading Sundown"><img class="ldmoon" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAABgAAAAYCAYAAADgdz34AAAA80lEQVR42mNgoDFgJKTg/483//EawCGC1wwWQgafOn6IKAfgsogRlyZCBqMDM0s7rJYwUsNwZGDuGMSI0wJChmvrGhK04Orl8yiWMJJr+NPH9+BsaVklnJawEHKRgAA/hgGEALJjmPC5XkCAH8O1xIIvb+7/x+sDmOHIQYLsE2J9xYRLAt0AUoOJoAXIhpJrOE4LkCOJEsOJSkXoAF/yJDmI8BlObOpiIsVAsuOAkUOE0czSDqvh5FrCI6LISFQyxZf2iYkDnIUdMQUbIddj+IBQ7USq4ViDCFYKXr18nmLDccYBeqVBruFEVfqwUpFUg+kGAHmzabUCO0T8AAAAAElFTkSuQmCC" alt=""><div class="ldhz"></div><div class="ldroad"><i class="ldd"></i><i class="ldd"></i><i class="ldd"></i><i class="ldd"></i></div>
+<div id="loader" role="status" aria-label="Loading Sundown"><img class="ldmoon" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAABgAAAAYCAYAAADgdz34AAAA80lEQVR42mNgoDFgJKTg/483//EawCGC1wwWQgafOn6IKAfgsogRlyZCBqMDM0s7rJYwUsNwZGDuGMSI0wJChmvrGhK04Orl8yiWMJJr+NPH9+BsaVklnJawEHKRgAA/hgGEALJjmPC5XkCAH8O1xIIvb+7/x+sDmOHIQYLsE2J9xYRLAt0AUoOJoAXIhpJrOE4LkCOJEsOJSkXoAF/yJDmI8BlObOpiIsVAsuOAkUOE0czSDqvh5FrCI6LISFQyxZf2iYkDnIUdMQUbIddj+IBQ7USq4ViDCFYKXr18nmLDccYBeqVBruFEVfqwUpFUg+kGAHmzabUCO0T8AAAAAElFTkSuQmCC" alt=""><div class="ldhz"></div><i class="ldhl"></i><div class="ldroad"><i class="ldd"></i><i class="ldd"></i><i class="ldd"></i><i class="ldd"></i></div>
   <img class="ldlogo" src="data:image/png;base64,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" alt=""><div class="ldplate"><div class="ldhead"><span class="tabk">読込中</span><img class="ldcap" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAB0AAAAGCAYAAAA/gpVXAAAAd0lEQVR42q1QMRKAMAhLnTv2A/3/o/gAI3tctCKCLmbhIJAAMBUiINZ8birM8rMW+bR2JIwGH/FhfGgw8q5v+WzI4RvjYNZ3olU6prL4yvSGPiZ+wnWpqaxr+pjNVNDHbNWk590bq4VbxdH/PHkdk8iXeRYaBIAdKhuP+9fkL0QAAAAASUVORK5CYII=" alt="Loading"></div>
   <div class="ldbar" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i></div><div class="ldlab" aria-hidden="true">&nbsp;</div></div></div>
 <script>
@@ -501,6 +516,7 @@ window.SKY_TIER = { sky:30, moon:40, far:120, mid:250, near:450, edge:700 };</sc
 <script src="mech/heat.js"></script>
 <script src="mech/crew.js"></script>
 <script src="mech/style.js"></script>
+<script src="mech/formations.js"></script>
 <script src="mech/heli.js"></script>
 <script src="mech/arrival.js"></script>
 <script src="mech/finale.js"></script>
@@ -658,7 +674,10 @@ const LAND_FAM = { harbour:'city', tunnels:'city', haneda:'city', neon:'neon', b
 const routeHist = () => { const h = store.get('sundown.routes', []); return Array.isArray(h) ? h.filter(r => Array.isArray(r)).slice(-10) : []; };
 // how recently road k was seen across past rides: 0 = never in the last 10, up to ~1 = all over the last few rides (starts count double)
 function routeStale(k, hist){ let w = 0; for(let i = 0; i < hist.length; i++){ const age = hist.length - i, r = hist[i], f = 1 / age; if(r[0] === k) w += 2 * f; else if(r.includes(k)) w += f; } return w; }
-function pickStart(){ if(ROUTE_FIXED) return LAND0; const hist = routeHist(); let tot = 0; const wt = LANDS.map((_, k) => { const v = 1 / (1 + 4 * routeStale(k, hist)); tot += v; return v; });
+/* first 60 s: a fresh install's first night is composed, not rolled - it opens on the Bay Bridge (the moon dead ahead, cables, open water: the
+   quiet first) and crosses into the Harbour Line (the lit city, the drawbridge jump: the build). From the second ride on, the routes vary as below. */
+const FIRST_NIGHT = ['bay', 'harbour'], firstNight = () => !ROUTE_FIXED && !routeHist().length && FIRST_NIGHT.every(k => LANDS.some(l => l.key === k));
+function pickStart(){ if(ROUTE_FIXED) return LAND0; if(firstNight()) return LANDS.findIndex(l => l.key === FIRST_NIGHT[0]); const hist = routeHist(); let tot = 0; const wt = LANDS.map((_, k) => { const v = 1 / (1 + 4 * routeStale(k, hist)); tot += v; return v; });
   let r = Math.random() * tot; for(let k = 0; k < wt.length; k++){ r -= wt[k]; if(r <= 0) return k; } return LANDS.length - 1; }
 let START = pickStart(), FORKS = [];
 function routeSave(route){ if(ROUTE_FIXED || !route || !route.length) return; const h = routeHist(); h.push(route.slice(0, 16)); store.set('sundown.routes', h.slice(-10)); START = pickStart(); }
@@ -677,7 +696,8 @@ const isForkZone = z => z >= 0 && z % FORK_EVERY === FORK_EVERY - 1;
 window.isForkZone = isForkZone;
 // the fork gates are the even-numbered gates of fork zones (isForkZone); gate 2k decides the road for zone k + 1, entered at gate 2k + 1
 // the two roads offered at the fork before zone z + 1: computed once per zone and kept, so the signs, chooseFork and the road regeneration agree
-function forkChoices(z){ if(FORKS[z]) return FORKS[z]; if(ROUTE_FIXED){ const cur = landIdx(z); return FORKS[z] = [NEXT_L(cur), NEXT_R(cur)]; }
+function forkChoices(z){ if(FORKS[z]) return FORKS[z]; if(z === 0 && firstNight() && LANDS[landIdx(0)].key === FIRST_NIGHT[0]){ const a = LANDS.findIndex(l => l.key === FIRST_NIGHT[1]); return FORKS[0] = [a, (a + 4) % LANDS.length]; }   // the first border is never a fork: only [0] is ridden
+  if(ROUTE_FIXED){ const cur = landIdx(z); return FORKS[z] = [NEXT_L(cur), NEXT_R(cur)]; }
   const cur = landIdx(z), seen = new Set(), N = LANDS.length; for(let k = 0; k <= z; k++) seen.add(ROUTE[k]);
   const hist = routeHist(), fam = LAND_FAM[LANDS[cur].key];
   let cand = []; for(let k = 0; k < N; k++) if(!seen.has(k)) cand.push(k);
@@ -912,6 +932,7 @@ function extend(upTo){
     const PL = s.bA === s.bB ? LANDS[s.bB] : LANDS[s.bO < hingeSwitch(s.bA, s.bB) ? s.bA : s.bB];
     const PF = s.bA === s.bB || s.bm >= 1 ? LANDS[s.bB] : s.bm <= 0 ? LANDS[s.bA] : LANDS[.2 + .6 * hash(Math.floor(i / BL_CELL) * 7.31 + s.bB * 1.93) < s.bm ? s.bB : s.bA];
     s.tunnel = boreAt(i, L);
+    if(window.WARM && WARM.q.length){ warmNeed('env.' + PL.key); if(PF !== PL) warmNeed('env.' + PF.key); }   // first 60 s: a far road still unbuilt when its segments are laid is built now (logged), never drawn cold
     const EP = ENV[PL.key];
     if(!s.tunnel && EP && EP.place) EP.place(i, s, PL);
     else if(!s.tunnel){
@@ -940,7 +961,12 @@ const segAt = z => segs[Math.floor(z / SEG) % segs.length];
    SEG_KEEP segments behind the camera nothing draws or reads its props again, so its sprites and reflections are dropped: a long ride used to
    keep every prop object it had passed alive for the garbage collector to walk. */
 const SEG_KEEP = 2000; let segDropped = 0;
-function reset(){
+// moment-to-moment feel (research/sundown-craft/feel.md): a hit lands as a hit-stop (Jonasson's Freezer), a directional camera kick on a
+// spring (Jonasson's Shaker: the frame is knocked the way you were) and a shove that eases over ~0.15 s instead of a one-frame teleport;
+// a razor-close pass gets a small kick away from the car and, now and then, a 0.14 s breath of slow motion. Reduced motion: no kicks.
+const FEEL = { knock:0, kx:0, kv:0, stop:0, slow:0, slowCd:0,
+  KNOCK_T:.05, STOP:.07, STOP_K:.08, K_HIT:330, K_CLOSE:240, SPRING:420, DAMP:16, RAZOR:.05, SLOW:.14, SLOW_K:.45, SLOW_GAP:12 };
+function reset(){ FEEL.knock = FEEL.kx = FEEL.kv = FEEL.stop = FEEL.slow = FEEL.slowCd = 0;
   segDropped = 0; segs = []; cars = []; gates = []; nextGateIdx = GATE_GAP; lastSegIdx = 0; ROUTE = [START]; ROUTE_PICKS = []; FORKS = []; SPLIT_LOCK = null; SL_RUN = null; AIR.h = 0; POSE.pitch = 0; segLand = landIdx(0); prevLandI = -1; landStart = 0; bgA = landIdx(0); bgB = landIdx(0); bgMix = 1; pullT = 0; extend(1200);
   position = 0; speed = 0; playerX = 0; steer = 0; drift = 0; charge = 0; tier = 0; boostT = 0; boostTier = 0; flow = 0; bestFlow = 0; sunLeft = SUN_START; sunShown = SUN_START;
   state = 'ready'; started = false; playT = 0; offT = 0; shake = 0; boosts = 0; bigBoosts = 0; closeCalls = 0; crashes = 0; gatesHit = 0; skyOff = 0; SKYR = 0; skyRV = 0; cool = 0; recov = 0; sparks = [];
@@ -973,7 +999,7 @@ function walls(c, L, z, wz = WALL_Z){ for(const L2 of LANES3){ if(Math.abs(L2 - 
     if(!hit) return false; } return true; }
 function unwall(c){ for(let t = 0; t < 6 && walls(c, c.x, c.z); t++){ const L = LANES3.find(L2 => !walls(c, L2, c.z)); if(L !== undefined){ c.x = L; return; } c.z += WALL_Z * 1.5; } }
 function trafficFlow(dt){ const pz = position + PZ, k0 = SPLIT_ON ? forkGateAhead() : -1;
-  for(const c of cars){ if(c.oth || c.fs !== undefined) continue; const ci = c.z / SEG;
+  for(const c of cars){ if(c.oth || c.fs !== undefined || c.fm) continue; const ci = c.z / SEG;   // c.fm: a designed formation's car (mech/formations.js drives it)
     if(k0 >= 0 && ci >= k0 - SPLIT_PRE - 70 && ci < k0 + SPLIT_POST + 10) continue;   // the fork moves its own traffic (fkTraffic)
     if(c.v0 === undefined) c.v0 = c.speed;
     if(c.tl !== undefined){ c.lcT += dt; if(c.lcT >= LC_SIG){ const d = c.tl - c.x; c.x += clamp(d, -LC_RATE * dt, LC_RATE * dt); if(Math.abs(d) < .004){ c.x = c.tl; c.tl = undefined; c.sig = 0; } } }
@@ -1023,7 +1049,8 @@ const padBtn = a => Number.isInteger(ASSIST.pad[a]) ? ASSIST.pad[a] : PAD_DEF[a]
 const padMap = window.padMap = gp => { if(!gp || !Object.keys(PAD_DEF).some(a => padBtn(a) !== PAD_DEF[a])) return gp; const b = gp.buttons.slice(), none = { pressed:false, value:0 };
   for(const a in PAD_DEF) b[PAD_DEF[a]] = gp.buttons[padBtn(a)] || none; return { id:gp.id, index:gp.index, connected:gp.connected, axes:gp.axes, buttons:b }; };
 let padDrift = false;
-function begin(go){ if(!$('#sheet').hidden || state !== 'ready') return; M.init(); if(go !== true && mech('countdown', () => begin(true))){ $('#hint').style.opacity = 0; return; } state = 'play'; started = true; $('#hint').style.opacity = 0; setTimeout(() => { if(state === 'play' && !mech('arrive', LANDS[landIdx(0)], 0)) showBanner(LANDS[landIdx(0)]); }, 900); [0, 200, 400, 750].forEach(ms => setTimeout(() => { M.rev = 1; }, ms)); }
+function begin(go){ if(!$('#sheet').hidden || state !== 'ready' || (window.WARM && WARM.gating)) return;   // never while START is still building the first minute (warmGate)
+  M.init(); if(go !== true && mech('countdown', () => begin(true))) return;   /* the controls line stays up through the countdown (read while the lamps strike) and goes on GO */ state = 'play'; started = true; $('#hint').style.opacity = 0; setTimeout(() => { if(state === 'play' && !mech('arrive', LANDS[landIdx(0)], 0)) showBanner(LANDS[landIdx(0)]); }, 900); [0, 200, 400, 750].forEach(ms => setTimeout(() => { M.rev = 1; }, ms)); }
 addEventListener('keydown', e => { const k = keyMap(e.code); if(pzKey(e)) return; PSE.held.add(k); if(k === 'Space') keys.drift = true; if($('#sheet').hidden && state === 'play' && mech('key', k, true, e)){ e.preventDefault(); return; } if(k === 'ArrowLeft' || k === 'KeyA'){ keys.left = true; begin(); e.preventDefault(); } if(k === 'ArrowRight' || k === 'KeyD'){ keys.right = true; begin(); e.preventDefault(); }
   if((e.code === 'Enter' || e.code === 'Space') && !$('#sheet').hidden){ const b = $('#card .btn'); if(b){ e.preventDefault(); b.click(); } } });
 addEventListener('keyup', e => { const k = keyMap(e.code); PSE.held.delete(k); if(k === 'Space') keys.drift = false; if(!PSE.on) mech('key', k, false, e); if(k === 'ArrowLeft' || k === 'KeyA') keys.left = false; if(k === 'ArrowRight' || k === 'KeyD') keys.right = false; });
@@ -1053,7 +1080,10 @@ function wallX(){ const E = ENV[LANDS[segAt(position + PZ).land].key] || NOENV, 
 const HIT_GRACE = .01, CLOSE_W = .2, carHalf = c => .18 * ((MODELS[c.model] && MODELS[c.model].wf) || 1), bikeHalf = () => 11 * Math.max(PX, Math.round(Math.min(W * .2, H * .27) / 30 / PX) * PX) / W;
 const SLICK_STEER = .35;   // steering kept on an oil slick
 const TIERS = [0, .4, .85, 1.4], TIER_COL = ['', '#4ff0ff', '#ffb35a', '#ff3b8a'], TIER_NAME = ['', 'Boost', 'Big boost', 'Thunder'];
-function update(dt){ SPLIT_CLK += dt * 1000;   // the fork split's swing runs on game time
+function update(dt){ const rdt = dt; FEEL.slowCd -= rdt;   // FEEL: the kick's spring runs on real time; a hit-stop or a close-call breath slows the world under it
+  FEEL.kv += (-FEEL.SPRING * FEEL.kx - FEEL.DAMP * FEEL.kv) * rdt; FEEL.kx += FEEL.kv * rdt; if(Math.abs(FEEL.kx) < .05 && Math.abs(FEEL.kv) < 2) FEEL.kx = FEEL.kv = 0;
+  if(FEEL.stop > 0){ FEEL.stop -= rdt; dt *= FEEL.STOP_K; } else if(FEEL.slow > 0){ FEEL.slow = Math.max(0, FEEL.slow - rdt); dt *= FEEL.SLOW_K + (1 - FEEL.SLOW_K) * (1 - FEEL.slow / FEEL.SLOW); }
+  SPLIT_CLK += dt * 1000;   // the fork split's swing runs on game time
   pollPad(); const input = clamp((keys.right ? 1 : 0) - (keys.left ? 1 : 0) + touchSteer + padSteer, -1, 1);
   if(state === 'play'){ playT += dt; sunLeft -= dt; if(sunLeft <= 0){ sunLeft = 0; finish(); } }
   // pulled over: brake onto the shoulder, the patrol car pulls in behind, lights going; then the night is over
@@ -1068,6 +1098,7 @@ function update(dt){ SPLIT_CLK += dt * 1000;   // the fork split's swing runs on
   else if(drift){ if(tier > 0 && onRoad) fireBoost(); drift = 0; charge = 0; tier = 0; }
   const dx = dt * 2 * sp;
   playerX += steer * dx * (drift ? 1.1 : 1);
+  if(FEEL.knock){ const k = Math.abs(FEEL.knock) < .002 ? FEEL.knock : FEEL.knock * (1 - Math.exp(-dt / FEEL.KNOCK_T)); playerX += k; FEEL.knock -= k; }   // a crash's shove, eased
   playerX -= dx * sp * curve * CENTRI * (drift ? .45 : 1);
   if(slideT > 0){ slideT -= dt; playerX += slideDir * dt * 1.5 * sp; }
   // speed: auto-accelerate; off the road you slow hard; a boost lifts the cap
@@ -1095,7 +1126,7 @@ function update(dt){ SPLIT_CLK += dt * 1000;   // the fork split's swing runs on
   const hitB = bikeHalf() - HIT_GRACE;
   for(const c of cars){ const before = c.z - (prevPos + PZ); c.z += c.speed * dt; if(c.oth) continue; const after = c.z - (position + PZ), hitR = carHalf(c) + hitB;
     if(state === 'play' && before > -110 && after < 110 && Math.abs(c.x - playerX) < hitR && cool <= 0 && recov <= 0 && AIR.h < 6 && !mech('hitCar', c)){ crash(c); }
-    else if(state === 'play' && before > 0 && after <= 0 && !c.passed){ c.passed = true; const g = Math.abs(c.x - playerX); if(g < hitR + CLOSE_W && speed > MAXS * .6){ closeCalls++; flow++; bestFlow = Math.max(bestFlow, flow); if(copT > 0) copT = Math.max(.01, copT - 1); speed = Math.min(cap * 1.05, speed + MAXS * .05); M.close(c); floatText('Close', W / 2 + (c.x - playerX) * W * .2, H * .58, 22, '#4ff0ff'); hud(); } } }
+    else if(state === 'play' && before > 0 && after <= 0 && !c.passed){ c.passed = true; const g = Math.abs(c.x - playerX); if(g < hitR + CLOSE_W && speed > MAXS * .6){ closeCalls++; flow++; { const tight = 1 - clamp((g - hitR) / CLOSE_W, 0, 1); if(!reduce) FEEL.kv -= Math.sign(c.x - playerX || 1) * FEEL.K_CLOSE * (.35 + .65 * tight); if(g - hitR < FEEL.RAZOR && FEEL.slowCd <= 0){ FEEL.slow = FEEL.SLOW; FEEL.slowCd = FEEL.SLOW_GAP; } } bestFlow = Math.max(bestFlow, flow); if(copT > 0) copT = Math.max(.01, copT - 1); speed = Math.min(cap * 1.05, speed + MAXS * .05); M.close(c); floatText('Close', W / 2 + (c.x - playerX) * W * .2, H * .58, 22, '#4ff0ff'); hud(); } } }
   // the road surface: an oil slick lightens the steering for a moment and slides you; a boost pad kicks you forward
   // The slide is readable, never a coin toss (it used to pick a side at random, half the time into the car beside you): you slip off the
   // side of the puddle you clipped, and from its dead centre toward the middle of the road, where there is room. The callout's arrow says which.
@@ -1111,7 +1142,7 @@ function update(dt){ SPLIT_CLK += dt * 1000;   // the fork split's swing runs on
     else if(Bp !== undefined && pi < Bp + BG_POST){ bgA = landIdx(z - 1); bgB = landIdx(z); bgMix = blW(pi, Bp, BG_PRE, BG_POST); }
     else { bgA = bgB = landIdx(z); bgMix = 1; }
     if(bgA === bgB) bgMix = 1; }
-  { let n = 0; for(let i = 0; i < cars.length; i++){ const c = cars[i]; if(c.z > position - 3000) cars[n++] = c; } cars.length = n; } while(cars.length < Math.max(1, Math.round(trafficN() * SPAWN_K * [1, .6, .35][ASSIST.traffic]))){ let z = position + PZ + rr(SPAWN_Z, SPAWN_Z + 12000); if(SPLIT_ON){ const G = forkGateAhead(), zi = Math.floor(z / SEG); if(G >= 0 && zi >= G - SPLIT_PRE - 30 && zi < G + SPLIT_POST + 10) z = (G + SPLIT_POST + 15) * SEG + rr(0, 8000); } else { const G = inSplitWin(Math.floor(z / SEG)); if(G >= 0) z = (G + SPLIT_D + 40) * SEG + rr(0, 8000); } spawnCar(Math.max(z, position + PZ + SPAWN_Z)); unwall(cars[cars.length - 1]); }
+  { let n = 0; for(let i = 0; i < cars.length; i++){ const c = cars[i]; if(c.z > position - 3000) cars[n++] = c; } cars.length = n; } const trafN = Math.max(1, Math.round(trafficN() * SPAWN_K * [1, .6, .35][ASSIST.traffic])), trafW = MECH.formations && MECH.formations.want ? MECH.formations.want(trafN) : trafN; while(cars.length < trafW){ let z = position + PZ + rr(SPAWN_Z, SPAWN_Z + 12000); if(SPLIT_ON){ const G = forkGateAhead(), zi = Math.floor(z / SEG); if(G >= 0 && zi >= G - SPLIT_PRE - 30 && zi < G + SPLIT_POST + 10) z = (G + SPLIT_POST + 15) * SEG + rr(0, 8000); } else { const G = inSplitWin(Math.floor(z / SEG)); if(G >= 0) z = (G + SPLIT_D + 40) * SEG + rr(0, 8000); } spawnCar(Math.max(z, position + PZ + SPAWN_Z)); unwall(cars[cars.length - 1]); }
   trafficFlow(dt);
   // a car still ahead in a fork's window (it drove in before the split came into view) moves on past it, while it's far enough not to see
   if(SPLIT_ON) fkTraffic(dt); else for(const c of cars){ const ci = Math.floor(c.z / SEG), G = inSplitWin(ci); if(G >= 0 && ci - Math.floor((position + PZ) / SEG) > 90) c.z = (G + SPLIT_D + 40) * SEG + (c.z % SEG); }
@@ -1144,7 +1175,7 @@ const SPARK_POOL = [];
 function spark(x, y, vx, vy, life, c){ const p = SPARK_POOL.pop() || {}; p.x = x; p.y = y; p.vx = vx; p.vy = vy; p.life = life; p.c = c; sparks.push(p); return p; }
 const COP_T = 7, PULL_T = 9.6;   // PULL_T: how long the pull-over / arrest sequence plays before the results (mech/arrival.js: the action at 1.3x, the bars, the front page, its stamp and a hold; any button skips)
 function crash(c){ if(recov > 0 && state === 'play') return;   // the recovery blink protects from every source (set pieces included), not only traffic
-  crashes++; cool = .9; recov = 3; speed *= .3; flow = 0; boostT = 0; drift = 0; charge = 0; tier = 0; playerX += Math.sign(playerX - c.x || 1) * .35; shake = reduce ? 0 : 10; M.crash();
+  crashes++; cool = .9; recov = 3; speed *= .3; flow = 0; boostT = 0; drift = 0; charge = 0; tier = 0; { const sd = Math.sign(playerX - ((c && c.x) || 0) || 1); FEEL.knock = sd * .35; FEEL.stop = FEEL.STOP; if(!reduce) FEEL.kv += sd * FEEL.K_HIT; } shake = reduce ? 0 : 6; M.crash();
   // two strikes (Temple Run, Subway Surfers): the first crash brings the police; a second while they are behind you pulls you over
   if(copT > 0){ caught++; state = 'pulled'; pullT = 0; copSide = 1; drift = 0; charge = 0; tier = 0; boostT = 0; if(!mech('pulledOver')) showBanner({ kanji:'止', name:'Pulled over', note:'止まれ · stop' }, true); M.pulled(); }
   else if(playT > 20 && ASSIST.police){ copT = COP_T; copSide = playerX > 0 ? -1 : 1; if(!mech('policeCue')) floatText('Police!', W / 2, H * .45, 30, '#ff3b5c'); }
@@ -1349,7 +1380,7 @@ function draw(now){ DRAWN++;
   // the far land crossfades when the road changes, so a new skyline rises out of the old one
   if(bgMix < 1){ backdrop(LANDS[bgA], hz, far, near, now, sk); cx.globalAlpha = bgMix; } backdrop(LANDS[bgB], hz, far, near, now, sk); cx.globalAlpha = 1;
   mech('drawBackdrop', { hz, far, near, now, sk, L:LANDS[bgB], bgA, bgB, bgMix, moonX:MOON.x, moonY:MOON.y, t:MOON.t });   // set pieces far away (kaiju, fireworks, a volcano)
-  cx.save(); if(shake > .5) cx.translate(snap((Math.random() - .5) * shake), snap((Math.random() - .5) * shake));   // shake in whole canvas pixels (a fractional offset blurred every edge of the frame)
+  cx.save(); if(shake > .5 || FEEL.kx) cx.translate(snap((shake > .5 ? (Math.random() - .5) * shake : 0) + FEEL.kx), shake > .5 ? snap((Math.random() - .5) * shake) : 0);   // shake in whole canvas pixels (a fractional offset blurred every edge of the frame)
   // road, front to back with clipping, hazed toward the horizon; sodium lamps leave pools of light
   // the fork split this frame (see fkC): FK_G = the fork gate ahead while its widening is in view (before you commit); FK_L = the lock,
   // FK_ON while your branch is still swinging round (FK_K: 1 at the lock .. 0) or the other branch still sinking away (FK_A: 1 .. 0)
@@ -1942,17 +1973,21 @@ function wordMask(s){ const str = 'SUNDOWN', gap = 1, rows = 7, slant = 4, gw = 
   return m; }
 // chrome: a sky reflection over a hard dark horizon, warm ground under it (the 80s record-sleeve ramp)
 const CHROME = ['#ffffff', '#f6fcff', '#e4f6ff', '#c8eaff', '#a6d6fa', '#82bcf0', '#5e98dc', '#3c3c8c', '#fff2c0', '#ffe48a', '#ffd04a', '#ffbc4a', '#ff9a3a', '#ff7a3a'];   // one thin horizon line, not a dark band
-const LOGO = { word:null, kj:null, fill:null };
+const LOGO = { word:null, kj:null, fill:null, dim:null, t0:0 };   // t0: when the title's first reveal began (the loader gone); 0 = not yet
 function drawLogo(c, now){ if(!c) return; const k = c.getContext('2d'), w = c.width, h = c.height; k.clearRect(0, 0, w, h); k.imageSmoothingEnabled = false;
   if(!LOGO.word){ LOGO.word = wordMask(5); LOGO.kj = pixText('夜走', 16, true); }
-  const word = LOGO.word, fill = bandMask(word, CHROME), g = fill.getContext('2d');
-  if(!reduce){ const p = ((now / 3200) % 1.5) * (word.width + 60) - 30; g.globalCompositeOperation = 'source-atop'; g.fillStyle = 'rgba(255,255,255,.9)';   // a glint sweeps the chrome
+  /* first 60 s: the reveal. The wordmark's tubes are dark until the loader has gone, then it strikes on like a neon sign (two false starts and
+     the catch, ~0.5 s), and 夜走 stamps on after it with one white frame; once per page load. Reduced motion: lit at once. */
+  const rv = reduce || !LOGO.t0 ? (reduce ? 9 : -1) : (now - LOGO.t0) / 1000, lit = rv >= .5 || (rv > .15 && rv < .2) || (rv > .32 && rv < .37);
+  if(!LOGO.dim) LOGO.dim = bandMask(LOGO.word, ['#2e2640', '#2a2238', '#261f33', '#221c2e']);
+  const word = LOGO.word, fill = lit ? bandMask(word, CHROME) : LOGO.dim, g = fill.getContext('2d');
+  if(!reduce && lit && fill !== LOGO.dim){ const p = ((now / 3200) % 1.5) * (word.width + 60) - 30; g.globalCompositeOperation = 'source-atop'; g.fillStyle = 'rgba(255,255,255,.9)';   // a glint sweeps the chrome
     for(let y = 0; y < word.height; y++){ g.fillRect(Math.round(p - y * .6), y, 2, 1); g.fillRect(Math.round(p + 5 - y * .6), y, 1, 1); } }
   // a HUD plate behind the wordmark (dark, 1px edge, 45-degree corner cut, the three stripes) so the chrome reads on any road, even Neon Ward
   const PH = word.height + 14, cut = 7; for(let i = 0; i < PH; i++){ const cc = Math.max(0, cut - i); k.fillStyle = 'rgba(7,6,12,.88)'; k.fillRect(0, i, w - cc, 1); k.fillStyle = '#3a3350'; k.fillRect(0, i, 1, 1); k.fillRect(w - cc - 1, i, 1, 1); }
   k.fillStyle = '#3a3350'; k.fillRect(0, 0, w - cut, 1); [['#ff3b5c', 0], ['#ffd04a', 1], ['#4ff0ff', 2]].forEach(([col, i]) => { k.fillStyle = col; k.fillRect(Math.round(i * w / 3), PH - 2, Math.ceil(w / 3), 2); });
   stampMask(k, word, 6, 5, 1, fill, '#000', '#6a0a24', 4);
-  const ks = 3, kj = LOGO.kj; stampMask(k, kj, w - kj.width * ks - 8, h - kj.height * ks - 6, ks, bandMask(kj, ['#ff4a4a', '#ff2a3a', '#d0102a']), '#000', '#000', 3); }
+  if(rv < .62) return; const ks = 3, kj = LOGO.kj; stampMask(k, kj, w - kj.width * ks - 8, h - kj.height * ks - 6, ks, bandMask(kj, rv < .68 ? ['#ffffff'] : ['#ff4a4a', '#ff2a3a', '#d0102a']), '#000', '#000', 3); }
 function fitLogo(c){ const k = clamp(Math.floor(Math.min(innerWidth - 32, 1000) / c.width), 1, 4), k2 = Math.max(1, Math.min(k, Math.floor(innerHeight * .34 / c.height))); c.style.width = c.width * k2 + 'px'; c.style.height = c.height * k2 + 'px'; }
 function bikeList(){ return ENV.bikes && Array.isArray(ENV.bikes.list) && ENV.bikes.list.length ? ENV.bikes.list : [{ id:'sport', name:'Sport', note:'the default racer' }]; }
 function pickBike(step){ const L = bikeList(); let i = Math.max(0, L.findIndex(b => b.id === BIKE.id)); i = (i + step + L.length) % L.length; const b = L[i];
@@ -1977,7 +2012,7 @@ function domeURL(lit){ const c = document.createElement('canvas'); c.width = c.h
   return c.toDataURL(); }
 let attractRAF = 0, attractRun = false;
 function startCard(){ const L = bikeList(); if(!L.some(b => b.id === BIKE.id)) BIKE.id = L[0].id; const many = L.length > 1;
-  $('#card').innerHTML = `<div class="fs attract" id="attract">
+  $('#card').innerHTML = `<div class="fs attract${LOGO.t0 ? '' : ' first'}" id="attract">
     <span class="vcol" aria-hidden="true">日没から夜明けまで</span>
     <div class="logo-wrap"><h2 class="sr-only">Sundown</h2><canvas class="logo" id="logo" width="300" height="104" role="img" aria-label="Sundown, 夜走"></canvas>
 <small class="sndh" id="sndHint" role="status" style="visibility:hidden"><span class="tabk">音</span>PRESS ANY KEY FOR SOUND</small></div>
@@ -1987,8 +2022,8 @@ function startCard(){ const L = bikeList(); if(!L.some(b => b.id === BIKE.id)) B
     <button type="button" class="cab" id="optBtn" aria-label="Options: customise, assists, journal, settings" aria-keyshortcuts="Escape"><span class="tabk g">設定</span><span class="t">OPTIONS</span><img src="${gearURL()}" alt="">${window.COS && COS.unseen && COS.unseen() ? '<span class="nw" aria-label="new looks in the garage">新</span>' : ''}</button>
     <div class="bikezone" id="bikezone"><span class="spot"></span><span class="sr-only" id="bikeName" aria-live="polite"></span>${many ? `<button type="button" class="arr" data-step="-1" aria-label="Previous bike"><img src="${arrowURL(-1, '#ffd04a')}" alt=""></button><button type="button" class="arr" data-step="1" aria-label="Next bike"><img src="${arrowURL(1, '#ffd04a')}" alt=""></button>` : ''}</div></div>`;
   $('#card').scrollTop = 0; $('#sheet').hidden = false;
-  $('#goBtn').onclick = () => { if(window.WARM && WARM.q.length){ if(!WARM.finishing) warmFinish().then(() => { const g = $('#goBtn'); if(g) g.click(); }); return; }   // a ride never starts cold: the rest of the night is built first
-    cancelAnimationFrame(attractRAF); attractRun = false; reset(); $('#sheet').hidden = true; M.init(); };
+  $('#goBtn').onclick = () => { if(WARM.finishing || WARM.gating || $('#attract').classList.contains('going')) return; cancelAnimationFrame(attractRAF); attractRun = false; $('#attract').classList.add('going'); M.init();   // the press answers on this frame: the title's words step away
+    WARM.gating = true; frameGap().then(() => { WARM.gating = false; reset(); $('#sheet').hidden = true; return warmGate(); }).then(() => begin()); };   /* first 60 s (research/sundown-craft/first60.md): START is the one commitment - the countdown starts at once, no second loader, no "steer to start" wait */
   $('#attract').querySelectorAll('[data-step]').forEach(b => b.onclick = () => pickBike(+b.dataset.step)); pickBike(0); $('#optBtn').onclick = titleOpts;
   { let last = null; $('#attract').addEventListener('pointerover', e => { const b = e.target.closest('button'); if(b !== last){ last = b; if(b && e.pointerType === 'mouse' && window.SFX) SFX.ui('move'); } }); }   // a mouse over a title control ticks like the keys
   const lc = $('#logo'); fitLogo(lc); sizeBikeZone();
@@ -2011,7 +2046,9 @@ function attractLane(){ const pz = position + PZ, LOOK = 3200;
 function attractLoop(){ cancelAnimationFrame(attractRAF); let last = performance.now(), lastDraw = 0; attLane = 0;
   const tick = () => { const now = performance.now(); if(!$('#attract') || $('#sheet').hidden){ attractRun = false; return; } const dt = Math.min(.033, (now - last) / 1000); last = now; sndHintChk(now);
     if(!reduce && state === 'ready'){ attractRun = true; speed = lerp(speed, MAXS * .6, 1 - Math.exp(-dt)); update(dt); { const tx = attractLane(); playerX = lerp(playerX, tx, 1 - Math.exp(-2.5 * dt)); leanV = lerp(leanV, clamp(-segAt(position + PZ).curve * .05 + (tx - playerX) * .6, -.35, .35), 1 - Math.exp(-4 * dt)); } }
-    if(!lastDraw || (!reduce && now - lastDraw > 80)){ lastDraw = now; drawLogo($('#logo'), now); }
+    if(!LOGO.t0){ const L = document.getElementById('loader'); if(!L || L.hidden || L.classList.contains('out')) LOGO.t0 = now + 120; }
+    const revealing = LOGO.t0 && now - LOGO.t0 < 900;
+    if(!lastDraw || revealing || (!reduce && now - lastDraw > 80)){ lastDraw = now; drawLogo($('#logo'), now); }
     attractRAF = requestAnimationFrame(tick); };
   attractRAF = requestAnimationFrame(tick); }
 addEventListener('resize', () => { const c = $('#logo'); if(c){ fitLogo(c); sizeBikeZone(); } });
@@ -2467,8 +2504,9 @@ function warmEngine(){ try{
 /* boot, staged. Behind the loader only what the title needs is built: the first road (reset), the shared scenery (traffic models, buildings, sky,
    bikes, gauges), the first road's own warm(), the engine's sprites and the title font (capped at 3 s); the title then appears composed.
    Every other road and mechanic is a job in WARM.q, built one per frame while the title idles, nearest roads first (the first fork's two).
-   Guarantee: a ride can't start cold. START finishes whatever is left first (behind the loader, with its bar), so every road, set piece and
-   card is warm before any ride frame; warmNeed(id) is the synchronous fallback for anything asked for early, and it logs whenever it is used.
+   START (warmGate, first 60 s) finishes every mechanic and the first minute's roads without bringing the loader back, while the bike blips
+   its throttle; far roads keep building in bounded slices through the countdown and the ride, and extend() calls warmNeed(id), the synchronous
+   fallback that logs whenever it is used, before any road's segments are laid unbuilt.
    Headless Chrome (every test harness) boots everything synchronously, as before; ?boot=async or ?boot=sync force either path. */
 const BOOT_SYNC = QS.get('boot') === 'sync' || (QS.get('boot') !== 'async' && /HeadlessChrome/.test(navigator.userAgent));
 const BOOT_ENV = { cars:['車', 'TRAFFIC'], buildings:['街', 'BUILDINGS'], sky:['空', 'THE SKY'], bikes:['単', 'BIKES'], hud:['計', 'GAUGES'], sp_festival:['祭', 'FESTIVAL STREET'] };
@@ -2499,11 +2537,23 @@ window.warmLater = (id, steps) => { if(BOOT_SYNC || state !== 'ready' || !WARM.i
 function warmIdle(){ cancelAnimationFrame(WARM.idleT); let last = 0; const tick = now => { if(!WARM.q.length) return;
     if(last) WARM.frame = WARM.frame ? WARM.frame * .8 + (now - last) * .2 : now - last; last = now;   // the frame time this device manages (smoothed)
     setTimeout(warmBit, 0); WARM.idleT = requestAnimationFrame(tick); };   // the slice runs just after the frame is shown: a warm() that draws on the game canvas (texture uploads) is painted over by the next frame, never shown
-  const warmBit = () => { if(PSE.on || (window.JOURNAL && JOURNAL.open) || (window.COS && COS.open) || WARM.finishing || !$('#attract') || $('#sheet').hidden) return; const a = performance.now(), bud = Math.min(12, Math.max(WARM.budget, (WARM.frame || 16) * .25));   // only while the title is up, never in a ride; 4 ms a frame, or a quarter of a slow device's frame (so a phone isn't left warming for a minute)
+  const warmBit = () => { if(PSE.on || (window.JOURNAL && JOURNAL.open) || (window.COS && COS.open) || WARM.finishing || WARM.gating) return; const title = (!!$('#attract') || state === 'over') && !$('#sheet').hidden; if(!title && !$('#sheet').hidden) return;   // the title, or the results board
+    const cdOn = !title && state === 'ready', a = performance.now(), fr = WARM.frame || 16, bud = title || cdOn ? Math.min(12, Math.max(WARM.budget, fr * .25)) : Math.min(4, Math.max(1.5, fr * .1));   // the title and the countdown: 4 ms or a quarter frame; a ride: 1.5-4 ms (a slow device gets a quarter of its frame on the title, so a phone isn't left warming for a minute)
+    if(cdOn) return;   // the countdown is never disturbed
+    if(!title){ const j = WARM.q.find(x => x[3] && x.it && (WARM.step[x[2]] || 99) < 12); if(j && warmSlice(j, bud)){ const i = WARM.q.indexOf(j); if(i >= 0) WARM.q.splice(i, 1); } return; }   // a ride: only a stepped job already seen to step in under 12 ms here; anything heavier waits for the title, the results or extend()'s warmNeed
     while(WARM.q.length && performance.now() - a < bud){ const j = WARM.q[0]; if(warmSlice(j, bud - (performance.now() - a))){ if(WARM.q[0] === j) WARM.q.shift(); } else break; } };
   WARM.idleT = requestAnimationFrame(tick); }
 const frameGap = () => new Promise(r => { let ok = false; const go = () => { if(!ok){ ok = true; setTimeout(r, 0); } }; requestAnimationFrame(go); setTimeout(go, 50); });   // a frame for the bar (or 50 ms in a background tab)
 // START with jobs still queued: finish them behind the loader (its bar counts them), then start as asked
+/* first 60 s: START no longer waits for the whole night (13 s on a desktop, 40+ s on a phone behind a second loader). It finishes only the road
+   you reach first (zone 1, and a fork's two roads) and moves it to the front; everything else keeps building in small slices after each frame
+   through the countdown and the ride (warmIdle), nearest first, and extend() builds any road on demand (warmNeed, logged) if a slice is late. */
+async function warmGate(){ if(BOOT_SYNC || !WARM.q.length) return; const ids = new Set(); for(let z = 0; z <= 2; z++){ const L = LANDS[landIdx(z)]; if(L) ids.add('env.' + L.key); }
+  forkChoices(2); for(const f of FORKS) if(Array.isArray(f)) f.forEach(i => LANDS[i] && ids.add('env.' + LANDS[i].key));   // zones 0-2 and the first fork's two roads: well over a minute of riding
+  const need = j => ids.has(j[2]) || (!j[2].startsWith('env.') && !/Late$/.test(j[2]));   // a module's '...Late' job (MECH.arrivalLate) is never waited for   // the roads of the first minute and every mechanic (cards, cut-ins, set pieces); far roads wait
+  WARM.gating = true; const t0 = performance.now(); let t = t0, n = 0, rev = 0;
+  try{ for(const j of WARM.q.filter(need)){ if(performance.now() - t > 40){ await frameGap(); t = performance.now(); if(t - rev > 330){ rev = t; M.rev = 1; } } warmTake(j); n++; } }   // the bike blips its throttle (the call) while the engine warms
+  finally{ WARM.gating = false; } WARM.gateMs = Math.round(performance.now() - t0); WARM.gateN = n; WARM.idleOn = true; warmIdle(); }
 async function warmFinish(){ if(WARM.finishing || !WARM.q.length) return; WARM.finishing = true; const B = window.BOOT; if(B && B.again) B.again(WARM.q.length);
   let t = performance.now(); while(WARM.q.length){ const j = WARM.q[0]; if(B) B.label(j[0]); if(performance.now() - t > 40){ await frameGap(); t = performance.now(); } warmTake(j); if(B) B.step(); }
   WARM.finishing = false; if(B){ await frameGap(); B.done(); } }
@@ -2513,8 +2563,8 @@ async function boot(){ const B = window.BOOT || { expect(){}, add(){}, label(){}
   const first = () => 'env.' + ((LANDS[ROUTE[0]] || LANDS[0]).key), shared = ['env.cars', 'env.buildings', 'env.sky', 'env.bikes', 'env.hud'];
   B.add(9); B.label(jobs[0][0]); await frameGap(); bootRun(jobs[0]); B.step();   // the first road; the frame loop only starts after boot, so nothing draws it unbuilt
   const f0 = first(), core = jobs.filter(j => shared.includes(j[2])).concat(jobs.filter(j => j[2] === f0 || j[2] === 'engine'));
-  const near = new Set((Array.isArray(FORKS[0]) ? FORKS[0] : []).map(i => LANDS[i] && 'env.' + LANDS[i].key)), rest = jobs.slice(1).filter(j => !core.includes(j));
-  WARM.q = rest.filter(j => near.has(j[2])).concat(rest.filter(j => j[2].startsWith('env.') && !near.has(j[2])), rest.filter(j => !j[2].startsWith('env.')));
+  const near = new Set((Array.isArray(FORKS[0]) ? FORKS[0] : []).concat(landIdx(1)).map(i => LANDS[i] && 'env.' + LANDS[i].key)), rest = jobs.slice(1).filter(j => !core.includes(j));
+  WARM.q = rest.filter(j => near.has(j[2])).concat(rest.filter(j => !j[2].startsWith('env.') && !/Late$/.test(j[2])), rest.filter(j => j[2].startsWith('env.') && !near.has(j[2])), rest.filter(j => /Late$/.test(j[2])));   // first minute: near roads, then mechanics, then far roads
   WARM.core = core.map(j => j[2]); B.add(core.length - 6); let t = performance.now();
   for(const j of core){ B.label(j[0]); if(performance.now() - t > 40){ await frameGap(); t = performance.now(); } bootRun(j); B.step(); }
   B.label('字 TYPE'); await font; B.step(); startCard(); B.step(); requestAnimationFrame(frame); await frameGap(); B.done(); WARM.idleOn = true; warmIdle(); }   // the title is up: the rest is built while it idles
@@ -2545,7 +2595,7 @@ function frame(){ if(PSE.on){ pzPad(); if(PSE.dirty){ PSE.dirty = false; try{ dr
    A new version downloads in the background and waits. It is applied only on the title (never mid-ride): by itself once
    the title has sat untouched for a few seconds, or at once when the player taps "Update ready". Tap the version to check now. */
 (() => {
-  const VER = 'v5 · 93716b', $id = (i) => document.getElementById(i);
+  const VER = 'v6 · be689d', $id = (i) => document.getElementById(i);
   const SDU = window.SDUPDATE = { version: VER, waiting: null, applied: false, checks: 0 };
   let reg = null, applying = false, asked = false, needReload = false, note = '', noteT = 0, lastInput = performance.now();
   ['keydown', 'pointerdown', 'touchstart', 'wheel'].forEach((t) => addEventListener(t, () => { lastInput = performance.now(); }, { capture: true, passive: true }));
@@ -2607,5 +2657,5 @@ function frame(){ if(PSE.on){ pzPad(); if(PSE.dirty){ PSE.dirty = false; try{ dr
   }, 1000);
 })();
 </script>
-<!-- __sdbuild:5 93716bfee629 --></body>
+<!-- __sdbuild:6 be689dce301d --></body>
 </html>

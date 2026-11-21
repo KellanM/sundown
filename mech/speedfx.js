@@ -37,7 +37,7 @@
   const NMAX = 160;                 // lights recorded per segment pass (far more than any road draws near the camera)
   const LIGHT = { lamp:1, yardlamp:1, blight:1, lantern:1, flare:1, deli:.8, pole:1, vend:.6 };   // prop types whose glow is a light
   // ---------------------------------------------------------------- state
-  let E = 0, on = false, wrapped = false;
+  let E = 0, on = false, wrapped = false, flareT = 0, flareK = 0;   // flare: a brief lift asked for by another module (M.flare)
   const GX = new Float32Array(NMAX), GY = new Float32Array(NMAX), GR = new Float32Array(NMAX), GA = new Float32Array(NMAX);
   const OX = new Float32Array(NMAX), OY = new Float32Array(NMAX), F0 = new Float32Array(NMAX), RL = new Float32Array(NMAX), YC = new Float32Array(NMAX);
   const GC = new Array(NMAX).fill('#000000');
@@ -57,6 +57,7 @@
     let t = smooth(.9, 1.0, sp) * (.24 + .16 * fl);                       // top speed: a hint, more with flow
     if(boostT > 0) t = Math.max(t, [0, .5, .75, 1][boostTier] || .5);  // a boost: by tier
     t = Math.max(t, smooth(1.0, 1.4, sp) * .6);                         // the overspeed a boost leaves behind settles with the speed
+    if(flareT > 0) t = Math.max(t, flareK);                            // a flare (mech/formations.js: a formation threaded clean)
     return t; }
 
   // ---------------------------------------------------------------- recording lights
@@ -121,10 +122,11 @@
 
   // ---------------------------------------------------------------- hooks
   M.warm = () => { wrap(); };
-  M.reset = () => { E = 0; n = 0; };
+  M.reset = () => { E = 0; n = 0; flareT = 0; };
+  M.flare = (k, secs) => { flareK = clamp(+k || 0, 0, 1); flareT = Math.max(flareT, clamp(+secs || .6, 0, 2)); };   // lift the trails to level k for secs
   M.update = dt => {
     wrap();
-    const rm = rmOn(); let t = target();
+    flareT = Math.max(0, flareT - dt); const rm = rmOn(); let t = target();
     if(rm) t = t >= .5 ? RM_E : 0;
     const tau = rm ? 1.5 : t > E ? .2 : .7; E += (t - E) * (1 - Math.exp(-dt / tau)); if(Math.abs(t - E) < .002) E = t;   // (settles exactly, so a held state draws identical frames)
     on = E > .01;   // the wrappers record only while trails can show (at cruise they call straight through)
