@@ -59,6 +59,9 @@ const LIB = [
   { id:'trap',     name:'SPEED TRAP', kj:'罠', d:4, bend:false, on:{ x:2, s:1, m:1 }, rows:[[-1.6, [[R, 'c', { v:-.08 }]]], [0, [[-.58, 't'], [-.08, 't']]], [2.9, [R]]] },
   { id:'needle',   name:'NEEDLE',     kj:'針', d:5, bend:false, on:{ x:1, s:1, m:1 }, rows:[[0, [L, R]], [2.4, [[-.68, 'c'], [.02, 'c'], [.7, 'c']]], [4.8, [C]]] },
   { id:'knot',     name:'KNOT',       kj:'結', d:5, bend:false, on:{ x:1, s:2, m:1 }, rows:[[0, [C, R]], [2.5, [L, R]], [5, [L, [C, 'c', { to:.66 }]]], [8, [L]]] },
+  // the first night's opener (never picked at random): two slow cars on the lane lines, staggered. Whatever lane you hold, one of them
+  // passes you inside Close range (.33 from a lane centre) and outside its hit box, with .1 to spare either side
+  { id:'stagger',  name:'STAGGER',    kj:'初', d:1, fn:true, bend:true, on:{ x:1, s:1, m:1 }, rows:[[0, [[-.33, 'c']]], [1.8, [[.33, 'c']]]] },
   { id:'gauntlet', name:'GAUNTLET',   kj:'関', d:5, bend:false, on:{ x:2, s:1, m:1 }, rows:[[0, [C, [R, 't']]], [2.4, [[L, 't'], C]], [4.8, [C, [R, 't']]], [6.9, [-.42]], [7.9, [.42]], [9, [[L, 't'], C]]] } ];
 F.LIB = LIB;
 const BYID = {}; for(const d of LIB) BYID[d.id] = d;
@@ -80,6 +83,7 @@ const vfAt = lv => .56 - .03 * (lv - 1);               // formation speed (x MAX
 const FIRST = 7;                                        // seconds of loose traffic before the first phrase
 
 /* ---------------------------------------------------------------- state */
+let fnRide = false, fnStep = 0, fnWait = 0;   // the player's first night (firstNight() in the core): a designed opening
 let phase = 'free', phaseT = 0, freeFor = FIRST, phr = null, live = [], nid = 1, recent = [], fmCars = 0, frame = 0;
 const ST = { seen:0, threaded:0, voided:0, crashed:0, streak:0, bestStreak:0, by:{}, log:[] };   // log: each formation's id and outcome (tests)
 F.stats = () => ST;
@@ -153,7 +157,7 @@ F.visionOK = def => { for(const [dz, ms] of def.rows) for(const m of ms){ if(mem
 
 /* ---------------------------------------------------------------- choosing: phrases (jo-ha-kyu) */
 function pick(target, kind, tunnel, bend, avoid){ let best = [], bw = 0;
-  for(const d of LIB){ if(d.tun && !tunnel) continue; if(bend && !d.bend) continue; if(avoid.includes(d.id)) continue;
+  for(const d of LIB){ if(d.fn || (d.tun && !tunnel)) continue; if(bend && !d.bend) continue; if(avoid.includes(d.id)) continue;
     const dd = Math.abs(d.d - target); if(dd > 1.01) continue; const w = (d.on[kind] || 1) * (dd < .5 ? 3 : 1) * (d.tun ? 3 : 1); best.push([d, w]); bw += w; }
   if(!best.length) return BYID.gate; let r = Math.random() * bw; for(const [d, w] of best){ r -= w; if(r <= 0) return d; } return best[best.length - 1][0]; }
 function buildPhrase(){ const lv = level(), n = lv < 2 ? 3 : lv < 4 ? 4 : 5;
@@ -164,13 +168,14 @@ function buildPhrase(){ const lv = level(), n = lv < 2 ? 3 : lv < 4 ? 4 : 5;
 /* ---------------------------------------------------------------- placing one formation */
 function stretchOK(z0, z1, vf, needTun){   // the segments where the bike will meet it (it drives on while you close)
   // where you meet it depends on your speed: a boosting bike (1.3 x MAXS) meets it nearest, a cruising one (.9) farther on
-  const pz = position + PZ, meet = (z, vp) => z + vf * Math.max(0, (z - pz) / (vp - vf)), mA = meet(z0, 1.3), mB = meet(z1, .9);
+  const pz = position + PZ, meet = (z, vp) => z + vf * Math.max(0, (z - pz) / (vp - vf)), vLo = Math.max(vf + .15, Math.min(.9, speed / MAXS)), mA = meet(z0, 1.3), mB = meet(z1, vLo);
   const i0 = Math.floor(z0 / SEG), iA = Math.floor(mA / SEG) - 10, i1 = Math.min(segs.length - 1, Math.ceil(mB / SEG) + 10); let k = 0, tun = true;
   if(i1 < iA) return null;
   for(let i = i0; i <= i1; i++){ const s = segs[i]; if(!s) return null;
     if(s.gore || s.forkZ || s.skRes || s.spjP) return null;   // a fork's gore, a kicker's stretch, a landmark jump's window
     if(typeof inSplitWin === 'function' && inSplitWin(i) >= 0) return null;
     if(i >= iA){ k = Math.max(k, Math.abs(s.curve || 0)); if(!s.tunnel) tun = false; } }
+  for(let i = i1 + 1; i <= Math.min(segs.length - 1, i1 + 160); i++) if(segs[i] && segs[i].spjP) return null;   // a landmark jump clears the cars on the 150 segments before its bridge
   if(typeof forkGateAhead === 'function'){ const G = forkGateAhead(); if(G >= 0 && i1 >= G - SPLIT_PRE - 80 && i0 < G + SPLIT_POST + 10) return null; }   // the fork's split moves its own traffic there
   if(needTun && !tun) return null;
   return { k, tun }; }
@@ -230,9 +235,25 @@ function runScript(c, vp, dt){ const e = c.fmE; if(!e || e.done || e.dead) retur
       e.on = true; e.t = 0; c.sig = Math.sign(e.to - c.x); } return; }
   e.t += dt; if(e.t < MV) return;
   const d = e.to - c.x; c.x += Math.max(-LC_V * dt, Math.min(LC_V * dt, d)); if(Math.abs(e.to - c.x) < .004){ c.x = e.to; e.done = true; c.sig = 0; } }
+/* ---------------------------------------------------------------- the first night's opening (coordinator, 2026-11-21, from the
+   first-60-seconds pass: in the after-runs nobody got a near miss inside a minute)
+   - jo: an empty road while you find the throttle, then the first cars at about 6-10 s: a wide gate, both cars in the outer lanes;
+   - ha: STAGGER, two slow cars on the lane lines, met on a straight at about 15-25 s: whatever lane you hold, a Close (and a thread);
+   - ma: nothing else until 30 s. A passive rider (no steering: the centre, or the barrier a bend drifts you to) can't be hit by either. */
+// the first place at or beyond the horizon where a formation fits (no reserved road; straight enough), or -1
+function fitFrom(def, vf, S, kMax){ const z0 = horizon(), len = def.rows[def.rows.length - 1][0] * 1000 * S;
+  for(let k = 0; k < 60; k++){ const z = z0 + k * 1500, info = stretchOK(z, z + len, vf, false); if(info && info.k <= kMax) return z; } return -1; }
+function firstNightStep(dt){ const t = typeof playT === 'number' ? playT : 0, kind = kindHere(position + PZ), S = KP[kind].sp;
+  if(fnWait > 0){ fnWait -= dt; return; }
+  if(fnStep === 0 && t >= 3.5){ const z = fitFrom(BYID.gate, .25 - KP[kind].dv, S, 9); if(z < 0){ fnWait = .3; if(t < 8) return; fnStep = 1; return; }
+    const f = place(BYID.gate, z, .25 - KP[kind].dv, 1, kind, false, S); f.fn = true; fnStep = 1; }   // slow cars: you meet them soon, before any set piece's stretch
+  else if(fnStep === 1 && t >= 8.5){ const z = fitFrom(BYID.stagger, .3 - KP[kind].dv, S, 1.2);
+    if(z < 0){ fnWait = .3; if(t < 16) return; fnStep = 2; return; }   // nowhere straight and clear yet: keep looking until 16 s
+    const f = place(BYID.stagger, z, .3 - KP[kind].dv, 1, kind, false, S); f.fn = true; fnStep = 2; }
+  else if(fnStep === 2 && t >= 30 && !live.length){ phase = 'free'; phaseT = 0; freeFor = 2; fnStep = 3; } }
 F.update = dt => {
   frame++;
-  if(state !== 'play'){ if(live.length){ for(const f of live) release(f); live.length = 0; } phase = 'free'; phr = null; phaseT = 0; freeFor = FIRST; return; }
+  if(state !== 'play'){ if(live.length){ for(const f of live) release(f); live.length = 0; } phase = fnRide ? 'fn' : 'free'; fnStep = 0; phr = null; phaseT = 0; freeFor = FIRST; return; }
   const pz = position + PZ, vp = Math.max(speed, MAXS * .3);
   // who is still here, and moved only by us (a set piece removing or throwing a car voids its formation)
   for(const c of cars) if(c.fm) c.fmSeen = frame;
@@ -250,7 +271,8 @@ F.update = dt => {
     if(f.t > 45 || (f.members.length && f.members[0].z - pz > SPAWN_Z + 40000)){ voidF(f, 'lost'); live.splice(i, 1); } }   // you fell far behind it
   // the phrase clock
   phaseT += dt;
-  if(phase === 'free'){ if(phaseT > freeFor) startPhrase(); }
+  if(phase === 'fn') firstNightStep(dt);
+  else if(phase === 'free'){ if(phaseT > freeFor) startPhrase(); }
   else if(phase === 'phrase'){ const P = phr;
     P.next += P.vf * MAXS * dt;   // the phrase is a convoy driving at vf: its next slot moves on with it
     if(P.i < P.tg.length && phaseT < 50 && (P.i || phaseT < 12)) tryNext(dt);   // (a phrase that cannot start within 12 s gives way to loose traffic)
@@ -259,8 +281,11 @@ F.update = dt => {
 const maFor = () => 3.6 - .25 * (level() - 1);        // ma: empty road after a phrase, 3.6 s early to 2.6 s late
 const freeAt = () => 6 - .7 * (level() - 1);           // then loose traffic: 6 s early to 3.2 s late, then the next phrase
 // the spawner's hook: how many cars to keep. While a phrase runs (and in its ma), no loose traffic is added
-F.want = n => phase === 'free' ? n + fmCars : 0;
-F.reset = () => { for(const f of live) release(f); live = []; phase = 'free'; phaseT = 0; freeFor = FIRST; phr = null; recent = []; fmCars = 0;
+F.want = n => state !== 'play' || phase === 'free' ? n + fmCars : 0;
+F.reset = () => { for(const f of live) release(f); live = [];
+  fnRide = typeof firstNight === 'function' && !!firstNight(); fnStep = 0; fnWait = 0;
+  if(fnRide && typeof cars !== 'undefined') cars.length = 0;   // (reset() just spawned three random cars; the first night opens on an empty road)
+  phase = fnRide ? 'fn' : 'free'; phaseT = 0; freeFor = FIRST; phr = null; recent = []; fmCars = 0;
   ST.seen = 0; ST.threaded = 0; ST.voided = 0; ST.crashed = 0; ST.streak = 0; ST.bestStreak = 0; ST.by = {}; ST.log = []; };
 F.finish = rec => { rec.formations = ST.seen; rec.threaded = ST.threaded; rec.threadStreak = ST.bestStreak; };
 

@@ -239,7 +239,7 @@ const FX = { lb:0, lbA:1, scale:1, duck:1, roll:0, zoom:1 };
 function stepCines(ug, dt){ duckSetup();
   let lb = 0, lbB = 0, lbA = 0, overBike = false, sc = 1, dk = 1, roll = 0, zm = 1, guard = null;
   for(let n = CINES.length - 1; n >= 0; n--){ const c = CINES[n], e = envOf(c);
-    if(c.endT != null && e <= 0 && slowOf(c) >= .999){ CINES.splice(n, 1); if(c.o.duck) swell = true; continue; }
+    if(c.endT != null && e <= 0 && slowOf(c) >= .999 && !bandLive(c)){ CINES.splice(n, 1); if(c.o.duck) swell = true; continue; }
     const L0 = c.o.letterbox, frac = L0 === true || L0 === undefined ? .11 : typeof L0 === 'object' && L0 ? (L0.top != null ? +L0.top : .11) : +L0 || 0;
     const fb = typeof L0 === 'object' && L0 ? +(L0.bottom || 0) : 0; if(typeof L0 === 'object' && L0 && L0.overBike) overBike = true;
     if(frac > 0 || fb > 0){ const k = reduce ? 1 : stepq(e, 6); lb = Math.max(lb, frac * k); lbB = Math.max(lbB, fb * k); lbA = Math.max(lbA, reduce ? stepq(e, 4) : 1); }
@@ -248,7 +248,7 @@ function stepCines(ug, dt){ duckSetup();
     if(!reduce && c.o.tilt){ roll += (c.o.tilt * Math.PI / 180) * sm(e) * (c.o.tiltDir || 1); }
     if(!reduce && c.o.zoom){ const age = T - c.t0; zm = Math.max(zm, 1 + c.o.zoom * (1 - sm(age / 1.1)) * (e > 0 ? 1 : 0)); }
     if(c.guard && e > 0) guard = c;
-    if(c.card && !c.cardShown && T - c.t0 >= (c.card.at || .2)){ c.cardShown = true; c.cardT0 = T;
+    if(c.card && !c.cardShown && T - c.t0 >= (c.card.at || .2) && !(c.band && T - c.t0 < B_WAIT && MECH.cutin && MECH.cutin.on && MECH.cutin.on())){ c.cardShown = true; c.cardT0 = T;   // a band waits (<= B_WAIT) for a cut-in already on screen: one title at a time
       const CU = MECH.cutin, cid = CU && CU.idFor ? (c.o.id && CU.has(c.o.id) ? c.o.id : CU.idFor(c.card)) : null;   // ui/cutin.js: a full anime title cut-in when this moment has one
       if(cid && CU.show(cid, { card:c.card }) !== false){ c.cardExt = true; D.cardBy = 'cutin'; }
       else if(c.cardExt){ let ok = false; try{ ok = MECH.arrival.moment(c.card) !== false; }catch(e2){ console.warn(e2); } c.cardExt = ok; D.cardBy = ok ? 'arrival' : 'director'; }
@@ -368,8 +368,9 @@ function drawCard(c, t, tOut, tEnd, rEnd){ const o = cardArt(c.card), cw = cx.ca
    gone 2.0 s after it appears (+ the card's hold), before any set piece's first hazard. No focus lines, no speed lines, nothing below the
    band. Reduced motion: four-step fade in and out. Which cards: a card cine with letterbox:false and no guard (the set pieces' own card
    beat: rockslide, cavein, flood, lava, naruto, screenfall, teiden, yoiyama, kanpo) and the runaway wheel's card. */
-const B_IN = .1, B_HIT = .1, B_TXT = .12, B_OUT = 1.85, B_END = 2.0, B_REND = 2.2, BAND_K = { '観覧車':1 };
+const B_IN = .1, B_HIT = .1, B_TXT = .12, B_OUT = 1.85, B_END = 2.0, B_REND = 2.2, B_WAIT = 2.5, BAND_K = { '観覧車':1 };
 const isBand = (o, card) => !!card && ((o.letterbox === false && !o.guard) || !!BAND_K[card.kanji]);
+const bandLive = c => !!c.band && !c.cardExt && (!c.cardShown || T - c.cardT0 <= (reduce ? B_REND : B_END) + (c.card.hold || 0));   // its cine lives until the band has retracted (a 1.5 s card cine must not cut a 2 s band, nor drop one still waiting for a cut-in)
 const bandOn = () => CINES.some(c => c.band && c.cardShown && !c.cardExt && T - c.cardT0 <= (reduce ? B_REND : B_END) + (c.card.hold || 0));
 const BANDC = {};
 function bandArt(card){ const cw = cx.canvas.width, chh = cx.canvas.height, key = card.kanji + '|' + card.name + '|' + (card.sub || '') + '|' + (card.col || '') + '|' + cw + 'x' + chh; if(BANDC[key]) return BANDC[key];
@@ -385,8 +386,9 @@ function bandArt(card){ const cw = cx.canvas.width, chh = cx.canvas.height, key 
   let y0 = 0, y1 = kj.height - 1; { const d = kk.getImageData(0, 0, kj.width, kj.height).data, row = y => { for(let x = 0; x < kj.width; x++) if(d[(y * kj.width + x) * 4 + 3] > 0) return true; return false; };
     while(y0 < y1 && !row(y0)) y0++; while(y1 > y0 && !row(y1)) y1--; }
   const kh = y1 - y0 + 1, kr = kj.width + (narrow ? 4 : 7), avail = Math.max(30, (narrow ? cw - 6 : Math.round(cw * .72)) - kr);
-  let ns = narrow ? 1 : 2; if((card.name || '').length * 4 * ns + ns > avail) ns = 1;
-  const name = txt3(card.name || '', CREAM, INK, ns), tag = narrow ? null : boxLabel(card.tag || 'MOMENT', CREAM, col);
+  const nm = String(card.name || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '');   // KANPŌ -> KANPO: the 3x5 face has no macrons (a blank cell read as a missing letter)
+  let ns = narrow ? 1 : 2; if(nm.length * 4 * ns + ns > avail) ns = 1;
+  const name = txt3(nm, CREAM, INK, ns), tag = narrow ? null : boxLabel(card.tag || 'MOMENT', CREAM, col);
   const subs = card.sub ? wrap3(card.sub, Math.max(6, Math.floor((avail - 1) / 4))).slice(0, narrow ? 2 : 1).map(l => txt3(l, mixc(CREAM, col, .25), INK, 1)) : [];
   const lineW = name.width + (tag ? 5 + tag.width : 0), textW = Math.max(lineW, ...subs.map(s => s.width)), textH = Math.max(name.height, tag ? 10 : 0) + (subs.length ? 2 + subs.length * 7 - 1 : 0);
   const pad = narrow ? 3 : 4, bh = Math.max(Math.round(chh * .095), Math.max(kh, textH) + pad * 2), gw = kr + textW, gx = narrow ? 3 : Math.round((cw - gw) / 2);
