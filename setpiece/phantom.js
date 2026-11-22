@@ -51,10 +51,10 @@ const PAL = { K:'#0a0c18',
   O:'#f6f9ff', S:'#d6e0ee', s:'#a6b6ce', q:'#6a7a9a', u:'#3a4666',                 // the coat: ghost white, cooled into blue-grey
   H:'#12121e', h:'#3a3c56',                                                            // long black hair with a cold sheen
   B:'#f0fdff', b:'#9ae8ff', c:'#46aee8', d:'#1c5aa4',                                  // blue-white flame (white-hot core to night blue)
-  T:'#16151c', t:'#46434f', W:'#e6eaf4', V:'#8a90a8', L:'#dcfcff', l:'#6ad0f0', P:'#d8dce6', n:'#2a2c44' };
+  T:'#16151c', t:'#46434f', W:'#e6eaf4', V:'#8a90a8', L:'#dcfcff', l:'#6ad0f0', P:'#d8dce6', n:'#2a2c44', E:'#e4c6b6', e:'#a87a6a' };
 // lights out: the same rider as a night silhouette with a pale rim on the lit edge, so he dims but never disappears
 const DARK = { K:'#06070e', O:'#5a6a8e', S:'#2c3652', s:'#222a42', q:'#1a2034', u:'#141a2a', H:'#0a0b14', h:'#1a1c2c', B:'#3a6a9a', b:'#2a4e7a', c:'#203c64', d:'#162a4a',
-  T:'#0e0d12', t:'#22202a', W:'#3a4058', V:'#262a3a', L:'#2a3448', l:'#1c2434', P:'#2a2e3a', n:'#14162a' };
+  T:'#0e0d12', t:'#22202a', W:'#3a4058', V:'#262a3a', L:'#2a3448', l:'#1c2434', P:'#2a2e3a', n:'#14162a', E:'#4a4258', e:'#2a2636' };
 const MIR = { O:'S', h:'H' };
 const tyreRows = (hw, h, ph) => Array.from({ length:h }, (_, i) => 'K' + 'T'.repeat(hw - 3) + ((i + ph) % 3 === 0 ? 'TT' : 'tt')).concat(['.' + 'K'.repeat(hw - 1)]);
 const RIDER = [   // white half-helmet with a pale-blue stripe, long black hair to the shoulder blades, the white tokkōfuku with glyph columns
@@ -64,7 +64,7 @@ const RIDER = [   // white half-helmet with a pale-blue stripe, long black hair 
   '.KqssSSSSS', '.KuqsssSSS', '..KKKKKKKK', 'KnK.......', 'KHHK......', '.KKK......'];
 const CREST = ['....KK.', '...KbK.', '..KbcK.', '.KbBBcK', 'KbBBBcK', 'KcBBbcK', '.KcccK.'];   // the hitodama, its tail rising
 const SEAT = [   // the sandan seat-back (ghost white, blue-white flames licking up from its foot), the ducktail with the pale lamp, the plate
-  '..KKK', '.KOOO', '.KOOS', '.KOSS', '.KOSS', '.KOSc', '.KObc', '.KcSb', '.KcbB', '.KdcB', 'KKKKK', 'KOOOS', 'KdcbB', 'KLLLL', 'KllLl', '.KKPP', '..KKK'];
+  '..KKK', '.KOOO', '.KOSS', '.KOSb', '.KSbB', '.KbBb', '.KcbB', '.KbcB', '.KdcB', '.Kddc', 'KKKKK', 'KOOOS', 'KdcbB', 'KLLLL', 'KllLl', '.KKPP', '..KKK'];
 const PIPES = ['..KK......', '.KWVK.....', 'KWVVK.....', 'KVVK......', '.KK.......'];
 const PARTS = [
   { y:0, ph:true, f:ph => tyreRows(5, 12, ph) },
@@ -72,16 +72,23 @@ const PARTS = [
   { y:-18, hang:2, rows:CREST, full:true },
   { y:-3, rows:SEAT },
   { y:-1, rows:PIPES }];
-const WISP = [['..K..', '.KbK.', '.KbK.', 'KbBbK', 'KBBBK', 'KbBbK', '.KKK.'], ['.K...', '.KbK.', '..KbK', 'KbBbK', 'KBBBK', 'KbBbK', '.KKK.']];
+const WISP = [['...K..', '...bK.', '..Kb..', '.KbbK.', 'KbBBbK', 'KBBBBK', 'KbBBbK', '.KKKK.'], ['..K...', '.Kb...', '..bK..', '.KbbK.', 'KbBBbK', 'KBBBBK', 'KbBBbK', '.KKKK.']];
 const BANG = ['.KKKKKKKK.', 'KbbbbbbbbK', 'KbddBBddbK', 'KbddBBddbK', 'KbddBBddbK', 'KbddBBddbK', 'KbddddddbK', 'KbddBBddbK', 'KbbbbbbbbK', '.KKKbbKKK.', '...KbbK...', '....KK....'];
 const RCW = 48, RCH = 64, RGY = 60;
 function grid(rows, P, full){ const n = Math.max(...rows.map(r => r.length)), rs = rows.map(r => full ? r.padEnd(n, '.') : r.padStart(n, '.'));
   return rs.map(r0 => full ? r0 : r0 + [...r0].reverse().map(ch => MIR[ch] || ch).join('')); }
 function paintRows(g, rows, P, ox, oy){ rows.forEach((r, y) => { for(let x = 0; x < r.length; x++){ const ch = r[x], col = P[ch]; if(!col) continue; g.fillStyle = col; g.fillRect(ox + x, oy + y, 1, 1); } }); }
-// one composite: (palette, tyre phase, hang -1/0/1)
-function composite(P, ph, hang){ const c = can(RCW, RCH), g = c.getContext('2d');
-  for(const p of PARTS){ const rows = grid(p.f ? p.f(ph) : p.rows, P, p.full), w = rows[0].length; paintRows(g, rows, P, Math.round(RCW / 2 - w / 2 + hang * (p.hang || 0)), RGY + p.y - rows.length); }
-  return c; }
+// the glance (the body tell before every threat): his head turns, a sliver of cheek and jaw shows past the hair on that side
+function glance(rows, look){ const R = rows.map(r => [...r]), put = (y, x, k) => { if(R[y] && R[y][x] !== undefined) R[y][x] = k; };
+  const X = look < 0 ? x => x : x => R[0].length - 1 - x;
+  put(7, X(5), 'E'); put(7, X(6), 'e'); put(8, X(4), 'E'); put(8, X(5), 'E'); put(8, X(6), 'e'); put(9, X(4), 'e');
+  return R.map(r => r.join('')); }
+// one composite: (palette, tyre phase, hang -1/0/1, look -1/0/1)
+const RGB = {}, rgb = h => RGB[h] || (RGB[h] = [1, 3, 5].map(i => parseInt(h.substr(i, 2), 16)));
+function composite(P, ph, hang, look){ const c = can(RCW, RCH), g = c.getContext('2d'), im = g.createImageData(RCW, RCH), D = im.data;   // one ImageData write (a cold fillRect per pixel cost a 17 ms first step)
+  for(const p of PARTS){ let rows = grid(p.f ? p.f(ph) : p.rows, P, p.full); if(look && p.rows === RIDER) rows = glance(rows, look); const w = rows[0].length, ox = Math.round(RCW / 2 - w / 2 + hang * (p.hang || 0)), oy = RGY + p.y - rows.length;
+    rows.forEach((r, y) => { for(let x = 0; x < r.length; x++){ const col = P[r[x]]; if(!col) continue; const X = ox + x, Y = oy + y; if(X < 0 || Y < 0 || X >= RCW || Y >= RCH) continue; const v = rgb(col), o = (Y * RCW + X) * 4; D[o] = v[0]; D[o + 1] = v[1]; D[o + 2] = v[2]; D[o + 3] = 255; } }); }
+  g.putImageData(im, 0, 0); return c; }
 // the dissolve: ordered dither, filled from the head down (the feet go first when he fades, the yūrei's footless drift, never a cut body)
 const BAY = [0, 8, 2, 10, 12, 4, 14, 6, 3, 11, 1, 9, 15, 7, 13, 5].map(v => (v + .5) / 16);
 function dither(src, lv){ const c = can(src.width, src.height), g = c.getContext('2d'); g.drawImage(src, 0, 0); const im = g.getImageData(0, 0, c.width, c.height), D = im.data;
@@ -103,16 +110,17 @@ let ATL = null, CELL = {}, warmed = false, TOUCH = null;
 const LEGP = { id:'phantomR', a:'#e8eef8', b:'#a8b8d0', c:'#6a7c9c', d:'#141420', dl:'#34364e', K:'#0a0c18' };
 const flipC = c => c._f || (c._f = (() => { const o = can(c.width, c.height), k = o.getContext('2d'); k.translate(c.width, 0); k.scale(-1, 1); k.drawImage(c, 0, 0); return o; })());
 function* buildSteps(){ const list = [];
-  for(let ph = 0; ph < 3; ph++) for(let h = -1; h <= 1; h++){ const base = composite(PAL, ph, h); list.push(['n' + ph + h, base]); list.push(['k' + ph + h, composite(DARK, ph, h)]);
-    for(let lv = 1; lv <= 3; lv++) list.push(['d' + lv + ph + h, dither(base, lv / 4)]); yield; }
+  for(let ph = 0; ph < 3; ph++) for(let h = -1; h <= 1; h++){ const base = composite(PAL, ph, h); list.push(['n' + ph + h, base]); yield; list.push(['k' + ph + h, composite(DARK, ph, h)]); yield;
+    for(let lv = 1; lv <= 3; lv++){ list.push(['d' + lv + ph + h, dither(base, lv / 4)]); yield; } }   // one canvas a step (a step stays well under 12 ms)
+  for(let ph = 0; ph < 3; ph++) for(const [lk, L] of [['L', -1], ['R', 1]]){ list.push(['n' + lk + ph, composite(PAL, ph, 0, L)]); yield; list.push(['k' + lk + ph, composite(DARK, ph, 0, L)]); yield; }
   for(let p = 0; p < 3; p++) list.push(['flag' + p, flag(p)]);
   for(let i = 0; i < 2; i++){ const rows = grid(WISP[i], PAL, true), c = can(rows[0].length, rows.length); paintRows(c.getContext('2d'), rows, PAL, 0, 0); list.push(['wisp' + i, c]); }
   { const rows = grid(BANG, PAL, true), c = can(rows[0].length, rows.length); paintRows(c.getContext('2d'), rows, PAL, 0, 0); list.push(['bang', c]); }
   yield;
   const AW = 512; let x = 0, y = 0, sh = 0; for(const it of list){ const w = it[1].width, h = it[1].height; if(x + w > AW){ x = 0; y += sh + 1; sh = 0; } it.push(x, y); x += w + 1; sh = Math.max(sh, h); }
-  const cv = can(AW, y + sh + 1), g = cv.getContext('2d'); for(const [key, c, sx, sy] of list){ g.drawImage(c, sx, sy); CELL[key] = { sx, sy, w:c.width, h:c.height }; }
-  ATL = cv; yield;
-  const G0 = MECH.gang && MECH.gang._dbg; if(G0 && G0.legSprite){ flipC(G0.cockSprite(LEGP)); for(let n = 4; n <= 14; n += 2) flipC(G0.legSprite(LEGP, n)); }
+  const cv = can(AW, y + sh + 1), g = cv.getContext('2d'), C2 = {}; let n = 0; for(const [key, c, sx, sy] of list){ g.drawImage(c, sx, sy); C2[key] = { sx, sy, w:c.width, h:c.height }; if(++n % 12 === 0) yield; }
+  ATL = cv; CELL = C2; yield;
+  const G0 = MECH.gang && MECH.gang._dbg; if(G0 && G0.legSprite){ flipC(G0.cockSprite(LEGP)); for(let n2 = 4; n2 <= 14; n2 += 2) flipC(G0.legSprite(LEGP, n2)); } yield;
   touch(); }
 function touch(){ try{ if(!TOUCH) TOUCH = can(4, 4); const g = TOUCH.getContext('2d'), L = [ATL]; const G0 = MECH.gang && MECH.gang._dbg;
     if(G0 && G0.legSprite){ const c = G0.cockSprite(LEGP); L.push(c, flipC(c)); for(let n = 4; n <= 14; n += 2){ const l = G0.legSprite(LEGP, n); L.push(l, flipC(l)); } }
@@ -149,10 +157,10 @@ function canStart(){ if(state !== 'play' || copT > 0) return false; const G0 = M
   const BO = MECH.sp_boss; if(BO && BO.state && BO.state().st !== 'idle') return false;
   const J = MECH.sp_jump; if(J && J.flying && J.flying()) return false; const ps = pSeg(); if(segs[ps] && segs[ps].spjP) return false;
   if(window.inForkWindow && inForkWindow(ps, ps + 1500)) return false; return true; }
-function start(){ const pz = pzz(); S.st = 'hush'; S.t = 0; S.rideT = 0; S.cardSeen = false; S.ready = false; S.thrCD = 1.2; S.bumps = 0; S.endT = 0; S.vanN = 0; S.ran = segs; S.R.length = 0; FX.length = 0;
+function start(){ const pz = pzz(); S.st = 'hush'; S.t = 0; S.rideT = 0; S.cardSeen = false; S.ready = false; S.thrCD = 1.2; S.bumps = 0; S.endT = 0; S.vanN = 0; S.ran = segs; S.R.length = 0; FX.length = 0; S.done = false;
   // four riders far behind you, lights out; they come up both sides, never in your lane
   const SL = [['L', -1, -900, .26], ['R', 1, -1000, .26], ['F1', -1, -1250, .4], ['F2', 1, -1350, .4]];
-  for(const [role, sd, dz, off] of SL) S.R.push({ id:uid++, role, sd, z:pz + dz, x:clamp(playerX + sd * .62, -.9, .9), off, speed:MAXS * 1.3, vx:0, kvx:0, lean:0, a:0, dark:1, st:'ride',
+  for(const [role, sd, dz, off] of SL) S.R.push({ id:uid++, role, sd, z:pz + dz, x:clamp(playerX + sd * .62, -.9, .9), off, speed, vx:0, kvx:0, lean:0, a:0, dark:0, st:'ride',
     windT:0, windSide:0, kickT:0, kickSide:0, kickCD:0, stunT:0, cutT:0, look:0, flagPh:uid * .7, front:false, lastGap:dz, bumpT:-9, wisp:uid * 1.7 });
   bell(.9); setTimeout(() => bell(.6, 1046 * .75), 700); hush(1);
   if(DIR && DIR.cine) S.cut = DIR.cine({ id:ID, letterbox:{ top:.07, bottom:.04 }, duck:.5, dur:0, card:CARD, guard:{ ahead:60, behind:0 } });
@@ -161,7 +169,7 @@ function start(){ const pz = pzz(); S.st = 'hush'; S.t = 0; S.rideT = 0; S.cardS
   S.log.push({ ev:'start', seg:pSeg(), t:+playT.toFixed(1) }); }
 function finish(){ const clean = S.bumps === 0, A = MECH.arrival;
   if(clean){ sunLeft = Math.min(SUN_MAX, sunLeft + 3); if(boostT <= 0) boostTier = 1; boostT = Math.max(boostT, 1.1); hud(); }
-  if(A && A.callout) A.callout(clean ? 'THE PHANTOMS SALUTE YOU' : 'GONE INTO THE DARK', { kanji:'消', col:'#bfe8ff', size:'m', prio:2, hold:.6 }); else floatText(clean ? 'THE PHANTOMS SALUTE YOU' : 'GONE', W / 2, H * .32, 30, '#bfe8ff');
+  if(A && A.callout) A.callout(clean ? 'THE PHANTOMS SALUTE YOU' : 'GONE INTO THE DARK', { kanji:clean ? '勝' : '空', col:'#bfe8ff', size:'m', prio:2, hold:.6 }); else floatText(clean ? 'THE PHANTOMS SALUTE YOU' : 'GONE', W / 2, H * .32, 30, '#bfe8ff');
   if(clean) setTimeout(() => { if(state === 'play') floatText('+3s', W / 2, H * .4, 26, '#f4ecdf'); }, 500);
   S.log.push({ ev:'end', clean, bumps:S.bumps, t:+playT.toFixed(1) }); }
 
@@ -178,7 +186,7 @@ function sparkle(x, y, side){ if(reduce) return; for(let i = 0; i < 7; i++) spar
 function disperse(r, how){ if(r.st !== 'ride') return; r.st = 'gone'; r.goneT = 0; S.hits.takedowns++; act('takedown', 400); flow++; bestFlow = Math.max(bestFlow, flow); hud();
   const p = nearScreen(r.z, r.x), x = clamp(p.x, W * .06, W * .94), y = clamp(p.y - 14 * p.k, H * .3, H * .85); FX.push({ t:0, x, y, k:p.k, kind:'puff' });
   if(!reduce) for(let i = 0; i < 18; i++) spark(x + rr(-8, 8) * p.k, y + rr(-6, 6) * p.k, rr(-160, 160), rr(-320, -60), rr(.4, .9), ['#f0fdff', '#9ae8ff', '#46aee8'][i % 3]);
-  bell(.5, 1396); const A = MECH.arrival; if(A && A.callout) A.callout('PHANTOM GONE', { kanji:'祓', col:'#9ae8ff' }); S.log.push({ ev:'disperse', how, t:+playT.toFixed(1) }); }
+  bell(.5, 1396); const A = MECH.arrival; if(A && A.callout) A.callout('PHANTOM GONE', { kanji:'撒', col:'#9ae8ff' }); /* 撒 'scattered': a seal mech/arrival.js already warms (a new glyph cost ~15 ms mid-ride) */ S.log.push({ ev:'disperse', how, t:+playT.toFixed(1) }); }
 function bump(r){ S.bumps++; S.hits.bumps++; r.bumpT = clock; speed = Math.max(MAXS * .55, speed * .86); const sd = Math.sign(playerX - r.x) || 1; playerX += sd * .05; wob = sd * .3; wobT = .45; shake = reduce ? 0 : Math.max(shake, 5); thump(1);
   r.kvx -= sd * .6; floatText('Bump', W / 2, H * .58, 22, '#c8dcff'); S.log.push({ ev:'bump', role:r.role, t:+playT.toFixed(1) }); }
 let wob = 0, wobT = 0;
@@ -188,7 +196,7 @@ function steerTo(e, tx, dt, vmax){ const blocked = L => cars.some(c => c.z > e.z
   if(blocked(tx)){ let bl = null, bd = 9; for(const L of [-.66, 0, .66]) if(!blocked(L) && Math.abs(L - tx) < bd){ bd = Math.abs(L - tx); bl = L; } if(bl !== null) tx = bl; }
   const s = segAt(e.z); if(s && s.gore && Math.abs(tx) < .3) tx = Math.sign(tx || e.x || 1) * .4;
   tx = clamp(tx, -.92, .92); const want = e.stunT > 0 ? 0 : clamp((tx - e.x) * 2.6, -vmax, vmax); e.vx = lerp(e.vx, want, 1 - Math.exp(-5 * dt)); e.x += (e.vx + e.kvx) * dt; e.kvx *= Math.exp(-3.5 * dt);
-  const curve = s ? s.curve : 0; e.lean = lerp(e.lean, clamp(curve * .075 + (e.vx + e.kvx * .6) * .38, -.5, .5), 1 - Math.exp(-6 * dt)); }
+  const curve = s ? s.curve : 0; e.lean = lerp(e.lean, clamp(curve * .06 + (e.vx + e.kvx * .6) * .28, -.24, .24), 1 - Math.exp(-6 * dt)); }
 const TELL = { kick:.9, cut:1.1 };
 const busy = () => S.R.some(r => r.windT > 0 || r.kickT > 0 || r.cutT > 0 || r.cutGo > 0);
 function update(dt){ clock += dt;
@@ -208,12 +216,12 @@ function update(dt){ clock += dt;
   else if(S.st === 'arrive'){ const A = MECH.arrival, on = !!(A && ((A.momentOn && A.momentOn()) || (A.cardOn && A.cardOn())) || (MECH.cutin && MECH.cutin.on && MECH.cutin.on()));
     if(on) S.cardSeen = true;
     const formed = S.R.every(r => r.st !== 'ride' || r.a >= 1 && r.z - pz > -60);
-    if(((S.cardSeen && !on) || S.t > 7) && formed || S.t > 9){ if(S.cut){ S.cut.end(); S.cut = null; } S.st = 'ride'; S.rideT = 0; S.log.push({ ev:'ride', t:+playT.toFixed(1) }); } }
+    if(S.t > 3.2 && ((S.cardSeen && !on) || S.t > 7) && formed || S.t > 9){ if(S.cut){ S.cut.end(); S.cut = null; } S.st = 'ride'; S.rideT = 0; S.log.push({ ev:'ride', t:+playT.toFixed(1) }); } }
   else if(S.st === 'ride'){ S.rideT += dt; const live = S.R.filter(r => r.st === 'ride');
     if(!live.length || (S.rideT > 18 && !busy())){ S.st = 'vanish'; S.endT = 0; S.vanN = 0; S.vanT = 0; S.log.push({ ev:'vanish', t:+playT.toFixed(1) }); }
     else if(!busy() && AIR.h < 6 && recov <= 0){ S.thrCD -= dt; if(S.thrCD <= 0) threat(live, pz); } }
   else if(S.st === 'vanish'){ S.endT += dt; S.vanT -= dt;
-    const live = S.R.filter(r => r.st === 'ride'); if(live.length && S.vanT <= 0){ const r = live.sort((a, b) => (b.z - pz) - (a.z - pz))[live.length - 1]; r.st = 'fade'; r.fadeT = 0; r.last = live.length === 1; S.vanT = .7; if(r.last) r.flash = 0; }
+    const live = S.R.filter(r => r.st === 'ride'); if(live.length && S.vanT <= 0){ const r = live.sort((a, b) => (b.z - pz) - (a.z - pz))[0]; r.st = 'fade'; r.fadeT = 0; r.last = live.length === 1; S.vanT = .7; if(r.last) r.flash = 0; }
     if(!live.length && S.R.every(r => r.st === 'gone' ? r.goneT > 1 : r.st === 'fade' ? r.fadeT > (r.last ? 2.2 : 1.2) : true) && !S.done){ S.done = true; bell(.8, 784); finish(); }
     if(S.done && S.endT > 1.5 || S.endT > 12){ S.done = false; S.st = 'idle'; endAll(); if(G0 && G0._dbg) G0._dbg.set({ nextT:playT + 25 }); return; } }
   for(const r of S.R) rider(r, dt, pz);
@@ -221,7 +229,8 @@ function update(dt){ clock += dt;
 
 // pick the next threat: a kick from a flanker beside you, or the lights-out cut from a rider ahead (they alternate when both can)
 function threat(live, pz){ const fl = live.filter(r => (r.role === 'L' || r.role === 'R') && Math.abs(r.z - pz) < 260 && Math.abs(r.x - playerX) > .1 && Math.abs(r.x - playerX) < .3 && r.kickCD <= 0);
-  const fr = live.filter(r => (r.role === 'F1' || r.role === 'F2') && r.z - pz > 200 && r.z - pz < 900);
+  const clear = !cars.some(c => c.z - pz > -200 && c.z - pz < 3200 && Math.abs(c.x - playerX) < .75);   // a cut only when your way out is open: it never herds you into traffic
+  const fr = clear ? live.filter(r => (r.role === 'F1' || r.role === 'F2') && r.z - pz > 200 && r.z - pz < 760) : [];
   const want = S.lastThr === 'kick' && fr.length ? 'cut' : fl.length ? 'kick' : fr.length ? 'cut' : null; if(!want) return;
   if(want === 'kick'){ const r = fl[0]; r.windT = TELL.kick; r.windSide = -Math.sign(r.x - playerX); r.look = r.windSide; blip(1); S.tele.push({ type:'kick', tell:TELL.kick, t:+playT.toFixed(2) }); }
   else { const r = fr.sort((a, b) => (a.z - pz) - (b.z - pz))[0]; r.cutT = TELL.cut; r.cutX = clamp(playerX, -barrier(r.z) + .1, barrier(r.z) - .1); r.look = Math.sign(playerX - r.x) || 1; bell(.7, 523);
@@ -229,45 +238,50 @@ function threat(live, pz){ const fl = live.filter(r => (r.role === 'L' || r.role
   S.lastThr = want; S.thrCD = rr(1.6, 2.6); }
 
 function rider(r, dt, pz){ const gap = r.z - pz, dx = r.x - playerX; r.flagPh += dt; r.wisp += dt;
-  if(r.st === 'gone'){ r.goneT += dt; r.a = Math.max(0, 1 - r.goneT / .6); r.z += r.speed * dt; r.x += r.kvx * dt; r.kvx *= Math.exp(-2 * dt); r.lean = clamp(r.lean + Math.sign(r.kvx || 1) * dt * 2, -.6, .6); return; }
+  if(r.st === 'gone'){ r.goneT += dt; r.a = Math.max(0, 1 - r.goneT / .6); r.z += r.speed * dt; r.x += r.kvx * dt; r.kvx *= Math.exp(-2 * dt); r.lean = clamp(r.lean + Math.sign(r.kvx || 1) * dt, -.3, .3); return; }
   if(r.st === 'fade'){ r.fadeT += dt; const d = r.last ? 1.2 : 0; r.speed = lerp(r.speed, MAXS * 1.3, 1 - Math.exp(-1.2 * dt)); r.z += r.speed * dt; steerTo(r, r.x, dt, .6);
     if(r.last && r.fadeT < d){ const f = Math.floor(r.fadeT / .2); r.dark = f % 2 === 1 ? 0 : f < 4 ? 1 : 0; if(f !== r.flashF){ r.flashF = f; if(f % 2 === 1) snapOn(.6); } } else r.dark = 0;
     r.a = r.fadeT < d ? 1 : Math.max(0, 1 - (r.fadeT - d) / .8); return; }
-  // materialise as they come past the bike (four dither steps over 0.6 s), lights snapping on as they do
-  if(gap > -320 && r.a < 1){ r.a = Math.min(1, r.a + dt / .6); if(r.dark > 0 && r.a > .5 && !r.cutT){ r.dark = 0; snapOn(.5); } }
+  // materialise as they come past the bike (four dither steps over 0.6 s)
+  if(gap > -320 && r.a < 1) r.a = Math.min(1, r.a + dt / .6);
+  if(r.flashT > 0) r.flashT -= dt;
   let ts, tx;
-  if(S.st === 'hush' || S.st === 'arrive'){ const ahead = r.role === 'F1' || r.role === 'F2', want = ahead ? (r.role === 'F1' ? 420 : 700) : 30;
-    ts = gap < want - 200 ? Math.max(speed * 1.16, MAXS * 1.16) : speed + clamp((pz + want - r.z) * 1.4, -MAXS * .3, MAXS * .3);
+  if(S.st === 'hush'){ ts = speed + clamp((pz - 520 - r.z) * 1.2, -MAXS * .05, MAXS * .06); tx = clamp(playerX + r.sd * .62, -.9, .9); }   // held back in the dark: only their light reaches you
+  else if(S.st === 'arrive'){ const ahead = r.role === 'F1' || r.role === 'F2', want = ahead ? (r.role === 'F1' ? 420 : 700) : 30;
+    ts = speed + clamp((pz + want - r.z) * 1.2, -MAXS * .06, MAXS * (gap < 0 ? .07 : .1));   // they come past at a walking pace relative to you: time to see them form
     tx = clamp(playerX + r.sd * (gap < 260 ? .36 : r.off), -.9, .9); }
   else { const ahead = r.role === 'F1' || r.role === 'F2'; let want = ahead ? (r.role === 'F1' ? 420 : 700) : 30;
     tx = clamp(playerX + r.sd * (ahead ? r.off : .22), -.9, .9); if(Math.abs(tx - playerX) < .18) tx = playerX - r.sd * .22;
-    if(r.cutT > 0){ want = lerp(200, Math.max(200, gap), r.cutT / TELL.cut); tx = r.x; r.dark = Math.min(1, r.dark + dt / .2); }
-    if(r.cutGo > 0){ want = 150; tx = r.cutX; }
+    if(r.cutT > 0){ want = 190; tx = r.x; r.dark = Math.min(1, r.dark + dt / .2); }   // lights out, he drifts back to just ahead of you and holds his line
+    if(r.cutGo > 0){ want = 140; tx = r.cutX; }
     ts = speed + clamp((pz + want - r.z) * 1.6, -MAXS * .35, MAXS * .35); }
   if(r.stunT > 0){ r.stunT -= dt; ts *= .9; }
-  r.speed = lerp(r.speed, ts, 1 - Math.exp(-1.6 * dt)); r.z += r.speed * dt;
+  // speed is held relative to yours (they ride with you, ghosts that never fall behind by accident): a brake or a bump of yours never
+  // turns into a phantom flying past at double speed
+  r.rel = lerp(r.rel || 0, ts - speed, 1 - Math.exp(-(r.cutT > 0 || r.cutGo > 0 ? 5 : 2.2) * dt)); r.speed = speed + r.rel; r.z += r.speed * dt;
   steerTo(r, tx, dt, r.cutGo > 0 ? 2.4 : .85);
   const wx = barrier(r.z); if(Math.abs(r.x) > wx){ if(r.stunT > 0 && Math.abs(r.kvx) > .35){ r.x = Math.sign(r.x) * wx; disperse(r, 'wall'); return; } r.x = Math.sign(r.x) * wx; r.kvx = 0; }
   if(r.stunT > 0) for(const c of cars) if(Math.abs(c.z - r.z) < 260 && Math.abs(c.x - r.x) < .25){ disperse(r, 'car'); return; }
   if(S.st !== 'ride') return;
-  // the cut: the tell ends, his lights snap on and he takes the lane; contact while he sweeps in is a bump, never a crash
+  // the cut: the tell ends, his lights snap on and he takes the lane; contact while he sweeps in is a bump, never a crash, and only inside
+  // the painted lane (out of it you are safe, whichever way you left it: he shoulders past)
   if(r.cutT > 0){ r.cutT -= dt; if(r.cutT <= 0){ r.cutT = 0; r.cutGo = .8; r.dark = 0; r.look = 0; r.flashT = .25; snapOn(1); } }
-  else if(r.cutGo > 0){ r.cutGo -= dt; if(Math.abs(gap) < 170 && gap > -60 && Math.abs(dx) < .13 && AIR.h < 6 && recov <= 0 && clock - r.bumpT > 1){ bump(r); r.cutGo = 0; }
-    if(r.cutGo <= 0){ r.cutGo = 0; if(clock - r.bumpT > 1){ S.hits.dodged++; act('dodge'); } } }
+  else if(r.cutGo > 0){ r.cutGo -= dt; if(gap < 190 && gap > -60 && Math.abs(dx) < .13 && Math.abs(playerX - r.cutX) < .2 && AIR.h < 6 && recov <= 0 && clock - r.bumpT > 1){ bump(r); r.cutGo = 0; }
+    if(r.cutGo <= 0){ r.cutGo = 0; if(clock - r.bumpT > 1){ S.hits.dodged++; act('dodge'); S.log.push({ ev:'cutMiss', gap:Math.round(gap), dx:+dx.toFixed(2) }); } } }
   // clean overtake: you pass a phantom ahead of you without touching him
-  if(r.lastGap > 0 && gap <= 0 && Math.abs(dx) > .1 && clock - r.bumpT > 2 && r.a >= 1){ S.hits.slipped++; act('through'); }
+  if((r.role === 'F1' || r.role === 'F2') && r.lastGap > 0 && gap <= 0 && Math.abs(dx) > .1 && clock - r.bumpT > 2 && clock - (r.slipT || -9) > 4){ r.slipT = clock; S.hits.slipped++; act('through'); }
   r.lastGap = gap;
   // side contact: a shove apart (never a crash); a flanker's kick after its tell
-  if(Math.abs(gap) < 150 && Math.abs(dx) < .12 && AIR.h < 6 && recov <= 0 && !r.cutGo){ const sd = Math.sign(dx) || 1, push = .12 - Math.abs(dx); playerX -= sd * push * .5; r.x += sd * push * .5; r.kvx += sd * .4; speed *= .99; }
+  if(Math.abs(gap) < 150 && Math.abs(dx) < .12 && AIR.h < 6 && recov <= 0 && !(r.cutGo && Math.abs(playerX - r.cutX) < .2)){ const sd = Math.sign(dx) || 1, push = .12 - Math.abs(dx); playerX -= sd * push * .5; r.x += sd * push * .5; r.kvx += sd * .4; speed *= .99; }
   r.kickCD -= dt;
   if(r.windT > 0){ r.windT -= dt; if(r.windT <= 0){ r.kickT = .25; r.kickSide = r.windSide; r.kickCD = rr(2.6, 4); r.look = 0;
-      if(Math.abs(r.z - pzz()) < 330 && (playerX - r.x) * r.kickSide > .07 && Math.abs(playerX - r.x) < .3 && AIR.h < 6 && recov <= 0){ S.hits.bumps++; S.bumps++; r.bumpT = clock; playerX += r.kickSide * .06; speed = Math.max(MAXS * .55, speed * .9); wob = r.kickSide * .3; wobT = .45; thump(1); floatText('Kicked', W / 2, H * .6, 22, '#c8dcff'); }
+      if(Math.abs(r.z - pzz()) < 330 && (playerX - r.x) * r.kickSide > .07 && Math.abs(playerX - r.x) < .3 && AIR.h < 6 && recov <= 0){ S.hits.bumps++; S.bumps++; r.bumpT = clock; playerX += r.kickSide * .06; speed = Math.max(MAXS * .55, speed * .9); wob = r.kickSide * .3; wobT = .45; thump(1); floatText('Kicked', W / 2, H * .6, 22, '#c8dcff'); S.log.push({ ev:'kicked', role:r.role, t:+playT.toFixed(1) }); }
       else { S.hits.dodged++; act('dodge'); } } }
   if(r.kickT > 0) r.kickT -= dt; }
 
 /* ------------------------------------------------------------------ drawing */
 function drawRider(r, x, y, k, fog, now, am){ if(!ATL) return; const lv = r.a >= 1 ? 4 : Math.floor(r.a * 4); if(lv <= 0) return; const a = (1 - fog * .6) * (am === undefined ? 1 : am); if(a <= .01) return;
-  const g = cx, hang = Math.round(clamp(r.lean / .5, -1, 1)), ph = Math.floor(now / 45 + r.id) % 3, dk = r.dark > .5, key = lv < 4 ? 'd' + lv + ph + hang : (dk ? 'k' : 'n') + ph + hang, c = CELL[key]; if(!c) return;
+  const g = cx, hang = Math.round(clamp(r.lean / .5, -1, 1)), ph = Math.floor(now / 45 + r.id) % 3, dk = r.dark > .5, key = lv < 4 ? 'd' + lv + ph + hang : (dk ? 'k' : 'n') + (r.look ? (r.look < 0 ? 'L' : 'R') + ph : ph + '' + hang), c = CELL[key]; if(!c) return;
   g.save(); g.globalAlpha = a; g.imageSmoothingEnabled = false;
   if(lv >= 3){ g.fillStyle = 'rgba(0,0,0,.45)'; g.beginPath(); g.ellipse(x, y, 9 * k, Math.max(1, 1.6 * k), 0, 0, 6.283); g.fill(); }
   // lights on: the beam pools on the road ahead of him (his headlight faces away from you); lights out: nothing but the rim and the flames
@@ -275,7 +289,7 @@ function drawRider(r, x, y, k, fog, now, am){ if(!ATL) return; const lv = r.a >=
   g.translate(x, y); g.rotate(r.lean); g.drawImage(ATL, c.sx, c.sy, c.w, c.h, Math.round(-RCW / 2 * k), Math.round(-RGY * k), RCW * k, RCH * k);
   if(r.role === 'F2' && lv >= 3){ const fl = CELL['flag' + (Math.floor(now / 110 + r.flagPh) % 3)]; if(fl) g.drawImage(ATL, fl.sx, fl.sy, fl.w, fl.h, Math.round(-4 * k), Math.round((-4 - fl.h) * k), fl.w * k, fl.h * k); }
   // the tail lamp: pale cyan; dark with the lights out; a streak behind it while he comes past you (the light trail)
-  if(!dk && lv >= 2){ glow(0, -5 * k, 4 * k, '#9ae8ff', .55 * a); if(r.a < 1 || r.speed - speed > MAXS * .08){ const L = Math.round(4 + Math.min(10, (r.speed - speed) / MAXS * 40)); for(let i = 1; i <= 3; i++){ g.globalAlpha = a * (.5 - i * .13); g.fillStyle = '#9ae8ff'; g.fillRect(Math.round(-1 * k), Math.round((-5 + i * L / 3) * k), Math.max(1, Math.round(2 * k)), Math.max(1, Math.round(L / 3 * k))); } g.globalAlpha = a; } }
+  if(!dk && lv >= 2){ glow(0, -6.5 * k, 4 * k, '#9ae8ff', .55 * a); if(r.a < 1 || r.speed - speed > MAXS * .08){ const L = Math.round(4 + Math.min(10, (r.speed - speed) / MAXS * 40)); for(let i = 1; i <= 3; i++){ g.globalAlpha = a * (.5 - i * .13); g.fillStyle = '#9ae8ff'; g.fillRect(Math.round(-1 * k), Math.round((-6 + i * L / 3) * k), Math.max(1, Math.round(2 * k)), Math.max(1, Math.round(L / 3 * k))); } g.globalAlpha = a; } }
   // the kick: his leg cocks out toward you, then shoots out (mech/gang.js's leg in his white trousers)
   const G0 = MECH.gang && MECH.gang._dbg;
   if(G0 && G0.legSprite && (r.windT > 0 || r.kickT > 0)){ const sd = r.kickT > 0 ? r.kickSide : r.windSide, hip = -12;
@@ -294,11 +308,14 @@ function drawRider(r, x, y, k, fog, now, am){ if(!ATL) return; const lv = r.a >=
 // the hitodama path, small pale flames down the lane he will take, from just ahead of you to his wheel
 function drawSegBack(s, sx0, sy0, uw, fog, now){ if(S.st === 'idle' || !s.p1.screen || !s.p2.screen) return; const p1 = s.p1.screen, p2 = s.p2.screen; if(p1.y <= p2.y) return; const pz = pzz(), z0 = s.index * SEG;
   for(const r of S.R){ if(r.st !== 'ride' || r.dark > .5) continue; const d = z0 - r.z; if(d < 0 || d > 1600) continue;
-    const fl = S.st === 'hush' && !calm() ? (Math.floor(S.t * 9 + r.id) % 4 ? 1 : .4) * Math.min(1, S.t / .8) : 1, a = .1 * (1 - d / 1600) * fl * (r.a < 1 && r.z - pz > -320 ? 1 : 1); if(a <= .005) continue;
+    const fl = S.st === 'hush' && !calm() ? (Math.floor(S.t * 9 + r.id) % 4 ? 1 : .4) * Math.min(1, S.t / .8) : 1, a = .1 * (1 - d / 1600) * fl; if(a <= .005) continue;
     const hw = .14 + d / 1600 * .22; cx.globalCompositeOperation = 'lighter'; cx.globalAlpha = a; cx.fillStyle = '#7ac8ff';
     cx.beginPath(); cx.moveTo(p1.x + (r.x - hw) * p1.w, p1.y); cx.lineTo(p1.x + (r.x + hw) * p1.w, p1.y); cx.lineTo(p2.x + (r.x + hw) * p2.w, p2.y); cx.lineTo(p2.x + (r.x - hw) * p2.w, p2.y); cx.closePath(); cx.fill();
     cx.globalCompositeOperation = 'source-over'; cx.globalAlpha = 1; }
-  for(const r of S.R){ if(!(r.cutT > 0)) continue; const i0 = Math.floor((pz + 60) / SEG), i1 = Math.floor((r.z + 120) / SEG); if(s.index < i0 || s.index > i1 || s.index % 2) continue;
+  for(const r of S.R){ if(!(r.cutT > 0)) continue; const i0 = Math.floor((pz + 60) / SEG), i1 = Math.floor((r.z + 120) / SEG); if(s.index < i0 || s.index > i1) continue;
+    { const on = calm() || Math.floor(now / 140) % 2, lo = r.cutX - .14, hi = r.cutX + .14; cx.globalAlpha = (on ? .26 : .16) * Math.min(1, (TELL.cut - r.cutT) / .15); cx.fillStyle = '#7ac8ff';
+      cx.beginPath(); cx.moveTo(p1.x + lo * p1.w, p1.y); cx.lineTo(p1.x + hi * p1.w, p1.y); cx.lineTo(p2.x + hi * p2.w, p2.y); cx.lineTo(p2.x + lo * p2.w, p2.y); cx.closePath(); cx.fill(); cx.globalAlpha = 1; }
+    if(s.index % 2) continue;
     const on = calm() || Math.floor(now / 120 + s.index) % 3, w = CELL['wisp' + (s.index / 2 % 2)]; if(!w) continue; const kk = Math.max(PX, Math.round(p1.w / ROADW * 18 / PX) * PX) || PX, X = p1.x + r.cutX * p1.w;
     cx.globalAlpha = (on ? .95 : .55) * Math.min(1, (TELL.cut - r.cutT) / .15); cx.drawImage(ATL, w.sx, w.sy, w.w, w.h, Math.round(X - w.w * kk / 2), Math.round(p1.y - w.h * kk), w.w * kk, w.h * kk); cx.globalAlpha = 1; } }
 function drawSeg(s, sx0, sy0, uw, fog, now){ if(S.st === 'idle') return; const pz = pzz(), K = kP();
@@ -309,17 +326,18 @@ function drawUnder(now){ if(S.st === 'idle') return; const pz = pzz();
 function drawScreen(now){ if(S.st === 'idle') return;
   for(const f of FX){ if(f.kind !== 'puff') continue; const kk = Math.max(PX, Math.round(kP() * 1.6 / PX) * PX), st = Math.min(3, Math.floor(f.t / .15)), w = CELL['wisp' + (st % 2)]; if(!w || !ATL) continue;
     cx.globalAlpha = 1 - st / 4; for(let i = 0; i < 5; i++){ const an = i / 5 * 6.283 + f.t, rr0 = (6 + f.t * 40) * kk / PX; cx.drawImage(ATL, w.sx, w.sy, w.w, w.h, Math.round(f.x + Math.cos(an) * rr0), Math.round(f.y - f.t * 60 * kk / PX + Math.sin(an) * rr0 * .5), w.w * kk, w.h * kk); } }
-  cx.globalAlpha = 1;
-  for(const r of S.R) if(r.flashT > 0) r.flashT -= 1 / 60; }
+  cx.globalAlpha = 1; }
 
 /* ------------------------------------------------------------------ the module */
 MECH.sp_phantom = { warm, warmSteps, reset, place, update, drawSeg, drawSegBack, drawScreen, drawUnderBike:drawUnder,
   finish(rec){ if(S.log.some(e => e.ev === 'start')) rec.phantom = { bumps:S.hits.bumps, gone:S.hits.takedowns, slipped:S.hits.slipped }; },
   _start(){ warm(); if(S.st === 'idle'){ start(); return true; } return false; },
+  _cancel(){ S.plan = null; },
   state(){ return { st:S.st, t:+S.t.toFixed(2), rideT:+S.rideT.toFixed(2), plan:S.plan && { B:S.plan.B, z:S.plan.z }, bumps:S.bumps, riders:S.R.map(r => ({ role:r.role, st:r.st, gap:Math.round(r.z - pzz()), x:+r.x.toFixed(2), a:+r.a.toFixed(2), dark:r.dark })) }; },
   report(){ return { log:S.log.slice(), tele:S.tele.slice(), hits:Object.assign({}, S.hits), minTell:S.tele.length ? Math.min(...S.tele.map(t => t.tell)) : null }; },
   threat(){ const out = []; for(const r of S.R){ if(r.windT > 0) out.push({ type:'kick', side:r.windSide, x:r.x, gap:r.z - pzz(), left:r.windT }); if(r.cutT > 0) out.push({ type:'cut', x:r.x, x1:r.cutX, gap:r.z - pzz(), left:r.cutT }); if(r.cutGo > 0) out.push({ type:'cutgo', x:r.x, x1:r.cutX, gap:r.z - pzz(), left:r.cutGo }); } return out; },
   entities(){ return S.R; },
+  _steps(){ const it = buildSteps(), out = []; let a = performance.now(); for(const _ of it){ const n = performance.now(); out.push(+(n - a).toFixed(2)); a = n; } out.push(+(performance.now() - a).toFixed(2)); return { n:out.length, max:Math.max(...out), total:+out.reduce((x, y) => x + y, 0).toFixed(1) }; },   // tests: a fresh build, timed per step
   _sheet(){ warm(); return ATL ? ATL.toDataURL('image/png') : ''; },
   _sprites(k){ warm(); k = k || 4; const keys = ['n10', 'n1-1', 'n11', 'k10', 'd110', 'd210', 'd310'], c = can(keys.length * RCW * k + 40 * k, RCH * k), g = c.getContext('2d'); g.fillStyle = '#0c0e1c'; g.fillRect(0, 0, c.width, c.height); g.imageSmoothingEnabled = false;
     keys.forEach((key, i) => cell(g, key, i * RCW * k, 0, k)); cell(g, 'flag0', keys.length * RCW * k + 4 * k, 4 * k, k); cell(g, 'wisp0', keys.length * RCW * k + 24 * k, 8 * k, k); cell(g, 'bang', keys.length * RCW * k + 24 * k, 24 * k, k); return c.toDataURL('image/png'); },

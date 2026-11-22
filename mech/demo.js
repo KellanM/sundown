@@ -49,6 +49,7 @@ const E = window.SD_EVENTS = [
   { id:'naruto',     kanji:'渦潮',   name:'WHIRLPOOLS',    roads:['shimanami'],         place:'grid', pre:352, post:308, min:397, tail:330, lvl:3, rgrid:1080, rgridOff:397 },
   { id:'flood',      kanji:'浸水',   name:'FLOOD',         roads:['aqua'],              place:'free', pre:500, post:390, min:520, tail:430, lvl:4 },
   { id:'megalodon',  kanji:'滄竜',   name:'MOSASAUR',      roads:['aqua'],              place:'road', pre:700, post:1250, min:300, tail:1300, lvl:5, fix:1410 },
+  { id:'phantom',    kanji:'亡霊',   name:'PHANTOMS',      roads:['tunnels','pass','paddies','snow','kurobe','coast','shimanami','gion'], place:'free', pre:60, post:1750, min:300, tail:1770, lvl:4 },
   { id:'abyss',      kanji:'深淵',   name:'MOSASAUR + FLOOD', roads:['aqua'],           place:'road', pre:700, post:1450, min:300, tail:1500, lvl:5, fix:1410 },
   { id:'wheel',      kanji:'観覧車', name:'RUNAWAY WHEEL', roads:['minato'],            place:'road', pre:300, post:720, min:200, tail:740, lvl:3, fix:910 },
   { id:'teiden',     kanji:'停電',   name:'BLACKOUT',      roads:['akiba'],             place:'road', pre:400, post:400, min:300, tail:420, lvl:3, fix:1560 },
@@ -59,7 +60,7 @@ const E = window.SD_EVENTS = [
 const EV = {}; for(const e of E) EV[e.id] = e;
 const ROAD_DEF = 2400, LEN_MIN = 600, LEN_MAX = 9000, CP_END = 260, FB_CP = 580, AFTER_LAST = 1600;
 
-const QS = new URLSearchParams(location.search), NAME = QS.get('demo');
+const QS = new URLSearchParams(location.search), NAME = QS.get('demo') === 'off' ? '' : (QS.get('demo') || (!QS.has('land') && !QS.has('force') && !QS.has('roadlab') ? 'default' : ''));   // Kellan 2026-11-22: a plain URL rides levels/default.json; ?land=N / ?force= / ?demo=off give normal play
 window.DEMO = null;
 if(!NAME) return;
 let RAW = null, ERR = '';

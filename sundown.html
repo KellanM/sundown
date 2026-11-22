@@ -130,26 +130,12 @@ body:has(#attract) .home,body:has(#attract) .info{box-shadow:inset 2px 2px 0 #3a
 .vcol::after{content:"夜";position:absolute;left:50%;bottom:8px;width:28px;height:28px;margin-left:-14px;display:grid;place-items:center;writing-mode:horizontal-tb;font-size:16px;letter-spacing:0;
   color:#fff6ea;background:#c8102a;box-shadow:inset 0 0 0 2px #ff3b4a,2px 2px 0 #000;text-shadow:none}
 @media (max-height:600px){ .vcol{display:none} }
-/* PRESS START: a control-panel plate with a lit domed start button; the lamp breathes, the words stay put */
-.btn.press{position:relative;z-index:0;height:auto;display:grid;grid-template-columns:auto auto;align-items:center;gap:6px 16px;padding:12px 28px 14px 16px;border:0;color:#f4ecdf;
-  background:none;box-shadow:none;text-align:left;filter:drop-shadow(6px 6px 0 #000)}
-/* the plate is a pseudo-element so it can take the HUD's 45-degree corner cut while the drop shadow follows the cut shape */
-.press::before{content:"";position:absolute;inset:0;z-index:-1;clip-path:polygon(0 0,calc(100% - 16px) 0,100% 16px,100% 100%,0 100%);
-  background:linear-gradient(225deg,transparent 0 10.3px,#3a3350 10.3px 11.6px,transparent 11.6px),rgba(7,6,12,.86);box-shadow:inset 0 0 0 1px #3a3350}
-.press::after{content:"";position:absolute;left:0;right:0;bottom:0;height:5px;background:linear-gradient(90deg,#ff3b5c 0 33.3%,#ffd04a 33.3% 66.6%,#4ff0ff 66.6%)}
-.press:focus-visible::before{box-shadow:inset 0 0 0 1px #3a3350,inset 0 0 0 4px #ffd04a}
-.press .dome{position:relative;grid-row:span 2;width:32px;height:32px}
-.press .dome img{position:absolute;inset:0;width:32px;height:32px;image-rendering:pixelated}   /* the 16px dome at exactly 2x: whole pixels, no uneven rows */
-.press .dome .lit{animation:lamp 1.6s ease-in-out infinite}
-@keyframes lamp{50%{opacity:.15}}
-.press .w{font-size:32px;line-height:1;letter-spacing:4px;text-shadow:3px 3px 0 #000;animation:pressw 1.6s steps(1) infinite}
-@keyframes pressw{0%,62%{color:#f4ecdf}63%,100%{color:#c9bfd6}}   /* in step with the lamp: bright while it is lit, a shade down while it dims (0.6 Hz) */
-.rm .press .w{animation:none}
-.press small{font-size:16px;line-height:1;color:#ff4a5a;letter-spacing:8px;display:flex;align-items:center;gap:10px}
-.press:hover .w{color:#ffd04a}
-.press:active{transform:translate(2px,2px)}
-.press:active .dome img{transform:translateY(3px)}
-.press:focus-visible{outline:none!important}
+/* PRESS START (research/sundown-craft/title-start.md): the cut-in cards' language, not a web button. A 1-bit canvas (PSTART, #startArt) at whole-pixel
+   scale: a hot slanted tape in the wordmark's face with a big 発進 stamp, ink keylines, hard offset shadows, a dither tail and speed lines. The button itself
+   is bare; the gold focus ring (.attract :focus-visible) still marks it for keyboard and pad players. */
+.btn.press{position:relative;height:auto;display:block;padding:4px;border:0;background:none;box-shadow:none;line-height:0;color:#f4ecdf}
+.press canvas{display:block;image-rendering:pixelated}
+.stear{position:fixed;z-index:40;pointer-events:none;image-rendering:pixelated}
 /* the showroom: the ridden bike itself is the showcase (one bike on screen); a stepped spotlight falls on it and the arrows flank it */
 .bikezone{position:relative;align-self:stretch;flex:0 0 auto;margin:0 -16px -14px;pointer-events:none!important}
 .bikezone .spot{position:absolute;left:50%;bottom:0;transform:translateX(-50%);height:calc(100% + 40px);clip-path:polygon(40% 0,60% 0,100% 100%,0 100%);
@@ -272,21 +258,21 @@ canvas.map{display:block;max-width:100%;image-rendering:pixelated}
 @media (prefers-reduced-motion: reduce){ .rslab,.res .slot.on b,.res .hs tr.me td{animation:none!important} }
 @media (max-width:560px){ .rslab{padding:12px 30px 14px} .rslab .kj,.rslab b{font-size:32px;letter-spacing:3px} .rexits{grid-template-columns:1fr;padding:0 24px} .res .slot{width:52px;grid-template-rows:24px 60px 24px} .res .slot b{font-size:32px} }
 @media (max-width:880px){ .hero,.final{grid-template-columns:1fr} .side{order:2} .big{font-size:80px} .sub,.hdr b{font-size:32px} .seal{width:140px;height:140px;font-size:56px} .tally b{font-size:32px} }
-@media (max-width:560px){ .vcol{display:none} .press .w{font-size:32px} .press .dome,.press .dome img{width:32px;height:32px} .btn.press{padding:10px 22px 12px 12px;gap:4px 12px}
+@media (max-width:560px){ .vcol{display:none}
   .dawn .st1{margin-bottom:24vh} .hs{font-size:16px} .hs td,.hs th{padding:0 3px} .hs .rd span,.hs .dt{display:none}
   .checkin{grid-template-columns:1fr} .exits{grid-template-columns:1fr} .slot{width:44px;grid-template-rows:20px 48px 20px} .slot b{font-size:32px} .res{padding:52px 12px 20px} .big{font-size:64px} }
 /* a phone held sideways (844 x 390): the course map and its tally stay side by side and the slabs shrink, so a stage fits the screen (audit #7) */
 @media (max-height:480px) and (min-width:600px){ .res{padding:40px 20px 16px} .st{gap:10px} .hero{grid-template-columns:minmax(0,1fr) 260px;gap:24px} .final{grid-template-columns:240px minmax(0,1fr);gap:24px} .side{order:0}
   .rslab{padding:8px 30px 10px} .rslab .kj,.rslab b{font-size:32px;letter-spacing:3px} .tally{gap:6px} .tally div{font-size:13px} .tally b{font-size:28px} .hs{font-size:16px} .hs .rd span{display:none} .big{font-size:80px} }
 @media (max-height:640px){ .card:has(>.attract){pointer-events:auto;overflow-y:auto} }
-@media (prefers-reduced-motion: reduce){ .press .dome .lit,.press .w,.hs tr.me td,.seal,.rise{animation:none} .tally.big div{transition:none} }
+@media (prefers-reduced-motion: reduce){ .hs tr.me td,.seal,.rise{animation:none} .tally.big div{transition:none} }
 .mech{display:flex;flex-direction:column;gap:10px}.mech div{font-size:13px;line-height:1.45}.mech small{display:block;color:var(--muted);font-size:12px;margin-top:2px}
 .pb{color:var(--gold);font-weight:600}
 :focus-visible{outline:2px solid var(--neon);outline-offset:2px}
 @media (max-width:560px){ .title,.land{display:none} .stat b{font-size:22px} .next{top:64px} }
 @media (prefers-reduced-motion: reduce){ .float{animation-duration:.01s} }
 /* the reduced-motion setting (pause > settings) can switch the same things off when the system preference is not set */
-.rm .press .dome .lit,.rm .hs tr.me td,.rm .seal,.rm .rise{animation:none} .rm .tally.big div{transition:none} .rm .float{animation-duration:.01s}
+.rm .hs tr.me td,.rm .seal,.rm .rise{animation:none} .rm .tally.big div{transition:none} .rm .float{animation-duration:.01s}
 /* ---- pause: the frozen road under a stepped dark wash, a stage-card slab (一時停止 / PAUSE, drawn like the arrival card and the title wordmark)
    and a cabinet-panel menu in the title's kit: ink plate with a corner cut and the three stripes, bevelled .cab rows, kanji tabs, 3x5 caps. */
 .pzb{display:none!important}
@@ -482,7 +468,9 @@ body.paused .banner,body.paused .float{animation-play-state:paused!important}
 @media (prefers-reduced-motion: reduce){ #loader *{animation:none!important} #loader .ldk{display:none} #loader.out .ldbk,#loader.out .ldbw,#loader.out .ldbi{transform:none} #loader.out{transition-duration:.2s} }
 /* the title's first appearance composes in order (jo-ha-kyu): the night and the logo first, PRESS START once the sign has caught, the side
    chrome last. It is all live and pressable at once: only the paint is staggered, never the input. Once per page load; reduced motion: none. */
-.attract.first>.btn.press{animation:t1in .3s steps(3) .75s both}
+.attract.first>.btn.press{animation:t1slam .27s .75s both}   /* START snaps in once the sign has caught: off, a step short, a step past, home (one keyframe per frame, no easing) */
+@keyframes t1slam{0%{opacity:0;transform:translateX(-8px);animation-timing-function:steps(1,end)}33%{opacity:1;transform:translateX(-8px);animation-timing-function:steps(1,end)}66%{opacity:1;transform:translateX(4px);animation-timing-function:steps(1,end)}100%{opacity:1;transform:none}}
+.rm .attract.first>.btn.press{animation:none}
 .gatew{position:fixed;left:50%;top:calc(14px + env(safe-area-inset-top,0px));transform:translateX(-50%);z-index:20;display:flex;align-items:center;gap:8px;padding:6px 10px;background:rgba(7,6,12,.72);box-shadow:inset 0 0 0 1px #3a3350;font-family:var(--font-display);font-size:12px;color:var(--muted);pointer-events:none}
 .gatew b{font-weight:normal;letter-spacing:1px}.gatew i{display:block;width:96px;height:4px;background:#1c1628}.gatew u{display:block;height:4px;width:0;background:#ffd04a}
 .attract.going>*{opacity:0!important;transition:opacity .15s steps(2)!important;animation:none!important}   /* START pressed: the words go, the night stays */
@@ -562,6 +550,7 @@ window.SKY_TIER = { sky:30, moon:40, far:120, mid:250, near:450, edge:700 };</sc
 <script src="setpiece/naruto.js"></script>
 <script src="setpiece/flood.js"></script>
 <script src="setpiece/boss.js"></script>
+<script src="setpiece/phantom.js"></script>
 <script src="env/cars.js"></script>
 <script src="env/buildings.js"></script>
 <script src="env/sky.js"></script>
@@ -971,7 +960,7 @@ function zoneOfSeg(i){ let n = 0; for(const g of gates) if(g <= i) n++; return M
 const BL_PRE = 150, BL_POST = 150, BL_CELL = 8, BG_PRE = 330, BG_POST = 120;
 const blW = (i, B, a, b) => { const u = clamp((i - B + a) / (a + b), 0, 1); return u * u * (3 - 2 * u); };
 function extend(upTo){
-  while(nextGateIdx < upTo + 2000){ if(window.DEMO){ gates.push(nextGateIdx); nextGateIdx = DEMO.gateAt(gates.length); continue; }   /* a demo level: every road its authored length (mech/demo.js) */
+  while(nextGateIdx < upTo + 2000 || (window.DEMO && nextGateIdx <= DEMO.end)){ if(window.DEMO){ gates.push(nextGateIdx); nextGateIdx = DEMO.gateAt(gates.length); continue; }   /* a demo level: every road its authored length (mech/demo.js), and every gate of the finite route known from the start: a road longer than the 2000-segment gate lookahead (akiba, gion) would otherwise lay its first stretch before its own end border exists, and an env that lays a visit from its borders (lay(z)) places nothing there */
     if(window.GATE_EXTRA) nextGateIdx += GATE_EXTRA(gates.length) || 0; gates.push(nextGateIdx); nextGateIdx += GATE_GAP + gates.length * GATE_GROW; }   /* GATE_EXTRA(n): a set piece may lengthen the stretch before gate n (setpiece/megalodon.js) */
   while(segs.length < upTo){ const L = LANDS[landIdx(zoneOfSeg(segs.length))], lap = Math.floor(zoneOfSeg(segs.length) / LANDS.length), c = L.curve + lap * .6, r = Math.random(), sgn = Math.random() < .5 ? -1 : 1, hill = () => L.hills ? rr(-50, 50) : rr(-8, 8);
     if(segs.length < 40) addRoad(0, 40, 0, 0, 0);
@@ -1514,7 +1503,7 @@ function drawRoad(base, basePct, py, moonX, now, FK_G, FK_L, FK_K, FK_A, FK_ON, 
     const ER = ENV[Ls.key] || NOENV;
     // in a border blend (BL_PRE): both roads' ground, surface, lamp light and roadFX, weighted by s.bm (not inside a bore: its own look)
     const BL = s.bm < 1 && s.bA !== s.bB && !s.tunnel, LA = BL ? LANDS[s.bA] : Ls, LB = BL ? LANDS[s.bB] : Ls, EA = BL ? ENV[LA.key] || NOENV : ER, EB = BL ? ENV[LB.key] || NOENV : ER, bm = BL ? s.bm : 1;
-    const gnd = mixc(s.tunnel ? stpC('#24212c', '#2a2632', dq, s.stripe) : BL ? mixc(stpC(LA.grass[0], LA.grass[1], dq, s.stripe), stpC(LB.grass[0], LB.grass[1], dq, s.stripe), bm) : stpC(Ls.grass[0], Ls.grass[1], dq, s.stripe), BL ? mixc(EA.lampCol || '#3a2a1c', EB.lampCol || '#3a2a1c', bm) : ER.lampCol || '#3a2a1c', lit * .5); cx.fillStyle = fogc(gnd, fq); { const r0 = Math.round(b.y / PX), r1 = Math.round(Math.min(a.y, maxy) / PX); if(r1 > r0) cx.fillRect(0, r0 * PX, W, (r1 - r0) * PX); }   // whole rows, rounded like the road quads' rows: a segment thinner than a row paints nothing here, just as its road quad doesn't
+    const gnd = mixc(s.tunnel ? stpC('#24212c', '#2a2632', dq, s.stripe) : BL ? mixc(stpC(LA.grass[0], LA.grass[1], dq, s.stripe), stpC(LB.grass[0], LB.grass[1], dq, s.stripe), bm) : stpC(Ls.grass[0], Ls.grass[1], dq, s.stripe), BL ? mixc(EA.lampCol || '#3a2a1c', EB.lampCol || '#3a2a1c', bm) : ER.lampCol || '#3a2a1c', lit * .5); cx.fillStyle = fogc(gnd, fq); { const r0 = Math.ceil(b.y / PX - .5), r1 = Math.ceil(Math.min(a.y, maxy) / PX - .5); if(r1 > r0) cx.fillRect(0, r0 * PX, W, (r1 - r0) * PX); }   // whole rows, by poly()'s rule (a row is in if its centre is in [top, bottom)): a segment thinner than a row paints nothing here, just as its road quad doesn't. (Math.round took the row whose centre sits exactly on a.y, which the road quad leaves to the nearer segment: this ground then painted over that segment's road and lane dashes, a grass-coloured line every few segments when PX is even.)
     const wq = (LA.water ? 1 - bm : 0) + (LB.water ? bm : 0);
     if(wq > .02 && s.stripe && !s.tunnel){ cx.fillStyle = rgbaA('240,228,200', .28 * (1 - fog) * wq); for(let k = 0; k < 2; k++){ const ww = 4 + hash(s.index * 5 + k) * 22; pxRect(moonX + (hash(s.index * 3 + k) - .5) * W * .14 - ww / 2, b.y, ww, Math.max(PX, a.y - b.y)); } }
     /* Far stripes without flicker. Far away a whole dash period (2 x RUMBLE segments) is only a few pixel rows tall, so which segment's
@@ -2086,6 +2075,70 @@ function px3(s, col, k, sh){ const c = document.createElement('canvas'); c.width
   for(const [cc, o] of [[sh || '#000', 1], [col, 0]]){ g.fillStyle = cc; [...s].forEach((ch, n) => { const b = F3[ch] || F3[' ']; for(let i = 0; i < 15; i++) if(b[i] === '1') g.fillRect(n * 4 + i % 3 + o, (i / 3 | 0) + o, 1, 1); }); }
   return `<img class="p3" src="${c.toDataURL()}" width="${c.width * k}" height="${c.height * k}" alt="" aria-hidden="true">`; }
 const cap = (s, col, k, sh) => `<span class="sr-only">${s.toLowerCase()}</span>${px3(s, col || '#f4ecdf', k || 2, sh)}`;
+/* PRESS START, drawn 1-bit (see .press; research/sundown-craft/title-start.md): the wordmark's block face on a slanted hot tape, a big 発進 stamp
+   (hasshin: the launch cry), ink keylines, hard offset shadows, an ordered-dither tail, speed lines and a letter-spaced 3x5 line. Three colours
+   only (the loader's ink / hot / off-white). Frames are cached by state; the loop only blits when the state changes. */
+const PSTART = (() => {
+  const INK = '#0a0810', HOT = '#ff3b5c', OFF = '#f4ecdf', BAY = [0, 8, 2, 10, 12, 4, 14, 6, 3, 11, 1, 9, 15, 7, 13, 5];
+  const SG = { P:['XXXXX.', 'XX..XX', 'XX..XX', 'XXXXX.', 'XX....', 'XX....', 'XX....'], R:['XXXXX.', 'XX..XX', 'XX..XX', 'XXXXX.', 'XX.XX.', 'XX..XX', 'XX..XX'],
+    E:['XXXXXX', 'XX....', 'XX....', 'XXXXX.', 'XX....', 'XX....', 'XXXXXX'], T:['XXXXXX', '..XX..', '..XX..', '..XX..', '..XX..', '..XX..', '..XX..'],
+    A:['.XXXX.', 'XX..XX', 'XX..XX', 'XXXXXX', 'XX..XX', 'XX..XX', 'XX..XX'] };
+  function block(str, s){ const gl = ch => SG[ch] || WORD_GLYPHS[ch]; let W0 = 0; for(const ch of str) W0 += (ch === ' ' ? 2 : gl(ch)[0].length) + 1; W0 -= 1;   // the SUNDOWN face: 2-px strokes, a step of slant every two rows
+    const m = document.createElement('canvas'); m.width = (W0 + 4) * s; m.height = 7 * s; const k = m.getContext('2d'); k.fillStyle = '#fff'; let gx = 0;
+    for(const ch of str){ if(ch === ' '){ gx += 3; continue; } const g = gl(ch); g.forEach((row, y) => { const off = Math.floor((6 - y) / 2) * Math.ceil(s * 2 / 3); [...row].forEach((c, x) => { if(c === 'X') k.fillRect((gx + x) * s + off, y * s, s, s); }); }); gx += g[0].length + 1; }
+    return m; }
+  function tape(g, x, y, w, h, col, tail){ g.fillStyle = col; for(let i = 0; i < h; i++){ const o = Math.floor((h - 1 - i) / 2); g.fillRect(x + o, y + i, w, 1);   // leans as the face does; the tail dithers out
+    for(let j = 0; j < (tail || 0); j++){ const lv = 16 * (1 - (j + 1) / (tail + 1)), px = x + o + w + j; if(BAY[(i % 4) * 4 + (px % 4)] < lv) g.fillRect(px, y + i, 1, 1); } } }
+  let P = null, cache = {};
+  function parts(){ if(P) return P; const word = block('PRESS START', 2), kj = pixText('発進', 16, false), kc = kj.getContext('2d'), d = kc.getImageData(0, 0, kj.width, kj.height).data;
+    let x0 = 1e9, y0 = 1e9, x1 = -1, y1 = -1; for(let y = 0; y < kj.height; y++) for(let x = 0; x < kj.width; x++) if(d[(y * kj.width + x) * 4 + 3]){ x0 = Math.min(x0, x); x1 = Math.max(x1, x); y0 = Math.min(y0, y); y1 = Math.max(y1, y); }
+    if(x1 < 0){ x0 = y0 = 0; x1 = kj.width - 1; y1 = kj.height - 1; }
+    const kt = document.createElement('canvas'); kt.width = (x1 - x0 + 1) * 2; kt.height = (y1 - y0 + 1) * 2; const kk = kt.getContext('2d'); kk.imageSmoothingEnabled = false; kk.drawImage(kj, x0, y0, x1 - x0 + 1, y1 - y0 + 1, 0, 0, kt.width, kt.height);   // doubled: 2-px strokes, as the face
+    const L = '1P // HASSHIN', sub = document.createElement('canvas'); sub.width = L.length * 5; sub.height = 5; { const sg = sub.getContext('2d'); sg.fillStyle = '#fff'; [...L].forEach((ch, n) => { const b = F3[ch] || F3[' ']; for(let i = 0; i < 15; i++) if(b[i] === '1') sg.fillRect(n * 5 + i % 3, (i / 3 | 0), 1, 1); }); }
+    const SW = kt.width + 10, SH = kt.height + 10, TH = 24, TX = SW - 3, TY = SH - TH - 2, TW = word.width + 14, TAIL = 12;
+    P = { word, kj:kt, sub, SW, SH, TH, TX, TY, TW, TAIL, W: TX + TW + Math.floor((TH - 1) / 2) + TAIL + 18, H: SH + 15 }; return P; }
+  // a frame: lift (the face rises off its shadow), inv (the beat: colours swap), down (pressed: flat on its shadow and inverted, the impact frame)
+  function paint(lift, inv, down){ const c = document.createElement('canvas'); c.width = P.W; c.height = P.H; const g = c.getContext('2d'); g.imageSmoothingEnabled = false;
+    const sh = down ? 0 : lift ? 3 : 2, o = down ? 2 : lift ? 0 : 1, sx = o + 1, sy = o + 1, tx = sx + P.TX, ty = sy + P.TY;
+    const tapeC = inv ? OFF : HOT, wordC = inv ? INK : OFF, wordS = inv ? HOT : INK, stC = inv ? HOT : OFF, kjC = inv ? OFF : INK;
+    if(sh){ tape(g, tx - 1 + sh, ty - 1 + sh, P.TW + 2, P.TH + 2, INK, 0); g.fillStyle = INK; g.fillRect(sx - 1 + sh, sy - 1 + sh, P.SW + 2, P.SH + 2); }
+    tape(g, tx - 1, ty - 1, P.TW + 2, P.TH + 2, INK, 0); tape(g, tx, ty, P.TW, P.TH, tapeC, P.TAIL);
+    g.drawImage(tintMask(P.word, wordS), tx + 8, ty + 6); g.drawImage(tintMask(P.word, wordC), tx + 7, ty + 5);
+    { const ex = tx + P.TW + P.TAIL + 1, L = lift || down ? [14, 9, 5] : [9, 5, 3]; [[3, L[0], OFF], [10, L[1], HOT], [17, L[2], OFF]].forEach(([r, l, col], i) => { const q = Math.floor((P.TH - 1 - r) / 2); g.fillStyle = INK; g.fillRect(ex + q + 3 + i * 2, ty + r + 1, l, 1); g.fillStyle = col; g.fillRect(ex + q + 2 + i * 2, ty + r, l, 1); }); }   // speed lines, longer on the beat
+    { const ux = tx + P.TW - P.sub.width - 2, uy = ty + P.TH + 3; g.drawImage(tintMask(P.sub, INK), ux + 1, uy + 1); g.drawImage(tintMask(P.sub, inv ? HOT : OFF), ux, uy); }
+    g.fillStyle = INK; g.fillRect(sx - 1, sy - 1, P.SW + 2, P.SH + 2); g.fillStyle = stC; g.fillRect(sx, sy, P.SW, P.SH);
+    if(!inv){ g.fillStyle = HOT; g.fillRect(sx, sy + P.SH - 3, P.SW, 3); }   // a hot rule along the stamp's foot ties it to the tape
+    g.drawImage(tintMask(P.kj, kjC), sx + 5, sy + 4); return c; }
+  function frame(lift, inv, down){ parts(); const key = (lift ? 1 : 0) + (inv ? 2 : 0) + (down ? 4 : 0); return cache[key] || (cache[key] = paint(lift, inv, down)); }
+  // ba-ba-baan: the bosozoku call the countdown plays (two short blips, one long), as two lifts and one inverted beat every 2.4 s (six beats of the
+  // title's 150 bpm). The title itself is the city and the wind (no beat to follow), so the label keeps the call's time. Reduced motion: still.
+  function state(btn, now){ const down = btn.matches(':active') && !btn.disabled, hover = btn.matches(':hover') && UI_IN !== 'touch';
+    if(down) return [false, true, true]; if(reduce) return [hover, false, false];
+    const p = (now / 1000) % 2.4, lift = p < .07 || (p > .2 && p < .27); return [lift || hover, p > .4 && p < .62, false]; }
+  function draw(cv, now){ if(!cv) return; const s = state(cv.parentNode, now), f = frame(s[0], s[1], s[2]); if(cv._f === f) return; cv._f = f;
+    if(cv.width !== f.width || cv.height !== f.height){ cv.width = f.width; cv.height = f.height; fit(cv); } const g = cv.getContext('2d'); g.clearRect(0, 0, cv.width, cv.height); g.drawImage(f, 0, 0); }
+  function fit(cv){ if(!cv) return; parts(); const k = clamp(Math.min(Math.floor((innerWidth - 40) / (P.W + 14)), Math.floor(innerHeight * .2 / P.H)), 1, 2);   // whole pixels only; the logo leads, START follows
+    cv.style.width = P.W * k + 'px'; cv.style.height = P.H * k + 'px'; cv.style.marginLeft = 14 * k + 'px'; }   // the margin balances the speed lines, so the label's body sits centred
+  // the press: the impact frame, then the tape torn along a ragged diagonal, the halves thrown apart and dithering out over the road (30 fps, 8 frames).
+  // It rides over START's handoff in its own layer and never delays the countdown.
+  const pats = {};
+  function pat(g, lv){ if(pats[lv]) return pats[lv]; const c = document.createElement('canvas'); c.width = c.height = 4; const k = c.getContext('2d'); k.fillStyle = '#000'; for(let i = 0; i < 16; i++) if(BAY[i] < lv) k.fillRect(i % 4, i / 4 | 0, 1, 1); return (pats[lv] = g.createPattern(c, 'repeat')); }
+  function tearF(f, base){ const M = 70, c = document.createElement('canvas'); c.width = base.width + M * 2; c.height = base.height + 24; const g = c.getContext('2d'); g.imageSmoothingEnabled = false;
+    if(f <= 1){ g.drawImage(base, M, 12); return c; }
+    const n = f - 1, dx = [0, 3, 8, 16, 27, 42, 60][Math.min(6, n)], dy = Math.min(6, n), fade = Math.max(0, Math.min(16, Math.round((n - 2) / 4 * 16))), mid = Math.round(base.width * .52);
+    for(const k of [-1, 1]){ const h = document.createElement('canvas'); h.width = base.width; h.height = base.height; const q = h.getContext('2d');
+      for(let y = 0; y < base.height; y++){ const x = mid + Math.floor((base.height - y) / 2) + [0, 2, -1, 3, 1, -2, 2, 0, -1][y % 9]; if(k < 0) q.drawImage(base, 0, y, x, 1, 0, y, x, 1); else q.drawImage(base, x, y, base.width - x, 1, x, y, base.width - x, 1); }
+      if(fade){ q.globalCompositeOperation = 'destination-out'; q.fillStyle = pat(q, fade); q.fillRect(0, 0, h.width, h.height); }
+      g.drawImage(h, M + k * dx, 12 + k * dy); }
+    return c; }
+  function tear(btn){ const cv = btn && btn.querySelector('canvas'); if(!cv || reduce || !cv.width) return; const r = cv.getBoundingClientRect(), k = r.width / cv.width, base = frame(false, true, true), o = document.createElement('canvas');
+    o.className = 'stear'; o.setAttribute('aria-hidden', 'true'); document.body.appendChild(o); const t0 = performance.now(); let f = -1;
+    const step = () => { const nf = Math.floor((performance.now() - t0) / 33); if(nf > 7){ o.remove(); return; }
+      if(nf !== f){ f = nf; const c = tearF(f, base); o.width = c.width; o.height = c.height; o.getContext('2d').drawImage(c, 0, 0); o.style.cssText = `left:${Math.round(r.left - 70 * k)}px;top:${Math.round(r.top - 12 * k)}px;width:${c.width * k}px;height:${c.height * k}px`; }
+      requestAnimationFrame(step); };
+    step(); setTimeout(() => o.remove(), 1500); }   // a background tab never leaves the layer behind
+  return { draw, fit, tear, reset(){ P = null; cache = {}; document.querySelectorAll('#startArt').forEach(c => { c._f = null; }); } };
+})();
 // a domed arcade push button seen from above, lit or unlit, in a black bezel ring (pixel grid, no curves)
 function domeURL(lit){ const c = document.createElement('canvas'); c.width = c.height = 16; const g = c.getContext('2d');
   for(let y = 0; y < 16; y++) for(let x = 0; x < 16; x++){ const d = Math.hypot(x - 7.5, y - 7.5), h = Math.hypot(x - 5.5, y - 5); let col = null;
@@ -2100,16 +2153,15 @@ function startCard(){ const L = bikeList(); if(!L.some(b => b.id === BIKE.id)) B
     <div class="logo-wrap"><h2 class="sr-only">Sundown</h2><canvas class="logo" id="logo" width="300" height="104" role="img" aria-label="Sundown, 夜走"></canvas>
 <small class="sndh" id="sndHint" role="status" style="visibility:hidden"><span class="tabk">音</span>PRESS ANY KEY FOR SOUND</small></div>
     <span class="fplay" aria-hidden="true">${cap('FREE PLAY', '#ffd04a', 2)}</span>
-    <button class="btn press" id="goBtn" aria-label="Press start"><span class="dome" aria-hidden="true"><img src="${domeURL(false)}" alt=""><img class="lit" src="${domeURL(true)}" alt=""></span>
-      <span class="w">PRESS START</span><small><span class="tabk">1P</span>スタート</small></button>
+    <button class="btn press" id="goBtn" aria-label="Press start"><canvas id="startArt" aria-hidden="true"></canvas></button>
     <button type="button" class="cab" id="optBtn" aria-label="Options: customise, assists, journal, settings" aria-keyshortcuts="Escape"><span class="tabk g">設定</span><span class="t">OPTIONS</span><img src="${gearURL()}" alt="">${window.COS && COS.unseen && COS.unseen() ? '<span class="nw" aria-label="new looks in the garage">新</span>' : ''}</button>
     <div class="bikezone" id="bikezone"><span class="spot"></span><span class="sr-only" id="bikeName" aria-live="polite"></span>${many ? `<button type="button" class="arr" data-step="-1" aria-label="Previous bike"><img src="${arrowURL(-1, '#ffd04a')}" alt=""></button><button type="button" class="arr" data-step="1" aria-label="Next bike"><img src="${arrowURL(1, '#ffd04a')}" alt=""></button>` : ''}</div></div>`;
   $('#card').scrollTop = 0; $('#sheet').hidden = false;
-  $('#goBtn').onclick = () => { if(WARM.finishing || WARM.gating || $('#attract').classList.contains('going')) return; cancelAnimationFrame(attractRAF); attractRun = false; $('#attract').classList.add('going'); M.init();   // the press answers on this frame: the title's words step away
+  $('#goBtn').onclick = () => { if(WARM.finishing || WARM.gating || $('#attract').classList.contains('going')) return; cancelAnimationFrame(attractRAF); attractRun = false; PSTART.tear($('#goBtn')); $('#attract').classList.add('going'); M.init(); if(window.SFX && SFX.blip) SFX.blip(.6);   // the press answers on this frame: the label tears, the words step away
     WARM.gating = true; frameGap().then(() => { WARM.gating = false; warmRoads(1); reset(true); $('#sheet').hidden = true; return warmGate(); }).then(() => begin()); };   /* first 60 s (research/sundown-craft/first60.md): START is the one commitment - the countdown starts at once, no second loader, no "steer to start" wait */
   $('#attract').querySelectorAll('[data-step]').forEach(b => b.onclick = () => pickBike(+b.dataset.step)); pickBike(0); $('#optBtn').onclick = titleOpts;
   { let last = null; $('#attract').addEventListener('pointerover', e => { const b = e.target.closest('button'); if(b !== last){ last = b; if(b && e.pointerType === 'mouse' && window.SFX) SFX.ui('move'); } }); }   // a mouse over a title control ticks like the keys
-  const lc = $('#logo'); fitLogo(lc); sizeBikeZone();
+  const lc = $('#logo'); fitLogo(lc); sizeBikeZone(); PSTART.draw($('#startArt'), performance.now()); if(document.fonts) document.fonts.load('16px DotGothic16', '発進').then(() => { PSTART.reset(); PSTART.draw($('#startArt'), performance.now()); }).catch(() => {});
   drawLogo(lc, performance.now()); if(document.fonts) document.fonts.load('16px DotGothic16', 'SUNDOWN夜走').then(() => { LOGO.word = null; drawLogo($('#logo'), performance.now()); }).catch(() => {});
   attractLoop(); uiPadLoop(); try{ $('#goBtn').focus({ preventScroll:true }); }catch(e){} }   // START holds the focus, so keyboard and pad players see where Enter / A will land
 // attract mode: the bike rides the night road on its own behind the logo (no timer, no traffic collisions: the ride hasn't begun)
@@ -2139,9 +2191,10 @@ function attractLoop(){ cancelAnimationFrame(attractRAF); let last = performance
     if(!LOGO.t0){ const L = document.getElementById('loader'); if(!L || L.hidden || L.classList.contains('out')) LOGO.t0 = now + 120; }
     const revealing = LOGO.t0 && now - LOGO.t0 < 900;
     if(!lastDraw || revealing || (!reduce && now - lastDraw > 80)){ lastDraw = now; drawLogo($('#logo'), now); }
+    PSTART.draw($('#startArt'), now);
     attractRAF = requestAnimationFrame(tick); };
   attractRAF = requestAnimationFrame(tick); }
-addEventListener('resize', () => { const c = $('#logo'); if(c){ fitLogo(c); sizeBikeZone(); } });
+addEventListener('resize', () => { const c = $('#logo'); if(c){ fitLogo(c); sizeBikeZone(); PSTART.fit($('#startArt')); } });
 // the showroom zone matches the ridden bike's on-screen size (draw() scales it from W and H the same way), so the arrows flank the real bike
 function sizeBikeZone(){ const z = $('#bikezone'); if(!z) return; const bs = Math.min(innerWidth * .2, innerHeight * .27), k = Math.max(PX, Math.round(bs / 30 / PX) * PX), off = 14 * k + 18;
   z.style.height = 31 * k + 10 + 'px'; z.querySelector('.spot').style.width = 34 * k + 'px';
@@ -2701,7 +2754,7 @@ function frame(){ if(PSE.on){ pzPad(); if(PSE.dirty){ PSE.dirty = false; try{ dr
    A new version downloads in the background and waits. It is applied only on the title (never mid-ride): by itself once
    the title has sat untouched for a few seconds, or at once when the player taps "Update ready". Tap the version to check now. */
 (() => {
-  const VER = 'v14 · 112c68', $id = (i) => document.getElementById(i);
+  const VER = 'v15 · 754beb', $id = (i) => document.getElementById(i);
   const SDU = window.SDUPDATE = { version: VER, waiting: null, applied: false, checks: 0 };
   let reg = null, applying = false, asked = false, needReload = false, note = '', noteT = 0, lastInput = performance.now();
   ['keydown', 'pointerdown', 'touchstart', 'wheel'].forEach((t) => addEventListener(t, () => { lastInput = performance.now(); }, { capture: true, passive: true }));
@@ -2763,5 +2816,5 @@ function frame(){ if(PSE.on){ pzPad(); if(PSE.dirty){ PSE.dirty = false; try{ dr
   }, 1000);
 })();
 </script>
-<!-- __sdbuild:14 112c68c7dde8 --></body>
+<!-- __sdbuild:15 754beb905e31 --></body>
 </html>

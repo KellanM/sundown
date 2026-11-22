@@ -98,7 +98,7 @@ const MOMENTS = [
 // moments the director catalogues for later waves: they appear only once the game registers them (or you have seen them)
 const LATER = { fireball:['火', '火球', 'Fireball', 'burst'], avalanche:['崩', '雪崩', 'Avalanche', 'fuji'], jetwash:['噴', '噴流', 'Jet wash', 'jet'], rockslide:['石', '落石', 'Rockslide', 'pass'],
   cavein:['落', '崩落', 'Cave-in', 'tunnel'], screen:['映', '大画面', 'The big screen', 'neon'], lava:['溶', '溶岩', 'Lava', 'volcano'], naruto:['渦', '渦潮', 'Whirlpools', 'typhoon'],
-  flood:['洪', '洪水', 'Flood', 'wave'], boss:['総', '総長', 'The boss', 'kaiju'], heli:['空', 'ヘリ', 'Helicopter', 'jet'], farjets:['遠', '遠い機影', 'Far jets', 'jet'], wheel:['輪', '観覧車', 'Runaway wheel', 'wheel'], kanpo:['放', '観光放水', 'The gates open', 'wave'], teiden:['停', '停電', 'The blackout', 'neon'], yoiyama:['宵', '宵山', 'The festival float', 'pass'] };
+  flood:['洪', '洪水', 'Flood', 'wave'], boss:['総', '総長', 'The boss', 'kaiju'], heli:['空', 'ヘリ', 'Helicopter', 'jet'], farjets:['遠', '遠い機影', 'Far jets', 'jet'], wheel:['輪', '観覧車', 'Runaway wheel', 'wheel'], kanpo:['放', '観光放水', 'The gates open', 'wave'], teiden:['停', '停電', 'The blackout', 'neon'], yoiyama:['宵', '宵山', 'The festival float', 'pass'], phantom:['霊', '亡霊', 'The phantom riders', 'lantern'] };
 // the three gangs of mech/gang.js (names, kanji and colour ramps copied from there; no real gang names or crests)
 const GANGS = [
   { key:'guren',  name:'GUREN',  kanji:'紅蓮', read:'Crimson lotus', col:['#ffb0b4', '#ff5a6a', '#d81e3a', '#8a0c26', '#3a0614'] },
@@ -111,7 +111,7 @@ const TABS = [
   { id:'garage',  kj:'車庫', en:'GARAGE',  kana:'ガレージ',         tate:'愛車　単車の車庫' },
   { id:'records', kj:'記録', en:'RECORDS', kana:'レコード',         tate:'夜の記録　嘘のない数字' } ];
 const KANJI_ALL = '夜走手帖全図走った道の地図駅印帳と見物好敵手名簿勝負記録愛車単車庫嘘のない数字縮尺不定凡例未発見近日特攻服塗装兜警笛排気今乗車敗星取表遭遇明御用総距離最長高撃墜着跳躍紙一重加速関門検問突破転倒新幹線戻る其一二三四五章'
-  + 'ルートアトラススタンプ帳ライバルファイルガレージレコードフロー' + MOMENTS.map(m => m.kj + m.kanji).join('') + Object.values(LATER).map(v => v[0] + v[1]).join('') + GANGS.map(g => g.kanji).join('') + '港橋街隧峠油湘雪田海島灰空稀常名所？';
+  + 'ルートアトラススタンプ帳ライバルファイルガレージレコードフロー' + MOMENTS.map(m => m.kj + m.kanji).join('') + Object.values(LATER).map(v => v[0] + v[1]).join('') + GANGS.map(g => g.kanji).join('') + '闇ヨリ来タリ還ル？' + '港橋街隧峠油湘雪田海島灰空稀常名所？';
 
 /* ================================================================== reading the save (copies only; nothing is written back) */
 function readJSON(k, d){ try{ const v = localStorage.getItem(k); return v == null ? d : JSON.parse(v); }catch(e){ return d; } }
@@ -709,11 +709,17 @@ PAGES.rivals = (M, G) => { const T = TABS[2], perGang = M.gangs.some(x => x.met 
   const cards = M.gangs.map(x => { const met = x.met || x.td; return `<button type="button" class="jgang jsel${met ? '' : ' un'}" data-ji data-gang="${x.gi}" style="--g4:${x.g.col[4]}"><span class="fl"><canvas></canvas></span>
     <span class="nm"><b>${met ? x.g.kanji : '？？'}</b>${caps(met ? x.g.name : 'NOT MET YET', met ? INK : INK2, 2)}</span><span class="wl">${met ? `${x.won}<small style="font-size:16px">勝</small> ${x.lost}<small style="font-size:16px">敗</small>` : ''}</span></button>`; }).join('');
   const lg = M.legacy, legacy = lg.duels + lg.td > 0 ? `<p class="jnote">${perGang ? 'Older nights' : 'Your nights so far'}: ${lg.duels} ${lg.duels === 1 ? 'duel' : 'duels'}, ${lg.won} won, ${lg.td} ${lg.td === 1 ? 'takedown' : 'takedowns'}. Which gang it was wasn't written down then.</p>` : '';
-  const L = `${tate(T)}${head}<p class="jsub">Gangs you have duelled on the road. Win a duel and their file fills in.</p><div class="jgl">${cards}</div>${legacy}${folio(5)}`;
+  // 亡霊 (setpiece/phantom.js): not a duel gang, a sighting. Their file opens once a ride has met them (rec.phantom, or the director's history)
+  const phM = M.recs.some(r => r && r.phantom) || !!(M.dir && M.dir.m && M.dir.m.phantom && M.dir.m.phantom.r);
+  // a compact row under the gang cards (the left page has no room for the text); selecting it opens the file on the right page
+  const phRow = `<button type="button" class="jgang jsel${phM ? '' : ' un'}" data-ji data-phantom="1" style="--g4:#0a1020;grid-template-columns:40px minmax(0,1fr);padding:2px 10px 2px 4px"><span class="fl" style="width:40px;height:32px;color:#bfe8ff;font-size:24px">${phM ? '霊' : '？'}</span><span class="nm" style="flex-direction:row;align-items:center;gap:10px"><b style="font-size:24px">${phM ? '亡霊' : '？？'}</b>${caps(phM ? 'BOREI - THE PHANTOM RIDERS' : 'UNCONFIRMED', phM ? INK : INK2, 2)}</span></button>`;
+  const phFile = phM ? `<div class="jdos" style="grid-template-columns:minmax(0,1fr)"><div><h3 style="color:#2a4a7a">亡霊</h3><p class="rd">${caps('BOREI', INK, 3)} · The phantom riders</p><p class="jsub">They come up behind you with their lights out on the dark roads: tunnel mouths, the passes, the fields after midnight. White coats, long black hair under white helmets, two blue soul-flames riding with every bike. They cut into your lane with their lights dead and snap them on as they go, and then they are gone. On their backs: 闇ヨリ来タリ闇ニ還ル, from the dark we come, to the dark we return.</p><p class="jnote">The Bōrei are invented. They are a tribute to the bōsōzoku crews of 1970s Tokyo and Chiba, whose coats, flags and machines still shape how the night road is remembered. That scene was also dangerous: people were hurt, and some were killed. The game keeps the craft and the night, not the harm.</p></div></div>`
+    : `<div class="jdos" style="grid-template-columns:minmax(0,1fr)"><div><h3 style="color:${INK2}">？？</h3><p class="rd">${caps('UNCONFIRMED', INK2, 3)}</p><p class="jsub">Riders with no lights have been reported on the dark roads.</p></div></div>`;
+  const L = `${tate(T)}${head}<p class="jsub">Gangs you have duelled on the road. Win a duel and their file fills in.</p><div class="jgl">${cards}${phRow}</div>${legacy}${folio(5)}`;
   return { L, R:`<div class="jdosbox"></div>${folio(6)}`,
-    init(root){ root.querySelectorAll('.jgang').forEach(b => { const x = M.gangs[+b.dataset.gang], c = gangPortrait(x.gi, x.met || x.td), cv = b.querySelector('canvas'), crop2 = mkc(30, 34);
+    init(root){ root.querySelectorAll('.jgang[data-gang]').forEach(b => { const x = M.gangs[+b.dataset.gang], c = gangPortrait(x.gi, x.met || x.td), cv = b.querySelector('canvas'), crop2 = mkc(30, 34);
       crop2.getContext('2d').drawImage(c, -9, -28); cv.width = 30; cv.height = 34; cv.getContext('2d').drawImage(crop2, 0, 0); cv.style.width = '60px'; cv.style.height = '68px'; }); },
-    select(el){ const x = M.gangs[+el.dataset.gang]; S.sel.rivals = x.gi; const box = S.root.querySelector('.jdosbox'); if(!box) return; const met = x.met || x.td, g = x.g;
+    select(el){ if(el.dataset.phantom){ S.sel.rivals = 'ph'; const bx = S.root.querySelector('.jdosbox'); if(bx) bx.innerHTML = phFile; return; } const x = M.gangs[+el.dataset.gang]; S.sel.rivals = x.gi; const box = S.root.querySelector('.jdosbox'); if(!box) return; const met = x.met || x.td, g = x.g;
       const pc = gangPortrait(x.gi, met), port = `<div class="jport" style="--g4:${met ? g.col[4] : PAPER2};--g2:${met ? g.col[3] : PAPER3}"><canvas width="48" height="64" style="width:144px;height:192px"></canvas><span class="tag">${met ? g.kanji : '未遭遇'}</span></div>`;
       if(!met){ box.innerHTML = `<div class="jdos">${port}<div><h3 style="color:${INK2}">？？</h3><p class="rd">${caps('NOT MET YET', INK2, 3)}</p><p class="jsub">They ride in packs and fly a nobori flag. You'll know their colours when you see them.</p></div></div>`; }
       else { const roads = Object.entries(x.roads).sort((a, b) => b[1] - a[1]).map(([k, n]) => { const L = lands().find(l => l.key === k); return L ? `${L.kanji} ${esc(L.name)} ×${n}` : ''; }).filter(Boolean).slice(0, 3);

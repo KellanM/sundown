@@ -26,7 +26,7 @@ const FAM = { potta:'"Potta One"', dela:'"Dela Gothic One"', min:'"Shippori Minc
 const WGT = { min:'800 ', deco:'700 ' }, FALL = ', "Yu Gothic", "MS Gothic", sans-serif';
 const font = (f, px) => (WGT[f] || '') + px + 'px ' + FAM[f] + FALL;
 // every string any card renders in a web face (Latin titles included), so the font request carries only these glyphs
-const GLYPHS = '滄古代鮫怪獣決戦ゴ帆竜対蟹蛾大波湘南沖乗爆発ドカーン脱出雪崩温泉台風臨時ニュース情報強注意花火夏祭超特急新幹線ひかり富士夜明け跳開橋谷越え溶岩誘導路首都高ジャンプ線配管港峠灰空隧田油見噴射離陸羽' +
+const GLYPHS = '亡霊滄古代鮫怪獣決戦ゴ帆竜対蟹蛾大波湘南沖乗爆発ドカーン脱出雪崩温泉台風臨時ニュース情報強注意花火夏祭超特急新幹線ひかり富士夜明け跳開橋谷越え溶岩誘導路首都高ジャンプ線配管港峠灰空隧田油見噴射離陸羽' +
   'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789!-·/.:\' ';
 let fontsOK = false, fontRebuild = false;   // the faces arrived after a build: rebuild once, but never during a ride (update() waits for a calm moment)
 const AV = {};   // per family: the web face really loaded (document.fonts.load resolves with an empty list when it did not)
@@ -117,7 +117,11 @@ const HAND = {
   '滄':['.........##.....', '.##.....####....', '..##..###..###..', '....###......###', '.......######...', '##....########..', '.##...##....##..', '......########..',
         '......##........', '......##........', '.....##.######..', '...#....##..##..', '..##....##..##..', '.##.....##..##..', '.##.....######..', '##..............'],
   '竜':['.......##.......', '.......##.......', '..############..', '....##....##....', '.....##..##.....', '################', '.......##.......', '..###########...',
-        '..##...##..##...', '..###########...', '..##...##..##...', '..###########...', '.......##.......', '.......##....##.', '.......##....##.', '.......########.'] };
+        '..##...##..##...', '..###########...', '..##...##..##...', '..###########...', '.......##.......', '.......##....##.', '.......##....##.', '.......########.'],
+  '亡':['.......##.......', '.......##.......', '################', '...##...........', '...##...........', '...##...........', '...##...........', '...##...........',
+        '...##...........', '...##...........', '...##...........', '...##...........', '...############.', '...############.', '................', '................'],
+  '霊':['..############..', '.......##.......', '.##############.', '.##....##....##.', '.##.##.##.##.##.', '.##....##....##.', '.##.##.##.##.##.', '................',
+        '...##########...', '................', '..#..##..##..#..', '..##.##..##.##..', '...#.##..##.#...', '.....##..##.....', '################', '................'] };
 function handM(str, o, k){ if(o.vert || o.rot) return null; const chs = [...str]; if(!chs.every(c => HAND[c])) return null;
   const tr = Math.round((o.track || 0) / k), w = chs.length * 16 + tr * (chs.length - 1), d = new Uint8Array(w * 16);
   chs.forEach((c, n) => HAND[c].forEach((row, y) => { for(let x = 0; x < 16; x++) if(row[x] === '#') d[y * w + n * (16 + tr) + x] = 1; }));
@@ -833,6 +837,59 @@ CARDS.fuji = { dur:2.3, out:.5, exit:'fade', hold:1.3, kanji:['富士'],
     a = fa(.55); if(a > 0){ g.globalAlpha = a; B(g, L.ti, L.tx, L.ty); B(g, L.st, L.sx, L.sy); g.globalAlpha = 1; }
   } };
 
+/* ---------------------------------------------------------------- phantom (setpiece/phantom.js): a ghost-light title. night ink / fog blues / ghost white / hitodama blue
+   Four pale headlights flicker on in the dark (the mirror cue of the ride), then 亡霊 materialises through four dither steps (the riders'
+   own dissolve) while a cold headlight streak passes along it; two hitodama bob beside it; the name types in. Exit: a stepped fade. */
+CARDS.phantom = { dur:2.2, out:.4, exit:'fade', hold:1.3, kanji:['亡霊'],
+  *build(cw, ch, nar){ const L = {}, K = { ink:'#03040a', n0:'#070b16', n1:'#0e1830', f1:'#1a2c4a', pale:'#9ac8e8', wh:'#eef8ff', bl:'#46aee8', core:'#f0fdff', dk:'#1c5aa4' }; yield;
+    const top = nar ? Math.round(ch * .25) : 0, PH = Math.round(ch * (nar ? .25 : .26)); yield; L.top = top; yield; L.PH = PH; yield;
+    // the band: night ink, fog banks dithered in drifting rows, its foot dissolving into the road (never a hard cut)
+    const bg = mk(cw, PH + 6); yield;
+    yield* toneG(bg, K.n0, (x, y) => (top && y < 4 ? (y + 1) / 5 : 1) * (y > PH - 2 ? Math.max(0, 1 - (y - PH + 2) / 7) : 1), 'bay'); yield;
+    yield* toneG(bg, K.n1, (x, y) => y > PH ? 0 : Math.max(0, .55 * Math.sin(x * .011 + y * .05) + .25 - Math.abs(y / PH - .7)), 'bay'); yield;
+    yield* toneG(bg, K.f1, (x, y) => y > PH ? 0 : Math.max(0, .5 * Math.sin(x * .02 - y * .03 + 1.7) - .1 - Math.abs(y / PH - .8) * .8), 'bay'); yield;
+    L.bg = bg; yield;
+    // four headlights far off in the band's lower right, each a pale disc with a stepped halo (they flicker on one by one)
+    const lr = Math.max(2, Math.round(PH * .035)), ls = lr * 6, lamp = mk(ls, ls); yield;
+    yield* toneG(lamp, K.dk, (x, y) => { const r = Math.hypot(x - ls / 2, y - ls / 2); return r < lr * 2.8 ? (r < lr * 2 ? .5 : .25) : 0; }, 'bay'); yield;
+    yield* passG(lamp, g => { g.fillStyle = K.pale; g.beginPath(); g.arc(ls / 2, ls / 2, lr * 1.3, 0, 6.2832); g.fill(); g.fillStyle = K.core; g.beginPath(); g.arc(ls / 2, ls / 2, lr * .7, 0, 6.2832); g.fill(); }); yield;
+    L.lamp = lamp; yield; L.lamps = [[.74, .62], [.79, .7], [.86, .58], [.91, .68]].map(([fx, fy]) => [Math.round(cw * (nar ? fx * .6 + .4 : fx) - ls / 2), Math.round(PH * (nar ? fy * .35 : fy) - ls / 2)]);   // (phones: along the band's top, clear of the title under the kanji) yield;
+    // 亡霊 hand-drawn on the 16 px grid, scaled by whole pixels (mincho's hairlines broke up at the canvas pixel; a heavy face filled 霊 solid), ghost white cooling to pale blue down the strokes, an ink line and a night-blue outer line; four dither steps of it
+    const ks = Math.round(nar ? Math.min(cw * .2, PH * .62) : Math.min(PH * .72, cw * .12)), k = Math.max(2, Math.round(ks / 16)); yield;
+    const km = handM('亡霊', { track:k * 2 }, k) || textM('亡霊', 'dot', 16 * k, { track:k * 2 }); yield;
+    const full = (yield* inkedG(km, { fill:(x, y) => y < km.h * .45 ? K.wh : y < km.h * .75 ? K.pale : K.bl, line:K.dk, lw:1, sh:K.ink, sx:1, sy:1 })); yield;
+    const BAY4 = [0, 8, 2, 10, 12, 4, 14, 6, 3, 11, 1, 9, 15, 7, 13, 5]; yield;
+    const lev = n => { const c = mk(full.width, full.height), g = ctx(c); g.drawImage(full, 0, 0); const im = g.getImageData(0, 0, c.width, c.height), D = im.data;
+      for(let y = 0; y < c.height; y++) for(let x = 0; x < c.width; x++) if(BAY4[(y & 3) * 4 + (x & 3)] >= n * 4) D[(y * c.width + x) * 4 + 3] = 0; g.putImageData(im, 0, 0); return c; }; yield;
+    L.kjL = [lev(1)]; yield; L.kjL.push(lev(2)); yield; L.kjL.push(lev(3)); yield; L.kjL.push(full); yield;
+    L.kjC = paint(km, K.core); yield;   // the headlight streak's lit copy
+    L.hw = 6 * Math.max(2, Math.round(PH / 40)); yield; L.kx = Math.round(nar ? 8 + L.hw : cw * .07); yield; L.ky = Math.round((PH - full.height) * .45); yield;
+    // two hitodama, pixel flames (the riders' own), scaled by whole pixels
+    const HD = [['...K..', '...bK.', '..Kb..', '.KbbK.', 'KbBBbK', 'KBBBBK', 'KbBBbK', '.KKKK.'], ['..K...', '.Kb...', '..bK..', '.KbbK.', 'KbBBbK', 'KBBBBK', 'KbBBbK', '.KKKK.']], hk = Math.max(2, Math.round(PH / 40)); yield;
+    L.hd = HD.map(rows => { const c = mk(6 * hk, 8 * hk), g = ctx(c); rows.forEach((r, y) => [...r].forEach((c2, x) => { const col = c2 === 'K' ? K.ink : c2 === 'b' ? K.bl : c2 === 'B' ? K.core : null; if(col){ g.fillStyle = col; g.fillRect(x * hk, y * hk, hk, hk); } })); return c; }); yield;
+    L.hx = [L.kx - 6 * hk - 2, L.kx + full.width + 2]; yield; L.hy = Math.round(L.ky + full.height * .2); yield;   // beside it, never over a stroke
+    // B O R E I and the line under it, typed in; beside the kanji when it fits, else under it
+    const room = cw - 8, bx = L.kx + full.width + 6 * hk + (nar ? 6 : 14); yield; let tiS = null; yield;
+    for(const [str, s2] of [['B  O  R  E  I', 3], ['B O R E I', 3], ['B O R E I', 2], ['BOREI', 2]]) if(!tiS && bx + (str.length * 4 - 1) * s2 <= room) tiS = [str, s2, true]; yield;
+    if(!tiS) tiS = ['B O R E I', 2, false]; yield;
+    L.ti = paint(t3M(tiS[0], tiS[1]), K.wh); yield;
+    const sub = ['THE PHANTOM RIDERS  //  FROM THE DARK', 'THE PHANTOM RIDERS'].find(t => (tiS[2] ? bx : L.kx) + t.length * 4 <= room) || 'PHANTOM RIDERS'; yield; L.sub = paint(t3M(sub), K.pale); yield;
+    if(tiS[2]){ L.tx = bx; yield; L.ty = L.ky + Math.round(full.height * .2); yield; } else { L.tx = L.kx; yield; L.ty = L.ky + full.height + 3; yield; }
+    L.sx = L.tx; yield; L.sy = L.ty + L.ti.height + 5; yield;
+    return L; },
+  draw(g, t, L, rm, cw, ch){ g.save(); g.translate(0, L.top); g.beginPath(); g.rect(0, 0, cw, L.PH + 6); g.clip();
+    B(g, L.bg, 0, 0);
+    // the lamps: one by one, each flickering once before it holds (steady under reduced motion)
+    for(let i = 0; i < 4; i++){ const t0 = .05 + i * .1, on = rm || (t > t0 && !(t > t0 + .04 && t < t0 + .08)); if(on) B(g, L.lamp, L.lamps[i][0], L.lamps[i][1]); }
+    // 亡霊 materialises in four dither steps; a cold streak passes along it
+    const lv = rm ? 3 : Math.min(3, Math.floor(Math.max(0, t - .3) / .09)); if(rm || t > .3) B(g, L.kjL[lv], L.kx, L.ky);
+    if(!rm && t > .75 && t < 1.3){ const w = L.kjC.width, sx = L.kx - 20 + (t - .75) / .55 * (w + 40), h = L.kjC.height; g.save(); g.beginPath(); g.rect(Math.round(sx), L.ky, 4, h + 4); g.clip(); B(g, L.kjC, L.kx + 2, L.ky + 2); g.restore(); }
+    // the hitodama bob beside it, out of step
+    if(rm || t > .55) for(let i = 0; i < 2; i++){ const b = rm ? 0 : Math.round(Math.sin(t * 5 + i * 2.1) * 2) * 2, f = rm ? 0 : (Math.floor(t * 6) + i) % 2; B(g, L.hd[f], L.hx[i], L.hy + b - (i ? 4 : 0)); }
+    if(rm || t > .7){ const n = rm ? L.ti.width : Math.min(L.ti.width, Math.floor((t - .7) / .02) * 4); if(n > 0) g.drawImage(L.ti, 0, 0, n, L.ti.height, L.tx, L.ty, n, L.ti.height); }
+    if(rm || t > 1){ const n = rm ? L.sub.width : Math.min(L.sub.width, Math.floor((t - 1) / .012) * 4); if(n > 0) g.drawImage(L.sub, 0, 0, n, L.sub.height, L.sx, L.sy, n, L.sub.height); }
+    g.restore(); } };
+
 /* ---------------------------------------------------------------- landmark jumps: one compact air-time cut-in, a kanji and an accent per road */
 const JUMPS = { harbour:['港', '跳開橋', 'DRAWBRIDGE', '#ffb35a'], pass:['峠', '谷越え', 'RAVINE JUMP', '#e8e4d8'], sakurajima:['灰', '溶岩越え', 'LAVA LEAP', '#ff7a2a'],
   haneda:['空', '誘導路越え', 'TAXIWAY JUMP', '#6a9aff'], tunnels:['隧', '首都高越え', 'INTERCHANGE JUMP', '#ffb35a'], snow:['雪', 'ジャンプ台', 'SKI JUMP', '#bfe4ff'],
@@ -921,7 +978,7 @@ function canvasSize(){ return (typeof cx !== 'undefined' && cx) ? [cx.canvas.wid
      (console.warn and MECH.cutin.late) and shown as usual. warmAll() (resize, tests) builds every card at once, as before.
    The output is the same pixels as the single-pass build: the statements run in the same order, only paused between them. */
 const ROADS = { kaiju:['bay'], typhoon:['coast'], greatwave:['coast'], megalodon:['aqua'], hanabi:['coast', 'neon', 'paddies'], matsuri:['coast', 'neon', 'paddies'],
-  shinkansen:['coast', 'paddies', 'tunnels'], fuji:['coast', 'paddies', 'tunnels'], jetwash:['haneda'], fireball:['refinery'], avalanche:['snow'] };   // the roads whose set pieces call each hero card
+  shinkansen:['coast', 'paddies', 'tunnels'], fuji:['coast', 'paddies', 'tunnels'], jetwash:['haneda'], fireball:['refinery'], avalanche:['snow'], phantom:['tunnels', 'pass', 'paddies', 'snow', 'kurobe', 'coast', 'shimanami', 'gion'] };   // the roads whose set pieces call each hero card
 const roadsOf = id => id.startsWith('jump:') ? [id.slice(5)] : ROADS[id] || null;
 // the roads of the first minute (read only: never rolls a fork or a route), as warmGate counts them; null when the core is not there (build all)
 function nearRoads(){ try{ if(typeof ROUTE === 'undefined' || typeof LANDS === 'undefined') return null; const S = new Set(), add = i => { if(i !== undefined && LANDS[i]) S.add(LANDS[i].key); };

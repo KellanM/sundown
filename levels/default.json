@@ -1,0 +1,192 @@
+{
+ "format": "sundown-level/1",
+ "name": "default",
+ "title": "Showcase: every road, every set piece",
+ "note": "Kellan's curated order (2026-11-22): Bay Bridge to Refinery Docks. Default demo level.",
+ "police": false,
+ "invincible": false,
+ "forks": false,
+ "roads": [
+  {
+   "road": "bay",
+   "len": 2600,
+   "jump": true,
+   "events": [
+    {
+     "id": "kaiju",
+     "seg": 1300
+    }
+   ]
+  },
+  {
+   "road": "akiba",
+   "len": 2600,
+   "jump": true,
+   "events": [
+    {
+     "id": "teiden",
+     "seg": 1560
+    }
+   ]
+  },
+  {
+   "road": "neon",
+   "len": 2200,
+   "jump": true,
+   "events": [
+    {
+     "id": "matsuri",
+     "seg": 1000
+    }
+   ]
+  },
+  {
+   "road": "snow",
+   "len": 2600,
+   "jump": true,
+   "events": [
+    {
+     "id": "avalanche",
+     "seg": 1500
+    }
+   ]
+  },
+  {
+   "road": "pass",
+   "len": 2400,
+   "jump": true,
+   "events": [
+    {
+     "id": "rockslide",
+     "seg": 1300
+    }
+   ]
+  },
+  {
+   "road": "paddies",
+   "len": 3000,
+   "jump": true,
+   "events": [
+    {
+     "id": "hanabi",
+     "seg": 1000
+    },
+    {
+     "id": "shinkansen",
+     "seg": 2000
+    }
+   ]
+  },
+  {
+   "road": "gion",
+   "len": 2800,
+   "jump": true,
+   "events": [
+    {
+     "id": "yoiyama",
+     "seg": 684
+    }
+   ]
+  },
+  {
+   "road": "kurobe",
+   "len": 2800,
+   "jump": true,
+   "events": [
+    {
+     "id": "kanpo",
+     "seg": 1868
+    }
+   ]
+  },
+  {
+   "road": "tunnels",
+   "len": 2400,
+   "jump": true,
+   "events": [
+    {
+     "id": "cavein",
+     "seg": 1140
+    }
+   ]
+  },
+  {
+   "road": "coast",
+   "len": 4000,
+   "jump": true,
+   "events": [
+    {
+     "id": "fuji",
+     "seg": 300
+    },
+    {
+     "id": "typhoon",
+     "seg": 700
+    },
+    {
+     "id": "greatwave",
+     "seg": 2300
+    }
+   ]
+  },
+  {
+   "road": "shimanami",
+   "len": 2400,
+   "jump": true,
+   "events": [
+    {
+     "id": "naruto",
+     "seg": 1477
+    }
+   ]
+  },
+  {
+   "road": "minato",
+   "len": 2600,
+   "jump": true,
+   "events": [
+    {
+     "id": "wheel",
+     "seg": 910
+    }
+   ]
+  },
+  {
+   "road": "haneda",
+   "len": 2800,
+   "jump": true,
+   "events": [
+    {
+     "id": "jets",
+     "seg": 650
+    },
+    {
+     "id": "jetwash",
+     "seg": 1700
+    }
+   ]
+  },
+  {
+   "road": "shuto",
+   "len": 2400,
+   "jump": true,
+   "events": [
+    {
+     "id": "screenfall",
+     "seg": 1078
+    }
+   ]
+  },
+  {
+   "road": "refinery",
+   "len": 2200,
+   "jump": true,
+   "events": [
+    {
+     "id": "fireball",
+     "seg": 900
+    }
+   ]
+  }
+ ]
+}

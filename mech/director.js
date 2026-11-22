@@ -49,7 +49,8 @@ const CATALOGUE = {
   jetwash:{ tier:'hero', roads:['haneda'] }, heli:{ tier:'ambient', roads:['*'], cooldown:150 }, rockslide:{ tier:'hero', roads:['pass'] },
   cavein:{ tier:'hero', roads:['tunnels'] }, screen:{ tier:'hero', roads:['neon'] }, lava:{ tier:'hero', roads:['sakurajima'] },
   naruto:{ tier:'hero', roads:['shimanami'] }, flood:{ tier:'hero', roads:['aqua'] }, boss:{ tier:'hero', roads:['*'], chance:.35 },
-  farjets:{ tier:'ambient', roads:['*'], cooldown:90 }, megalodon:{ tier:'hero', roads:['aqua'] } };
+  farjets:{ tier:'ambient', roads:['*'], cooldown:90 }, megalodon:{ tier:'hero', roads:['aqua'] },
+  phantom:{ tier:'hero', roads:['tunnels', 'pass', 'paddies', 'snow', 'kurobe', 'coast', 'shimanami', 'gion'], chance:.5 } };   // setpiece/phantom.js (it registers itself too)
 
 // hashing, never Math.random: the game's road generation (and test seeds) keep their own random sequence
 function h32(s){ let h = 2166136261 >>> 0; for(let i = 0; i < s.length; i++){ h ^= s.charCodeAt(i); h = Math.imul(h, 16777619); } return h >>> 0; }
@@ -435,7 +436,7 @@ function drawBand(c, t, hold){ const o = bandArt(c.card), out = B_OUT + hold, en
 
 let devC = null, devKey = '';
 let demoKey = '', demoC = null;   // demo mode's dev label: the road, the current event (and any nudge), the next one, the skip key
-function demoLine(){ if(!DEMO || !DEMO.label) return; const t = DEMO.label(); if(!t) return; if(t !== demoKey){ demoKey = t; demoC = txt3(t.slice(0, 110), CREAM, INK); }
+function demoLine(){ if(!DEMO || !DEMO.label || !(DEVL || QS.has('demo'))) return; const t = DEMO.label(); if(!t) return; if(t !== demoKey){ demoKey = t; demoC = txt3(t.slice(0, 110), CREAM, INK); }
   cx.save(); cx.setTransform(1, 0, 0, 1, 0, 0); const y = cx.canvas.height - 12; cx.fillStyle = 'rgba(7,6,12,.72)'; cx.fillRect(3, y - 2, demoC.width + 4, 10); cx.fillStyle = GOLD; cx.fillRect(3, y - 2, 1, 10); cx.drawImage(demoC, 5, y); cx.restore(); }
 function devLine(){ if(!DEVL || typeof position !== 'number') return; const s = G.snapshot(pSeg()); if(!s) return;
   const sc = FX.scale < .999 ? ' T' + FX.scale.toFixed(2) : '';

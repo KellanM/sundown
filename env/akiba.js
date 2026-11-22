@@ -49,7 +49,7 @@
   let fogLow = '#1c1630', LOWIN = ''; const FC = new Map(), DKC = new Map();
   const fc = (c, f) => { const q = Math.round(clamp(f, 0, 1) * 24); let a = FC.get(c); if(a === undefined){ if(FC.size > 900) FC.clear(); a = new Array(25); FC.set(c, a); } return a[q] || (a[q] = mixc(c, fogLow, q / 24 * .86)); };
   const dk = c => { let d = DKC.get(c); if(d === undefined){ d = mixc(mixc(c, '#3a3a44', .5), DK, .8); DKC.set(c, d); } return d; };   // a dead sign: greyed and nearly black
-  const setLow = c => { if(c === LOWIN) return; LOWIN = c; const [r, g, b] = hx(c), q = '#' + [r, g, b].map(v => (Math.min(255, Math.round(v / 8) * 8) | 0).toString(16).padStart(2, '0')).join(''); if(q !== fogLow){ fogLow = q; FC.clear(); } };
+  const setLow = c => { if(c === LOWIN) return; LOWIN = c; const [r, g, b] = hx(c), q = '#' + (QA.get('akrain') !== '0' ? [r * .6 + 30, g * .6 + 27, b * .6 + 42] : [r, g, b]).map(v => (Math.min(255, Math.round(v / 8) * 8) | 0).toString(16).padStart(2, '0')).join(''); if(q !== fogLow){ fogLow = q; FC.clear(); } };
   let FF = 0, ON = 1; const F = c => fc(c, FF), L1 = c => fc(ON ? c : dk(c), FF * .6);   // F: a surface; L1: a light (lit or dead), hazed less
   const CLX = v => v < -W ? -W : v > 2 * W ? 2 * W : v, CLY = v => v < -H ? -H : v > 2 * H ? 2 * H : v;
   function poly4(x1, y1, x2, y2, x3, y3, x4, y4, col){ if(!fin(x1 + y1 + x2 + y2 + x3 + y3 + x4 + y4)) return; window.poly(CLX(x1), CLY(y1), CLX(x2), CLY(y2), CLX(x3), CLY(y3), CLX(x4), CLY(y4), col); }
@@ -143,7 +143,7 @@
 
   // ---------------------------------------------------------------- graphic signage (round 4): pixel art built once, painted at screen resolution
   /* Kellan, round 4: "it all looks like text instead of graphics or advertisements, and they look flat". The street's signs are now pictures:
-     character banners on the blades, key art on the roof billboards and end walls, brand blocks (a colour field, an emblem, a logotype; kana
+     big banners on the blades (round 6: no characters), key art on the roof billboards and end walls, brand blocks (a colour field, an emblem, a logotype; kana
      an accent), icon plates, two animated hero screens at the crossings and small attract screens on the arcades. Every piece is composed
      once at warm-up into a pixel buffer, compiled into a rect list (runs merged down the rows) plus a canvas and two averaged mips, and painted
      as Neon Ward's screen building is: the list straight onto the canvas with each edge on the pixel whose centre it covers once an art pixel
@@ -198,89 +198,121 @@
   const AKNR = AKX.includes('norect'), AKNH = AKX.includes('nohalo');
   // (opaque rings, each its own stepped mix toward the night: no alpha state per sign, which cost frames on the GPU canvas)
   function halo(x, y, w, h, col, a){ if(!ON || FF > .7 || w < PX * 6 || AKNH) return;
-    for(let r = 1, rn = w < PX * 16 ? 1 : 2; r <= rn; r++){ cx.fillStyle = fc(mixc(col, '#0a0816', r === 1 ? 1 - .42 * a : 1 - .2 * a), FF); const d = PX * r; pxRect(x - d, y - d, w + d * 2, PX); pxRect(x - d, y + h + d - PX, w + d * 2, PX); pxRect(x - d, y - d + PX, PX, h + d * 2 - PX * 2); pxRect(x + w + d - PX, y - d + PX, PX, h + d * 2 - PX * 2); } }
-  // ------------------------------------------------ the cast (grids drawn at pixel zoom from the references' banners; all invented)
-  const OUTL = '#1a0c22', SKIN = ['#ffe2cc', '#f0b49a', '#c87a6a'];
-  // a girl's head, front, light from the left: hair (h, H highlight band, d shadow), skin (s, S), eyes (e iris, E shine, l lash), mouth, blush
-  const HEAD = SP([
-    '.....kkkkkk.....',
-    '...kkhhhhhhkk...',
-    '..khHHHhhhhhhk..',
-    '.khHHhhhhhhhhdk.',
-    '.khhhhhhhhhhhdk.',
-    'khhhhhhhhhhhhhdk',
-    'khhhhhhhhhhhhddk',
-    'khhdhhhhhhhdhhdk',
-    'khdshhshhshhshdk',
-    'khdsssssssssshdk',
-    'khdlllssssllldkk',
-    'khdEeessssEeedhk',
-    'khdeeesssseeedhk',
-    'khdsssssssssSdhk',
-    'khhsbssmmssbSdhk',
-    'khdhSsssssssShdk',
-    'khdhkSSSSSSkhddk',
-    'khdk.kkkkkk.kdk.'], { k:OUTL, s:SKIN[0], S:SKIN[1], l:'#2a1030', E:'#ffffff', m:'#c8304a', b:'#ff9aa8' });
-  // the same head winking (the close-up's beat)
-  const HEADW = SP(HEAD.rows.map((r, i) => i === 10 ? 'khdlllsssssssdkk' : i === 11 ? 'khdEeessssllldhk' : i === 12 ? 'khdeeesssssssdhk' : r), HEAD.map);
-  const HAIR = { pink:['#ff7ab8', '#ffc2de', '#c0407e'], blue:['#4a7cff', '#a8c4ff', '#2a3aa8'], mint:['#3ad8b0', '#b0ffe4', '#1a8a74'], gold:['#ffc83a', '#fff0a0', '#c07a1a'], violet:['#a060ff', '#d8b8ff', '#5a2aa8'] };
-  const EYES = { pink:'#8a2a8a', blue:'#2a6ad8', mint:'#1a8a5a', gold:'#c8501a', violet:'#5a2ad8' };
-  const headMap = hc => ({ h:HAIR[hc][0], H:HAIR[hc][1], d:HAIR[hc][2], e:EYES[hc] });
-  // a mecha, front: a fin crest, a slit visor, wide shoulder blocks, a core in the chest (white armour, its shadow side blue-grey)
-  const MECHA = SP([
-    '..........kk..........',
-    '.........kOok.........',
-    '.........kOok.........',
-    '.......kkkwwkkk.......',
-    '......kwwwwwwWWk......',
-    '......kwkkkkkkWk......',
-    '......kwvVVVvvWk......',
-    '......kWkkkkkkWk......',
-    '.......kwggggWk.......',
-    '..kkkkkkkwwWkkkkkkk...',
-    '.kbbbbbbkkkkkkbbbbBk..',
-    'kbbBbbbbkwwwWkbbbBBBk.',
-    'kbbbbbbkwwooWWkbbbBBk.',
-    'kkkkkkkkwoOOWWkkkkkkk.',
-    '.kwwWWkkwwooWWkkwWWk..',
-    '.kwwWWk.kwwwWk.kwWWk..',
-    '.kggggk.kbbbBk.kggWk..',
-    '.kwwWWk.kkbkkk.kwWWk..',
-    '.kwwWWk.kwwwWk.kwWWk..',
-    '.kgggWk.kwkWWk.kggWk..',
-    '.kkkkk.kwWkkwWk.kkkk..',
-    '......kwwWk.kwWWk.....',
-    '......kwwWk.kwWWk.....',
-    '......kbbBk.kbBBk.....',
-    '......kwwWk.kwWWk.....',
-    '.....kwwwWk.kwWWWk....',
-    '.....kOOOOk.kOOOOk....',
-    '.....kkkkkk.kkkkkk....'], { k:'#12101c', w:'#f4f2ee', W:'#a8b0c8', b:'#2a54c8', B:'#1a2a78', o:'#ffb02a', O:'#e8401a', g:'#5a5e70', v:'#3ae8ff', V:'#e8ffff' });
-  const MECHAR = { w:'#f4ece6', W:'#c0988a', b:'#d8282e', B:'#7a1420', v:'#ffe23a', V:'#ffffff' };   // the rival's colours (red, a yellow eye)
-  // the idol on the screen (14 x 26): body and legs; arms are drawn per pose
-  const IDOL = SP([
-    '....kkkkkk....',
-    '..kkhhhhhhkk..',
-    '.khHHhhhhhhdk.',
-    'khhhhhhhhhhhdk',
-    'khdsshsshsshdk',
-    'khdlssssslsdhk',
-    'khdesssssesdhk',
-    'khhssbmmbsSdhk',
-    'khdkSsssSSkhdk',
-    'khdk.kssk.kddk',
-    'khk.kwrrwk.khk',
-    'khk.kpwwPk.khk',
-    'kk..kpppPk..kk',
-    '....kpppPk....',
-    '...kpPpPpPk...',
-    '..kpPpPpPpPk..',
-    '..kwwwwwwwwk..',
-    '...kkskkSkk...',
-    '....ks..Sk....',
-    '....ks..Sk....',
-    '....ks..Sk....',
-    '...kww..wwk...'], { k:OUTL, h:HAIR.pink[0], H:HAIR.pink[1], d:HAIR.pink[2], s:SKIN[0], S:SKIN[1], l:'#2a1030', e:'#8a2a8a', m:'#c8304a', b:'#ff9aa8', w:'#ffffff', r:'#ff3a6a', p:'#ff5aa8', P:'#c02a7a' });
+    for(let r = 1, rn = w < PX * 16 ? 1 : 2; r <= rn; r++){ cx.fillStyle = fc(mixc(col, '#0a0816', r === 1 ? 1 - .42 * a : 1 - .2 * a), FF); const d = PX * r; pxRect(x - d, y - d, w + d * 2, PX); pxRect(x - d, y + h + d - PX, w + d * 2, PX); pxRect(x - d, y - d + PX, PX, h + d * 2 - PX * 2); pxRect(x + w + d - PX, y - d + PX, PX, h + d * 2 - PX * 2); }
+    // the downpour: the light scatters in the rain, two dithered rings further out (pixels of its colour, 1/4 then 1/8 of them; no blur)
+    if(RAINON && FF < .5 && w >= PX * 10){ const P2 = hazeP(col), d0 = PX * 3, t = Math.max(PX * 2, snp(Math.min(w, h) * .09)); cx.fillStyle = P2[0]; ring(x, y, w, h, d0, t); cx.fillStyle = P2[1]; ring(x, y, w, h, d0 + t, t + PX); } }
+  function ring(x, y, w, h, d, t){ pxRect(x - d - t, y - d - t, w + 2 * (d + t), t); pxRect(x - d - t, y + h + d, w + 2 * (d + t), t); pxRect(x - d - t, y - d, t, h + 2 * d); pxRect(x + w + d, y - d, t, h + 2 * d); }
+  // the dithered haze patterns per light colour (all made in warm-up by hazeWarm; a colour first seen later is made once and kept)
+  const HZM = new Map(); let HZPX = 0;
+  function hazeP(col){ if(HZPX !== PX){ HZPX = PX; HZM.clear(); } let p = HZM.get(col); if(!p){ p = [ditherPat(col, .25), ditherPat(col, .125)]; HZM.set(col, p); } return p; }
+  function hazeWarm(){ for(const k of ['ban', 'bb', 'po', 'band', 'wrap', 'plate']) for(const A of (ART[k] || [])) if(A && A.avg) hazeP(A.avg); for(const Bd of BRANDS) hazeP(Bd.f); for(const c of ['#ff8a2a', '#e8d8a0']) hazeP(c); }
+  // ------------------------------------------------ round 6: the title cards' language (ui/cutin.js), no characters
+  /* Kellan, round 6: "remove the anime girls. what happened to the koi and beautiful animations inspired by anime? think of the title
+     cards". Every girl, idol and the old mecha is gone. The signs are now drawn as the cards are: hard 1-bit edges, three or four colours
+     and an ink, a keyline and an offset shadow, screentone on slanted slabs, one big silhouette, a big kanji (DotGothic16's own 16 px dot
+     grid, thickened to a woodblock weight). Motifs from the prints and the electric town: a bolt, an oni mask, a maneki-neko, a daruma, a
+     game pad, a vacuum tube, a carp climbing the falls; the two hero screens are Hiroshige's cranes and his Ōji foxfires. All invented. */
+  const INK = '#0c0812', CREAM = '#f4ecdf';
+  const BAY4 = [0, 8, 2, 10, 12, 4, 14, 6, 3, 11, 1, 9, 15, 7, 13, 5];
+  // screentone: c1 wherever the ordered-dither threshold falls under lev(x, y), 0..1 (the cards' tone())
+  function atone(I, x, y, w, h, c1, lev){ for(let yy = y; yy < y + h; yy++) for(let xx = x; xx < x + w; xx++){ const l = lev(xx - x, yy - y); if(l > 0 && (BAY4[(yy & 3) * 4 + (xx & 3)] + .5) / 16 < l) ap(I, xx, yy, c1); } }
+  // a slanted slab (a parallelogram leaning right by sl px per row up), the cards' panels
+  function slab(I, x, y, w, h, sl, col){ for(let yy = 0; yy < h; yy++){ const o = Math.round((h - 1 - yy) * sl); af(I, x + o, y + yy, w, 1, col); } }
+  // a filled polygon (even-odd, pixel centres)
+  function apoly(I, P, col){ let y0 = 1e9, y1 = -1e9; for(const p of P){ y0 = Math.min(y0, p[1]); y1 = Math.max(y1, p[1]); }
+    for(let y = Math.floor(y0); y <= Math.ceil(y1); y++){ const yc = y + .5, xs = []; for(let i = 0; i < P.length; i++){ const a = P[i], b = P[(i + 1) % P.length]; if((a[1] <= yc) !== (b[1] <= yc)) xs.push(a[0] + (yc - a[1]) / (b[1] - a[1]) * (b[0] - a[0])); }
+      xs.sort((p, q) => p - q); for(let k = 0; k + 1 < xs.length; k += 2) for(let x = Math.round(xs[k]); x < Math.round(xs[k + 1]); x++) ap(I, x, y, col); } }
+  function adisc(I, cx0, cy0, r, col){ for(let y = -r; y <= r; y++) for(let x = -r; x <= r; x++) if(x * x + y * y <= r * r + r * .6) ap(I, cx0 + x, cy0 + y, col); }
+  // a layer inked as the cards are: its shadow offset (d, d), a keyline round it, then the layer
+  function inkL(I, L, x, y, line, sh, d){ const O = line ? aol(L, line) : L; if(sh) for(let yy = 0; yy < O.h; yy++) for(let xx = 0; xx < O.w; xx++) if(O.c[yy * O.w + xx]) ap(I, x + xx + d, y + yy + d, sh); alay(I, O, x, y); }
+  // a sprite as its own layer (fills only; the keyline comes from inkL), optionally zoomed and recoloured
+  function spL(S, z, over, flip){ z = z || 1; const L = AI(S.w * z, S.h * z); asz(L, S, 0, 0, z, over, flip); return L; }
+  // a big kanji layer: DotGothic16's mask at 16 px (its own dot grid), each dot z x z, thickened one pixel at 2x (a woodblock weight)
+  function kanL(ch, z, col){ const { m, n } = mask(ch, 16), b = box(m, n); if(!b) return AI(1, 1); const e = z > 1 ? 1 : 0, w = (b[2] - b[0] + 1) * z + e, h = (b[3] - b[1] + 1) * z + e, L = AI(w, h);   // (at 1x the font's own dots, unthickened: 電 and 鶴 stay legible)
+    for(let y = b[1]; y <= b[3]; y++) for(let x = b[0]; x <= b[2]; x++) if(m[y * n + x]) af(L, (x - b[0]) * z, (y - b[1]) * z, z + e, z + e, col); return L; }
+  // a red seal (hanko): a square, a cream kanji cut into it
+  function seal(I, ch, x, y, col){ const K = kanL(ch, 1, CREAM); af(I, x, y, K.w + 4, K.h + 4, col); af(I, x + 1, y + 1, K.w + 2, 1, mixc(col, '#ffffff', .25)); alay(I, K, x + 2, y + 2); return K.w + 4; }
+
+  // ------------------------------------------------ the motifs, drawn as fills on the pixel grid (inkL adds the keyline)
+  // an oni mask (from the setsubun masks and Kuniyoshi's demons): horns, heavy brows, gold eyes, fangs; light from the left
+  const ONI = SP([
+    'c..............c',
+    'cc............cc',
+    '.cc..rrrrrr..cc.',
+    '.ccrrrrrrrrrrcc.',
+    '..rrrrrrrrrrRR..',
+    '.rrkkkrrrrkkkRR.',
+    '.rrrrkkrrkkrrRR.',
+    'rrryyykrrkyyyrRR',
+    'rrryykkrrkkyyrRR',
+    'rrrrrrrrrrrrrrRR',
+    'rrrrrrRRRRrrrrRR',
+    '.rrrrRrrrrRrrRR.',
+    '.rrkkkkkkkkkkRR.',
+    '.rrkwkkkkkkwkRR.',
+    '..rkkkkkkkkkkR..',
+    '..rrrrrrrrrrRR..',
+    '...rrrrrrrrRR...',
+    '.....rrrrRR.....'], { c:'#f4ecdf', r:'#e0202e', R:'#8a1020', k:'#0c0812', y:'#ffc830', w:'#ffffff' });
+  // a maneki-neko, its left paw raised (cream, a red collar, the gold bell, pink ears)
+  const NEKO = SP([
+    '..cc.....cc...cc..',
+    '.cppc...cppc.cccc.',
+    '.cpcccccccpc.cppc.',
+    'ccccccccccccc.cccc',
+    'ccckcccckcccc.cCc.',
+    'cckckcckckccc.cCc.',
+    'ccccccpcccccc.cCc.',
+    'kkccckckccckk.cCc.',
+    '.ccccccccccc..cCc.',
+    'rrrrrryrrrrrr.cCc.',
+    'cccccyyycccccccCc.',
+    'ccccccyccccccccC..',
+    'cccccccccccccccC..',
+    'cccwwwwwwwwccccC..',
+    'cccwwwwwwwwccccC..',
+    'cccwwwwwwwwccccC..',
+    'cccccccccccccccC..',
+    'ccccccccccccccCC..',
+    'ccrcccccccccrcC...',
+    '.cccccccccccccC...'], { c:'#f8f0e0', C:'#c8b090', p:'#ff8aa0', k:'#0c0812', r:'#e0202e', y:'#ffc830', w:'#ffffff' });
+  // a daruma: the red body, the white face, brows like waves, one eye painted, the gold band
+  const DARUMA = SP([
+    '....rrrrrrrR....',
+    '..rrrrrrrrrrRR..',
+    '.rrrrrrrrrrrrRR.',
+    '.rrwwwwwwwwwrRR.',
+    'rrwkkkwwwwkkkwRR',
+    'rrwwwwwwwwwwwwRR',
+    'rrwkkkwwwwkwkwRR',
+    'rrwkkkwwwwwkwwRR',
+    'rrwwwwwkkwwwwwRR',
+    'rrwwkkkwwkkkwwRR',
+    '.rrwwwwwwwwwwRR.',
+    '.rrrrrrrrrrrrRR.',
+    'rryyyyyyyyyyyyRR',
+    'rrrrryrrrryrrrRR',
+    'rrrrrryyyyrrrrRR',
+    '.rrrrrrrrrrrrRR.',
+    '..rrrrrrrrrrRR..',
+    '....rrrrrrRR....'], { r:'#e0202e', R:'#8a1020', w:'#f8f0e0', k:'#0c0812', y:'#ffc830' });
+  // a game pad (the grips, the cross key, two buttons)
+  function padL(z){ const L = AI(22 * z, 12 * z), F = (x, y, w, h, c) => af(L, x * z, y * z, w * z, h * z, c), c = '#f4ecdf', C = '#b8b0c8';
+    F(2, 1, 18, 7, c); F(1, 2, 20, 6, c); F(0, 4, 7, 6, c); F(15, 4, 7, 6, c); F(1, 10, 5, 1, c); F(16, 10, 5, 1, c); F(15, 8, 7, 2, C); F(19, 4, 3, 4, C);
+    F(4, 3, 1, 5, INK); F(2, 5, 5, 1, INK); F(15, 4, 2, 2, '#e0202e'); F(17, 2, 2, 2, '#ffc830'); F(9, 5, 2, 1, '#6a6480'); F(12, 5, 2, 1, '#6a6480'); return L; }
+  // a vacuum tube: the glass envelope, the plate, the filament glowing, the base and its pins
+  function tubeL(glow){ const L = AI(12, 26), g = '#bfe6f0', G = '#7ab0c8';
+    for(let y = 0; y < 20; y++){ const hw = y < 2 ? 3 : y < 4 ? 4 : 5; af(L, 6 - hw, y, hw * 2, 1, y < 2 ? G : '#1c2a3a'); ap(L, 6 - hw, y, g); ap(L, 5 + hw, y, G); }
+    af(L, 3, 5, 6, 11, '#5a6070'); af(L, 4, 6, 4, 9, '#2a2e3a'); af(L, 5, 7, 2, 7, glow ? '#ff8a2a' : '#7a3a1a'); if(glow){ af(L, 5, 9, 2, 3, '#ffe2a0'); ap(L, 4, 10, '#ff8a2a'); ap(L, 7, 10, '#ff8a2a'); }
+    ap(L, 2, 2, '#ffffff'); ap(L, 2, 3, '#ffffff'); af(L, 1, 20, 10, 4, '#1a1620'); af(L, 1, 20, 10, 1, '#4a4656'); for(const x of [2, 5, 8]) af(L, x, 24, 1, 2, '#c8c0a0'); return L; }
+  // a lightning bolt (the electric town's mark)
+  function boltL(h, col){ const s = h / 34, L = AI(Math.ceil(17 * s), Math.ceil(35 * s)); apoly(L, [[10, 0], [1, 19], [8, 19], [3, 34], [16, 12], [9, 12], [14, 0]].map(p => [p[0] * s, p[1] * s]), col); return L; }
+  // a carp, head up, climbing (koinobori's scales and eye; the carp that becomes a dragon at the top of the falls)
+  function carpL(){ const L = AI(14, 34), r = '#e8402a', R = '#a01e1a', o = '#ffb050';
+    for(let y = 0; y < 30; y++){ const t = y / 29, hw = Math.round(1 + 5.2 * Math.sin(Math.min(1, t * 1.25) * 3.1416) ** .7 * (t < .85 ? 1 : 1 - (t - .85) * 4)); if(hw <= 0) continue; af(L, 7 - hw, y, hw * 2, 1, r); ap(L, 7 + hw - 1, y, R); }
+    for(let y = 9; y < 26; y += 3) for(let x = 3 + ((y / 3) & 1); x < 11; x += 3){ ap(L, x, y, R); ap(L, x + 1, y + 1, R); ap(L, x - 1, y + 1, R); }   // scales: a row of little arcs
+    af(L, 5, 1, 4, 1, R); ap(L, 4, 4, '#ffffff'); ap(L, 9, 4, '#ffffff'); ap(L, 4, 5, INK); ap(L, 9, 5, INK);   // the mouth, the eyes
+    apoly(L, [[7, 27], [1, 34], [6, 31], [7, 33], [8, 31], [13, 34]], o); apoly(L, [[2, 13], [0, 17], [3, 16]], o); apoly(L, [[12, 13], [14, 17], [11, 16]], o); return L; }
   // icons for the tenant plates and the brand emblems (10 x 10): a coffee cup, a game pad, a chip, a cassette, a camera, a heart, a star, a bolt
   const ICON = [
     SP(['..........', '...a.a....', '....a.a...', '.kkkkkkk..', '.kwwwwwkkk', '.kwwwwwk.k', '.kwwwwwkkk', '..kwwwk...', 'kkkkkkkkk.', '..........'], { k:'#2a1424', w:'#ffffff', a:'#c8c0d8' }),
@@ -309,69 +341,60 @@
   function sparkle(I, x, y, col){ ap(I, x, y, col); ap(I, x - 1, y, col); ap(I, x + 1, y, col); ap(I, x, y - 1, col); ap(I, x, y + 1, col); }
   // halftone dots on a diagonal grid (the banners' print texture), in a step lighter than the field
   function dots(I, x, y, w, h, col, p){ for(let yy = 0; yy < h; yy += p) for(let xx = ((yy / p) & 1) * (p >> 1); xx < w; xx += p) ap(I, x + xx, y + yy, col); }
-  // a full figure: the head, long hair behind, a sailor top, a pleated skirt, legs, shoes; light from the left (the shadow third on the right)
-  function figure(hc, top, skirt, pose){ const L = AI(20, 50), [h0, h1, h2] = HAIR[hc], [t0, t1] = top, [k0, k1] = skirt;
-    for(let y = 8; y < 33; y++){ const w = y < 28 ? 9 : 9 - (y - 28); af(L, 10 - w, y, w, 1, y % 5 === 0 ? h2 : h0); af(L, 10, y, w, 1, h2); }   // hair behind, to the waist
-    af(L, 2, 10, 1, 18, h1);
-    af(L, 9, 17, 2, 3, SKIN[1]);
-    for(let y = 19; y < 31; y++){ const w = y < 21 ? 6 : 5; af(L, 10 - w, y, w * 2, 1, t0); af(L, 10 + w - 3, y, 3, 1, t1); }   // the top, lit and shadow sides
-    af(L, 6, 19, 8, 1, '#ffffff'); for(let q = 0; q < 3; q++){ ap(L, 7 + q, 20 + q, '#ffffff'); ap(L, 12 - q, 20 + q, '#ffffff'); }   // the sailor collar's V
-    af(L, 9, 22, 2, 2, '#ff3a5a'); ap(L, 8, 23, '#ff3a5a'); ap(L, 11, 23, '#ff3a5a');
-    for(let y = 31; y < 38; y++){ const w = 5 + ((y - 31) >> 1); for(let x = 10 - w; x < 10 + w; x++) ap(L, x, y, ((x + 20) >> 1) & 1 ? k1 : k0); }   // pleats
-    for(let y = 38; y < 46; y++){ af(L, 7, y, 2, 1, SKIN[0]); af(L, 11, y, 2, 1, SKIN[1]); }
-    af(L, 6, 46, 3, 2, '#2a1a30'); af(L, 11, 46, 3, 2, '#2a1a30'); af(L, 6, 44, 3, 2, '#ffffff'); af(L, 11, 44, 3, 2, '#e0d8e8');   // socks, shoes
-    // arms: 0 down at the sides; 1 a wave (her left hand up by the face); 2 a peace sign at the chin
-    if(pose === 0){ af(L, 3, 21, 2, 9, t0); af(L, 3, 30, 2, 2, SKIN[0]); af(L, 15, 21, 2, 9, t1); af(L, 15, 30, 2, 2, SKIN[1]); }
-    else if(pose === 1){ af(L, 3, 21, 2, 9, t0); af(L, 3, 30, 2, 2, SKIN[0]); af(L, 15, 13, 2, 8, t1); af(L, 15, 10, 2, 3, SKIN[0]); ap(L, 17, 9, SKIN[0]); }
-    else { af(L, 3, 21, 2, 9, t0); af(L, 3, 30, 2, 2, SKIN[0]); af(L, 14, 21, 2, 3, t1); af(L, 12, 18, 2, 3, SKIN[0]); ap(L, 12, 16, SKIN[0]); ap(L, 13, 17, SKIN[0]); ap(L, 14, 16, SKIN[0]); }
-    as(L, HEAD, 2, 0, false, headMap(hc)); return aol(L, OUTL); }
-  /* A character banner (20 x 60): a figure on a printed field (gradient, halftone, sparkles), the title strip at the foot with a kana
-     accent and an emblem. */
+  /* The big vertical banners (22 x 62, the old character banners' boxes): a field, a slanted screentone slab, the motif inked with its
+     keyline and a shadow in the slab's colour, the kanji at the foot (cream, keyline, shadow), a seal or a rule. */
   const BAN = [
-    { hc:'pink', bg:['#2a3ad8', '#1a1a8a', '#120a50'], top:['#f4f4ff', '#a8b0d8'], sk:['#2a3a8a', '#1a2460'], pose:1, kana:'ルナ', ac:'#ffd23a' },
-    { hc:'mint', bg:['#ff5a8a', '#c82a6a', '#6a1040'], top:['#2a2a3a', '#14141e'], sk:['#2a2a3a', '#14141e'], pose:2, kana:'ミント', ac:'#ffffff' },
-    { hc:'gold', bg:['#1ac8a8', '#0e8a7a', '#06403a'], top:['#ff5a5a', '#a82a3a'], sk:['#ffffff', '#c8c0d8'], pose:0, kana:'ハル', ac:'#ffe23a' },
-    { hc:'violet', bg:['#ffd23a', '#ff9a2a', '#c8501a'], top:['#ffffff', '#b8b0d0'], sk:['#5a2aa8', '#3a1a70'], pose:1, kana:'ユメ', ac:'#3a1a70' }];
-  function banner(v){ const D = BAN[v], I = AI(22, 62); agrad(I, 0, 0, 22, 50, D.bg); dots(I, 0, 1, 22, 48, lite(D.bg[0], .18), 4);
-    for(const [x, y] of [[3, 4], [18, 9], [2, 40], [19, 34]]) sparkle(I, x, y, lite(D.bg[0], .7));
-    alay(I, figure(D.hc, D.top, D.sk, D.pose), 1, 1);
-    af(I, 0, 50, 22, 12, '#16101e'); af(I, 0, 50, 22, 1, D.ac); akana(I, D.kana, 10, 1, 51, D.ac, null);
+    { f:'#141018', s:'#d0102a', t:'#ffc830', k:'電', m:'bolt' },
+    { f:'#1a1034', s:'#ffb030', t:'#3a2a6a', k:'鬼', m:'oni' },
+    { f:'#c8142a', s:'#ff6a5a', t:'#8a0a1a', k:'招', m:'neko' },
+    { f:'#ffc830', s:'#fff2b0', t:'#d0102a', k:'福', m:'daruma' },
+    { f:'#221a5a', s:'#3ad8ff', t:'#ff4aa0', k:'遊', m:'pad' },
+    { f:'#0c1828', s:'#1e6a7a', t:'#ff8a2a', k:'光', m:'tube' }];
+  function banner(v){ const D = BAN[v], I = AI(22, 62); af(I, 0, 0, 22, 62, D.f);
+    slab(I, -6, 6, 22, 30, .4, D.s); atone(I, 0, 0, 22, 62, D.s, (x, y) => y < 6 ? .55 - y * .05 : y > 36 && y < 44 ? .35 - (y - 36) * .04 : 0);   // the slab, the tone fading off its edges
+    atone(I, 0, 6, 22, 30, D.f, (x, y) => (x + y) % 9 < 1 ? 1 : 0);   // speed hatching across it
+    const sh = dark(D.s, .55);
+    if(D.m === 'bolt') inkL(I, boltL(34, D.t), 3, 4, INK, sh, 2);
+    else if(D.m === 'oni'){ inkL(I, spL(ONI, 1), 3, 10, INK, sh, 2); for(const [x, y] of [[2, 4], [19, 30]]) sparkle(I, x, y, CREAM); }
+    else if(D.m === 'neko') inkL(I, spL(NEKO, 1), 1, 8, INK, sh, 2);
+    else if(D.m === 'daruma'){ inkL(I, spL(DARUMA, 1), 3, 12, INK, sh, 2); af(I, 0, 2, 22, 1, D.t); }
+    else if(D.m === 'pad'){ inkL(I, padL(1), 0, 16, INK, sh, 2); for(const [x, y] of [[4, 6], [17, 9], [12, 32]]) sparkle(I, x, y, D.t); }
+    else { inkL(I, tubeL(true), 5, 6, INK, sh, 2); for(let r = 7; r < 12; r += 2) for(let a = 0; a < 16; a++){ const q = a / 16 * 6.283; if(a & 1) ap(I, 11 + Math.round(Math.cos(q) * r), 16 + Math.round(Math.sin(q) * r * 1.2), '#ffb060'); } }
+    af(I, 0, 41, 22, 21, INK); af(I, 0, 41, 22, 1, D.t);   // the foot: ink, a rule in the accent
+    inkL(I, kanL(D.k, 1, CREAM), 3, 43, null, D.t, 1); af(I, 2, 60, 18, 1, D.t);
     return acomp(I); }
-  // the mecha's rival-coloured twin, for variety
-  function mech(I, x, y, red){ as(I, MECHA, x, y, false, red ? MECHAR : null); }
-  // speed lines radiating from a point (the key art's energy), in one colour
-  function burst(I, cx0, cy0, n, r0, r1, col){ for(let q = 0; q < n; q++){ const a = q / n * 6.283 + .2; for(let r = r0; r < r1; r++) ap(I, Math.round(cx0 + Math.cos(a) * r), Math.round(cy0 + Math.sin(a) * r * .7), col); } }
-  /* Roof billboards (48 x 28), front-lit by their spotlights: 0 mecha key art on a pale field; 1 two idols on a night sky; 2 a space game;
-     3 a maid cafe; 4.. the brands' blocks (emblem, logotype, kana). */
+
+  /* Roof billboards (48 x 28), front-lit by their spotlights: 0 the electric town (the bolt, 電気); 1 a valve-amp shop (tubes glowing);
+     2 a space game; 3 a cat cafe (the maneki-neko); 4.. the brands' blocks (emblem, logotype, kana). */
   const NBB = 4;
   function billboard(v){ const I = AI(48, 28);
-    if(v === 0){ agrad(I, 0, 0, 48, 28, ['#fbf8ff', '#e8ecff', '#c8d4f4']); burst(I, 12, 12, 18, 9, 34, '#dce2fa'); mech(I, 1, 0, false);
-      af(I, 24, 4, 24, 14, '#d8202e'); af(I, 24, 4, 24, 1, '#ff6a6a'); af(I, 24, 17, 24, 1, '#8a1020'); akana(I, '機甲', 12, 27, 5, '#ffffff', null); alogo(I, 'GARVAN', 25, 20, 1, '#1a2a78', null, null); af(I, 24, 26, 24, 1, '#1a2a78'); }
-    else if(v === 1){ agrad(I, 0, 0, 48, 28, ['#3a1a8a', '#1a1050', '#0a0828']); for(let q = 0; q < 14; q++) ap(I, (q * 17 + 5) % 48, (q * 11 + 2) % 20, q & 1 ? '#ffffff' : '#a8b8ff');
-      sparkle(I, 44, 4, '#fff2a0'); as(I, HEAD, 3, 4, false, headMap('pink')); as(I, HEAD, 17, 6, true, headMap('blue'));
-      af(I, 0, 23, 48, 5, '#ff5aa8'); af(I, 0, 23, 48, 1, '#ffc2de'); akana(I, 'ル', 10, 36, 2, '#fff2a0', null); akana(I, 'ナ', 10, 36, 12, '#fff2a0', null); alogo(I, 'LIVE!', 26, 23, 1, '#ffffff', null, null); }
+    if(v === 0){ af(I, 0, 0, 48, 28, '#141018'); slab(I, 4, 0, 30, 28, .45, '#d0102a'); atone(I, 0, 0, 48, 28, '#ff5a3a', (x, y) => x > 8 && x < 40 ? .18 + .25 * (1 - y / 28) : 0);
+      inkL(I, boltL(26, '#ffc830'), 2, 0, INK, '#5a0410', 2); inkL(I, kanL('電', 1, CREAM), 16, 3, INK, '#5a0410', 1); inkL(I, kanL('気', 1, CREAM), 31, 9, INK, '#5a0410', 1); alogo(I, 'DENKI', 17, 22, 1, '#ffc830', null, null); }
+    else if(v === 1){ agrad(I, 0, 0, 48, 28, ['#0c1828', '#10222e', '#1a2a2a']); atone(I, 0, 18, 48, 10, '#2a4a4a', (x, y) => y / 10);
+      for(let q = 0; q < 3; q++){ const L = tubeL(true); inkL(I, L, 3 + q * 9, 1 + (q & 1) * 2, INK, null, 0); }
+      for(let r = 6; r < 16; r += 3) for(let a = 0; a < 24; a++){ const q = a / 24 * 6.283; if(a % 3 === 0) ap(I, 16 + Math.round(Math.cos(q) * r * 1.4), 12 + Math.round(Math.sin(q) * r), '#ff8a2a'); }
+      af(I, 30, 3, 17, 15, CREAM); af(I, 31, 4, 15, 13, '#d0102a'); inkL(I, kanL('音', 1, CREAM), 31, 4, null, '#5a0410', 1); alogo(I, 'TUBE', 30, 21, 1, '#ff8a2a', null, null); }
     else if(v === 2){ agrad(I, 0, 0, 48, 28, ['#0a0a28', '#14104a', '#2a1060']); for(let q = 0; q < 18; q++) ap(I, (q * 23 + 7) % 48, (q * 13 + 3) % 28, q % 3 ? '#8a8ac8' : '#ffffff');
       for(let y = 0; y < 12; y++){ const w = Math.round(Math.sqrt(Math.max(0, 144 - (12 - y) * (12 - y))) * 1.6); af(I, 48 - w, 16 + y, w, 1, y < 2 ? '#ffb06a' : y & 2 ? '#d8603a' : '#a83a3a'); }   // the planet's limb
       as(I, SHIP, 6, 11, false); for(let q = 0; q < 3; q++) as(I, FOE, 22 + q * 8, 4 + (q & 1) * 3, false); ap(I, 14, 8, '#ffffff'); ap(I, 14, 6, '#ffffff');
       alogo(I, 'STAR-8', 2, 2, 1, '#ffe23a', '#a83a1a', null); akana(I, 'ゲーム', 10, 2, 17, '#ffffff', null); }
-    else if(v === 3){ agrad(I, 0, 0, 48, 28, ['#ffd8ea', '#ffb0d4', '#ff8ac0']); for(let y = 2; y < 28; y += 6) for(let x = (y % 12 ? 3 : 0); x < 48; x += 7) ap(I, x, y, '#ffffff');
-      as(I, HEAD, 4, 6, false, headMap('gold')); af(I, 5, 6, 14, 2, '#ffffff'); for(let x = 5; x < 19; x += 2) ap(I, x, 5, '#ffffff');   // the maid's frilled headband
-      af(I, 4, 24, 16, 4, '#2a1a30'); af(I, 8, 24, 8, 4, '#ffffff'); as(I, ICON[IC_CUP], 36, 15, false); as(I, ICON[IC_HEART], 36, 3, false); akana(I, 'メイド', 10, 21, 6, '#c8205a', null); alogo(I, 'CAFE', 21, 18, 1, '#ffffff', '#c8205a', null); }
+    else if(v === 3){ af(I, 0, 0, 48, 28, '#c8142a'); atone(I, 0, 0, 48, 28, '#ff5a5a', (x, y) => .5 - Math.abs(x - 12) / 30); slab(I, 22, 4, 30, 16, .5, CREAM);
+      inkL(I, spL(NEKO, 1), 2, 4, INK, '#5a0410', 2); inkL(I, kanL('猫', 1, '#d0102a'), 27, 4, null, null, 0); alogo(I, 'CAFE', 25, 22, 1, CREAM, null, null); }
     else { const Bd = BRANDS[(v - NBB) % BRANDS.length]; agrad(I, 0, 0, 48, 28, [Bd.fl, Bd.f, Bd.f, Bd.fd]); af(I, 0, 0, 48, 1, lite(Bd.f, .6));
       af(I, 1, 3, 13, 13, Bd.out); af(I, 2, 4, 11, 11, '#ffffff'); as(I, ICON[Bd.ic], 2, 4, false); const lw = Bd.logo.length * 8 - 2; alogo(I, Bd.logo, 16 + Math.round((31 - lw) / 2), 5, 2, Bd.ink, Bd.out, null);
       af(I, 0, 17, 48, 11, Bd.out); const kw = akana(I, Bd.kana, 10, 2, 18, Bd.ac, null); for(let x = kw + 6; x < 46; x += 4) af(I, x, 22, 2, 2, Bd.ac); }
     return acomp(I); }
   const SHIP = SP(['....k.....', '...kwk....', '...kwk....', '..kwbwk...', '.kwwbwwk..', 'kwrwwwwrk.', 'kwkkwkkwk.', '.k.koOk...', '....kk....'], { k:'#0a0814', w:'#e8ecff', b:'#3ae8ff', r:'#ff3a4a', o:'#ffe23a', O:'#ff7a1a' });
   const FOE = SP(['.k...k.', 'kgk.kgk', 'kgggggk', 'kgyggyk', '.kgggk.', 'k.k.k.k'], { k:'#0a0814', g:'#3ad86a', y:'#ffffff' });
-  /* End-wall posters (32 x 48), lightboxes on the wall above a shorter neighbour: 0 an idol (full figure, a title column); 1 the mecha with
-     its kanji title; 2.. a brand tower (the emblem, the logotype stacked, the kana down a column). */
+  /* End-wall posters (32 x 48), lightboxes on the wall above a shorter neighbour: 0 an oni (a game's key art: the mask at 2x on a red
+     burst, 鬼 in a cream slab); 1 the carp climbing the falls (鯉); 2.. a brand tower (the emblem, the logotype stacked, the kana down a column). */
   const NPO = 2;
   function poster(v){ const I = AI(32, 48);
-    if(v === 0){ agrad(I, 0, 0, 32, 48, ['#5a2ad8', '#3a1a9a', '#1a0a50']); dots(I, 0, 0, 32, 48, '#6a3ae8', 4); burst(I, 12, 14, 16, 8, 30, '#7a4af0');
-      alay(I, figure('blue', ['#ff5aa8', '#a82a6a'], ['#ffffff', '#c8c0d8'], 2), 1, 0); af(I, 23, 0, 9, 48, '#ffd23a'); af(I, 23, 0, 1, 48, '#fff2a0');
-      akana(I, 'ア', 10, 23, 3, '#c8141e', null); akana(I, 'イ', 10, 23, 14, '#c8141e', null); as(I, ICON[IC_HEART], 22, 37, false); af(I, 0, 44, 23, 4, '#16101e'); alogo(I, 'AI-1', 2, 45, 1, '#ffd23a', null, null); }
-    else if(v === 1){ agrad(I, 0, 0, 32, 48, ['#1a1a2a', '#2a1a3a', '#4a1a2a']); burst(I, 16, 18, 24, 6, 40, '#3a2a4a'); for(let y = 30; y < 48; y++) af(I, 0, y, 32, 1, y & 1 ? '#e8401a' : '#ff7a1a');
-      mech(I, 5, 12, true); af(I, 0, 0, 32, 12, '#0a0a12'); akana(I, '機甲', 12, 4, 0, '#ffffff', null); alogo(I, 'ZEROK', 6, 42, 1, '#ffffff', '#3a0a10', null); alogo(I, 'ZEROK', 6, 42, 1, '#ffffff', '#3a0a10', null); }
+    if(v === 0){ af(I, 0, 0, 32, 48, '#141018'); for(let q = 0; q < 16; q++){ const a = q / 16 * 6.283; if(q & 1) apoly(I, [[16, 18], [16 + Math.cos(a) * 40, 18 + Math.sin(a) * 40], [16 + Math.cos(a + .2) * 40, 18 + Math.sin(a + .2) * 40]], '#8a1020'); }
+      inkL(I, spL(ONI, 2), -1, 1, INK, '#ffb030', 2); slab(I, 2, 37, 26, 11, .3, CREAM); inkL(I, kanL('鬼', 1, '#d0102a'), 9, 38, null, null, 0); alogo(I, 'ONI', 22, 42, 1, INK, null, null); }
+    else if(v === 1){ agrad(I, 0, 0, 32, 48, ['#0b2350', '#1f4f8a', '#1f4f8a', '#0b2350']);
+      for(let x = 0; x < 32; x += 2){ const ph = (x * 7) % 13; for(let y = ph; y < 48; y += 13) af(I, x, y, 1, 5 + (x % 3), x % 6 ? '#3a6aa8' : '#7fb0d4'); }   // the falls: streaks of foam
+      atone(I, 0, 40, 32, 8, '#fbf8ee', (x, y) => .3 + y / 12); inkL(I, carpL(), 9, 5, INK, '#0b2350', 2); af(I, 0, 0, 19, 19, '#efe4c8'); af(I, 0, 19, 19, 1, '#14244a'); inkL(I, kanL('鯉', 1, '#14244a'), 1, 1, null, null, 0); seal(I, '登', 23, 27, '#c0392a'); }
     else { const Bd = BRANDS[(v - NPO) % BRANDS.length]; agrad(I, 0, 0, 32, 48, [Bd.fl, Bd.f, Bd.f, Bd.f, Bd.fd]); dots(I, 0, 0, 32, 48, lite(Bd.f, .15), 4);
       af(I, 7, 2, 18, 18, Bd.out); af(I, 8, 3, 16, 16, '#ffffff'); asz(I, ICON[Bd.ic], 9, 4, 1); af(I, 0, 22, 32, 1, Bd.fl); const lw = Bd.logo.length * 8 - 2; alogo(I, Bd.logo, Math.round((32 - lw) / 2), 25, 2, Bd.ink, Bd.out, null);
       af(I, 0, 37, 32, 11, Bd.out); akana(I, Bd.kana, 10, 2, 38, Bd.ac, null); }
@@ -382,15 +405,143 @@
     const lw = alogo(I, Bd.logo, 15, 1, 2, Bd.ink, Bd.out, null); const kx = 15 + lw + 4; const kw = akana(I, Bd.kana, 10, kx, 1, Bd.ink, null);
     for(let x = kx + kw + 3; x < 85; x += 5) for(let q = 0; q < 3; q++){ ap(I, x + q, 4 + q, Bd.fl); ap(I, x + q, 8 - q, Bd.fl); }
     return acomp(I); }
-  /* A key-art wrap across two floors (96 x 24): idols and a mecha on a night print, a title plaque with a kana accent. */
+  /* Two-floor wraps (96 x 24): 0 the game pad on a cyan slab, 遊 and GAME; 1 three daruma in a row, 福 and SALE. Brand wraps follow. */
   function wrap(v){ const I = AI(96, 24);
-    if(v === 0){ agrad(I, 0, 0, 96, 24, ['#2a2ad8', '#1a1a8a', '#2a0a5a']); dots(I, 0, 0, 96, 24, '#3a3ae8', 4); for(const [x, y] of [[24, 4], [44, 18], [90, 5], [62, 3]]) sparkle(I, x, y, '#ffffff');
-      as(I, HEAD, 4, 4, false, headMap('pink')); as(I, HEAD, 72, 5, true, headMap('mint'));
-      af(I, 24, 5, 46, 14, '#ffffff'); af(I, 24, 18, 46, 1, '#c8c0e0'); akana(I, 'ユメイロ', 10, 26, 7, '#d8205a', null); as(I, ICON[IC_STAR], 86, 13, false); }
-    else { agrad(I, 0, 0, 96, 24, ['#ff7a1a', '#d8401a', '#5a1020']); burst(I, 70, 12, 22, 4, 60, '#ff9a3a');
-      af(I, 0, 0, 40, 24, '#16101e'); akana(I, '機甲', 12, 3, 2, '#ffffff', '#c8141e'); alogo(I, 'GARVAN', 3, 16, 1, '#ffd23a', null, null);
-      as(I, MECHA, 44, -2, false); as(I, MECHA, 66, -4, false, MECHAR); }
+    if(v === 0){ af(I, 0, 0, 96, 24, '#221a5a'); slab(I, 6, 0, 46, 24, .6, '#3ad8ff'); atone(I, 0, 0, 96, 24, '#3a2a8a', (x, y) => x > 56 ? .5 - y / 60 : 0); atone(I, 6, 0, 60, 24, '#221a5a', (x, y) => (x + y) % 7 < 1 ? 1 : 0);
+      inkL(I, padL(1), 10, 6, INK, '#16104a', 2); inkL(I, kanL('遊', 1, CREAM), 40, 3, INK, '#ff4aa0', 2); alogo(I, 'GAME', 60, 4, 2, '#ffc830', INK, null); akana(I, 'ゲーム', 10, 62, 14, CREAM, null); }
+    else { af(I, 0, 0, 96, 24, '#ffc830'); atone(I, 0, 0, 96, 24, '#fff2b0', (x, y) => .55 - y / 40); slab(I, 54, 2, 40, 20, .5, '#d0102a');
+      for(let q = 0; q < 3; q++) inkL(I, spL(DARUMA, 1), 2 + q * 17, 4 + (q & 1), INK, '#c8901a', 2); inkL(I, kanL('福', 1, CREAM), 62, 4, INK, '#5a0410', 1); alogo(I, 'SALE', 79, 10, 1, CREAM, null, null); }
     return acomp(I); }
+
+  // ------------------------------------------------ the hero screens (64 x 40 LEDs, frames at 120 ms)
+  // a red-crowned crane flying left, three wing positions (from the Wellcome "Six cranes flying upward above a breaking wave": the long
+  // black neck held straight out, the red crown, the white body, the black tuft of the folded secondaries, the legs trailing straight)
+  const CRMAP = { k:'#0c0812', w:'#f8f6ee', W:'#a8b0cc', g:'#c8a860', r:'#e0202e' };
+  const CRANE = [SP([
+    '..........................k.k.k.........',
+    '.........................kwkwkwk........',
+    '........................kkwwwwk.........',
+    '......................kkwwwwk...........',
+    '.....................kwwwWwwk...........',
+    '....................kwwwWwwk............',
+    '...................kwwwWwwwk............',
+    '..................kwwWwwwwk.............',
+    '.................kwwWwwwwwk.............',
+    '..rk.............kwwwwwwwk..............',
+    'ggkkk...........kwwwwwwwwkkkk...........',
+    '....kkkk.......kwwwwwwwwwkkkkk..........',
+    '.......kkkkk..kwwwwwwwwwwwkkkkkkkkkkkkk.',
+    '...........kkkwwwwwwwwwwwkk..........kk.',
+    '..............kkkkkkkkkkk...............'], CRMAP), SP([
+    '........................................',
+    '........................................',
+    '........................................',
+    '........................................',
+    '........................................',
+    '........................................',
+    '........................................',
+    '........................................',
+    '.................kkkkkkkkkkkkkk.k.k.....',
+    '..rk...........kkwwwwwwwwwwwwwwkwkwk....',
+    'ggkkk.........kwwwWwwwWwwwWwwwwwwk......',
+    '....kkkk.....kwwwwwwwwwwwwkkkkkkk.......',
+    '.......kkkkk.kwwwwwwwwwwwwkkkkkkkkkkkkk.',
+    '...........kkkwwwwwwwwwwwkk..........kk.',
+    '..............kkkkkkkkkkk...............'], CRMAP), SP([
+    '........................................',
+    '........................................',
+    '........................................',
+    '........................................',
+    '........................................',
+    '........................................',
+    '........................................',
+    '........................................',
+    '........................................',
+    '..rk....................................',
+    'ggkkk...................................',
+    '....kkkk.........kkkkkkkkkkk............',
+    '.......kkkkk..kkwwwwwwwwwwwkkkk.........',
+    '...........kkkwwwwwwwwwwwwwkkkkkkkkkkkk.',
+    '..............kwwwwwwwwwwwkk.........kk.',
+    '...............kwwWwwwwwwk..............',
+    '................kwwWwwwwk...............',
+    '.................kwwWwwk................',
+    '..................kwwWwk................',
+    '...................kwwwk................',
+    '....................kwk.................',
+    '.....................k..................'], CRMAP)];
+  // the small cranes of the flock (12 x 7)
+  const CRS = [SP(['......k.....', '.....kwk....', 'rk..kwk.....', 'gkkkwwwkkkk.', '....kkkk....'], CRMAP), SP(['............', '.....kkkk...', 'rk..kwwwwk..', 'gkkkwwwkkkk.', '....kkkk....'], CRMAP), SP(['............', '............', 'rk..........', 'gkkkwwwkkkk.', '....kwwk....', '.....kwk....', '......k.....'], CRMAP)];
+  const WING = [0, 0, 1, 2, 2, 1];   // the beat: a hold at the top (anticipation), the snap down, a hold, the recovery
+  function moonSky(I){ agrad(I, 0, 0, 64, 40, ['#10163a', '#18234e', '#22326a', '#2a3c78']);
+    for(let q = 0; q < 9; q++) ap(I, (q * 29 + 5) % 64, (q * 17 + 2) % 22, q % 3 ? '#6a78b0' : '#e8e4d0');
+    atone(I, 24, 0, 40, 34, '#34488a', (x, y) => { const d = Math.hypot(x - 18, y - 15); return d < 18 ? .5 - (d - 13) * .09 : 0; });   // the moon's halo in tone
+    adisc(I, 42, 15, 12, '#f4e2a8'); for(let y = -12; y <= 12; y++) for(let x = -12; x <= 12; x++){ const d = x * x + y * y; if(d <= 150 && (x - 5) * (x - 5) + (y - 3) * (y - 3) > 140 && ((x + y) & 1)) ap(I, 42 + x, 15 + y, '#d8c080'); }
+    for(const [x, y] of [[38, 11], [46, 18], [44, 9]]) ap(I, x, y, '#e8d090');
+    // woodblock cloud bars: flat, round-ended, a lit top edge (Hiroshige's banded mist)
+    for(const [x, y, w] of [[-4, 26, 34], [30, 29, 40], [8, 33, 22]]){ af(I, x + 1, y, w - 2, 3, '#3a4c8a'); af(I, x, y + 1, w, 1, '#3a4c8a'); af(I, x + 1, y, w - 2, 1, '#7a8ac8'); }
+    // a pine bough from the right edge in ink (the print's frame)
+    for(const [x, y, r] of [[60, 34, 6], [52, 37, 5], [63, 28, 4]]) for(let a = 0; a < 13; a++){ const q = Math.PI + a / 12 * Math.PI; for(let t = 1; t <= r; t++) ap(I, x + Math.round(Math.cos(q) * t), y + Math.round(Math.sin(q) * t * .7), a & 1 ? '#0e1a24' : '#1a3038'); }
+    for(let x = 48; x < 64; x++) ap(I, x, 38 - Math.round((x - 48) * .5), '#0c0812'); }
+  // a crane laid into the frame: white with its keyline, but a black silhouette wherever it crosses the moon (the print's trick)
+  function craneIn(I, S, x, y){ const L = spL(S, 1); for(let yy = 0; yy < L.h; yy++) for(let xx = 0; xx < L.w; xx++){ const v = L.c[yy * L.w + xx]; if(!v) continue; const X = x + xx, Y = y + yy, inMoon = (X - 42) * (X - 42) + (Y - 15) * (Y - 15) <= 150;
+      ap(I, X, Y, inMoon ? (v === CRMAP.r ? '#a01020' : INK) : v); } }
+  /* Hero 1, 鶴 (40 frames): 0-5 the moon and its mist, still; 6-29 a crane crosses in front of it, beating (hold, snap, hold), its
+     silhouette black against the moon; two small cranes follow, high; 30 a white flash; 31-39 the seal 鶴 stamped, held. */
+  function craneFrame(f){ const I = AI(64, 40); moonSky(I);
+    for(let q = 0; q < 2; q++){ const t = f - 14 - q * 5; if(t >= 0 && t < 26){ const b = (t + q * 3) % 6; craneIn(I, CRS[WING[b]], 66 - t * 3, 1 + q * 4 - (WING[b] === 2 ? 1 : 0)); } }
+    if(f >= 6 && f < 30){ const t = f - 6, b = t % 6, x = 64 - Math.round(t * 4.4), y = 6 + (WING[b] === 2 ? -1 : WING[b] === 0 ? 1 : 0); craneIn(I, CRANE[WING[b]], x, y); }
+    if(f === 30) for(let y = 18; y < 40; y++) af(I, 0, y, 26, 1, '#ffffff');
+    if(f >= 31){ const s = f === 31 ? 1 : 0; seal(I, '鶴', 3 - s, 18 - s, '#d0102a'); }
+    for(let y = 1; y < 40; y += 2) for(let x = 0; x < 64; x++){ const c = I.c[y * 64 + x]; if(c) I.c[y * 64 + x] = dark(c, .1); }   // the scan rows
+    return acv(I); }
+  // a fox running right (the foxes of Hiroshige's "New Year's Eve foxfires at the changing tree, Oji": pale cream, thin legs, the
+  // brush tail streaming, a warm shade under it); the top half shared, the legs in four gallop positions
+  const FXMAP = { c:'#f6e6c8', C:'#d4a878', w:'#ffffff', k:'#0c0812', o:'#e8803a' };
+  const FOXTOP = [
+    '.....................c...c....',
+    '.....................cc..cc...',
+    '.....................ccccccc..',
+    'ww...................ccckccccc',
+    'wwww................cccccccccck',
+    'wwwccc..............cccccC....',
+    '.wwcccc............ccccccccc..',
+    '..occccccc.......ccccccccccc..',
+    '...occcccccccccccccccccccccc..',
+    '....ooccccccccccccccccccccccc.',
+    '.....oCcccccccccccccccccccccC.',
+    '.......CCccccccccccccccccccC..',
+    '..........CCCCCCCCCCCCCCCC....'];
+  const FOXLEG = [
+    ['........CC............CC......', '......CC................CC....', '....CC....................CC..', '...C........................C.'],
+    ['..........CC........CC........', '...........CC......CC.........', '............CC....CC..........', '............C......C..........'],
+    ['.........C...........C........', '.........C...........C........', '........C...........C.........', '.......CC..........CC.........'],
+    ['.........CC.........CC........', '..........C........C..........', '...........CC......CC.........', '............C.......C.........']];
+  const FOX = FOXLEG.map(lg => SP(FOXTOP.concat(lg), FXMAP)), FOXC = SP(FOXTOP.concat(['........CCC.........CCC.......']), FXMAP);
+  // foxfire: a small flame, two flickers (orange, a pale core, a red tip)
+  const FLAME = [SP(['..r..', '..o..', '.ooo.', '.oyo.', 'ooyoo', 'oyyyo', '.ooo.'], { r:'#c8401a', o:'#ff8a2a', y:'#ffe0a0' }), SP(['.r...', '..o..', '.ooo.', '.oyo.', 'ooyyo', 'oyyyo', '.ooo.'], { r:'#c8401a', o:'#ff8a2a', y:'#ffe0a0' })];
+  // one big vermilion torii, centred (the Inari shrine's gate: the kasagi beam overhanging, the nuki, two posts), with its keyline
+  function torii(I){ const v = '#d0402a', V = '#8a2018'; af(I, 12, 4, 40, 3, INK); af(I, 13, 5, 38, 1, v); af(I, 10, 3, 44, 1, INK); af(I, 9, 2, 3, 1, INK); af(I, 52, 2, 3, 1, INK);
+    af(I, 17, 7, 30, 2, INK); af(I, 18, 7, 28, 1, V); af(I, 15, 11, 34, 3, INK); af(I, 16, 12, 32, 1, v); af(I, 30, 8, 4, 3, INK); af(I, 31, 8, 2, 3, v);
+    for(const px of [19, 42]){ af(I, px - 1, 7, 5, 27, INK); af(I, px, 7, 2, 27, v); af(I, px + 2, 7, 1, 27, V); af(I, px - 2, 32, 7, 2, INK); } }
+  /* Hero 2, 狐火 (40 frames), at the Oji print's bar: a still night under one big torii, three foxfires bobbing. 4-15 the fox runs in;
+     16-18 it gathers (the crouch, the anticipation); 19-25 the leap, stretched, across the gate, the flames flaring; 26 it lands; 27-33 it
+     runs out; 30 the seal 狐 slams in and holds. */
+  function foxFrame(f){ const I = AI(64, 40); agrad(I, 0, 0, 64, 40, ['#1a2238', '#222c48', '#2e3a5a', '#34405e']);
+    for(let q = 0; q < 8; q++) ap(I, (q * 23 + 3) % 64, (q * 11 + 1) % 14, q & 1 ? '#8a90a8' : '#efe4c8');
+    for(let x = 0; x < 64; x++) af(I, x, 25 + Math.round(2 * Math.sin(x * .17) + Math.sin(x * .5)), 1, 9, '#161c30');   // the far wood
+    torii(I); af(I, 0, 34, 64, 6, '#10141e'); af(I, 4, 36, 14, 1, '#2e3850'); af(I, 30, 37, 12, 1, '#2e3850'); af(I, 50, 35, 10, 1, '#262e44');   // the ground, Hiroshige's pale patches
+    const leap = f >= 19 && f <= 25, flare = leap ? Math.round(2 * Math.sin((f - 19) / 6 * 3.14)) : 0;
+    for(let q = 0; q < 3; q++){ const fx0 = [6, 30, 55][q], fy0 = [17, 9, 19][q] + Math.round(Math.sin((f / 40 + q / 3) * 6.283 * 2) * 1.5) - flare; as(I, FLAME[(f + q) & 1], fx0, fy0, false); if(flare > 1) as(I, FLAME[(f + q + 1) & 1], fx0 + (q - 1) * 3, fy0 - 5, false); }
+    let S = null, x = 0, y = 18;
+    if(f >= 4 && f <= 15){ S = FOX[f & 3]; x = -30 + (f - 4) * 3; y = 19 - (f & 1); }
+    else if(f >= 16 && f <= 18){ S = FOXC; x = 4; y = 21 + (f === 17 ? 1 : 0); }
+    else if(leap){ const t = (f - 19) / 6; S = FOX[0]; x = 4 + Math.round(t * 30); y = Math.round(19 - 14 * Math.sin(t * 3.1416)); }
+    else if(f >= 26 && f <= 33){ S = f === 26 ? FOXC : FOX[f & 3]; x = 34 + (f - 26) * 4; y = f === 26 ? 21 : 19 - (f & 1); }
+    if(S) inkL(I, spL(S, 1), x, y, INK, null, 0);
+    if(f >= 30){ const s = f === 30 ? 1 : 0; seal(I, '狐', 2 - s, 2 - s, '#d0102a'); }
+    for(let y2 = 1; y2 < 40; y2 += 2) for(let x2 = 0; x2 < 64; x2++){ const c = I.c[y2 * 64 + x2]; if(c) I.c[y2 * 64 + x2] = dark(c, .1); }
+    return acv(I); }
   /* A brand wrap across two floors (96 x 24, round 5: the FOTO band read best, so the big stores carry it at twice the size): the field
      in three steps, the emblem at 2x in a roundel, the logotype, the kana accent at 12 px, diagonal bars. */
   function wrapBrand(Bd){ const I = AI(96, 24); agrad(I, 0, 0, 96, 24, [Bd.fl, Bd.f, Bd.f, Bd.fd]); af(I, 0, 0, 96, 1, lite(Bd.f, .6));
@@ -405,74 +556,122 @@
   const acv = I => { const c = mk(I.w, I.h), k = c.getContext('2d'); for(let y = 0; y < I.h; y++){ let x = 0; while(x < I.w){ const col = I.c[y * I.w + x]; if(!col){ x++; continue; } let e = x + 1; while(e < I.w && I.c[y * I.w + e] === col) e++; k.fillStyle = col; k.fillRect(x, y, e - x, 1); x = e; } } return c; };
   // a sprite at a whole-number zoom (a camera close-up on the video wall: the wall's own LEDs show the zoom, so these are screen pixels)
   function asz(I, S, x, y, z, over, flip){ for(let r = 0; r < S.h; r++){ const row = S.rows[r]; for(let c = 0; c < row.length; c++){ const ch = row[c]; if(ch === '.') continue; const col = over && over[ch] !== undefined ? over[ch] : S.map[ch]; if(col) af(I, x + (flip ? S.w - 1 - c : c) * z, y + r * z, z, z, col); } } }
-  function wedge(I, x0, y0, a, half, len, col){ for(let r = 2; r < len; r++){ const w = r * half; for(let t = -w; t <= w; t++){ const x = Math.round(x0 + Math.sin(a) * r + Math.cos(a) * t), y = Math.round(y0 + Math.cos(a) * r - Math.sin(a) * t * .2); if(((x + y) & 1) === 0) ap(I, x, y, col); } } }
-  function heart(I, cx0, cy0, r, col){ for(let y = -r; y <= r; y++) for(let x = -r - 2; x <= r + 2; x++){ const X = x / (r * 1.15), Y = -y / r + .25, q = X * X + Y * Y - 1; if(q * q * q - X * X * Y * Y * Y < 0) ap(I, cx0 + x, cy0 + y, col); } }
-  /* Hero 1, the idol (32 frames at 120 ms): 0-23 she dances on a stage under sweeping beams, a heart pulsing behind her, the crowd's
-     glowsticks swaying on the beat; 24-31 the camera cuts to her face, sparkles, a wink at 28-29, her name. */
-  const IDOLARM = [[[3, 10, 2, 5], [9, 10, 2, 5]], [[3, 10, 2, 5], [10, 4, 2, 6]], [[2, 4, 2, 6], [10, 4, 2, 6]], [[2, 4, 2, 6], [9, 10, 2, 5]]];
-  function idolFrame(f){ const I = AI(64, 40);
-    if(f < 20){ const beat = f >> 1, pose = beat & 3, sway = [0, 1, 0, -1][beat & 3];
-      // round 5: waist up for most of the loop, at 2x (the camera close on her), so she reads from down the street
-      agrad(I, 0, 0, 64, 40, ['#2a0a4a', '#3a1060', '#5a1a7a']); wedge(I, 2, -2, .6 + Math.sin(f / 20 * 6.283) * .3, .3, 44, '#8a4ab8'); wedge(I, 61, -2, -.6 - Math.sin(f / 20 * 6.283) * .3, .3, 44, '#8a4ab8');
-      heart(I, 32, 18, beat & 1 ? 17 : 16, beat & 1 ? '#ff3a8a' : '#c82a7a'); heart(I, 32, 18, beat & 1 ? 12 : 11, beat & 1 ? '#ff8ac0' : '#ff5aa8');
-      for(const [x, y, p] of [[6, 6, 0], [58, 9, 1], [9, 30, 1], [55, 28, 0]]) if((beat + p) & 1) sparkle(I, x, y, '#ffffff');
-      const L = AI(14, 17); as(L, SP(IDOL.rows.slice(0, 17), IDOL.map), 0, 0, false); for(const [ax, ay, aw, ah] of IDOLARM[pose]) af(L, ax, ay, aw, ah, SKIN[0]);
-      if(pose === 1 || pose === 2) af(L, 10, 3, 2, 1, '#ffffff'); if(pose >= 2) af(L, 2, 3, 2, 1, '#ffffff');
-      const O = aol(L, OUTL); for(let yy = 0; yy < O.h; yy++) for(let xx = 0; xx < O.w; xx++){ const v = O.c[yy * O.w + xx]; if(v) af(I, 18 + sway + xx * 2, 5 + (pose === 2 ? -1 : 0) + yy * 2, 2, 2, v); }
-      af(I, 0, 37, 64, 3, '#0a0614'); for(let q = 0; q < 11; q++){ const x = 2 + q * 6, sw = ((q + beat) & 1) ? 1 : -1; af(I, x, 36, 3, 2, '#0a0614'); const sc = ['#3ae8ff', '#ff5aa8', '#ffe23a'][q % 3]; ap(I, x + 1 + sw, 33, sc); ap(I, x + 1 + sw, 34, sc); ap(I, x + 1, 35, sc); } }
-    else if(f < 26){ const beat = f >> 1, pose = beat & 3, hop = pose === 2 ? 1 : 0;
-      agrad(I, 0, 0, 64, 32, ['#2a0a4a', '#3a1060', '#5a1a7a']);
-      wedge(I, 4, -2, .55 + Math.sin(f / 24 * 6.283) * .35, .32, 40, '#8a4ab8'); wedge(I, 59, -2, -.55 - Math.sin(f / 24 * 6.283) * .35, .32, 40, '#8a4ab8');
-      heart(I, 32, 14, beat & 1 ? 11 : 10, beat & 1 ? '#ff3a8a' : '#c82a7a'); heart(I, 32, 14, beat & 1 ? 7 : 6, beat & 1 ? '#ff8ac0' : '#ff5aa8');
-      af(I, 0, 30, 64, 6, '#2a1040'); af(I, 0, 30, 64, 1, '#ff8ac0'); for(let q = -4; q <= 4; q++) for(let y = 31; y < 36; y++) ap(I, 32 + q * 7 + Math.round(q * (y - 31) * 1.4), y, '#4a1a6a');
-      const L = AI(14, 26); as(L, IDOL, 0, 0, false); for(const [ax, ay, aw, ah] of IDOLARM[pose]) af(L, ax, ay, aw, ah, SKIN[0]);
-      if(pose === 1 || pose === 2) af(L, 10, 3, 2, 1, '#ffffff'); if(pose >= 2) af(L, 2, 3, 2, 1, '#ffffff');   // the gloves' white cuffs
-      alay(I, aol(L, OUTL), 25, 6 - hop);
-      af(I, 0, 36, 64, 4, '#0a0614'); for(let q = 0; q < 11; q++){ const x = 2 + q * 6, sw = ((q + beat) & 1) ? 1 : -1; af(I, x, 34, 3, 2, '#0a0614'); const sc = ['#3ae8ff', '#ff5aa8', '#ffe23a'][q % 3]; ap(I, x + 1 + sw, 31, sc); ap(I, x + 1 + sw, 32, sc); ap(I, x + 1, 33, sc); } }
-    else { const g = f - 24; agrad(I, 0, 0, 64, 40, ['#ffb0d4', '#ff8ac0', '#ff5aa8']);   // (frames 26-31: g 2-7, the wink at 28-29) burst(I, 32, 20, 20, 10 + (g & 1) * 2, 50, '#ffc2de');
-      asz(I, (g === 4 || g === 5) ? HEADW : HEAD, 16, 2, 2, headMap('pink'));
-      for(const [x, y, p] of [[8, 8, 0], [56, 12, 1], [10, 30, 1], [54, 32, 0]]) if(((g >> 1) + p) & 1) sparkle(I, x, y, '#ffffff');
-      if(g >= 2){ af(I, 34, 28, 30, 12, '#c8205a'); akana(I, 'キララ', 10, 35, 29, '#ffffff', null); } }
-    for(let y = 1; y < 40; y += 2) for(let x = 0; x < 64; x++){ const c = I.c[y * 64 + x]; if(c) I.c[y * 64 + x] = dark(c, .14); }   // the scan rows
-    return acv(I); }
-  /* Hero 2, the mecha launch (36 frames): 0-7 the hangar doors part under a turning beacon; 8-13 the eye flash, close up; 14-25 it climbs
-     out on its thrusters through speed lines; 26-35 the title card (a white flash, the kanji, the logotype). */
-  function mechaFrame(f){ const I = AI(64, 40);
-    if(f < 8){ const red = f & 2; af(I, 0, 0, 64, 40, red ? '#6a2028' : '#3a3a52'); for(let y = 4; y < 40; y += 6) af(I, 0, y, 64, 1, red ? '#8a2a30' : '#4a4a66');
-      const gap = 4 + f * 3; af(I, 32 - gap, 6, gap * 2, 30, '#1a1a2a'); as(I, MECHA, 21, 8, false, { w:'#8a8aa8', W:'#5a5a78', b:'#3a4a8a', B:'#2a2a5a', o:'#a8703a', O:'#8a3a2a', g:'#4a4a5a', v:'#3ae8ff', V:'#e8ffff' });
-      af(I, 0, 6, 32 - gap, 30, '#7a7a90'); af(I, 32 + gap, 6, 32 - gap, 30, '#62627a'); af(I, 32 - gap - 1, 6, 1, 30, '#a8a8c0'); for(let y = 8; y < 36; y += 4){ af(I, 32 - gap - 4, y, 3, 2, '#ffd23a'); af(I, 32 + gap + 1, y, 3, 2, '#ffd23a'); }   // the doors and their hazard marks
-      af(I, 30, 1, 4, 3, red ? '#ff3a2a' : '#5a1a1a'); af(I, 0, 36, 64, 4, '#101018'); }
-    else if(f < 14){ const g = f - 8, lit = g >= 2; agrad(I, 0, 0, 64, 40, ['#1a1a3a', '#24244a', '#3a2a5a']);
-      asz(I, SP(MECHA.rows.slice(0, 9), MECHA.map), -12, 2, 4, lit ? { w:'#c8c8e0', W:'#7a80a0', o:'#ffb02a', O:'#e8401a', g:'#5a5e70' } : { w:'#7a7a98', W:'#4a4a68', o:'#8a5a2a', O:'#7a2a1a', g:'#3a3a4a', v:'#1a3a4a', V:'#1a3a4a' });
-      if(lit){ af(I, 0, 25, 64, 1, g === 2 || g === 3 ? '#e8ffff' : '#3ae8ff'); if(g === 2 || g === 3){ af(I, 0, 24, 64, 1, '#3ae8ff'); af(I, 0, 26, 64, 1, '#3ae8ff'); af(I, 28, 16, 2, 18, '#e8ffff'); } } }
-    else if(f < 26){ const g = f - 14; agrad(I, 0, 0, 64, 40, ['#0a0a2a', '#1a1a4a', '#3a2a6a']); for(let q = 0; q < 16; q++){ const x = (q * 13 + 3) % 64, y = (q * 7 + g * 6) % 46 - 6; af(I, x, y, 1, 5, q & 1 ? '#5a5a9a' : '#8a8ac8'); }
-      const y = 40 - g * 4; as(I, MECHA, 21, y - 28, false); const fl = g & 1; af(I, 27, y, 3, 3 + fl * 2, '#ffe23a'); af(I, 34, y, 3, 3 + fl * 2, '#ffe23a'); af(I, 28, y + 2, 1, 3 + fl * 3, '#ffffff'); af(I, 35, y + 2, 1, 3 + fl * 3, '#ffffff'); }
-    else { const g = f - 26; if(g < 2){ af(I, 0, 0, 64, 40, g ? '#ffe8c0' : '#ffffff'); return acv(I); }
-      agrad(I, 0, 0, 64, 40, ['#5a0a14', '#8a1420', '#3a0610']); burst(I, 32, 18, 24, 6, 48, '#a81a2a'); akana(I, '機甲', 16, 13, 3, '#ffffff', '#1a0408');
-      alogo(I, 'GARVAN', 8, 25, 2, '#ffd23a', '#3a0a00', null); if(g & 2) sparkle(I, 56, 6, '#ffffff'); }
-    for(let y = 1; y < 40; y += 2) for(let x = 0; x < 64; x++){ const c = I.c[y * 64 + x]; if(c) I.c[y * 64 + x] = dark(c, .14); }
-    return acv(I); }
+  /* ------------------------------------------------ the street floor (round 6: Kellan, "the detail of the shops on ground level is not
+     where it should be"; the bar is Snow Onsen's inn fronts). Each kind of shop is a picture of its front (128 x 32, two bays, the shop's
+     height under the awning), drawn from the street photographs: Radio Center's stalls (walls of drawers, cables and packs on hooks,
+     yellow price cards, bare bulbs), the main street's glass fronts (shelves, a wall of televisions, boxes spilling onto the pavement,
+     A-frame boards, nobori), the camera stores' counters, the arcades' crane cabinets and capsule machines, vending machines, a closed
+     shop's shutter. Laid on the face as the sign bands are (faceArt), so up close it is pixel art, far off its own average colour. */
+  const SPI = ['#e0202e', '#2a5ed0', '#f4ecdf', '#1e9658', '#ffc830', '#ff7a1a', '#8a9ab8', '#c8a46a'];
+  function sbox(I, x, y, w, h, c){ af(I, x, y, w, h, c); af(I, x, y, w, 1, lite(c, .35)); af(I, x + w - 1, y + 1, 1, h - 1, dark(c, .3)); if(w > 5 && h > 3) af(I, x + 1, y + (h >> 1), w - 2, 1, dark(c, .15)); }
+  function pcard(I, x, y, red){ af(I, x, y, 4, 3, red ? '#e0202e' : '#ffd23a'); af(I, x + 1, y + 1, 2, 1, red ? '#ffffff' : '#c8141e'); }
+  function tvset(I, x, y, w, h, c){ af(I, x, y, w, h, INK); af(I, x + 1, y + 1, w - 2, h - 2, c); af(I, x + 1, y + 1, w - 2, 1, lite(c, .45)); af(I, x + 2, y + h - 3, 3, 1, lite(c, .3)); ap(I, x + w - 2, y + h - 1, '#4a4656'); }
+  function mull(I, x, y0, y1){ af(I, x, y0, 1, y1 - y0, INK); af(I, x + 1, y0, 1, y1 - y0, '#9a9ab0'); }
+  function bulb(I, x, y){ ap(I, x, y - 1, '#5a4a3a'); ap(I, x, y, '#fff6c8'); ap(I, x - 1, y + 1, '#ffc060'); ap(I, x + 1, y + 1, '#ffc060'); ap(I, x, y + 1, '#ffe8a0'); }
+  // a vending machine (12 x 27): the lit sample window, rows of cans, the buttons, the white lower panel, the slot
+  function vend(I, x, y, c){ af(I, x, y, 12, 27, c); af(I, x, y, 12, 1, lite(c, .45)); af(I, x + 11, y + 1, 1, 26, dark(c, .35)); af(I, x + 1, y + 2, 10, 10, '#f2f8ff');
+    for(let r = 0; r < 3; r++){ af(I, x + 1, y + 5 + r * 3, 10, 1, '#c8d0e0'); for(let q = 0; q < 4; q++) af(I, x + 2 + q * 2 + (q > 1 ? 1 : 0), y + 3 + r * 3, 1, 2, SPI[(r * 3 + q * 5 + (c.length)) % 8]); }
+    for(let q = 0; q < 4; q++) ap(I, x + 2 + q * 2 + (q > 1 ? 1 : 0), y + 12, '#ff5a3a'); af(I, x + 1, y + 14, 10, 7, '#e8e8f0'); af(I, x + 8, y + 15, 2, 3, '#3a3644'); af(I, x + 2, y + 22, 7, 3, INK); af(I, x + 2, y + 22, 7, 1, '#4a4656'); }
+  // a capsule machine (8 x 14, two tiers): the white frame, the picture window, the coin dial, the chute
+  function gacha(I, x, y, c){ for(let t = 0; t < 2; t++){ const ty = y + t * 7; af(I, x, ty, 8, 7, '#ecebf4'); af(I, x + 7, ty, 1, 7, '#a8a6b8'); af(I, x + 1, ty + 1, 6, 3, c); ap(I, x + 2, ty + 2, '#ffffff'); ap(I, x + 5, ty + 2, lite(c, .5)); af(I, x + 3, ty + 5, 2, 1, '#7a7a90'); ap(I, x + 1, ty + 5, INK); } }
+  // a crane-game cabinet (20 x 29): a marquee with bulbs, the lit glass box (the prize heap, the claw), the body and its coin lamp
+  function crane(I, x, y, c, k){ const g = k & 1 ? '#fff4fa' : '#eaf8ff'; af(I, x, y, 20, 29, c); af(I, x, y, 20, 1, lite(c, .5)); af(I, x + 19, y, 1, 29, dark(c, .35)); for(let q = 1; q < 19; q += 3) ap(I, x + q, y + 2, '#fff2b0');
+    af(I, x + 1, y + 5, 18, 14, g); af(I, x + 1, y + 5, 1, 14, '#ffffff'); af(I, x + 1, y + 5, 18, 1, '#c8c0d8');
+    for(let q = 0; q < 6; q++){ const pc = ['#ffd23a', '#ff8ab8', '#8ad0ff', '#a8f07a', '#ffffff', '#ff7a3a'][(q + k) % 6]; af(I, x + 2 + q * 3, y + 15 - (q % 3 === 1 ? 1 : 0), 3, 4, pc); ap(I, x + 3 + q * 3, y + 16, INK); }
+    const cm = x + 6 + (k * 5) % 8; af(I, x + 1, y + 6, 18, 1, '#8a8aa0'); af(I, cm, y + 7, 1, 3, '#5a5a70'); af(I, cm - 1, y + 10, 3, 1, '#3a3a50'); ap(I, cm - 1, y + 11, '#3a3a50'); ap(I, cm + 1, y + 11, '#3a3a50');
+    af(I, x + 1, y + 19, 18, 1, INK); af(I, x + 8, y + 22, 4, 2, '#ffe23a'); af(I, x + 3, y + 25, 6, 2, '#141018'); }
+  function shutter(I, x, y, w, h){ af(I, x, y, w, h, '#5a5e72'); for(let yy = y + 1; yy < y + h; yy += 2) af(I, x, yy, w, 1, '#474a5e'); af(I, x, y, w, 1, '#8a8ea2'); af(I, x, y + h - 2, w, 2, '#33354a'); af(I, x + (w >> 1) - 3, y + h - 4, 6, 1, '#a8acc0'); }
+  function aframe(I, x, y, k){ af(I, x, y, 9, 10, '#2a2230'); af(I, x + 1, y + 1, 7, 7, '#141018'); af(I, x + 2, y + 2, 5, 1, ['#ffd23a', '#ff8aa0', '#7ae0ff'][k % 3]); af(I, x + 2, y + 4, 3, 1, CREAM); af(I, x + 2, y + 6, 4, 1, '#ffd23a'); ap(I, x + 1, y + 10, '#2a2230'); ap(I, x + 7, y + 10, '#2a2230'); }
+  function nobori(I, x, y, c, ink){ af(I, x, y, 1, 32 - y, '#7a7a90'); af(I, x, y, 6, 1, '#7a7a90'); af(I, x + 1, y + 1, 5, 19, c); af(I, x + 5, y + 1, 1, 19, dark(c, .25)); for(let q = 0; q < 4; q++) af(I, x + 2, y + 3 + q * 4, 2, 3, ink); }
+  function shelfRow(I, x0, x1, y, seed, cols){ af(I, x0, y, x1 - x0, 1, '#6a6e84'); for(let x = x0 + 1, q = 0; x < x1 - 2; q++){ const r = H1(seed + q * 1.37), w = 2 + Math.floor(r * 4), h = 2 + Math.floor(H1(seed + q * 2.1) * 4); if(x + w > x1 - 1) break; sbox(I, x, y - h, w, h, cols[Math.floor(r * 97) % cols.length]); x += w + (r < .2 ? 2 : 1); } }
+  const SHOPN = 7, SH_GLASS = 0, SH_CAM = 1, SH_STALL = 2, SH_ARC = 3, SH_SHUT = 4, SH_GACHA = 5, SH_KONB = 6;
+  /* Round 7 (Kellan: "a pass on the convenience stores and shops on the retail floor"; "different layers with products on shelves visible
+     through the windows"): every street-floor front is four layers, 160 x 32 (the 128-texel front with 16 spare each side for the slide):
+       0 the back wall (fridges, a TV wall, a drawer wall), darkest: the light falls off away from the glass; 1 the rear shelves; 2 the front:
+       counters, racks, a clerk, a customer; 3 the glass: mullions, sill, sparse glints, rain running down it (no parallax).
+     Near by, interior() draws them back to front, each slid by its depth x how obliquely the window is seen, in whole texels (Kellan's
+     "layered parallax interiors", the 2.5D cousin of interior mapping): riding past, the room slides behind its frame. Mid range: the
+     layers pre-composited (faceArt); far: the average colour. Two variants per kind: a second product palette and the layout mirrored
+     (the keeper, the door and the counter on the other hand), so neighbours differ. The konbini (an invented chain, three liveries) is new:
+     a white-lit interior, aisles receding, a magazine rack at the window, the ATM, the till and its clerk, an umbrella stand at the door. */
+  const PALS = [['#f4f4f8', '#e0202e', '#2a5ed0', '#ffc830', '#3a3a4a', '#1e9658'], ['#ff7a1a', '#c8c8d8', '#ff5aa8', '#3ad8ff', '#f4f4f8', '#8a9ab8']];
+  const LW0 = 160;
+  function flipI(I){ for(let y = 0; y < I.h; y++){ const r = I.c.slice(y * I.w, y * I.w + I.w).reverse(); for(let x = 0; x < I.w; x++) I.c[y * I.w + x] = r[x]; } return I; }
+  function rainGlass(I, x0, x1, sd){ for(let q = 0; q < (x1 - x0) / 9; q++){ const x = x0 + 1 + Math.floor(H1(sd + q * 1.7) * (x1 - x0 - 2)), y = 3 + Math.floor(H1(sd + q * 2.9) * 18), l = 3 + Math.floor(H1(sd + q * 4.1) * 5);
+      af(I, x, y, 1, l, '#9aa8cc'); ap(I, x, y + l, '#eef2ff'); } }   // rain running down the glass, each streak a drop at its foot
+  function glint(I, x0, x1){ for(let x = x0 + 3, y = 4; x < x1 - 2 && y < 26; x += 1, y += 2) if((x + y) % 3) ap(I, x, y, '#f4f8ff'); }
+  function glassL(I, mulls, door, sd){ for(const x of mulls) mull(I, x, 2, 29); af(I, 0, 29, LW0, 3, '#3a3446'); af(I, 0, 29, LW0, 1, '#6a6478'); af(I, 0, 1, LW0, 1, '#4a4458');
+    for(let k = 0; k + 1 < mulls.length; k++){ const a = mulls[k], b = mulls[k + 1]; if(door && a === door[0]) continue; if((k & 1) === 0) glint(I, a, b); rainGlass(I, a + 1, b, sd + k * 9.1); } }
+  function person(I, x, y, coat, skin){ af(I, x + 1, y, 3, 1, '#1a1018'); af(I, x + 1, y + 1, 3, 2, skin || '#d8a888'); af(I, x, y + 3, 5, 8, coat); af(I, x, y + 3, 1, 8, lite(coat, .25)); }
+  function shopLayers(v, vr){ const L0 = AI(LW0, 32), L1 = AI(LW0, 32), L2 = AI(LW0, 32), L3 = AI(LW0, 32), P = PALS[vr], sd = v * 13.7 + vr * 5.1;
+    if(v === SH_KONB){ af(L0, 0, 0, LW0, 32, '#c8d0e2'); af(L0, 0, 0, LW0, 1, '#ffffff'); for(let x = 0; x < LW0; x += 10){ af(L0, x, 3, 10, 18, '#8a94ae'); af(L0, x + 1, 4, 8, 16, '#dce6f6'); for(const y of [6, 11, 16]) for(let xx = 1; xx < 9; xx += 2) af(L0, x + xx, y, 1, 3, P[(x / 10 + xx + y) % 6]); }   // the drinks fridges along the back
+      af(L0, 0, 21, LW0, 11, '#b8c0d4');
+      for(const [x0, x1] of [[2, 40], [54, 92], [106, 152]]){ af(L1, x0, 9, x1 - x0, 2, P[(x0 >> 3) % 6]); af(L1, x0, 11, x1 - x0, 15, '#e8ecf6'); for(const y of [15, 20, 25]) shelfRow(L1, x0, x1, y, sd + x0 + y, P); af(L1, x0, 11, 1, 15, '#7a8098'); af(L1, x1 - 1, 11, 1, 15, '#7a8098'); }   // the gondolas, aisles between them
+      af(L2, 18, 22, 52, 8, '#5a6078'); for(let x = 19; x < 69; x += 2) af(L2, x, 23, 1, 6, P[(x * 7) % 6]); af(L2, 18, 22, 52, 1, '#8a90a8');   // the magazine rack at the window
+      af(L2, 86, 20, 26, 10, '#e8e8f0'); af(L2, 86, 20, 26, 1, '#ffffff'); af(L2, 90, 17, 6, 3, '#2a2a3a'); af(L2, 91, 18, 4, 1, '#3ad8ff'); person(L2, 99, 9, '#1e9658');   // the till and its clerk (the chain's smock)
+      af(L2, 120, 10, 12, 20, '#8a90a8'); af(L2, 121, 11, 10, 1, '#c8ccd8'); af(L2, 122, 13, 8, 5, '#2a6aa0'); af(L2, 123, 14, 6, 1, '#7ad8ff'); af(L2, 123, 20, 6, 4, '#4a5068');   // the ATM
+      person(L2, 74, 12, '#26222e', '#c8987a');   // a customer at the rack
+      glassL(L3, [16, 48, 72, 88, 112, 144], [72, 88], sd); af(L3, 72, 2, 1, 27, '#5a5e72'); af(L3, 88, 2, 1, 27, '#5a5e72');
+      af(L3, 90, 23, 6, 7, '#4a4e62'); for(const x of [91, 93, 95]){ af(L3, x, 16, 1, 7, '#c8d4f0'); ap(L3, x, 15, '#eef2ff'); } }   // the umbrella stand by the door
+    else if(v === SH_GLASS){ af(L0, 0, 0, LW0, 32, '#aab6d0'); af(L0, 0, 0, LW0, 1, '#e8eeff'); for(let r = 0; r < 2; r++) for(let q = 0; q < 11; q++) tvset(L0, q * 15, 3 + r * 9, 14, 8, ['#7aa8ff', '#9a8aff', '#6ad0e8', '#c8d8ff', '#ff9ab8', '#8ae0a8'][(r * 4 + q * 3 + vr) % 6]);
+      af(L0, 0, 21, LW0, 11, '#8a94ae');
+      for(const [x0, x1] of [[0, 34], [52, 84], [112, 150]]) for(const y of [11, 17, 23]) shelfRow(L1, x0, x1, y, sd + x0 * 3 + y, P);
+      af(L2, 64, 21, 62, 1, '#6a6e84'); sbox(L2, 66, 21, 14, 8, '#c8a46a'); sbox(L2, 81, 23, 12, 6, '#d8d0c0'); sbox(L2, 94, 19, 10, 10, P[2]); sbox(L2, 105, 24, 9, 5, '#c8a46a'); pcard(L2, 70, 23, true); pcard(L2, 84, 25, false); pcard(L2, 97, 22, true);
+      person(L2, 42, 13, '#2a2436'); person(L2, 52, 15, '#3a2a40', '#c8987a');
+      glassL(L3, [16, 38, 58, 80, 142], [38, 58], sd); }
+    else if(v === SH_CAM){ af(L0, 0, 0, LW0, 32, '#d8c094'); for(const y of [9, 13]) for(let x = 2; x < LW0; x += 4){ af(L0, x, y - 3, 2, 3, x % 12 < 4 ? '#c8c0a8' : INK); ap(L0, x, y - 3, '#8a8a9a'); } af(L0, 0, 9, LW0, 1, '#8a6a4a'); af(L0, 0, 13, LW0, 1, '#8a6a4a');
+      for(let x = 0; x < LW0; x += 20){ af(L1, x + 2, 14, 14, 2, '#6a5040'); for(let q = 0; q < 3; q++) af(L1, x + 3 + q * 4, 12, 3, 2, q & 1 ? INK : '#5a5a6a'); }
+      for(const x0 of [19, 49, 86, 116]){ af(L2, x0, 17, 26, 11, INK); af(L2, x0 + 1, 18, 24, 9, '#cfe6ea'); af(L2, x0 + 1, 18, 24, 1, '#ffffff'); for(let q = 0; q < 4; q++){ const cx0 = x0 + 2 + q * 6; af(L2, cx0, 22, 5, 3, INK); af(L2, cx0 + 1, 21, 2, 1, INK); ap(L2, cx0 + 2, 23, '#8aa8c8'); } pcard(L2, x0 + 20, 25, true); }
+      person(L2, 78, 8, '#e8e8f0');
+      af(L3, 0, 2, LW0, 3, '#e0202e'); for(let x = 2; x < LW0; x += 6) af(L3, x, 3, 3, 1, CREAM); glassL(L3, [16, 47, 80, 114, 142], null, sd); af(L3, 0, 28, LW0, 4, '#4a3426'); af(L3, 0, 28, LW0, 1, '#8a6a4a'); }
+    else if(v === SH_STALL){ af(L0, 0, 0, LW0, 32, '#2a1c18'); const RC = ['#c84a3a', '#3a6ab8', '#e8dcc0', '#3a8a5a', '#d8b040'];
+      for(let r = 0; r < 7; r++){ const c = RC[(r + vr * 2) % 5]; for(let q = 0; q < 40; q++){ af(L0, 1 + q * 4, 4 + r * 3, 3, 2, c); ap(L0, 2 + q * 4, 5 + r * 3, dark(c, .45)); } }   // the drawer wall, one colour per row (it reads as bands at mid range, not confetti)
+      for(let q = 0; q < 12; q++){ const x = 4 + q * 13, c = ['#3ab86a', '#ffd23a', '#e8e8f0', '#ff8a3a'][(q + vr) % 4]; af(L1, x + 3, 2, 1, 3, '#8a8aa0'); af(L1, x, 5, 7, 11 + (q % 3) * 2, c); af(L1, x + 1, 6, 5, 3, '#ffffff'); af(L1, x + 2, 7, 3, 1, '#e0202e'); af(L1, x + 6, 6, 1, 9, dark(c, .3)); }   // packs on hooks
+      af(L2, 0, 25, LW0, 3, '#7a5434'); af(L2, 0, 25, LW0, 1, '#b8885a'); for(let q = 0; q < 18; q++) af(L2, 3 + q * 9, 23, 6, 2, ['#8a8aa0', '#c8a040', '#5a5a6a'][q % 3]);
+      for(let q = 0; q < 4; q++){ const x = 40 + q * 24; for(let k = 0; k < 10; k++){ const t = k / 10 * 6.283; ap(L2, x + Math.round(Math.cos(t) * 3), 21 + Math.round(Math.sin(t) * 2), INK); } }   // coils of cable
+      person(L2, 126, 11, '#3a2a44', '#c8987a'); for(const [x, y, rd] of [[50, 17, false], [88, 13, true], [110, 19, false], [30, 20, true]]) pcard(L2, x, y, rd);
+      for(const x of [22, 54, 86, 118, 150]) bulb(L3, x, 2); af(L3, 0, 1, LW0, 1, '#5a4a3a'); af(L3, 0, 28, LW0, 4, '#5a4a40'); af(L3, 0, 28, LW0, 1, '#8a7a68'); }
+    else if(v === SH_ARC){ af(L0, 0, 0, LW0, 32, '#24103a'); af(L0, 0, 4, LW0, 1, '#ff4aa0'); af(L0, 0, 26, LW0, 1, '#3ad8ff');
+      for(let q = 0; q < 7; q++) crane(L1, 2 + q * 22, 1, ['#ff6aa8', '#f4e8f0', '#6ad8f0', '#ffd23a'][(q + vr) % 4], q);
+      for(let q = 0; q < 5; q++) gacha(L2, 104 + q * 9, 16, ['#ff5a8a', '#5ad0ff', '#ffd23a', '#8ae070', '#c08aff'][(q + vr) % 5]); person(L2, 60, 16, '#1a1426', '#c8987a');
+      af(L3, 0, 30, LW0, 2, '#1a0e24'); af(L3, 0, 30, LW0, 1, '#ff4aa0'); for(const x of [16, 144]) af(L3, x, 0, 2, 30, '#3a2450'); }
+    else if(v === SH_GACHA){ af(L0, 0, 0, LW0, 32, '#d0c8e0'); af(L0, 0, 0, LW0, 1, '#ffffff'); for(let x = 6; x < LW0; x += 26){ af(L0, x, 3, 10, 12, P[(x >> 2) % 6]); af(L0, x + 1, 4, 8, 10, lite(P[(x >> 2) % 6], .4)); }
+      for(let q = 0; q < 17; q++) gacha(L1, 1 + q * 9, 3, ['#ff5a8a', '#5ad0ff', '#ffd23a', '#8ae070', '#c08aff', '#ff8a3a'][(q * 2 + vr) % 6]);
+      for(let q = 0; q < 11; q++) gacha(L2, 18 + q * 9, 16, ['#ff5a8a', '#5ad0ff', '#ffd23a', '#8ae070', '#c08aff', '#ff8a3a'][(q * 2 + 3 + vr) % 6]); vend(L2, 120, 2, P[1]); vend(L2, 133, 2, '#1e9658');
+      glassL(L3, [16, 60, 104, 144], null, sd); }
+    else { af(L0, 0, 0, LW0, 32, '#2a2832'); shutter(L0, 17, 1, 60, 29); af(L0, 22, 3, 18, 4, '#e8e4d8'); af(L0, 23, 4, 16, 2, '#a8a4a0');
+      vend(L0, 82, 3, P[1]); vend(L0, 95, 3, P[2]); vend(L0, 108, 3, '#ececf0'); gacha(L0, 123, 16, '#ff5a8a'); gacha(L0, 132, 16, '#5ad0ff'); af(L0, 0, 30, LW0, 2, '#3a3846'); af(L0, 79, 2, 2, 28, '#3a3644'); }
+    const Ls = [L0, L1, L2, L3]; if(vr) Ls.forEach(flipI);
+    const C = AI(128, 32); for(let y = 0; y < 32; y++) for(let x = 0; x < 128; x++){ for(let k = 3; k >= 0; k--){ const c = Ls[k].c[y * LW0 + x + 16]; if(c){ C.c[y * 128 + x] = c; break; } } }
+    return { C, Ls, flat:v === SH_SHUT }; }
+  function shopArt(v){ return acomp(shopLayers(v, 0).C); }
+  // the konbini's three invented liveries (fascia stripes): green over orange over red; blue on white; yellow and red
+  const KONB = [['#1e9658', '#ff7a1a', '#e0202e'], ['#2a5ed0', '#f4f6ff', '#2a5ed0'], ['#ffd23a', '#e0202e', '#ffd23a']];
+  const SHOPK = { denki:[SH_GLASS], camera:[SH_CAM], radio:[SH_STALL], arcade:[SH_ARC], pencil:[SH_GACHA, SH_SHUT, SH_GLASS, SH_STALL, SH_KONB, SH_KONB], plain:[SH_SHUT, SH_GACHA, SH_STALL, SH_KONB, SH_KONB] };
+  // each shop's light on the pavement in front of it (added light, near only)
+  const SHOPL = ['#a8c0ff', '#ffc070', '#ffa040', '#ff60c0', '#7090ff', '#d0c8ff', '#e4f0ff'];
   /* The arcades' attract screen (32 x 20, 16 frames): a star field scrolling, the fighter weaving, a row of invaders marching, a shot, a hit. */
   function attractFrame(f){ const I = AI(32, 20); af(I, 0, 0, 32, 20, '#06061a'); for(let q = 0; q < 12; q++) ap(I, (q * 11 + 2) % 32, (q * 7 + f * (1 + (q & 1))) % 20, q & 1 ? '#5a5a9a' : '#ffffff');
     const fx = 13 + Math.round(Math.sin(f / 16 * 6.283) * 8); for(let q = 0; q < 4; q++){ if(f >= 12 && q === 2) continue; as(I, FOE, 2 + q * 8 + (f & 4 ? 1 : 0), 2, false); }
     if(f >= 12 && f < 16){ const r = f - 11; for(let a = 0; a < 8; a++) ap(I, 21 + Math.round(Math.cos(a * .785) * r), 4 + Math.round(Math.sin(a * .785) * r), a & 1 ? '#ffe23a' : '#ff7a1a'); }
     if(f >= 6 && f < 12) af(I, fx + 4, 18 - (f - 6) * 2.4, 1, 2, '#ffffff');
     as(I, SHIP, fx, 11, false); for(let x = 0; x < 32; x += 2) ap(I, x, 19, '#2a2a5a'); return acv(I); }
-  const ART = { ban:[], bb:[], po:[], band:[], wrap:[], plate:[], idol:[], mech:[], att:[] };
+  const ART = { ban:[], bb:[], po:[], band:[], wrap:[], plate:[], shop:[], crane:[], fox:[], att:[] };
   // the stepped build (one piece a step, research/sundown-craft/first60.md); after the text atlas, which builds the glyph scratch canvas
   /* One atlas for everything (round 4 perf): ~300 small canvases drawn from per frame thrashed the GPU canvas's image cache (frames of
      80-110 ms on desktop); every level of every piece and every screen frame now lives in one 1024-wide texture, packed in shelves. */
   let AT = null;
   const fobj = c => ({ c, x:0, y:0, w:c.width, h:c.height });
-  function* artSteps(){ const T = { ban:[], bb:[], po:[], band:[], wrap:[], plate:[], idol:[], mech:[], att:[] };
+  function* artSteps(){ const T = { ban:[], bb:[], po:[], band:[], wrap:[], plate:[], shop:[], crane:[], fox:[], att:[] };
     for(let v = 0; v < BAN.length; v++){ T.ban[v] = banner(v); yield; }
     for(let v = 0; v < NBB + BRANDS.length; v++){ T.bb[v] = billboard(v); yield; }
     for(let v = 0; v < NPO + BRANDS.length; v++){ T.po[v] = poster(v); yield; }
     for(let v = 0; v < BRANDS.length; v++){ T.band[v] = band(v); yield; }
     for(let v = 0; v < 2; v++){ T.wrap[v] = wrap(v); yield; } for(let v = 0; v < BRANDS.length; v++){ T.wrap[2 + v] = wrapBrand(BRANDS[v]); yield; }
     for(let ic = 0; ic < ICON.length; ic++) for(let p = 0; p < PAN.length; p++){ T.plate[ic * PAN.length + p] = plateArt(ic, p); yield; }
-    for(let f = 0; f < 32; f++){ T.idol[f] = fobj(idolFrame(f)); yield; } for(let f = 0; f < 36; f++){ T.mech[f] = fobj(mechaFrame(f)); yield; } for(let f = 0; f < 16; f++){ T.att[f] = fobj(attractFrame(f)); yield; }
-    const all = []; for(const k of ['ban', 'bb', 'po', 'band', 'wrap', 'plate']) for(const A of T[k]) all.push(...A.L); for(const k of ['idol', 'mech', 'att']) all.push(...T[k]);
+    T.shopv = []; T.int = []; for(let v = 0; v < SHOPN; v++){ T.shopv[v] = []; T.int[v] = []; for(let r = 0; r < 2; r++){ const S = shopLayers(v, r); T.shopv[v][r] = acomp(S.C); yield; T.int[v][r] = S.flat ? null : []; if(!S.flat) for(const Lq of S.Ls){ T.int[v][r].push(acomp(Lq)); yield; } } T.shop[v] = T.shopv[v][0]; }
+    for(let f = 0; f < 40; f++){ T.crane[f] = fobj(craneFrame(f)); yield; } for(let f = 0; f < 40; f++){ T.fox[f] = fobj(foxFrame(f)); yield; } for(let f = 0; f < 16; f++){ T.att[f] = fobj(attractFrame(f)); yield; }
+    const all = []; for(const k of ['ban', 'bb', 'po', 'band', 'wrap', 'plate', 'shop']) for(const A of T[k]) all.push(...A.L); for(let v = 0; v < SHOPN; v++){ all.push(...T.shopv[v][1].L); for(const Q of T.int[v]) if(Q) for(const A of Q) all.push(...A.L); } for(const k of ['crane', 'fox', 'att']) all.push(...T[k]);
     all.sort((a, b) => b.h - a.h || b.w - a.w); let x = 0, y = 0, rh = 0; for(const o of all){ if(x + o.w > 1024){ x = 0; y += rh + 1; rh = 0; } o.x = x; o.y = y; x += o.w + 1; if(o.h > rh) rh = o.h; } yield;
     const at = mk(1024, y + rh + 1), g = at.getContext('2d'); yield;
     for(let i = 0; i < all.length; i += 24){ for(let q = i; q < Math.min(all.length, i + 24); q++){ const o = all[q]; g.drawImage(o.c, o.x, o.y); } yield; }
@@ -510,9 +709,26 @@
     for(let c = B0 + (z ? 200 : 110); c < B1 - 140; c += 230 + Math.round(H1(c * .37 + 1.1) * 70)){ if(L.BR >= 0 && c + CW > L.BR - 70 && c < L.BR + BD + 60) continue; if(G0 !== undefined && G0 > c - 6 && G0 < c + CW + 6) continue; if(clear(c - 12, c + CW + 12)) L.X.push(c); }
     for(let q = 0; q < 2; q++) fillRow(L, q ? 1 : -1, L.rows[q]);
     // the hero screens: hung off the corner of the first building past each crossing, facing you across it (the references' crossing
-    // screens); on the left (the HUD's distance board sits top right), idol and mecha alternating; a building too low passes it right
+    // screens); on the left (the HUD's distance board sits top right), round 6: the foxfire screen; a building too low passes it right
     L.X.forEach((c, q) => { if(!(q & 1)) return; for(const side of [-1, 1]){ const B = bAt(L, side, c + CW); if(B && B.b0 === c + CW && B.nF0 >= 4){ B.hero = q & 1; B.depth = 1.9; break; } } });
-    if(LAYS.size > 40) LAYS.clear(); LAYS.set(key, L); return L; }
+    deck(L); if(LAYS.size > 40) LAYS.clear(); LAYS.set(key, L); return L; }
+  /* Round 7 (Kellan: "the signs repeat too frequently"): a shuffled deck per visit for each kind of sign, dealt down the street in order of
+     position on both sides at once. A card is skipped while it was dealt to one of the last few buildings or hangs on a building across the
+     street within 8 segments, so no banner faces itself and the whole set comes round before any repeats. Shop fronts alternate their two
+     variants per kind; the konbini livery rotates. Text blades: every third steps its characters on in turn (a neon sign lighting stroke by
+     stroke, then a blink); others get chasing bulbs. */
+  function deck(L){ const all = L.rows[0].concat(L.rows[1]).sort((a, b) => a.b0 - b.b0); let sd = L.B0 * .0173 + 3.3;
+    const mkD = n => { const d = []; for(let i = 0; i < n; i++) d.push(i); for(let i = n - 1; i > 0; i--){ const j = Math.floor(H1(sd += 1.37) * (i + 1)), t = d[i]; d[i] = d[j]; d[j] = t; } return d; };
+    const D = n => ({ n, d:[], p:0, rec:[], k:Math.max(0, Math.min(n - 2, 6)) });
+    const pick = (Dk, ban) => { for(let t = 0; t < Dk.n * 3; t++){ if(Dk.p >= Dk.d.length){ Dk.d = mkD(Dk.n); Dk.p = 0; } const c = Dk.d[Dk.p++]; if(Dk.rec.indexOf(c) < 0 && ban.indexOf(c) < 0){ Dk.rec.push(c); if(Dk.rec.length > Dk.k) Dk.rec.shift(); return c; } } return Dk.d[Math.max(0, Dk.p - 1)]; };
+    const dBan = D(BAN.length), dBB = D(NBB), dPO = D(NPO), cnt = {}; let kb = Math.floor(H1(sd) * 3), tb = 0;
+    const across = (B, f) => { const o = []; for(const C of L.rows[B.side < 0 ? 1 : 0]) if(C.b0 < B.b0 + B.len + 8 && C.b0 + C.len > B.b0 - 8) f(C, o); return o; };
+    for(const B of all){
+      for(const b of B.bl){ if(b.ban !== undefined && !b.plate) b.ban = pick(dBan, across(B, (C, o) => { for(const c of C.bl) if(c.ban !== undefined) o.push(c.ban); }));
+        else if(!b.plate && b.word && B.k !== 'arcade'){ b.seq = (tb % 3) === 0; if(!b.seq && (tb % 3) === 1) b.chase = true; tb++; } }
+      if(B.rb && B.rb.bb < NBB) B.rb.bb = pick(dBB, across(B, (C, o) => { if(C.rb) o.push(C.rb.bb); }));
+      if(B.ew && B.ew.po < NPO) B.ew.po = pick(dPO, across(B, (C, o) => { if(C.ew) o.push(C.ew.po); }));
+      B.svv = (cnt[B.sv] = (cnt[B.sv] || 0) + 1) & 1; if(B.sv === SH_KONB) B.kb = kb++ % 3; } }
   // the end of the gap that segment i is in (cross street or railway corridor), or -1
   function gapEnd(L, i){ for(const c of L.X) if(i >= c && i < c + CW) return c + CW; if(L.BR >= 0 && i >= L.BR - 3 && i < L.BR + BD + 3) return L.BR + BD + 3; return -1; }
   function nextGap(L, i){ let g = Infinity; for(const c of L.X) if(c > i && c < g) g = c; if(L.BR >= 0 && L.BR - 3 > i && L.BR - 3 < g) g = L.BR - 3; return g; }
@@ -535,10 +751,11 @@
       if(k === 'denki') t = f === nF - 1 && hs(11) < .6 ? 'W' : (f & 1) && f > 2 ? 'W' : 'S'; else if(k === 'camera') t = f === 0 ? 'T' : f < 3 ? 'S' : 'W'; else if(k === 'arcade') t = 'N'; else if(k === 'plain') t = f === 1 && hs(12) < .7 ? 'S' : 'W';
       B.fl.push(t); let p = (p0 + f * 3) % PAN.length; for(let q = 0; q < 8 && !okP(p); q++) p = (p + 1) % PAN.length; B.pn.push(p); B.wd.push(BW[(w0 + f * 5) % BW.length]); }
     if(k === 'camera') B.wd[1] = 'カメラ';
+    B.sv = SHOPK[k][Math.floor(hs(30) * SHOPK[k].length)];   // round 6: the street floor's picture
     // a key-art wrap across floors 1-2 on most big stores (the references' two-storey anime prints)
     if(((k === 'denki' && hs(19) < .85) || k === 'camera') && nF >= 4){ B.fl[1] = 'K'; B.fl[2] = 'k'; if(k === 'camera' || hs(25) < .55) B.wv = 2 + B.br; }
     // blades: the big corner blade (several floors) on the stores; plate columns on the narrow and old buildings
-    /* round 5, three tiers: the character banners are the big verticals (.7 wide, about three storeys, the girl filling the box); big type
+    /* round 5, three tiers: the big banners are the verticals (.7 wide, about three storeys; round 6: a motif in the cards' language); big type
        blocks (two huge characters, the old 計測 / 部品 kind) on some corners; the icon plates only on the old radio building, sparse */
     const blade = (z, f0, f1, word, p, chase, txt) => B.bl.push({ z, f0, f1, word, p, chase:!!chase, pr:txt ? .46 : .7, ban:txt ? undefined : Math.floor(hs(18 + B.bl.length) * BAN.length), off:.04 + hs(21 + B.bl.length) * .14 });
     const BIGW = ['計測', '部品', '電気', '無線', '激安', '特価', '電子', '秋葉'];
@@ -610,37 +827,26 @@
       if(B.rb && hv >= B.h) roofBoard(B, j, n, now); }
     CAT = 'blade'; blades(B, j, n, now); CAT = 'end';
     if(j === B.b0) endWall(B, x, y, uw, now); CAT = 'o'; }
-  // the street floor: a shop open to the pavement (goods, a wall of televisions, price cards), the arcade's crane cabinets, or the old
-  // radio building's parts stalls; the awning sign above. World-anchored bays (B.P segments) so nothing repeats per segment near by.
-  function ground(B, j, n, fpx, wpx, now){ if(AKX.includes('gnd')) return; const gp = fpx * G / FH, S = B.S, P = B.P, rel = j - B.b0, ba = Math.floor(rel / P), bz = Math.floor((rel + n - 1) / P), mid = gp >= 12, near = gp >= 22 && n === 1;
-    const I = ON ? B.ic : '#0c0a12';
-    if(gp < 3){ FQ(0, .56, L1(B.gr === 'crane' ? '#ff9ad8' : B.ic)); FQ(.56, G, F(S[0])); return; }
-    if(B.gr === 'crane'){ // crane-game cabinets, one per bay: a pale or pink frame, the lit glass box of prizes, the claw, a marquee
-      FQ(0, G, F(S[0]));
-      for(let bb = ba; bb <= bz; bb++){ const ta = (B.b0 + bb * P + .25 - j) / n, tb = (B.b0 + bb * P + P - .25 - j) / n; if(tb <= 0 || ta >= 1) continue; const a = Math.max(0, ta), e = Math.min(1, tb), hb = H1(B.sd + bb * 1.7), fr = hb < .4 ? '#f4e8f0' : hb < .75 ? '#ff6aa8' : '#6ad8f0';
-        FQ(0, .2, L1(fr), a, e); FQ(.2, .5, ON ? fc(hb < .5 ? '#fff4fa' : '#e8f8ff', FF * .5) : F('#141220'), a, e); FQ(.5, .58, L1(hb < .5 ? '#ff3a8a' : '#2a9ad8'), a, e);
-        if(mid){ const pc = ['#ffd23a', '#ff8ab8', '#8ad0ff', '#a8f07a'];   // the prize heap: three soft lumps on the floor of the box
-          for(let q = 0; q < 3; q++){ const u0 = ta + (tb - ta) * (.12 + q * .27), u1 = u0 + (tb - ta) * .22; if(u1 <= 0 || u0 >= 1) continue; FQ(.2, .27 + H1(bb * 3.1 + q) * .05, ON ? fc(pc[(bb + q) & 3], FF * .5) : F('#1c1a26'), Math.max(0, u0), Math.min(1, u1)); }
-          const cm = ta + (tb - ta) * (.45 + .1 * Math.sin(now / 900 + bb)), cw = (tb - ta) * .08; if(cm > 0 && cm < 1) FQ(.4, .5, F('#3a3644'), Math.max(0, cm - cw), Math.min(1, cm + cw)); }   // the claw on its gantry
-        if(near){ FQ(.2, .5, F('#d8d0e0'), a, Math.min(1, a + .06)); FQ(.07, .12, L1('#ffe23a'), ta + (tb - ta) * .4, ta + (tb - ta) * .6); } }   // the glass's lit edge; the coin slot's lamp
-      FQ(.58, G, L1('#ff3a7a')); if(mid) awningInk(B, j, n, .6, G - .02); return; }
-    FQ(0, .56, F(I)); FQ(.56, G, L1(B.aw[0]));
-    if(mid) awningInk(B, j, n, .59, G - .02);
-    if(!mid){ FQ(0, .16, F(ON ? '#5a4a58' : '#141018')); return; }
-    for(let bb = ba; bb <= bz; bb++){ const z0 = B.b0 + bb * P, ta = (z0 - j) / n, tb = (z0 + P - j) / n; if(tb <= 0 || ta >= 1) continue; const hb = H1(B.sd * 3.3 + bb * 2.9), sub = (u0, u1) => [Math.max(0, ta + (tb - ta) * u0), Math.min(1, ta + (tb - ta) * u1)];
-      if(B.gr === 'stall'){ // a parts stall: a dark partition, warm bulb light, drawers of parts in rows, coils of wire
-        let [a, e] = sub(0, .1); if(e > a) FQ(0, .56, F(B.S[0]), a, e); [a, e] = sub(.15, .9); if(e > a){ FQ(.28, .48, F(ON ? '#b8884a' : '#1a1418'), a, e); if(near || gp >= 12) for(let r = 0; r < 3; r++) FQ(.3 + r * .06, .32 + r * .06, F('#5a3a22'), a, e); FQ(.1, .22, F(ON ? ['#3a5a8a', '#8a3a3a', '#3a7a4a'][Math.floor(hb * 3)] : '#141018'), a, e); } continue; }
-      if(B.tv && (bb & 1) === 0 && gp >= 18){ // a wall of televisions: two rows of screens, each its own blue (no flicker)
-        for(let r = 0; r < 2; r++) for(let q = 0; q < 3; q++){ const [a, e] = sub(.08 + q * .3, .3 + q * .3); if(e <= a) continue; const sc = ['#7aa8ff', '#9a8aff', '#6ad0e8', '#c8d8ff'][Math.floor(H1(bb * 7.3 + r * 3 + q) * 4)];
-          FQ(.2 + r * .16, .33 + r * .16, F('#16141e'), a, e); const [a2, e2] = sub(.1 + q * .3, .28 + q * .3); if(e2 > a2) FQ(.215 + r * .16, .315 + r * .16, ON ? fc(sc, FF * .4) : F('#101018'), a2, e2); } continue; }
-      // stacked boxes (a pale lit top edge), price cards on them, red and yellow
-      for(let q = 0; q < (gp >= 20 ? 2 : 1); q++){ const [a, e] = sub(.08 + q * .46, .46 + q * .46); if(e <= a) continue; const h1 = .14 + H1(bb * 5.1 + q) * .16, bc = ['#c8b48a', '#8a9ab8', '#d8d0c0', '#b86a4a'][Math.floor(H1(bb * 1.9 + q) * 4)];
-        FQ(0, h1, F(ON ? bc : '#1a161e'), a, e); FQ(h1 - .02, h1, F(ON ? '#fffaf0' : '#24202a'), a, e);
-        const [c0, c1] = sub(.18 + q * .46, .32 + q * .46); if(c1 > c0) FQ(h1 + .02, h1 + .09, L1(q ? '#ffe23a' : '#ff2a3a'), c0, c1);
-        if(near && c1 > c0) FQ(h1 + .045, h1 + .06, F(q ? '#c8141e' : '#ffffff'), c0 + (c1 - c0) * .2, c1 - (c1 - c0) * .2); }
-      if(near && hb < .3){ const [a, e] = sub(.6, .72); if(e > a){ FQ(0, .3, F('#1a1626'), a, e); FQ(.3, .36, F('#d8a888'), a + (e - a) * .2, e - (e - a) * .2); FQ(.36, .38, F('#141018'), a, e); } }   // a customer
-      if(near){ const [a, e] = sub(.2, .4); if(e > a) FQ(.44, .52, L1((bb & 1) ? '#ff2a3a' : '#ffd23a'), a, e); } }   // a hanging card
-    if(near) FQ(.54, .56, F(ON ? '#ffffff' : '#201c28')); }   // the tube line under the awning
+  // the street floor (round 6): the shop's front as a picture (shopArt: stalls, glass and shelves, crane cabinets, capsule machines,
+  // vending machines, a shutter) laid on the face, its average colour far away; the awning and its sign strip above; its light on the pavement
+  function ground(B, j, n, fpx, wpx, now){ if(AKX.includes('gnd')) return; const gp = fpx * G / FH, S = B.S, A = ART.shopv ? ART.shopv[B.sv][B.svv | 0] : ART.shop[B.sv];
+    if(gp < 3){ FQ(0, .56, L1(A ? A.avg : B.ic)); FQ(.56, G, F(S[0])); return; }
+    if(B.sv === SH_KONB){ const K = KONB[B.kb | 0]; FQ(.56, G, L1(K[1])); FQ(G - .06, G, L1(K[0])); FQ(.56, .62, L1(K[2])); if(gp >= 12) awningInk(B, j, n, .63, G - .07); }   // the konbini's fascia: its livery in three stripes
+    else { FQ(.56, G, L1(B.gr === 'crane' ? '#ff3a7a' : B.aw[0])); if(gp >= 12) awningInk(B, j, n, .59, G - .02); }
+    FQ(0, .56, ON ? L1(A ? A.avg : B.ic) : F('#0c0a12'));
+    const Q = ART.int && ART.int[B.sv] ? ART.int[B.sv][B.svv | 0] : null;
+    if(A && ON && gp >= 5){ if(Q && gp >= 16 && !AKX.includes('noint')) interior(B, Q, 0, .56, j, n, 7.4); else faceArt(B, A, 0, .56, j, n, 7.4); }
+    if(gp >= 10) FQ(.54, .56, F(ON ? '#fffaf0' : '#201c28'));   // the tube line under the awning
+    if(RAINON && gp >= 10 && FF < .5) drips(B, j, n, now);
+    if(ON && gp >= 14 && FF < .6) spill(B); }
+  // the rain running off the awning's edge: world-anchored drips, each falling on its own cycle (a pale streak catching the shop light)
+  function drips(B, j, n, now){ const c = F(ON ? '#aab8e8' : '#4a5070'), ln = Math.max(PX * 2, snp(Math.max(FU1, FU2) * .05));
+    for(let q = Math.max(0, Math.floor((j - B.b0) / 1.1)); ; q++){ const z = B.b0 + q * 1.1 + H1(B.sd * 7.1 + q) * .7; if(z >= j + n) break; if(z < j) continue;
+      const ph = (reduce ? .4 : (now / 560 + H1(q * 3.7 + B.sd)) % 1), hh = .54 * (1 - ph * ph), t = (z - j) / n, x = FX1 + (FX2 - FX1) * t, y = FY1 + (FY2 - FY1) * t - (FU1 + (FU2 - FU1) * t) * hh; R(x, y - ln, PX, ln, c); } }
+  // the shop's light thrown on the pavement in front of it: two added-light bands, fading toward the kerb (Snow Onsen's warm pools)
+  function spill(B){ const a0 = cx.globalAlpha, s = B.side, c = SHOPL[B.sv] || '#ffc070'; cx.globalCompositeOperation = 'lighter';
+    for(const [w, a] of [[.46, .07], [.22, .08]]){ cx.globalAlpha = a0 * a * (1 - FF); poly4(FX1, FY1, FX2, FY2, FX2 - s * w * FU2, FY2, FX1 - s * w * FU1, FY1, c); }
+    cx.globalCompositeOperation = 'source-over'; cx.globalAlpha = a0; }
   // the awning's words as one bar per character (face text proper at the floors above; here it would be a 2-pixel smear)
   function awningInk(B, j, n, h0, h1){ const ink = L1(B.aw[1]), m = 3, gl = (h1 - h0) * 8;
     for(let q = Math.floor((j - B.b0) / 9); ; q++){ const z = B.b0 + q * 9 + 1.5; if(z >= j + n) break; for(let c = 0; c < m; c++){ const za = z + c * gl * 1.4, ta = (za - j) / n, tb = (za + gl - j) / n; if(tb <= 0 || ta >= 1) continue; FQ(h0 + (h1 - h0) * .3, h0 + (h1 - h0) * .7, ink, Math.max(0, ta), Math.min(1, tb)); } } }
@@ -666,7 +872,8 @@
      a lit lip above, a shadow line under it on the cladding. */
   function signBand(B, f, fy, j, n, fpx, wpx){ const Bd = BRANDS[B.br], h0 = fy + .05, h1 = fy + FH - .03; FQ(h0, h1, L1(Bd.f));
     if(fpx >= 3) faceArt(B, ART.band[B.br], h0, h1, j, n, 13);
-    if(fpx >= 8){ FQ(h1, h1 + .025, L1(Bd.fl)); FQ(h0 - .04, h0, F('#06040a')); } }
+    if(fpx >= 8){ FQ(h1, h1 + .025, L1(Bd.fl)); FQ(h0 - .04, h0, F('#06040a')); }
+    if(RAINON && ON && fpx >= 4 && FF < .5){ const P2 = hazeP(Bd.f); FQ(h1 + .025, h1 + .09, P2[0]); FQ(h1 + .09, h1 + .16, P2[1]); } }
   function wrapBand(B, fy, j, n, fpx){ const A = ART.wrap[B.wv], h0 = fy + .06, h1 = fy + FH * 2 - .04; if(!A) return; FQ(h0, h1, L1(A.avg));
     if(fpx >= 2) faceArt(B, A, h0, h1, j, n, 17);
     if(fpx >= 8){ FQ(h1, h1 + .03, F('#d8d8e8')); FQ(h0 - .05, h0, F('#06040a')); } }
@@ -684,6 +891,24 @@
       const ta = (za - z0b) / tl, ti = Math.floor(ta), tb = Math.min(ti + 1, (zb - z0b) / tl); let u0 = ta - ti, u1 = tb - ti; if(flip){ const q = 1 - u1; u1 = 1 - u0; u0 = q; }
       if(!CF((za + zb) / 2)) continue; const yt = snp(CFY - h1 * CFU), yb = snp(CFY - h0 * CFU); if(yb <= yt) continue;
       cx.drawImage(AT, Lv.x + u0 * Lv.w, Lv.y, Math.max(.01, (u1 - u0) * Lv.w), Lv.h, xl, yt, xr - xl, yb - yt); }
+    cx.globalAlpha = a0; }
+  /* The layered interior (round 7): faceArt's strips, but four layers back to front, each sampled 16 + u x 128 + its slide, the slide being its
+     depth x how obliquely this strip of the front is seen (1 straight on at the screen's edge, 0 toward the vanishing point), in whole
+     texels, toward the far end of the street on either side. At most 8 strips, so a near front is a few dozen drawImages. */
+  const IDEP = [1, .62, .32, 0];
+  function interior(B, Q, h0, h1, j, n, rep){ const z0b = B.b0 + .6, Lz = B.len - 1.2; if(Lz < 1) return;
+    const copies = Math.max(1, Math.round(Lz / rep)), tl = Lz / copies, zv = Math.floor(position / SEG) + 1.02, flip = B.side > 0, X0 = B.side * B.x0, dir = flip ? -1 : 1;
+    const sa = Math.max(j, zv, z0b), sb = Math.min(j + n - .001, z0b + Lz); if(sb <= sa) return;
+    if(!CF(sa)) return; const xa = CFX + (X0 + laneDX(Math.floor(sa))) * CFU, ua = CFU; if(!CF(sb)) return; const xb = CFX + (X0 + laneDX(Math.floor(sb))) * CFU;
+    const hv = (h1 - h0) * Math.max(ua, CFU); if(hv < PX * 6 || !fin(xa + xb)) return; const kv = hv / 32, li = kv < PX * .375 ? 2 : kv < PX * .75 ? 1 : 0;
+    const ns = Math.max(1, Math.min(8, Math.round(Math.abs(xb - xa) / (PX * 6)))), a0 = cx.globalAlpha; cx.globalAlpha = a0 * (1 - FF * .55);
+    for(let s = 0; s <= ns; s++){ const z = sa + (sb - sa) * s / ns; FXS[s] = CF(z) ? snp(CFX + (X0 + laneDX(Math.floor(z))) * CFU) : NaN; }
+    for(let s = 0; s < ns; s++){ const za = sa + (sb - sa) * s / ns, zb = sa + (sb - sa) * (s + 1) / ns, xl = Math.min(FXS[s], FXS[s + 1]), xr = Math.max(FXS[s], FXS[s + 1]); if(!(xr > xl) || xr < -PX || xl > W + PX) continue;
+      const ta = (za - z0b) / tl, ti = Math.floor(ta), tb = Math.min(ti + 1, (zb - z0b) / tl); let u0 = ta - ti, u1 = tb - ti; if(flip){ const q = 1 - u1; u1 = 1 - u0; u0 = q; }
+      if(!CF((za + zb) / 2)) continue; const yt = snp(CFY - h1 * CFU), yb = snp(CFY - h0 * CFU); if(yb <= yt) continue;
+      const ob = clamp(1 - Math.abs((xl + xr) / 2 - W / 2) / (W / 2), 0, 1);
+      for(let k = 0; k < 4; k++){ const Lv = Q[k].L[li], sc = Lv.w / LW0, sh = Math.round(IDEP[k] * 14 * ob) * dir, sx = Lv.x + (16 + u0 * 128 + sh) * sc, sw = Math.max(.01, (u1 - u0) * 128 * sc);
+        cx.drawImage(AT, sx, Lv.y, sw, Lv.h, xl, yt, xr - xl, yb - yt); } }
     cx.globalAlpha = a0; }
   /* The words on a sign band (round 2: whole glyphs, never fragments). Each character is placed once per sign, in world space (a square
      cell on the wall), and drawn once a frame, from the slice that holds its nearest visible column, so a slice edge never cuts it.
@@ -733,7 +958,9 @@
     CR(Xi - side * .03, Xo, hb - .04, ht + .04, F('#16121c')); CR(Xi, Xo - side * .05, hb, ht, L1(Pn[0]));   // the steel frame; the plate
     if(pw >= PX * 5) CR(Xi, Xo - side * .05, ht - .025, ht, L1(mixc(Pn[0], '#ffffff', .5)));   // its lit top edge
     const word = b.word, m = word.length, cell = Math.min(ph / m, pw * .95), sty = STY[Pn[2]], xm = CFX + (Xi + Xo - side * .05) / 2 * u;
+    const sq = b.seq && !reduce && !(window.ASSIST && ASSIST.noFlash) ? Math.floor((now + b.z * 977 + B.b0 * 131) / 240) % (m + 7) : -1;   // the stepping neon: char by char, held, a blink
     if(ON) for(let c = 0; c < m; c++){ const yc = CFY - (ht - (c + .5) * (ht - hb) / m) * u, g = gpick(Pn[2], word[c], cell - PX);
+      if(sq >= 0 && (sq < m ? c > sq : sq === m + 4 || sq === m + 6)){ if(cell > PX * 2.5){ cx.fillStyle = F('#2a2430'); pxRect(xm - cell * .25, yc - cell * .12, cell * .5, Math.max(PX, cell * .24)); } continue; }
       if(g){ const a0 = cx.globalAlpha; cx.globalAlpha = a0 * (1 - FF * .5); gblit(g, xm, yc); cx.globalAlpha = a0; }
       else if(cell > PX * 2.5){ cx.fillStyle = L1(Pn[1]); pxRect(xm - Math.min(pw * .3, cell * .3), yc - cell * .14, Math.min(pw * .6, cell * .6), Math.max(PX, cell * .28)); } }
     else if(cell > PX * 2.5) for(let c = 0; c < m; c++){ const yc = CFY - (ht - (c + .5) * (ht - hb) / m) * u; cx.fillStyle = F('#141018'); pxRect(xm - cell * .25, yc - cell * .12, cell * .5, Math.max(PX, cell * .24)); }
@@ -791,8 +1018,8 @@
     if(uw > 2){ R(Math.min(xw, sx + sw * (side < 0 ? 1 : 0)) , top, Math.abs(xw - (sx + sw * (side < 0 ? 1 : 0))) + PX, bw, sc);   // the truss's top beam back to the wall
       for(const q of [.18, .82]) R(sx + sw * q - bw / 2, top, bw, sy - top, sc);   // the hangers
       R(sx, top, sw, bw, sc); pline(xw, bot + sh * .2, sx + sw * (side < 0 ? 1 : 0), top + bw, sc, Math.max(1, Math.round(bw / PX))); }   // the brace
-    const fr = B.hero ? ART.mech : ART.idol, f = reduce ? 6 : Math.floor(now / 120) % fr.length;
-    bezel(sx, sy, sw, sh, t, false); halo(sx - t, sy - t, sw + t * 2, sh + t * 2, B.hero ? '#ff7a3a' : '#ff6ab8', 1.3); screenAt(fr[f], sx, sy, sw, sh, now);
+    const fr = ART.fox, f = reduce ? 20 : Math.floor(now / 120) % fr.length;   // round 6: the foxfire screen (the crane hangs on the gantry)
+    bezel(sx, sy, sw, sh, t, false); halo(sx - t, sy - t, sw + t * 2, sh + t * 2, '#ff8a2a', 1.3); screenAt(fr[f], sx, sy, sw, sh, now);
     // under it, a marquee strip of amber bulbs chasing (steady under reduced motion)
     const th = Math.max(PX * 2, snp(sh * .07)), my = sy + sh + t; R(sx - t, my, sw + t * 2, th + PX * 2, F('#141220'));
     if(ON && th >= PX * 2){ const st = Math.max(PX * 2, snp(th * .8)), ph0 = reduce ? 0 : Math.floor(now / 90), by = my + PX + snp((th - PX) / 2); cx.fillStyle = fc('#ffb02a', FF * .4);
@@ -877,13 +1104,31 @@
     cx.globalAlpha = a0; }
   // people: camera-facing, a few variants and a two-frame step; at the kerbs of the crossings they stand and wait
   const PEOPLE = []; const PCOL = [['#1c2236', '#2a3450'], ['#1a1a1e', '#2a2a30'], ['#4a3a2a', '#6a5236'], ['#6a2a3a', '#8a3a4a'], ['#2a4a3a', '#3a6a4a'], ['#5a5a66', '#7a7a88']];
-  function buildPeople(){ PEOPLE.length = 0; for(let v = 0; v < PCOL.length; v++) for(let fr = 0; fr < 2; fr++){ const c = document.createElement('canvas'); c.width = 9; c.height = 24; const k = c.getContext('2d'), [d, m] = PCOL[v], set = (x, y, w, h, col) => { k.fillStyle = col; k.fillRect(x, y, w, h); };
+  /* the downpour: everyone under an umbrella (Liam Wong's Kabukicho shot, IQRemix's crossing): mostly clear vinyl, a pale dome lit from
+     above with darker ribs and a bright rim, some navy, one pink; the shaft beside the head to the hand. The sprite grows to 15 x 30, the
+     person drawn 3 right and 6 down, so they stand where they stood. */
+  const UMB = [['#c4cce4', '#e8eeff', '#8e98bc'], ['#c4cce4', '#e8eeff', '#8e98bc'], ['#2a3462', '#4a5a96', '#161c3a'], ['#c4cce4', '#e8eeff', '#8e98bc'], ['#d86a96', '#f4a0c0', '#8a3a5a'], ['#c4cce4', '#e8eeff', '#8e98bc']];
+  function buildPeople(){ PEOPLE.length = 0; for(let v = 0; v < PCOL.length; v++) for(let fr = 0; fr < 2; fr++){ const c = document.createElement('canvas'); c.width = RAINON ? 15 : 9; c.height = RAINON ? 30 : 24; const k = c.getContext('2d'), [d, m] = PCOL[v], set = (x, y, w, h, col) => { k.fillStyle = col; k.fillRect(x, y, w, h); };
+      if(RAINON){ const [u0, u1, u2] = UMB[v]; set(10, 3, 1, 15, '#3a3440'); set(5, 0, 5, 1, u1); set(3, 1, 9, 1, u0); set(4, 1, 3, 1, u1); set(2, 2, 11, 1, u0); set(1, 3, 13, 1, u0); set(0, 4, 15, 1, u1);   // the canopy: lit crown, body, the rim catching light
+        for(const x of [0, 4, 7, 10, 14]) set(x, 5, 1, 1, u2); set(7, 1, 1, 3, u2); set(3, 3, 1, 1, u2); set(11, 3, 1, 1, u2); k.translate(3, 6); }   // its ribs and scalloped edge; then the person below it
       set(3, 0, 3, 2, v === 3 ? '#3a1a10' : '#141018'); set(3, 2, 3, 3, '#d8a888'); set(5, 2, 1, 3, '#b0806a'); set(3, 4, 3, 1, '#b0806a');   // hair, face (lit on one side)
       set(2, 5, 5, 9, d); set(2, 5, 1, 9, m); if(v === 0) set(4, 5, 1, 5, '#e8e8f0'); if(v === 0 || v === 5) set(4, 6, 1, 3, '#8a1a2a');   // the coat, its lit edge; a shirt and tie
       set(1, 6, 1, 7, d); set(7, 6, 1, 7, d); set(1, 12, 1, 1, '#d8a888'); set(7, 12, 1, 1, '#d8a888');
       if(v === 2 || v === 4){ set(7, 11, 2, 4, '#e8e0d0'); set(7, 11, 2, 1, '#ff3a3a'); }   // a shop bag
       const lg = fr ? [[3, 14, 1, 9], [5, 14, 1, 8]] : [[3, 14, 1, 8], [5, 14, 1, 9]]; for(const g of lg) set(g[0], g[1], g[2], g[3], '#16141c'); set(2, 23, 2, 1, '#0a0a0e'); set(5, 23, 2, 1, '#0a0a0e');
       PEOPLE.push(c); } }
+  /* Round 7: what stood painted flat on the shop fronts now stands on the pavement: an A-frame board (two liveries), nobori flags on poles,
+     a stack of boxes with a price card, the konbini's umbrella stand. Camera-facing sprites at the people's scale. */
+  const PROPS = [];
+  function buildProps(){ PROPS.length = 0; const mkp = (w, h, f) => { const c = document.createElement('canvas'); c.width = w; c.height = h; const k = c.getContext('2d'); f((x, y, ww, hh, col) => { k.fillStyle = col; k.fillRect(x, y, ww, hh); }); PROPS.push(c); };
+    mkp(8, 11, S => { S(0, 0, 8, 10, '#2a2230'); S(1, 1, 6, 6, '#e0202e'); S(2, 2, 4, 1, CREAM); S(2, 4, 3, 1, CREAM); S(1, 8, 6, 1, '#ffd23a'); S(0, 10, 1, 1, '#141018'); S(7, 10, 1, 1, '#141018'); });
+    mkp(8, 11, S => { S(0, 0, 8, 10, '#3a3446'); S(1, 1, 6, 8, '#141a18'); for(let y = 2; y < 8; y += 2) S(2, y, 2 + (y & 3), 1, '#e8e4d8'); S(5, 7, 2, 1, '#ff8a3a'); S(0, 10, 1, 1, '#141018'); S(7, 10, 1, 1, '#141018'); });
+    mkp(6, 24, S => { S(0, 0, 1, 24, '#7a7a90'); S(0, 0, 6, 1, '#7a7a90'); S(1, 1, 5, 15, '#e0202e'); S(2, 3, 3, 2, CREAM); S(2, 7, 3, 2, CREAM); S(2, 11, 3, 2, CREAM); S(1, 15, 5, 1, '#8a1020'); });
+    mkp(6, 24, S => { S(0, 0, 1, 24, '#7a7a90'); S(0, 0, 6, 1, '#7a7a90'); S(1, 1, 5, 15, '#ffd23a'); S(2, 3, 3, 2, '#d0182a'); S(2, 7, 3, 2, '#d0182a'); S(2, 11, 3, 2, '#d0182a'); S(1, 15, 5, 1, '#a07010'); });
+    mkp(10, 9, S => { S(0, 3, 10, 6, '#b08a5a'); S(0, 3, 10, 1, '#d8b888'); S(2, 0, 6, 3, '#c8a46a'); S(2, 0, 6, 1, '#e8d0a0'); S(6, 5, 3, 2, '#e0202e'); S(4, 3, 1, 6, '#8a6a40'); });
+    mkp(7, 12, S => { S(0, 6, 7, 6, '#4a4e62'); S(0, 6, 7, 1, '#7a7e96'); for(const x of [1, 3, 5]){ S(x, 0, 1, 6, '#c8d4f0'); S(x, 0, 1, 1, '#eef2ff'); } }); }
+  function drawProp(sp, x, y, uw, fog, now){ const c = PROPS[sp.v]; if(!c || fog > .5) return; const k = uw * .3 / 24; if(k * c.height < PX * 2) return; const al = scaleFade(k, 9, 16); if(al <= 0) return;
+    const a0 = cx.globalAlpha; cx.globalAlpha = a0 * al * (1 - fog * .8); blit(c, x, y, k); cx.globalAlpha = a0; }
   function drawPed(sp, x, y, uw, fog, now){ const c = PEOPLE[(sp.v * 2 + (sp.w && !reduce ? Math.floor(now / 380 + sp.k) & 1 : 0)) % PEOPLE.length]; if(!c) return; const k = uw * .3 / 24; if(k * 24 < PX * 2) return; const al = scaleFade(k, 6, 10); if(al <= 0) return;
     const a0 = cx.globalAlpha; cx.globalAlpha = a0 * al * (1 - fog * .7); blit(c, x, y, k); cx.globalAlpha = a0; }
   /* A delivery truck parked at the kerb (a light truck with an aluminium box, its hazards blinking): projected boxes, drawn from the
@@ -976,12 +1221,14 @@
   function place(i, s){ regDir(); const L = visitOf(i); s.akLit = 0; if(!L) return; const sp = s.sprites, c = crossAt(L, i), inBr = L.BR >= 0 && i >= L.BR - 3 && i < L.BR + BD + 3;
     if(inBr || (c >= 0 && i >= c - 4 && i < c + CW + 4)) s.zeb = true;
     if(c >= 0 || (L.BR >= 0 && i >= L.BR - 8 && i < L.BR + BD + 8)) s.akNoHz = true;   // (no side lane at a crossing or under the bridge: the core calls a lane off where a segment carries zeb)
-    if(c >= 0 && i === c + CW + 3 && !(L.X.indexOf(c) & 1)) sp.push({ env:KEY, type:'gnt', x:0, k:i });   // round 5: the idol's screen on a gantry over the road, straight ahead
+    if(c >= 0 && i === c + CW + 3 && !(L.X.indexOf(c) & 1)){ sp.push({ env:KEY, type:'gnt', x:0, k:i }); s.akG = 1; }   // round 5: the hero screen (round 6: the cranes) on a gantry over the road, straight ahead
     if(c >= 0){ s.akX = i - c; if(i === c + CW) for(const side of [-1, 1]){ const B = bAt(L, side, i) || bAt(L, side, i + 1); sp.push({ env:KEY, type:'xf', x:side * ((B ? B.x0 + B.depth : 3.8)), side, k:i }); } }
     if(L.BR >= 0 && i >= L.BR && i <= L.BR + BD) sp.push({ env:KEY, type:'br', x:0, k:i, L });
     for(const side of [-1, 1]){ const B = bAt(L, side, i); if(B) sp.push({ env:KEY, type:'b', x:side * B.x0, k:i, b:B }); }
     if(!inBr){ for(const side of [-1, 1]){ if(i % PSPAN === 14) sp.push({ env:KEY, type:'pole', x:side * 1.3, k:i, tr:H1(i * .7 + side) < .4 }); sp.push({ env:KEY, type:'w', x:side * 1.3, side, k:i, x0:side < 0 && ((i - 14) / PSPAN) % 2 === 0 }); } }
     if(i % 14 === 0 && !inBr) for(const side of [-1, 1]) sp.push({ env:KEY, type:'lamp', x:side * 1.16, k:i });
+    if(c < 0 && !inBr) for(const side of [-1, 1]){ const B = bAt(L, side, i); if(!B || B.sv === SH_SHUT || B.gr === 'crane' || (i - B.b0) % 7 !== 3 || i + 2 >= B.b0 + B.len || H1(i * .91 + side * 2.3) > .6) continue;   // the shops' pavement things (never at a crossing)
+      const v = B.sv === SH_KONB ? 5 : B.sv === SH_STALL ? 4 : Math.floor(H1(i * 1.9 + side) * 5); sp.push({ env:KEY, type:'pv', x:side * (B.x0 - .16), k:i, v }); }
     if(c >= 0 && (i === c - 3 || i === c + CW + 1)) for(const side of [-1, 1]){ if(i === c - 3) sp.push({ env:KEY, type:'sig', x:side * 1.14, k:i });
       for(let q = 0; q < 4; q++) sp.push({ env:KEY, type:'ped', x:side * (1.24 + q * .12 + H1(i + q) * .05), k:i, v:Math.floor(H1(i * 3 + q + side) * PCOL.length), w:false }); }
     else if(!inBr && H1(i * 1.71 + .3) < .085){ const side = H1(i * 2.3) < .5 ? -1 : 1; sp.push({ env:KEY, type:'ped', x:side * (1.34 + H1(i * 5.1) * .7), k:i, v:Math.floor(H1(i * 7.7) * PCOL.length), w:true }); }
@@ -1001,7 +1248,15 @@
       poly4(a.x + a.w * X1, a.y, a.x + a.w * X2, a.y, b.x + b.w * X2, b.y, b.x + b.w * X1, b.y, f((i & 3) ? '#5a5866' : '#6e6c78'));   // the kerb stones
       const pc = B && on ? (B.gr === 'crane' ? '#3a2838' : B.gr === 'stall' ? '#34302e' : '#2e2e3a') : '#201e26';
       poly4(a.x + a.w * X2, a.y, a.x + a.w * X3, a.y, b.x + b.w * X3, b.y, b.x + b.w * X2, b.y, f((i % 4) === 0 ? '#1a1820' : pc));   // the pavement tiles (a joint every 4), lit by the shop it fronts
-      if(B && on && fog < .45){ const X4 = side * (x0 - .32); poly4(a.x + a.w * X4, a.y, a.x + a.w * X3, a.y, b.x + b.w * X3, b.y, b.x + b.w * X4, b.y, f(B.gr === 'crane' ? '#6a3a5e' : B.gr === 'stall' ? '#5a4a36' : '#4a4e62')); } }   // the light spilling out over the sill
+      if(B && on && fog < .45){ const wc = B.wc || (B.wc = wetCols(B, pc));
+        // the soaked tiles mirror the shop: three stepped bands of its light, brightest at the sill, the joint rows left dark (the tile grid shows through)
+        for(let q = 0; q < 3; q++){ if(q === 2 && (i & 3) === 0) continue; const Xa = side * (x0 - WB[q]), Xb = side * (x0 - WB[q + 1]); poly4(a.x + a.w * Xb, a.y, a.x + a.w * Xa, a.y, b.x + b.w * Xa, b.y, b.x + b.w * Xb, b.y, f(wc[q])); } }
+      // a puddle on the pavement: a dark mirror, the shop's light in it, a lit far rim
+      if(RAINON && fog < .4 && H1(i * 1.37 + side * .53) < .2){ const h = H1(i * 2.9 + side), Xa = side * (1.24 + h * .5), Xb = Xa + side * (.22 + .2 * H1(i * 4.3 + side)), t0 = .15 + .3 * h, t1 = t0 + .35;
+        const ya = a.y + (b.y - a.y) * t0, yb = a.y + (b.y - a.y) * t1, xa = a.x + (b.x - a.x) * t0, xb = a.x + (b.x - a.x) * t1, wa = a.w + (b.w - a.w) * t0, wb = a.w + (b.w - a.w) * t1;
+        poly4(xa + wa * Xa, ya, xa + wa * Xb, ya, xb + wb * Xb, yb, xb + wb * Xa, yb, f('#0c0a14'));
+        if(B && on){ cx.globalCompositeOperation = 'lighter'; cx.globalAlpha = a0 * .42 * (1 - fog); poly4(xa + wa * Xa, ya, xa + wa * Xb, ya, xb + wb * Xb, yb, xb + wb * Xa, yb, SHOPL[B.sv] || '#ffc070'); cx.globalAlpha = a0; cx.globalCompositeOperation = 'source-over'; }
+        poly4(xb + wb * Xa, yb, xb + wb * Xb, yb, xb + wb * Xb, yb + PX, xb + wb * Xa, yb + PX, f(B && on ? '#7a7ea0' : '#3a3c50')); } }   // the light spilling out over the sill
     // the crossings: a stop line, the zebra (its bars run with the traffic), the diagonal of the scramble, the zebra across the side street
     const m = s.akX; if(m === undefined) return; const zc = f('#d8d4dc');
     if(m === -6) poly4(a.x - a.w, a.y, a.x + a.w, a.y, b.x + b.w, b.y, b.x - b.w, b.y, zc);
@@ -1028,17 +1283,101 @@
   function backdrop(o){ setLow(o.sk.low); if(!FAR) return false; cx.imageSmoothingEnabled = false; const hz = o.hz, y = snp(hz - SH * PX + PX * 2), dead = SPA.on && !SPA.rel && SPA.fr < (SPA.L ? SPA.L.BR + 200 : 0);
     strip(FAR, 'far', y - snp(H * .03)); strip(dead ? MIDD : MID, 'mid', y); return false; }
 
-  // ---------------------------------------------------------------- overlay: the relight's flash (none under reduced motion)
-  function overlay(al, now, sk){ if(!SPA.flash || reduce || (window.ASSIST && ASSIST.noFlash)) return; const a0 = cx.globalAlpha; cx.globalCompositeOperation = 'lighter'; cx.globalAlpha = al * SPA.flash * .3; cx.fillStyle = '#fff2c8'; cx.fillRect(0, 0, W, H);
+  /* ---------------------------------------------------------------- the downpour (Kellan: "can we make it very wet and raining akihabara")
+     References, seen at pixel zoom (research/sundown-craft/akiba.md section 11): IQRemix's Akihabara crossing in the rain (2015), Liam Wong's
+     TO:KY:OO (the Kabukicho umbrellas, the neon puddle), two Shinjuku downpours. What they show: every sign throws a column of its own colour
+     straight down at the viewer, broken into horizontal dashes by the wet; the asphalt between stays dark; deep puddles are clean mirrors with
+     rain rings; the rain itself is only seen where it crosses a light; clear vinyl umbrellas glow as pale domes; far away the canyon sinks
+     into a lit haze. Built here:
+     - the pools (wetSrc, drawn by env/roadmat.js POOL on the wet asphalt): each shop front, awning, the two lowest sign bands, every banner,
+       the crane gantry and the fox screen lay their colour down the road and pavement; dead lights lay none (the blackout kills them too);
+     - on the road (wetFX, per segment under the cars): splash crowns, rain rings where the water is deep, a specular glint on the lane paint;
+     - the pavements (roadFX): stepped bands of each shop's light on the tiles, puddles with the shop in them;
+     - the rain (rainOverlay): three pre-rendered tileable streak sheets (far fine, mid, near long), four slants by speed, 'overlay' blended so
+       a streak brightens what it crosses (a sign, a screen, a lamp) and all but vanishes on the dark; in the blackout it is moonlit instead;
+     - a dithered haze over the far canyon; dithered rain-haze blooms around the signs (halo, signBand); umbrellas; drips off the awnings;
+     - the hiss (MECH.ak_rain): a looped noise bed on the SFX bus, under the music, only on this road. ?akrain=0 turns all of it off. */
+  const RAINON = QA.get('akrain') !== '0', WB = [.02, .22, .55, .95];
+  function wetCols(B, pc){ const c = SHOPL[B.sv] || '#ffc070'; return [mixc(pc, c, .24), mixc(pc, c, .14), mixc(pc, c, .07)]; }
+  // the pools: per segment in view (roadmat calls this with 'lighter' set); far segments merge 2 or 4 at a time, anchored to the world
+  function signSrc(B){ if(B.rs) return B.rs; const o = []; for(let f = 0; f < B.nF0 && o.length < 1; f++){ const t = B.fl[f], fy = G + f * FH;
+      if(t === 'S') o.push([fy + .05, fy + FH - .03, BRANDS[B.br].f]); else if(t === 'K') o.push([fy + .06, fy + FH * 2 - .04, ART.wrap[B.wv] ? ART.wrap[B.wv].avg : '#3a2a8a']);
+      else if(t === 'N') o.push([fy + .2, fy + .42, f & 1 ? '#c050ff' : '#ff4aa0']); else if(t === 'T') o.push([fy + .2, fy + .4, '#ffa020']); }
+    return (B.rs = o); }
+  function wetSrc(s, n, a, P){ if(!RAINON || AKX.includes('nrpool')) return; const V = s.akV !== undefined ? s.akV : (s.akV = visitOf(s.index) || null); if(!V) return; const i = s.index, uw = a.w; if(!(uw > .5)) return;
+    if(n > 170) return; const st = n < 8 ? 1 : n < 20 ? 2 : n < 48 ? 4 : 8, fa = 1 - Math.pow(n / DRAW, 1.6) * .9, lx = laneDX(i);
+    if(s.akG && onAt(i)){ const x = a.x + lx * uw; P(x, a.y, uw, 1.66, 2.91, 2 * uw, '#4a5cc8', .55 * fa); P(x + .25 * uw, a.y, uw, 2.1, 2.7, .55 * uw, '#f0e4c8', .5 * fa); P(x, a.y, uw, 1.58, 1.66, 1.9 * uw, '#ffb02a', .45 * fa); }
+    // the blackout's lights: the train standing lit across the bridge, the signals on backup power (their pools are all the street has)
+    if(i === V.BR && SPA.on && SPA.L === V && !SPA.rel2) P(a.x + lx * uw, a.y, uw, HT + .3, HT + .6, 3.2 * uw, '#ffd23a', .55 * fa);
+    if(s.akX === -3) for(let side = -1; side <= 1; side += 2) P(a.x + (side * 1.14 + lx) * uw, a.y, uw, 1.28, 1.42, .14 * uw, '#3aff9a', .7 * fa);
+    if(s.akLit > .55 && onAt(i)) for(let side = -1; side <= 1; side += 2) P(a.x + (side * .86 + lx) * uw, a.y, uw, 1.5, 1.62, Math.min(.12 * uw, W * .02), '#c8d8ff', .55 * fa);   // the mercury lamps
+    for(let side = -1; side <= 1; side += 2){ const B = bAt(V, side, i); if(!B || !onAt(B.b0)) continue;
+      if(B.hero >= 0 && i === B.b0){ const x = a.x + (side * (B.x0 + .1) + lx) * uw; P(x, a.y, uw, .88, 2.03, 1.84 * uw, '#3a3c8a', .5 * fa); P(x, a.y, uw, 1.1, 1.8, .6 * uw, '#ff8a2a', .55 * fa); }
+      for(const b of B.bl){ if(b.plate) continue; const z = B.b0 + b.z; if(Math.floor(z / st) * st !== i) continue; const X = side * (B.x0 - b.off - b.pr / 2) + lx;
+        P(a.x + X * uw, a.y, uw, G + b.f0 * FH, G + b.f1 * FH, b.pr * uw, b.ban !== undefined ? BAN[b.ban].s : PAN[b.p][0], .85 * fa); }
+      if(i % st) continue; const t = segs[i + st]; if(!t || !t.p1.screen.scale) continue; const q = t.p1.screen, X = side * B.x0, xa = a.x + (X + lx) * uw, xb = q.x + (X + laneDX(i + st)) * q.w, w0 = Math.abs(xb - xa) * .55, xc = (xa + xb) / 2;   // (a column, not the whole span: the stripes of the references, not a slab)
+      P(xc, a.y, uw, .04, .56, w0, SHOPL[B.sv] || '#ffc070', .34 * fa); P(xc, a.y, uw, .56, G, w0, B.gr === 'crane' ? '#ff3a7a' : B.aw[0], .24 * fa);
+      const rs = signSrc(B); for(let k = 0; k < rs.length; k++) P(xc, a.y, uw, rs[k][0], rs[k][1], w0, rs[k][2], .78 * fa); } }
+  // on the road, under the cars: splash crowns, rain rings where the water stands, the glint on the lane paint (per segment, near only)
+  let AKDK = 0;
+  function wetFX(s, n, r0, r1, RV, wet, T){ if(!RAINON || n > 40 || AKX.includes('nrfx')) return; const i = s.index, a = s.p1.screen, uw = a.w; if(!(uw > 4)) return; const g = cx, a0 = g.globalAlpha, now = performance.now(), dk = AKDK;
+    g.globalCompositeOperation = 'lighter';
+    // lane paint: a wet specular glint on the dashes (the lamp and sign light caught on the paint), brightest at each dash's far edge
+    if(s.stripe && s.akX === undefined){ const lt = .25 + Math.min(.6, s.lit || 0), b = s.p2.screen; g.fillStyle = dk > .5 ? '#9aaad8' : '#eef0ff';
+      for(let q = -1; q <= 1; q += 2){ const xa = a.x + a.w * q * 2 / 3, xb = b.x + b.w * q * 2 / 3, wd = Math.max(PX, Math.round(b.w / 20 / PX) * PX * 2);
+        g.globalAlpha = a0 * .5 * lt; g.fillRect(Math.round((xb - wd / 2) / PX) * PX, r0 * PX, wd, PX);
+        const m = n < 6 ? 2 : 1; for(let k = 0; k < m; k++){ const f0 = k / m, f1 = (k + 1) / m, ra = r0 + Math.floor((r1 - r0 + 1) * f0), rb = r0 + Math.floor((r1 - r0 + 1) * f1); if(rb <= ra) continue;
+          const xm = xb + (xa - xb) * (f0 + f1) / 2; g.globalAlpha = a0 * .2 * lt; g.fillRect(Math.round(xm / PX) * PX, ra * PX, PX, (rb - ra) * PX); } } }
+    // the rain landing: world-anchored drops, each on its own cycle (a crown for its first fifth, then a ring spreading where the water is deep)
+    const N = n < 4 ? 5 : n < 12 ? 3 : n < 24 ? 2 : 1, rc = r1 - r0 + 1, rcol = dk > .5 ? '#a8b8e8' : '#cdd4f4';
+    for(let q = 0; q < N; q++){ const h0 = H1(i * 7.13 + q * 3.7), per = 520 + 380 * H1(i * 3.1 + q), ph = now / per + h0 * 9, cyc = Math.floor(ph), f = ph - cyc;
+      const X = (H1(i * 1.7 + q * 9.1 + cyc * .37) * 2 - 1) * 2.15, r = r0 + Math.floor(H1(i * 5.3 + q * 2.3 + cyc * .71) * rc), x = RV.x[r] + X * RV.w[r], w = RV.w[r], y = r * PX; if(!(x === x)) continue;
+      const m = Math.abs(X) < 1 ? RV.mask(T, X, RV.v[r]) : .55, sz = Math.max(PX, Math.round(w * .012 / PX) * PX), xx = Math.round(x / PX) * PX; g.fillStyle = rcol;
+      if(f < .22){ g.globalAlpha = a0 * .55; const e = f < .1 ? 0 : sz; g.fillRect(xx, y - PX - e, PX, PX); if(e){ g.fillRect(xx - sz - PX, y - PX * 2, PX, PX); g.fillRect(xx + sz + PX, y - PX * 2, PX, PX); } }
+      else if(m > .3){ const t = (f - .22) / .78, rx = Math.round((PX + w * .045 * t) / PX) * PX, ry = Math.max(PX, Math.round(rx * .28 / PX) * PX); g.globalAlpha = a0 * .42 * (1 - t) * (.5 + .5 * m);
+        g.fillRect(xx - rx, y - ry, rx * 2, PX); g.fillRect(xx - rx, y + ry, rx * 2, PX); if(ry > PX){ g.fillRect(xx - rx - PX, y - ry + PX, PX, ry * 2 - PX); g.fillRect(xx + rx, y - ry + PX, PX, ry * 2 - PX); } } }
+    g.globalAlpha = a0; g.globalCompositeOperation = 'source-over'; }
+  // the rain sheets: three depths x four slants, tileable, white with the alpha baked (built in warm-up)
+  const RTS = 96, RLAY = [{ n:320, len:[2, 3, 4, 5], a:.34 }, { n:110, len:[5, 8, 11, 14], a:.55 }, { n:26, len:[11, 17, 24, 32], a:.8 }], RSL = [.05, .13, .24, .36], RVEL = [.5, .95, 1.6];
+  let RSH = null;
+  function buildRain(){ RSH = []; for(let L = 0; L < 3; L++){ const row = []; for(let v = 0; v < 4; v++){ const c = mk(RTS, RTS), g = c.getContext('2d'), id = g.createImageData(RTS, RTS), D = id.data, Ld = RLAY[L];
+        for(let q = 0; q < Ld.n; q++){ const x0 = H1(q * 1.37 + L * 11.1) * RTS, y0 = H1(q * 2.71 + L * 5.3) * RTS, len = Math.max(2, Math.round(Ld.len[v] * (.7 + .6 * H1(q * 4.1 + L)))), sl = RSL[v];
+          for(let k = 0; k < len; k++){ const xx = ((Math.round(x0 - sl * k) % RTS) + RTS) % RTS, yy = Math.round(y0 + k) % RTS, j = (yy * RTS + xx) * 4, t = k / len, al = Ld.a * (t < .3 ? .45 : 1);
+            D[j] = D[j + 1] = D[j + 2] = 255; D[j + 3] = Math.max(D[j + 3], Math.round(al * 255)); } }
+        g.putImageData(id, 0, 0); row.push(c); } RSH.push(row); } }
+  function sheet(c, ox, oy){ const P = RTS * PX, x0 = snp(-(((ox % P) + P) % P)), y0 = snp((((oy % P) + P) % P) - P); for(let y = y0; y < H; y += P) for(let x = x0; x < W; x += P) cx.drawImage(c, x, y, P, P); }
+  function rainOverlay(al, now){ if(!RSH || !RAINON || al < .02 || AKX.includes('nrov')) return; const g = cx, a0 = g.globalAlpha, t = now / 1000, sp = clamp(speed / MAXS, 0, 1), v = Math.min(3, Math.round(sp * 3.4)), cs = Math.floor(position / SEG);
+    AKDK += ((onAt(cs + 12) ? 0 : 1) - AKDK) * .08; const dk = AKDK; try{ const rp = MECH.roadmat && MECH.roadmat.RP[KEY]; if(rp) rp.sheen = .8 + 1.1 * dk; }catch(e){}   // (in the dark the puddles hold only the sky: colder and stronger, the moon's glitter with them) g.imageSmoothingEnabled = false;
+    const rs = reduce ? .3 : 1, par = skyPar('mid');
+    for(let L = 0; L < 3; L++){ if(reduce && L === 2) break; const vel = RVEL[L] * H * rs * (1 + sp * .35), oy = t * vel, ox = oy * RSL[v] - par * (.4 + L * .3), c = RSH[L][v];
+      if(L === 0){ g.globalCompositeOperation = 'source-over'; g.globalAlpha = a0 * al * (.18 + .3 * dk); sheet(c, ox, oy); continue; }
+      g.globalCompositeOperation = 'overlay'; g.globalAlpha = a0 * al * (L === 1 ? .85 : 1) * (1 - .7 * dk); sheet(c, ox, oy);
+      g.globalCompositeOperation = 'lighter'; g.globalAlpha = a0 * al * ((L === 1 ? .04 : .055) + (L === 1 ? .2 : .32) * dk); sheet(c, ox, oy); }
+    // the blackout: the streaks catch the moon (a band of them brighter under it)
+    if(dk > .05 && !reduce){ const mx = MOON.x || W / 2, vy = t * RVEL[2] * H * (1 + sp * .35); g.save(); g.beginPath(); g.rect(snp(mx - W * .2), 0, snp(W * .4), H); g.clip(); g.globalCompositeOperation = 'lighter'; g.globalAlpha = a0 * al * .28 * dk;
+      sheet(RSH[2][v], vy * RSL[v] - par, vy); g.restore(); }
+    g.globalCompositeOperation = 'source-over'; g.globalAlpha = a0; }
+  // the hiss: a looped noise bed (a high hiss and a low body) on the SFX bus, only while riding this road; unwired elsewhere (it then costs nothing)
+  const AR = { src:null, g:null, wired:false, t:0, off:0 };
+  MECH.ak_rain = { update(dt){ try{ if(!RAINON || typeof SFX === 'undefined' || !SFX.ready || !SFX.ready() || !SFX.bus || typeof M === 'undefined' || !M.ac || !M.noiseBuf) return;
+      const sg = typeof segs !== 'undefined' && segs.length ? segAt(position + PZ) : null, here = state === 'play' && !!sg && !!LANDS[sg.land] && LANDS[sg.land].key === KEY;
+      if(!AR.src && here){ const ac = M.ac, s = ac.createBufferSource(); s.buffer = M.noiseBuf; s.loop = true; const hp = ac.createBiquadFilter(); hp.type = 'highpass'; hp.frequency.value = 900; const lp = ac.createBiquadFilter(); lp.type = 'lowpass'; lp.frequency.value = 7000;
+        const hg = ac.createGain(); hg.gain.value = .018; const bp = ac.createBiquadFilter(); bp.type = 'lowpass'; bp.frequency.value = 420; const bg = ac.createGain(); bg.gain.value = .05; AR.g = ac.createGain(); AR.g.gain.value = 0;
+        s.connect(hp); hp.connect(lp); lp.connect(hg); hg.connect(AR.g); s.connect(bp); bp.connect(bg); bg.connect(AR.g); s.start(); AR.src = s; }
+      if(!AR.src) return;
+      if(here && !AR.wired){ AR.g.connect(SFX.bus()); AR.wired = true; }
+      if((AR.t -= dt || 0) <= 0){ AR.t = .25; AR.g.gain.setTargetAtTime(here ? 1 + .4 * AKDK : 0, M.ac.currentTime, .6); if(here) AR.off = 0; else if(++AR.off > 16 && AR.wired){ AR.g.disconnect(); AR.wired = false; } } }catch(e){} } };
+  // ---------------------------------------------------------------- overlay: the rain; the relight's flash (none under reduced motion)
+  function overlay(al, now, sk){ rainOverlay(al, now); if(!SPA.flash || reduce || (window.ASSIST && ASSIST.noFlash)) return; const a0 = cx.globalAlpha; cx.globalCompositeOperation = 'lighter'; cx.globalAlpha = al * SPA.flash * .3; cx.fillStyle = '#fff2c8'; cx.fillRect(0, 0, W, H);
     cx.globalCompositeOperation = 'source-over'; cx.globalAlpha = a0; }
 
   // ---------------------------------------------------------------- draw dispatch
   function draw(sp, x, y, uw, fog, now, sk){ draw0(sp, x, y, uw, fog, now, sk); CAT = 'o'; }
-  function draw0(sp, x, y, uw, fog, now, sk){ if(sk && sk.low) setLow(sk.low); const t = sp.type; CAT = t;
+  function draw0(sp, x, y, uw, fog, now, sk){ if(sk && sk.low) setLow(sk.low); const t = sp.type; CAT = t; if(RAINON) fog = Math.min(1, fog + (1 - fog) * fog * .7);   // the downpour: the far canyon sinks sooner into a lit haze (fogLow is lifted toward it in setLow)
     if(t === 'b') return drawB(sp, x, y, uw, fog, now); if(t === 'w') return drawWire(sp, x, y, uw, fog, now); if(t === 'lamp') return drawLamp(sp, x, y, uw, fog, now); if(t === 'pole') return drawPole(sp, x, y, uw, fog, now);
     if(t === 'ped') return drawPed(sp, x, y, uw, fog, now); if(t === 'xf') return drawXF(sp, x, y, uw, fog, now); if(t === 'sig') return drawSig(sp, x, y, uw, fog, now); if(t === 'trk') return drawTruck(sp, x, y, uw, fog, now);
-    if(t === 'br') return drawBridge(sp, x, y, uw, fog, now); if(t === 'gnt') return drawGantry(sp, x, y, uw, fog, now); }
-  /* The gantry screen (round 5): the idol hero over the road just past a crossing, facing straight down it, as Neon Ward's jumbo does: two
+    if(t === 'pv') return drawProp(sp, x, y, uw, fog, now); if(t === 'br') return drawBridge(sp, x, y, uw, fog, now); if(t === 'gnt') return drawGantry(sp, x, y, uw, fog, now); }
+  /* The gantry screen (round 5): the crane hero (round 6) over the road just past a crossing, facing straight down it, as Neon Ward's jumbo does: two
      steel posts at the kerbs, a lattice beam, the screen (64 x 40 LEDs, the grid fading in near by) in a bezel, its glow, a marquee. */
   function drawGantry(sp, x, y, uw, fog, now){ if(!CF(sp.k + .5)) return; FF = fog; ON = onAt(sp.k); const u = CFU; if(u < .4) return;
     const sw = 2.0 * u, sh = sw * 40 / 64, sx = CFX - sw / 2, bot = CFY - 1.66 * u, sy = bot - sh, t = Math.max(PX, snp(sw * .02)), sc = F('#2a2632'), pw = Math.max(PX, snp(u * .05));
@@ -1046,7 +1385,7 @@
     for(const X of [-1.22, 1.22]){ const px0 = CFX + X * u; R(px0 - pw / 2, sy - t * 3, pw, CFY - sy + t * 3, sc); if(pw > PX) R(px0 - pw / 2, sy - t * 3, PX, CFY - sy + t * 3, F('#5a5668')); }
     const bh = Math.max(PX, snp(u * .04)), by = sy - t - bh * 3; R(CFX - 1.26 * u, by, 2.52 * u, bh, sc); R(CFX - 1.26 * u, by + bh * 2, 2.52 * u, bh, sc);
     if(u > 8) for(let X = -1.2; X < 1.2; X += .2) pline(CFX + X * u, by + bh, CFX + (X + .2) * u, by + bh * 2, sc, 1);
-    bezel(sx, sy, sw, sh, t, false); halo(sx - t, sy - t, sw + t * 2, sh + t * 2, '#ff6ab8', 1.3); screenAt(ART.idol[reduce ? 6 : Math.floor(now / 120) % 32], sx, sy, sw, sh, now);
+    bezel(sx, sy, sw, sh, t, false); halo(sx - t, sy - t, sw + t * 2, sh + t * 2, '#e8d8a0', 1.3); screenAt(ART.crane[reduce ? 20 : Math.floor(now / 120) % 40], sx, sy, sw, sh, now);
     const th = Math.max(PX * 2, snp(sh * .06)), my = sy + sh + t; R(sx - t, my, sw + t * 2, th + PX * 2, F('#141220'));
     if(ON){ const st = Math.max(PX * 2, snp(th * .8)), ph0 = reduce ? 0 : Math.floor(now / 90), byy = my + PX + snp((th - PX) / 2); cx.fillStyle = fc('#ffb02a', FF * .4); for(let xx = sx, q = 0; xx < sx + sw; xx += st, q++) if((q + ph0) % 4) pxRect(xx, byy, PX, PX); } }
 
@@ -1082,12 +1421,12 @@
     if(AKX.includes('cnt') && !warmSteps.cnt){ warmSteps.cnt = true; const f0 = cx.fillRect; cx.fillRect = function(){ AKC[CAT] = (AKC[CAT] || 0) + 1; return f0.apply(this, arguments); }; }
     if(!ATL){ ATL = mk(1024, 1); AG = ATL.getContext('2d'); SC = mk(80, 80); SG = SC.getContext('2d', { willReadFrequently:true }); TK = mk(2048, 16); } yield;
     yield* buildTextG(); yield* artSteps(); if(!FONT){ try{ if(document.fonts && document.fonts.load) document.fonts.load('16px DotGothic16').then(() => { if(!FONT) buildText(); }, () => {}); }catch(e){} } yield;
-    buildStrips(); yield; buildPeople(); yield;
+    buildStrips(); yield; buildPeople(); buildProps(); yield; buildRain(); yield; hazeWarm(); yield;
     try{ if(typeof MUSIC !== 'undefined' && MUSIC.ROAD_THEME && !MUSIC.ROAD_THEME[KEY]) MUSIC.ROAD_THEME[KEY] = 'neon'; }catch(e){}
-    try{ cx.save(); cx.globalAlpha = .004; for(const c of [ATL, TK, FAR, MID, MIDD].concat(PEOPLE)) if(c) cx.drawImage(c, 0, 0, 1, 1); cx.fillStyle = ditherPat('#235250', .25); cx.fillRect(0, 0, PX, PX); cx.restore(); }catch(e){ try{ cx.restore(); }catch(e2){} }
+    try{ cx.save(); cx.globalAlpha = .004; for(const c of [ATL, TK, FAR, MID, MIDD].concat(PEOPLE, PROPS)) if(c) cx.drawImage(c, 0, 0, 1, 1); cx.fillStyle = ditherPat('#235250', .25); cx.fillRect(0, 0, PX, PX); cx.restore(); }catch(e){ try{ cx.restore(); }catch(e2){} }
     cx.clearRect(0, 0, W, H); }
 
-  ENV.akiba = { _mk:(ch, z) => { const q = mask(ch, z), b = box(q.m, q.n); let c = 0; for(const v of q.m) c += v; return [b, c, q.n]; }, _GA:GA, _used:USED, _atl:() => ATLY, _ga:() => { const o = {}; let A = 0; for(const st in GA) for(const ch in GA[st]) GA[st][ch].forEach((g, si) => { if(!g) return; const k = st + SZ[si]; o[k] = (o[k] || 0) + g.w * g.h; A += g.w * g.h; }); o.total = A; return o; }, _akc:AKC, _PJ:(z, x, h) => { cam(); PJ(z, x, h); return [PJX, PJY, PJU]; }, _lay:lay, _visit:visitOf, _ART:ART, _artSteps:artSteps, _spa:SPA, _onAt:onAt,
+  ENV.akiba = { _mk:(ch, z) => { const q = mask(ch, z), b = box(q.m, q.n); let c = 0; for(const v of q.m) c += v; return [b, c, q.n]; }, _GA:GA, _used:USED, _atl:() => ATLY, _ga:() => { const o = {}; let A = 0; for(const st in GA) for(const ch in GA[st]) GA[st][ch].forEach((g, si) => { if(!g) return; const k = st + SZ[si]; o[k] = (o[k] || 0) + g.w * g.h; A += g.w * g.h; }); o.total = A; return o; }, _akc:AKC, _PJ:(z, x, h) => { cam(); PJ(z, x, h); return [PJX, PJY, PJU]; }, _lay:lay, _visit:visitOf, _ART:ART, _AT:() => AT, _artSteps:artSteps, _spa:SPA, _onAt:onAt,
     kerbs:true, moonDX:.18, road:['#1e1c26', '#1c1a23'], lampCol:'#5a5a78',
-    warm(){ for(const _ of warmSteps()); }, warmSteps, place, lit, draw, roadFX, backdrop, overlay, hingeIn:() => 'over' };
+    warm(){ for(const _ of warmSteps()); }, warmSteps, place, lit, draw, roadFX, backdrop, overlay, wetSrc, wetFX, hingeIn:() => 'over' };
 })();

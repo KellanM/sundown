@@ -59,7 +59,7 @@ const SCHEMA = {
     dust:[0, 1, .01], drift:[0, 1, .01], ripples:[0, 1, .01], side:[-1, 1, 2] },
   render:{ str:[0, 1.6, .01], wet:[0, 1, .01], sheen:[0, 1, .01], refl:[0, 1, .01], lampX:[.3, 1.2, .01], lampH:[.2, 2, .01], wear:[0, 1, .01], paint:[0, 1, .01] } };
 const R0 = { mat:'asphalt', str:1, wet:0, sheen:.5, refl:.6, lamps:false, tails:false, lampX:.8, lampH:.9, sheenCol:'', reflCol:'#ffb45c', road:null, lampCol:null,
-  marks:'none', speed:50, wear:.4, paint:.85, tunnel:false };
+  marks:'none', speed:50, wear:.45, paint:.62, tunnel:false, pools:0 };   // pools: how far out (half-road widths) an env's own light pools may lie (ENV[key].wetSrc; 0 = none)   // (paint at night is a step under the lane dashes: the road is the stage)
 // per road. Roads that already draw their own reflections (Neon's signs and lamps, Bay's lamps and tails, Aqua, Haneda, Harbour, Shuto's
 // wet visits) keep them: lamps / tails here are only for roads without.
 const ROADS = {
@@ -79,7 +79,7 @@ const ROADS = {
   minato:{ mat:'asphalt', str:.9, marks:'city', speed:50 },
   shuto:{ mat:'wet', str:.95, wet:1, sheen:.5, refl:.6, tails:true, sheenCol:'#6a4a5a', marks:'expressway', speed:50 },
   kurobe:{ mat:'asphalt', str:.95, marks:'none' },
-  akiba:{ mat:'asphalt', str:.85, marks:'none' },
+  akiba:{ mat:'wet', str:.9, wet:1, sheen:.8, refl:1, lamps:false, tails:true, sheenCol:'#3a4690', marks:'none', pools:2.2 },   // (the downpour: its signs' own pools come from ENV.akiba.wetSrc)
   gion:{ mat:'cobble', str:.7, marks:'none' } };
 const FIELD_D = JSON.parse(JSON.stringify(FIELD)), ROADS_D = JSON.parse(JSON.stringify(ROADS));
 const RP = {};   // resolved render presets per road (R0 + ROADS + saved), with derived strings
@@ -310,24 +310,27 @@ try{ fetch('env/roadmat-presets.json', { cache:'no-store' }).then(r => r.ok ? r.
 catch(e){ PRESETS_IN = true; }
 
 // ---------------------------------------------------------------- the per-frame row table (built at the first hook call of a frame)
-let RN = 0, ROWX = null, ROWW = null, ROWP = null, ROWL = null, ROWF = null, ROWN = null;
+let RN = 0, ROWX = null, ROWW = null, ROWP = null, ROWV = null, ROWL = null, ROWF = null, ROWN = null;
 const RS0 = new Int32Array(1024), RS1 = new Int32Array(1024), CARH = new Int16Array(1024); let CARN = new Int16Array(256);
 const FR = { f:-1, base:0, t0:0, ms:0 };
 function prep(){ FR.f = DRAWN; const base = segAt(position).index; FR.base = base; const rows = Math.ceil(H / PX) + 1;
-  if(rows > RN){ RN = rows + 16; ROWX = new Float32Array(RN); ROWW = new Float32Array(RN); ROWP = new Float64Array(RN); ROWL = new Float32Array(RN); ROWF = new Float32Array(RN); ROWN = new Int16Array(RN); }
+  if(rows > RN){ RN = rows + 16; ROWX = new Float32Array(RN); ROWW = new Float32Array(RN); ROWP = new Float64Array(RN); ROWV = new Float32Array(RN); ROWL = new Float32Array(RN); ROWF = new Float32Array(RN); ROWN = new Int16Array(RN); RV.x = ROWX; RV.w = ROWW; RV.p = ROWP; RV.v = ROWV; RV.f = ROWF; RV.n = ROWN; }
   ROWN.fill(-1, 0, RN); const nd = Math.min(DRAW, 1024);
   for(let n = 0; n < nd; n++){ RS0[n] = 1; RS1[n] = 0; CARH[n] = -1; const s = segs[base + n]; if(!s) continue;
     const a = s.p1.screen, b = s.p2.screen; if(s.p1.camera.z <= DEPTH || b.y >= a.y || b.y >= s.clip) continue;
     const yb = Math.min(a.y, s.clip), r0 = Math.max(0, Math.ceil(b.y / PX - .5)), r1 = Math.min(rows - 1, Math.ceil(yb / PX - .5) - 1); if(r1 < r0) continue;
+    const blk = Math.floor(s.index / SUB), vb = (SUBP(blk) * SUB + (s.index - blk * SUB)) * SPS;   // the segment's first L0 texel row
     RS0[n] = r0; RS1[n] = r1; const sa = s.p1.screen.scale, sb = s.p2.screen.scale, dy = a.y - b.y, fog = Math.pow(n / DRAW, 1.6);
     for(let r = r0; r <= r1; r++){ const yc = (r + .5) * PX, f = (a.y - yc) / dy, sc = sa + (sb - sa) * f, t = Math.min(1, Math.max(0, (sa / sc - 1) / (sa / sb - 1))), w = a.w + (b.w - a.w) * f;
-      ROWX[r] = a.x + (b.x - a.x) * f; ROWW[r] = w; ROWP[r] = s.index + t; ROWF[r] = fog; ROWN[r] = n;
+      ROWX[r] = a.x + (b.x - a.x) * f; ROWW[r] = w; ROWP[r] = s.index + t; ROWV[r] = vb + t * SPS; ROWF[r] = fog; ROWN[r] = n;
       const dv = SPS * PX * sa * sb / (sc * sc * dy), du = TW * PX / (2 * Math.max(1, w)); ROWL[r] = Math.max(Math.log2(Math.max(du, 1e-3)), Math.log2(Math.max(dv, 1e-3)) / 2); } }
   // cars by segment (a linked list in typed arrays: nothing allocated)
   if(cars.length > CARN.length) CARN = new Int16Array(cars.length + 64);
   for(let k = 0; k < cars.length; k++){ const c = cars[k]; if(c.oth) continue; const n = Math.floor(c.z / SEG) - base; if(n < 0 || n >= nd) continue; CARN[k] = CARH[n]; CARH[n] = k; }
   // this frame's state per road (Shuto's drizzle comes and goes by visit)
   WETK.shuto = ENV.shuto && ENV.shuto.wetVisit && segs[base] && segs[base].shB !== undefined ? (ENV.shuto.wetVisit(segs[base].shB) ? 1 : .12) : 1;
+  PLN = 0;   // this frame's deferred pools
+  PK.ph = reduce ? 0 : Math.floor(performance.now() / 85);   // the ripples' time step (pools shiver on it; none under reduced motion)
   const st = RM.stats; st.frames++; st.ms = st.ms * .95 + FR.ms * .05; if(FR.ms > st.peak) st.peak = FR.ms; st.last = FR.ms; FR.ms = 0; }
 const WETK = { shuto:1 };
 
@@ -335,7 +338,7 @@ const WETK = { shuto:1 };
 const MOONC = '#f0e4c8', TAILC = '#ff2a3c';
 // the core wraps cx.globalAlpha to multiply by its draw-distance fade (EDGE); this sets the same thing without the accessor's cost per row
 const GA_SET = Object.getOwnPropertyDescriptor(CanvasRenderingContext2D.prototype, 'globalAlpha').set, SA = a => GA_SET.call(cx, a * EDGE);
-function maskAt(T, u, P){ const x = Math.max(0, Math.min(LW[1] - 1, ((u + 1) * LW[1] / 2) | 0)), y = (Math.floor(vmap(P) / 4) % LH[1] + LH[1]) % LH[1]; return T.m[1][y * LW[1] + x] / 255; }
+function maskAt(T, u, v){ const x = Math.max(0, Math.min(LW[1] - 1, ((u + 1) * LW[1] / 2) | 0)), y = ((v / 4) | 0) % LH[1]; return T.m[1][y * LW[1] + x] / 255; }
 function drawSegBack(s, sx, sy, uw, fog){ if(!RM.on || !RM.ready || state === 'ready') return; const t0 = performance.now();
   try{ if(FR.f !== DRAWN) prep(); const n = s.index - FR.base; if(n < 0 || n >= 1024) return;
     if(FKG >= 0 && s.index >= FKG - SPLIT_PRE - 40) { const fk = (FKG - SPLIT_PRE - s.index) / 40; if(fk <= 0) return; layer(s, n, fk); }
@@ -346,7 +349,7 @@ function layer(s, n, w0){ const BL = s.bm < 1 && s.bA !== s.bB && !s.tunnel;
 function paint(s, n, key, wt){ if(wt < .03) return; const p = RP[key]; if(!p || p.mat === 'none') return; const T = TEX[p.mat]; if(!T || (s.tunnel && !p.tunnel)) return;
   const r0 = RS0[n], r1 = RS1[n], g = cx;
   // markings first (the material then wears them like the road)
-  if(p.marks !== 'none' && r1 >= r0){ const P = DPER[p.marks], D = cellDecals(key, Math.floor(s.index / P), P);
+  if(p.marks !== 'none' && r1 >= r0){ let D = s.rmDk === key ? s.rmD : null; if(!D){ const P = DPER[p.marks]; D = cellDecals(key, Math.floor(s.index / P), P); if(D !== NO_DEC){ s.rmD = D; s.rmDk = key; } }
     for(let k = 0; k < D.length; k++){ const d = D[k], dc = DEC[d.nm]; if(!dc || s.index < d.i0 || s.index >= d.i0 + dc.len) continue;
       for(let r = r0; r <= r1; r++){ const P2 = ROWP[r] - d.i0; if(P2 < 0 || P2 >= dc.len) continue; const lod = ROWL[r] + (dc.full ? 0 : -1.415), a = wt * p.paint * (1 - ROWF[r]) * Math.min(1, Math.max(0, 2.8 - lod)); if(a < .02) continue;
         const lv = Math.min(NDL - 1, Math.max(0, Math.ceil(lod - .3))), C = dc.c[lv], vr = Math.min(C.height - 1, Math.floor(P2 * SPS / (1 << (2 * lv)))), x = ROWX[r], w = ROWW[r];
@@ -355,22 +358,25 @@ function paint(s, n, key, wt){ if(wt < .03) return; const p = RP[key]; if(!p || 
       SA(1); } }
   // the material
   if(r1 >= r0){ const str = p.str * wt * (.6 + 1.4 * Math.min(.5, s.lit || 0)); for(let r = r0; r <= r1; r++){ const lod = ROWL[r], a = str * (1 - ROWF[r] * .7) * Math.min(1, Math.max(0, (4.6 - lod) / 1.2)); if(a < .02) continue;
-      const lv = Math.min(NL - 1, Math.max(0, Math.ceil(lod - .3))), vr = Math.floor(vmap(ROWP[r]) / (1 << (2 * lv))) % LH[lv]; SA(Math.min(1, a)); blitRow(T.c[lv], ROWX[r] - ROWW[r], ROWX[r] + ROWW[r], r, vr); }
+      const lv = Math.min(NL - 1, Math.max(0, Math.ceil(lod - .3))), vr = Math.floor(ROWV[r] / (1 << (2 * lv))) % LH[lv]; SA(Math.min(1, a)); blitRow(T.c[lv], ROWX[r] - ROWW[r], ROWX[r] + ROWW[r], r, vr); }
     SA(1); }
   // wet: the sky in the puddles (Fresnel: strong toward the horizon), the moon's broken glitter, the lamps' and tail lights' streaks
   const wet = p.wet * (WETK[key] !== undefined ? WETK[key] : 1) * wt; if(wet <= .02) return; const Q = TINT[key];
   g.globalCompositeOperation = 'lighter';
   if(r1 >= r0 && Q){ const sh = wet * p.sheen;
     for(let r = r0; r <= r1; r++){ const f = ROWF[r], fr = ss(.004, .4, f) * (1 - ss(.72, .98, f)), lod = ROWL[r], a = sh * fr * Math.min(1, Math.max(0, (4.8 - lod) / 1.2)); if(a < .02) continue;
-      const lv = Math.min(NL - 1, Math.max(0, Math.ceil(lod - .3))), vr = Math.floor(vmap(ROWP[r]) / (1 << (2 * lv))) % LH[lv]; SA(Math.min(1, a)); blitRow(Q.c[lv], ROWX[r] - ROWW[r], ROWX[r] + ROWW[r], r, vr); }
+      const lv = Math.min(NL - 1, Math.max(0, Math.ceil(lod - .3))), vr = Math.floor(ROWV[r] / (1 << (2 * lv))) % LH[lv]; SA(Math.min(1, a)); blitRow(Q.c[lv], ROWX[r] - ROWW[r], ROWX[r] + ROWW[r], r, vr); }
     const mx = MOON.x, ma = sh * .5 * (1 - ss(.85, 1, MOON.t || 0)); if(ma > .02){ g.fillStyle = MOONC;
-      for(let r = r0; r <= r1; r++){ const x = ROWX[r], w = ROWW[r]; if(mx < x - w || mx > x + w) continue; const f = ROWF[r], fr = (.25 + .75 * ss(0, .5, f)) * (1 - ss(.7, .95, f)), m = maskAt(T, (mx - x) / w, ROWP[r]);
+      for(let r = r0; r <= r1; r++){ const x = ROWX[r], w = ROWW[r]; if(mx < x - w || mx > x + w) continue; const f = ROWF[r], fr = (.25 + .75 * ss(0, .5, f)) * (1 - ss(.7, .95, f)), m = maskAt(T, (mx - x) / w, ROWV[r]);
         const I = m > .7 ? 1 : m > .4 ? .55 : m > .15 ? .25 : 0; if(!I) continue; SA(Math.min(1, ma * fr * I)); const hw = Math.max(PX, w * (.03 + .05 * m)); pxRect(mx - hw, r * PX, hw * 2, PX); } } }
   if(p.refl > 0 && Math.pow(n / DRAW, 1.6) < .62){ const a = s.p1.screen, uw = a.w, rf = wet * p.refl * (1 - Math.pow(n / DRAW, 1.6) / .62);
     if(p.lamps && s.lit > .15){ const pv = segs[s.index - 1], nx = segs[s.index + 1]; if((!pv || pv.lit < s.lit) && (!nx || nx.lit <= s.lit)){ g.fillStyle = p.reflCol; for(let sd = -1; sd <= 1; sd += 2) streak(T, a.x + sd * p.lampX * uw, a.y, p.lampH * uw, uw * .06, rf); } }
     if(p.tails){ g.fillStyle = TAILC; for(let k = CARH[n]; k >= 0; k = CARN[k]){ const c = cars[k], pct = (c.z % SEG) / SEG, w = a.w + (s.p2.screen.w - a.w) * pct, cxp = a.x + (s.p2.screen.x - a.x) * pct + c.x * w, cyp = a.y + (s.p2.screen.y - a.y) * pct, cw = w * .36;
-        for(let sd = -1; sd <= 1; sd += 2) streak(T, cxp + sd * cw * .36, cyp, cw * .3, cw * .1, rf * .8); } } }
-  SA(1); g.globalCompositeOperation = 'source-over'; }
+        for(let sd = -1; sd <= 1; sd += 2){ if(p.pools > 0){ PK.T = T; PK.rf = rf; PK.lim = p.pools; POOL(cxp + sd * cw * .36, cyp, w, .06, .16, cw * .11, TAILC, .8); } else streak(T, cxp + sd * cw * .36, cyp, cw * .3, cw * .1, rf * .8); } } }
+    const E = ENV[key]; if(E && E.wetSrc && p.pools > 0){ PK.T = T; PK.rf = rf; PK.lim = p.pools; E.wetSrc(s, n, a, POOL); } }
+  if(PLN && r1 >= r0) drawPools(r0, r1);
+  SA(1); g.globalCompositeOperation = 'source-over';
+  const E2 = ENV[key]; if(E2 && E2.wetFX && r1 >= r0) E2.wetFX(s, n, r0, r1, RV, wet, T); }
 // one row of a strip across [x0, x1] (CSS px), on the grid, cropped to the screen
 function blitRow(C, X0, X1, r, vr){ const cw = C.width, dx0 = Math.round(X0 / PX) * PX, dx1 = Math.round(X1 / PX) * PX, ax = Math.max(0, dx0), bx = Math.min(W, dx1); if(bx <= ax || X1 <= X0) return;
   const su0 = (ax - X0) / (X1 - X0) * cw, su1 = (bx - X0) / (X1 - X0) * cw, u0 = Math.max(0, su0), u1 = Math.min(cw, su1); if(u1 - u0 <= 0) return;
@@ -380,10 +386,40 @@ function blitRow(C, X0, X1, r, vr){ const cw = C.width, dx0 = Math.round(X0 / PX
 let SK_rs = -1, SK_I = 0, SK_W = 0, SK_X = 0, SK_A = 0;
 function skFlush(re){ if(SK_rs >= 0 && SK_I > 0){ SA(Math.min(1, SK_A * SK_I)); cx.fillRect(Math.round((SK_X - SK_W / 2) / PX) * PX, SK_rs * PX, Math.max(PX, Math.round(SK_W / PX) * PX), (re - SK_rs) * PX); } }
 function streak(T, lx, by, hL, w0, al){ if(hL < PX * 1.5 || al < .02) return; const ya = Math.ceil(by / PX), yb = Math.min(RN - 1, Math.floor((by + hL * 2.4) / PX)); SK_rs = -1; SK_I = 0; SK_W = 0; SK_X = lx; SK_A = al;
-  for(let r = ya; r <= yb; r++){ if(r < 0) continue; let I = 0, ww = 0; if(ROWN[r] >= 0){ const u = (lx - ROWX[r]) / ROWW[r]; if(u > -1 && u < 1){ const j = ((r + .5) * PX - by) / hL, pr = j < 1 ? .35 + .65 * j : Math.max(0, 1 - (j - 1) / 1.4), m = maskAt(T, u, ROWP[r]);
+  for(let r = ya; r <= yb; r++){ if(r < 0) continue; let I = 0, ww = 0; if(ROWN[r] >= 0){ const u = (lx - ROWX[r]) / ROWW[r]; if(u > -1 && u < 1){ const j = ((r + .5) * PX - by) / hL, pr = j < 1 ? .35 + .65 * j : Math.max(0, 1 - (j - 1) / 1.4), m = maskAt(T, u, ROWV[r]);
         I = Math.round(pr * (.25 + .75 * m) * 4) / 4; ww = Math.round(Math.max(PX, w0 * (.7 + .6 * m)) / PX) * PX; } }
     if(I !== SK_I || ww !== SK_W){ skFlush(r); SK_rs = r; SK_I = I; SK_W = ww; } }
   skFlush(yb + 1); }
+
+/* An env's own light pools: ENV[key].wetSrc(s, n, a, POOL) is called per segment in view (roads with pools > 0); POOL(lx, by, uw, h0, h1, w0, col,
+   al) records the image of a light that stands h0..h1 (half-road widths x uw) above its base at screen (lx, by), w0 px wide, in its own colour.
+   Such roads route their tail-light streaks through it too. Roads without pools keep streak() as before. */
+const RV = { x:null, w:null, p:null, v:null, f:null, n:null, mask:(T, u, v) => maskAt(T, u, v) }, PK = { T:null, rf:0, lim:1, ph:0 };
+/* Deferred: the sprite pass clips each segment's hook to the rows above the road in front of it (cx.rect(0, 0, W, s.clip)), so a light's image,
+   which lies on nearer rows, cannot be drawn from its own segment. POOL records it; every nearer segment then draws the rows of it that fall in
+   its own rows (drawPools), after its material, so the water's image sits on the surface and every nearer prop and car still covers it. */
+const PLM = 1024, PLX = new Float32Array(PLM), PLB = new Float32Array(PLM), PLU = new Float32Array(PLM), PLH0 = new Float32Array(PLM), PLH1 = new Float32Array(PLM), PLW = new Float32Array(PLM), PLA = new Float32Array(PLM), PLL = new Float32Array(PLM), PLYA = new Int16Array(PLM), PLYB = new Int16Array(PLM), PLC = new Array(PLM).fill(''), PLT = new Array(PLM).fill(null);
+let PLN = 0;
+function POOL(lx, by, uw, h0, h1, w0, col, al){ al *= PK.rf; if(PLN >= PLM || al < .02 || !(w0 >= PX * .6) || !(uw > 0) || !(lx === lx) || !(by === by)) return;
+  w0 = Math.min(w0, W * .07); const ya = Math.max(0, Math.ceil((by + h0 * uw * .9) / PX)), yb = Math.min(RN - 1, Math.floor((by + (h1 * 1.9 + .25) * uw) / PX)); if(yb < ya) return; const k = PLN++;
+  PLX[k] = lx; PLB[k] = by; PLU[k] = uw; PLH0[k] = h0; PLH1[k] = h1; PLW[k] = w0; PLA[k] = al; PLL[k] = PK.lim; PLYA[k] = ya; PLYB[k] = yb; PLC[k] = col; PLT[k] = PK.T; }
+let PL_rs = -1, PL_I = 0, PL_W = 0, PL_X = 0, PL_lx = 0, PL_a = 0;
+function poolFlush(re){ if(PL_rs >= 0 && PL_I > 0){ const x = PL_lx + PL_X; SA(Math.min(1, PL_a * PL_I)); cx.fillRect(Math.round((x - PL_W / 2) / PX) * PX, PL_rs * PX, PL_W, (re - PL_rs) * PX);
+    if(PL_W >= PX * 6){ const w2 = Math.round(PL_W * 1.8 / PX) * PX; SA(Math.min(1, PL_a * PL_I * .28)); cx.fillRect(Math.round((x - w2 / 2) / PX) * PX, PL_rs * PX, w2, (re - PL_rs) * PX); } } }
+/* One pool's rows inside [r0, r1]: the mirror image of a light standing h0..h1 above its base, stretched toward the viewer (to ~1.9x its height),
+   full in the puddles and thinner on the film, shivering sideways in the ripples except where the water is deep; out to its limit across (the
+   pavements' puddles are the road's mask, mirrored). Runs of equal rows are one rect, with a dimmer wider fringe near by (a rough mirror's spread). */
+function drawPools(r0, r1){ const c0 = cx.fillStyle;
+  for(let k = 0; k < PLN; k++){ if(PLYB[k] < r0 || PLYA[k] > r1) continue; const lx = PLX[k], by = PLB[k], uw = PLU[k], h0 = PLH0[k], h1 = PLH1[k], w0 = PLW[k], lim = PLL[k], T = PLT[k];
+    const yt = by + h0 * uw * .9, ym = by + (h0 + h1) * .5 * uw, ye = by + (h1 * 1.9 + .25) * uw, dm = Math.max(1, ym - yt), de = Math.max(1, ye - ym), ra = Math.max(r0, PLYA[k]), rb = Math.min(r1, PLYB[k]);
+    cx.fillStyle = PLC[k]; PL_rs = -1; PL_I = 0; PL_W = 0; PL_X = 0; PL_lx = lx; PL_a = PLA[k];
+    for(let r = ra; r <= rb; r++){ let I = 0, ww = 0, ox = 0;
+      if(ROWN[r] >= 0){ const u = (lx - ROWX[r]) / ROWW[r], au = u < 0 ? -u : u;
+        if(au < lim){ const yc = (r + .5) * PX, pr = yc < ym ? .45 + .55 * (yc - yt) / dm : Math.max(0, 1 - (yc - ym) / de), m = maskAt(T, au <= 1 ? u : (u > 0 ? 2 - au : au - 2), ROWV[r]);
+          I = Math.round(pr * (.3 + .7 * m) * 3) / 3; if(I > 0){ ww = Math.round(Math.max(PX, w0 * (.7 + .5 * m)) / PX) * PX; if(m < .8) ox = Math.round((ih((ROWV[r] / 4) | 0, PK.ph, 5) - .5) * w0 * .3 / PX) * PX; } } }
+      if(I !== PL_I || ww !== PL_W || ox !== PL_X){ poolFlush(r); PL_rs = r; PL_I = I; PL_W = ww; PL_X = ox; } }
+    poolFlush(rb + 1); }
+  cx.fillStyle = c0; }
 
 // ---------------------------------------------------------------- the lab (roadlab.html): postMessage, same origin only
 if(LAB){ const C = RM.lab = { freeze:false, pos:-1, x:null, speed:-1, pitch:null, night:null, traffic:true };
@@ -393,14 +429,14 @@ if(LAB){ const C = RM.lab = { freeze:false, pos:-1, x:null, speed:-1, pitch:null
   addEventListener('message', e => { if(e.origin !== location.origin) return; const d = e.data; if(!d || d.ns !== 'roadmat') return;
     if(d.cmd === 'get'){ reply(e.source, state0()); return; }
     if(d.cmd === 'on'){ RM.on = !!d.on; applyRoadCols(); }
-    if(d.cmd === 'road' && KEYS.includes(d.key) && d.preset){ ROADS[d.key] = d.preset; resolve(d.key); DCELL.delete(d.key); refresh(true); }
+    if(d.cmd === 'road' && KEYS.includes(d.key) && d.preset){ ROADS[d.key] = d.preset; resolve(d.key); DCELL.delete(d.key); for(const sg of segs) if(sg && sg.rmDk === d.key) sg.rmDk = null; refresh(true); }
     if(d.cmd === 'field' && FIELD[d.type] && d.params){ Object.assign(FIELD[d.type], d.params); refresh(true); }
     if(d.cmd === 'cam' && d.cam) Object.assign(C, d.cam);
     if(d.cmd === 'stats'){ reply(e.source, { cmd:'stats', stats:RM.stats, pos:position / SEG, segs:segs.length, speed }); return; }
     reply(e.source, { cmd:'ok', of:d.cmd }); });
   const tick = () => { requestAnimationFrame(tick); if(typeof state === 'undefined' || state !== 'play') return;
     TIME.scale = C.freeze ? 0 : 1;
-    if(C.pos >= 0){ position = Math.max(0, Math.min((segs.length - DRAW - 20) * SEG, C.pos * SEG)); if(C.freeze) C.pos = -1; }
+    if(C.pos >= 0){ position = Math.max(0, Math.min((segs.length - DRAW - 20) * SEG, C.pos * SEG)); C.pos = -1; }
     if(C.x !== null) playerX = C.x; if(C.speed >= 0 && !C.freeze) speed = C.speed * 45; if(C.pitch !== null) CAM.pitch = C.pitch;
     if(C.night !== null){ sunLeft = sunShown = (1 - C.night) * SUN_MAX; } if(!C.traffic) cars.length = 0; };
   const hook = () => { window.pauseOpen = function(){}; requestAnimationFrame(tick); };   // the lab's controls take focus: never pause on blur
