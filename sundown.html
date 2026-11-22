@@ -130,9 +130,10 @@ body:has(#attract) .home,body:has(#attract) .info{box-shadow:inset 2px 2px 0 #3a
 .vcol::after{content:"夜";position:absolute;left:50%;bottom:8px;width:28px;height:28px;margin-left:-14px;display:grid;place-items:center;writing-mode:horizontal-tb;font-size:16px;letter-spacing:0;
   color:#fff6ea;background:#c8102a;box-shadow:inset 0 0 0 2px #ff3b4a,2px 2px 0 #000;text-shadow:none}
 @media (max-height:600px){ .vcol{display:none} }
-/* PRESS START (research/sundown-craft/title-start.md): the cut-in cards' language, not a web button. A 1-bit canvas (PSTART, #startArt) at whole-pixel
-   scale: a hot slanted tape in the wordmark's face with a big 発進 stamp, ink keylines, hard offset shadows, a dither tail and speed lines. The button itself
-   is bare; the gold focus ring (.attract :focus-visible) still marks it for keyboard and pad players. */
+/* PRESS START (research/sundown-craft/title-start.md): the event cards' language, not a web button. A 1-bit canvas (PSTART, #startArt) at whole
+   device pixels: スタート in Dela Gothic One (keyline, hot shadow, a crack) over PRESS START on the cards' slanted off-white tape, on a slab of hot
+   screentone. The canvas overhangs the button by negative margins (set in PSTART.fit), so the button's box, and its gold focus ring
+   (.attract :focus-visible), is the lockup itself. */
 .btn.press{position:relative;height:auto;display:block;padding:4px;border:0;background:none;box-shadow:none;line-height:0;color:#f4ecdf}
 .press canvas{display:block;image-rendering:pixelated}
 .stear{position:fixed;z-index:40;pointer-events:none;image-rendering:pixelated}
@@ -488,9 +489,7 @@ body.paused .banner,body.paused .float{animation-play-state:paused!important}
 @media (prefers-reduced-motion: reduce){ #loader *{animation:none!important} #loader .ldk{display:none} #loader.out .ldbk,#loader.out .ldbw,#loader.out .ldbi{transform:none} #loader.out{transition-duration:.2s} }
 /* the title's first appearance composes in order (jo-ha-kyu): the night and the logo first, PRESS START once the sign has caught, the side
    chrome last. It is all live and pressable at once: only the paint is staggered, never the input. Once per page load; reduced motion: none. */
-.attract.first>.btn.press{animation:t1slam .27s .75s both}   /* START snaps in once the sign has caught: off, a step short, a step past, home (one keyframe per frame, no easing) */
-@keyframes t1slam{0%{opacity:0;transform:translateX(-8px);animation-timing-function:steps(1,end)}33%{opacity:1;transform:translateX(-8px);animation-timing-function:steps(1,end)}66%{opacity:1;transform:translateX(4px);animation-timing-function:steps(1,end)}100%{opacity:1;transform:none}}
-.rm .attract.first>.btn.press{animation:none}
+/* START's first reveal is drawn in its own canvas (PSTART.state: the kanji slams in, the tape slides in, the caption types on) */   /* START snaps in once the sign has caught: off, a step short, a step past, home (one keyframe per frame, no easing) */
 .gatew{position:fixed;left:50%;top:calc(14px + env(safe-area-inset-top,0px));transform:translateX(-50%);z-index:20;display:flex;align-items:center;gap:8px;padding:6px 10px;background:rgba(7,6,12,.72);box-shadow:inset 0 0 0 1px #3a3350;font-family:var(--font-display);font-size:12px;color:var(--muted);pointer-events:none}
 .gatew b{font-weight:normal;letter-spacing:1px}.gatew i{display:block;width:96px;height:4px;background:#1c1628}.gatew u{display:block;height:4px;width:0;background:#ffd04a}
 .attract.going>*{opacity:0!important;transition:opacity .15s steps(2)!important;animation:none!important}   /* START pressed: the words go, the night stays */
@@ -1971,10 +1970,10 @@ function drawHazard(s, x0, y, uw, fog, now){ const h = s.hz, x = x0 + h.x * uw, 
    a glint that sweeps across it every few seconds, over a black lip. That sliver is what reads at about 1.5 s at top speed.
    The surface reacts when a tyre crosses it: a ripple ring spreads from where the tyre went in, and the tyre's groove shows thinner film.
    Scenic roads where oil makes no sense carry none (LANDS oil: Kurobe, Gion, Shimanami, Snow 0; Paddies and the coast fewer). */
-const OIL_TONE = new Map();   // per road: [reflection, sheen, film x3, highlight, edge film x4], from its lamp colour
+const OIL_TONE = new Map();   // per road: [reflection, sheen, film x3, highlight, edge film x4, far sliver], from its lamp colour
 function oilTones(L){ let t = OIL_TONE.get(L.key); if(!t){ const lc = (ENV[L.key] || NOENV).lampCol || '#8a6440';
     t = [mixc(lc, '#7a86b8', .7), mixc(lc, '#2a2c46', .7), '#4e4270', '#2e5a64', mixc(lc, '#4a4658', .45), mixc(lc, '#d2d6ee', .74),
-      mixc('#8e5cc0', lc, .15), mixc('#c0608e', lc, .15), mixc('#cfa452', lc, .15), mixc('#3ea8aa', lc, .15)]; OIL_TONE.set(L.key, t); } return t; }
+      mixc('#8e5cc0', lc, .15), mixc('#c0608e', lc, .15), mixc('#cfa452', lc, .15), mixc('#3ea8aa', lc, .15), mixc(lc, '#e6e8f8', .84)]; OIL_TONE.set(L.key, t); } return t; }
 // the slick's rows on screen, mapped to the world: y, v (0 near edge .. 1 far edge, from the row's true depth), centre x, road half-width
 const OIL_N = 1024, OIL_RY = new Float32Array(OIL_N), OIL_RV = new Float32Array(OIL_N), OIL_RX = new Float32Array(OIL_N), OIL_RW = new Float32Array(OIL_N);
 let OIL_B = 0;   // this frame's camera segment (drawSprites): segments at or behind it are not projected
@@ -1997,10 +1996,12 @@ function drawOil(s, h, fog, now){ const f = segs[s.index + 6]; if(!f) return;
   const cz = (s.index + 3) * SEG - position, est = cz > PZ ? H * PZ * 600 / (cz * cz) / step : 99;   // est: the slick's true height in rows (its distance, not what is left on screen)
   const far = clamp(1 - (est - 2) / 7, 0, 1), fi = Math.floor(est / 5);   // far: Fresnel (the reflection widens far off); fi: the film's tones walk as you close in (the viewing angle changes)
   let n = oilRows(s, h), sliver = false;
-  if(n < 2){ if(s.index <= OIL_B || !s.p1.screen.scale || !f.p1.screen.scale || est > 2.5) return;   // a legibility floor: far off, two rows (its reflection over its dark lip)
-    const a = s.p1.screen, b = f.p1.screen, r = Math.round((a.y + b.y) / 2 / step) - 1; if(a.y <= b.y || r * step >= H) return;
-    for(let j = 0; j < 2; j++){ OIL_RY[j] = (r + j) * step; OIL_RV[j] = j ? .3 : .7; OIL_RW[j] = (a.w + b.w) / 2; OIL_RX[j] = (a.x + b.x) / 2 + h.x * OIL_RW[j]; } n = 2; sliver = true; }
-  else if(est <= 3) sliver = true;
+  if(n <= 3){   // far off it is a sliver of two rows (three once it has them): its reflection over its dark lip; a legibility floor below that
+    if(s.index <= OIL_B || est > 6) return; let yT = 1e9, yB = -1e9, xs = 0, ws = 0;
+    for(let j = 0; j < n; j++){ yT = Math.min(yT, OIL_RY[j]); yB = Math.max(yB, OIL_RY[j]); xs += OIL_RX[j]; ws += OIL_RW[j]; }
+    if(!n){ const a = s.p1.screen, b = f.p1.screen; if(!a.scale || !b.scale || a.y < b.y) return; yT = yB = Math.round((a.y + b.y) / 2 / step - .5) * step; ws = (a.w + b.w) / 2; xs = (a.x + b.x) / 2 + h.x * ws; n = 1; }
+    const m = n === 3 ? 3 : 2; if(yB - yT < step) yT = yB - step; xs /= n; ws /= n; if(yB >= H) return;
+    for(let j = 0; j < m; j++){ OIL_RY[j] = m === 3 ? yT + j * step : j ? yB : yT; OIL_RV[j] = m === 3 ? [.8, .62, .3][j] : j ? .3 : .7; OIL_RX[j] = xs; OIL_RW[j] = ws; } n = m; sliver = true; }
   // the surface reacts to a tyre: a ripple ring from where it went in (world units: the blob is 1600 across, 1200 long), and its groove
   const hit = h.hitT !== undefined, ripA = hit ? OILW.clock - h.hitT : -1, rip = ripA >= 0 && ripA < .9 && !reduce, rr0 = .1 + ripA * 1.7, ru = hit ? h.hitU : 0, rd = hit ? h.hitD * .3 : 0;
   const swell = ((tm * .42 + hash(sd + 6) * 3) % 2.4) * 1.25 - 1.25;   // the sheen's slow swell: crosses the reflection, then rests (about 2.4 s a cycle)
@@ -2013,10 +2014,12 @@ function drawOil(s, h, fog, now){ const f = segs[s.index + 6]; if(!f) return;
       if(i < nc){ const u = (i + .5) / nc * 2 - 1, ang = Math.atan2(vv, u), ch = (i + row) & 1, uc = Math.floor((u + 1) * 12),
           r = Math.hypot(u, vv) / (.84 + lob[0] * Math.sin(ang * 2 + lob[1]) + lob[2] * Math.sin(ang * 3 + lob[3]));
         if(r <= 1 && !(r > .93 && ch)){   // inside, less the dithered outer rim (half the cells: a soft edge, no outline)
-          if(sliver){ const e = r > .72;   // far off: a bright sliver of reflected sky with iridescent ends over a black lip; the swell is a glint sweeping across it
-            col = v > .5 ? (Math.abs(u - swell) < .13 ? '#f6f4ff' : e ? T[6 + (uc + fi) % 4] : Math.abs(u - gl * .3) < .62 ? T[5] : T[0]) : (e && ch ? T[6 + (uc + 2) % 4] : '#04030a'); }
+          if(sliver){ const e = nc >= 7 && r > .76;   // (the ends only once it is wide enough to keep a bright middle)
+              // far off: a bright sliver of reflected sky with iridescent ends over a black lip; the swell is a glint sweeping across it
+            col = v > .5 ? (Math.abs(u - swell) < .13 ? '#f8f6ff' : e ? T[6 + (uc + fi) % 4] : Math.abs(u - gl * .3) < .62 ? T[10] : T[5]) : (e && ch ? T[6 + (uc + 2) % 4] : '#020106'); }
           else if(r > .93) col = '#0c0b14';
-          else if(r > .86) col = ch && r < .89 ? '#0c0b14' : T[6 + (Math.floor(ang * 1.3 + r * 4) + fi + 12) % 4];   // the thin edge: oil's interference colours, brightest where the film is thinnest
+          else if(r > .87){ const pm = Math.sin(ang * 2 + lob[1] * 1.7) + .7 * Math.sin(ang * 5 + lob[3]);   // the thin edge: oil's interference colours in broken patches, brightest where the film is thinnest
+            col = pm > .35 ? (ch && r < .9 ? T[2 + (fi + uc) % 3] : T[6 + (Math.floor(ang * 1.3 + r * 4) + fi + 12) % 4]) : ch ? '#0c0b14' : T[2 + (Math.floor(ang * 1.1) + fi + 9) % 3]; }
           else if(r > .79 && ch === 0) col = T[2 + (Math.floor(ang * 1.1 + r * 5) + fi + 9) % 3];   // the film just inside, half strength
           else if(hit && Math.abs(u - ru - rd * v) < .07) col = ch ? T[2 + (vc + fi) % 3] : T[1];   // the tyre's groove: the oil pushed aside, thinner film
           else if(band > 0 && Math.abs(u - gl * (1 - far)) < .62 + .3 * far){ const q = band * (1 - Math.abs(u - gl) * .5) + .3 * Math.max(0, 1 - Math.abs(u - swell) * 2.2);
@@ -2063,12 +2066,12 @@ function oilTrack(s){ const O = OILW, P1 = s.p1, P2 = s.p2; if(P1.camera.z <= DE
       if(a < .03) continue; const hw = Math.max(PX * .5, OIL_TW * w), yy = r * PX;
       for(let tr = 0; tr < 2; tr++){ const xu = tr ? O.xr[ia] + (O.xr[ib] - O.xr[ia]) * gq : O.xf[ia] + (O.xf[ib] - O.xf[ia]) * gq, px = xc + xu * w, xa = snap(px - hw), xb = Math.max(xa + PX, snap(px + hw));
         cx.globalAlpha = a * (tr ? .8 : .92); cx.fillStyle = '#06050b'; cx.fillRect(xa, yy, xb - xa, PX);
-        if(xb - xa >= PX * 3){ cx.fillStyle = hash(Math.floor(zw / 60) * .37 + tr) > .55 ? T[5] : T[1]; cx.fillRect(xa + PX, yy, PX, PX); } } } }   // the gloss along each track, broken as it catches the light
+        if(xb - xa >= PX * 2){ cx.globalAlpha = a; cx.fillStyle = hash(Math.floor(zw / 50) * .37 + tr) > .4 ? T[5] : T[0]; cx.fillRect(xa + (xb - xa >= PX * 4 ? PX : 0), yy, PX, PX); } } } }   // the gloss along each track, broken as it catches the light
   cx.globalAlpha = 1; }
 // the oily rear tyre (a wet sheen and a rolling glint on the rows below the tail) and the droplets it throws; after the bike, in its transform
 function oilBike(x, y, bs, lean, now){ const O = OILW, P = O.P;
-  for(let i = 0; i < O.NP; i++){ const q = i * 6, l = P[q + 4]; if(l <= 0) continue; const pr = 1 - l / P[q + 5], sz = PX * (pr > .55 ? 2 : 1), dx = snap(P[q]), dy = snap(P[q + 1]);   // nearer the camera, bigger
-    cx.globalAlpha = Math.min(1, l * 5); cx.fillStyle = '#07060d'; cx.fillRect(dx, dy, sz, sz); if(sz > PX){ cx.fillStyle = '#b8bcd8'; cx.fillRect(dx, dy, PX, PX); } }
+  for(let i = 0; i < O.NP; i++){ const q = i * 6, l = P[q + 4]; if(l <= 0) continue; const pr = 1 - l / P[q + 5], sz = PX * (pr > .7 ? 3 : pr > .3 ? 2 : 1), dx = snap(P[q]), dy = snap(P[q + 1]);   // nearer the camera, bigger
+    cx.globalAlpha = Math.min(1, l * 5); cx.fillStyle = '#07060d'; cx.fillRect(dx, dy, sz, sz); cx.fillStyle = sz > PX ? '#c8ccea' : '#5a5e7c'; cx.fillRect(dx, dy, PX, PX); }   // a dark bead with a lit fleck
   cx.globalAlpha = 1; if(O.amt <= .02 || BIKE.hidden) return;
   const k = Math.max(PX, Math.round(bs / 30 / PX) * PX), a = Math.min(1, O.amt * 1.5), EB = ENV.bikes, f0 = EB && EB.poseLean && EB._cur ? EB.poseLean(EB._cur()) : lean, t = f0 + clamp(lean - f0, -.14, .14);
   cx.save(); cx.translate(Math.round(x), Math.round(y)); cx.rotate(t);
@@ -2176,69 +2179,120 @@ function px3(s, col, k, sh){ const c = document.createElement('canvas'); c.width
   for(const [cc, o] of [[sh || '#000', 1], [col, 0]]){ g.fillStyle = cc; [...s].forEach((ch, n) => { const b = F3[ch] || F3[' ']; for(let i = 0; i < 15; i++) if(b[i] === '1') g.fillRect(n * 4 + i % 3 + o, (i / 3 | 0) + o, 1, 1); }); }
   return `<img class="p3" src="${c.toDataURL()}" width="${c.width * k}" height="${c.height * k}" alt="" aria-hidden="true">`; }
 const cap = (s, col, k, sh) => `<span class="sr-only">${s.toLowerCase()}</span>${px3(s, col || '#f4ecdf', k || 2, sh)}`;
-/* PRESS START, drawn 1-bit (see .press; research/sundown-craft/title-start.md): the wordmark's block face on a slanted hot tape, a big 発進 stamp
-   (hasshin: the launch cry), ink keylines, hard offset shadows, an ordered-dither tail, speed lines and a letter-spaced 3x5 line. Three colours
-   only (the loader's ink / hot / off-white). Frames are cached by state; the loop only blits when the state changes. */
+/* PRESS START, round 2 (see .press; research/sundown-craft/title-start.md): the event cards' language, as the loader speaks it. スタート in
+   Dela Gothic One at card scale (off-white, a 2 px ink keyline, a hot drop shadow, cracked along one diagonal) over PRESS START in Dela on the
+   cards' slanted off-white tape with its letter-spaced 3x5 caption, behind them a slanted ink slab of hot screentone. The type was rendered
+   offline from the real face (8x, box-down, thresholded, counters held: research/sundown-craft/title-start.md), so nothing waits on a font.
+   Whole device pixels only; two layouts (stacked, or side by side where the screen is short). Frames are cached by state. */
 const PSTART = (() => {
   const INK = '#0a0810', HOT = '#ff3b5c', OFF = '#f4ecdf', BAY = [0, 8, 2, 10, 12, 4, 14, 6, 3, 11, 1, 9, 15, 7, 13, 5];
-  const SG = { P:['XXXXX.', 'XX..XX', 'XX..XX', 'XXXXX.', 'XX....', 'XX....', 'XX....'], R:['XXXXX.', 'XX..XX', 'XX..XX', 'XXXXX.', 'XX.XX.', 'XX..XX', 'XX..XX'],
-    E:['XXXXXX', 'XX....', 'XX....', 'XXXXX.', 'XX....', 'XX....', 'XXXXXX'], T:['XXXXXX', '..XX..', '..XX..', '..XX..', '..XX..', '..XX..', '..XX..'],
-    A:['.XXXX.', 'XX..XX', 'XX..XX', 'XXXXXX', 'XX..XX', 'XX..XX', 'XX..XX'] };
-  function block(str, s){ const gl = ch => SG[ch] || WORD_GLYPHS[ch]; let W0 = 0; for(const ch of str) W0 += (ch === ' ' ? 2 : gl(ch)[0].length) + 1; W0 -= 1;   // the SUNDOWN face: 2-px strokes, a step of slant every two rows
-    const m = document.createElement('canvas'); m.width = (W0 + 4) * s; m.height = 7 * s; const k = m.getContext('2d'); k.fillStyle = '#fff'; let gx = 0;
-    for(const ch of str){ if(ch === ' '){ gx += 3; continue; } const g = gl(ch); g.forEach((row, y) => { const off = Math.floor((6 - y) / 2) * Math.ceil(s * 2 / 3); [...row].forEach((c, x) => { if(c === 'X') k.fillRect((gx + x) * s + off, y * s, s, s); }); }); gx += g[0].length + 1; }
-    return m; }
-  function tape(g, x, y, w, h, col, tail){ g.fillStyle = col; for(let i = 0; i < h; i++){ const o = Math.floor((h - 1 - i) / 2); g.fillRect(x + o, y + i, w, 1);   // leans as the face does; the tail dithers out
-    for(let j = 0; j < (tail || 0); j++){ const lv = 16 * (1 - (j + 1) / (tail + 1)), px = x + o + w + j; if(BAY[(i % 4) * 4 + (px % 4)] < lv) g.fillRect(px, y + i, 1, 1); } } }
-  let P = null, cache = {};
-  function parts(){ if(P) return P; const word = block('PRESS START', 2), kj = pixText('発進', 16, false), kc = kj.getContext('2d'), d = kc.getImageData(0, 0, kj.width, kj.height).data;
-    let x0 = 1e9, y0 = 1e9, x1 = -1, y1 = -1; for(let y = 0; y < kj.height; y++) for(let x = 0; x < kj.width; x++) if(d[(y * kj.width + x) * 4 + 3]){ x0 = Math.min(x0, x); x1 = Math.max(x1, x); y0 = Math.min(y0, y); y1 = Math.max(y1, y); }
-    if(x1 < 0){ x0 = y0 = 0; x1 = kj.width - 1; y1 = kj.height - 1; }
-    const kt = document.createElement('canvas'); kt.width = (x1 - x0 + 1) * 2; kt.height = (y1 - y0 + 1) * 2; const kk = kt.getContext('2d'); kk.imageSmoothingEnabled = false; kk.drawImage(kj, x0, y0, x1 - x0 + 1, y1 - y0 + 1, 0, 0, kt.width, kt.height);   // doubled: 2-px strokes, as the face
-    const L = '1P // HASSHIN', sub = document.createElement('canvas'); sub.width = L.length * 5; sub.height = 5; { const sg = sub.getContext('2d'); sg.fillStyle = '#fff'; [...L].forEach((ch, n) => { const b = F3[ch] || F3[' ']; for(let i = 0; i < 15; i++) if(b[i] === '1') sg.fillRect(n * 5 + i % 3, (i / 3 | 0), 1, 1); }); }
-    const SW = kt.width + 10, SH = kt.height + 10, TH = 24, TX = SW - 3, TY = SH - TH - 2, TW = word.width + 14, TAIL = 12;
-    P = { word, kj:kt, sub, SW, SH, TH, TX, TY, TW, TAIL, W: TX + TW + Math.floor((TH - 1) / 2) + TAIL + 18, H: SH + 15 }; return P; }
-  // a frame: lift (the face rises off its shadow), inv (the beat: colours swap), down (pressed: flat on its shadow and inverted, the impact frame)
-  function paint(lift, inv, down){ const c = document.createElement('canvas'); c.width = P.W; c.height = P.H; const g = c.getContext('2d'); g.imageSmoothingEnabled = false;
-    const sh = down ? 0 : lift ? 3 : 2, o = down ? 2 : lift ? 0 : 1, sx = o + 1, sy = o + 1, tx = sx + P.TX, ty = sy + P.TY;
-    const tapeC = inv ? OFF : HOT, wordC = inv ? INK : OFF, wordS = inv ? HOT : INK, stC = inv ? HOT : OFF, kjC = inv ? OFF : INK;
-    if(sh){ tape(g, tx - 1 + sh, ty - 1 + sh, P.TW + 2, P.TH + 2, INK, 0); g.fillStyle = INK; g.fillRect(sx - 1 + sh, sy - 1 + sh, P.SW + 2, P.SH + 2); }
-    tape(g, tx - 1, ty - 1, P.TW + 2, P.TH + 2, INK, 0); tape(g, tx, ty, P.TW, P.TH, tapeC, P.TAIL);
-    g.drawImage(tintMask(P.word, wordS), tx + 8, ty + 6); g.drawImage(tintMask(P.word, wordC), tx + 7, ty + 5);
-    { const ex = tx + P.TW + P.TAIL + 1, L = lift || down ? [14, 9, 5] : [9, 5, 3]; [[3, L[0], OFF], [10, L[1], HOT], [17, L[2], OFF]].forEach(([r, l, col], i) => { const q = Math.floor((P.TH - 1 - r) / 2); g.fillStyle = INK; g.fillRect(ex + q + 3 + i * 2, ty + r + 1, l, 1); g.fillStyle = col; g.fillRect(ex + q + 2 + i * 2, ty + r, l, 1); }); }   // speed lines, longer on the beat
-    { const ux = tx + P.TW - P.sub.width - 2, uy = ty + P.TH + 3; g.drawImage(tintMask(P.sub, INK), ux + 1, uy + 1); g.drawImage(tintMask(P.sub, inv ? HOT : OFF), ux, uy); }
-    g.fillStyle = INK; g.fillRect(sx - 1, sy - 1, P.SW + 2, P.SH + 2); g.fillStyle = stC; g.fillRect(sx, sy, P.SW, P.SH);
-    if(!inv){ g.fillStyle = HOT; g.fillRect(sx, sy + P.SH - 3, P.SW, 3); }   // a hot rule along the stamp's foot ties it to the tape
-    g.drawImage(tintMask(P.kj, kjC), sx + 5, sy + 4); return c; }
-  function frame(lift, inv, down){ parts(); const key = (lift ? 1 : 0) + (inv ? 2 : 0) + (down ? 4 : 0); return cache[key] || (cache[key] = paint(lift, inv, down)); }
-  // ba-ba-baan: the bosozoku call the countdown plays (two short blips, one long), as two lifts and one inverted beat every 2.4 s (six beats of the
-  // title's 150 bpm). The title itself is the city and the wind (no beat to follow), so the label keeps the call's time. Reduced motion: still.
-  function state(btn, now){ const down = btn.matches(':active') && !btn.disabled, hover = btn.matches(':hover') && UI_IN !== 'touch';
-    if(down) return [false, true, true]; if(reduce) return [hover, false, false];
-    const p = (now / 1000) % 2.4, lift = p < .07 || (p > .2 && p < .27); return [lift || hover, p > .4 && p < .62, false]; }
-  function draw(cv, now){ if(!cv) return; const s = state(cv.parentNode, now), f = frame(s[0], s[1], s[2]); if(cv._f === f) return; cv._f = f;
-    if(cv.width !== f.width || cv.height !== f.height){ cv.width = f.width; cv.height = f.height; fit(cv); } const g = cv.getContext('2d'); g.clearRect(0, 0, cv.width, cv.height); g.drawImage(f, 0, 0); }
-  function fit(cv){ if(!cv) return; parts(); const k = clamp(Math.min(Math.floor((innerWidth - 40) / (P.W + 14)), Math.floor(innerHeight * .2 / P.H)), 1, 2);   // whole pixels only; the logo leads, START follows
-    cv.style.width = P.W * k + 'px'; cv.style.height = P.H * k + 'px'; cv.style.marginLeft = 14 * k + 'px'; }   // the margin balances the speed lines, so the label's body sits centred
-  // the press: the impact frame, then the tape torn along a ragged diagonal, the halves thrown apart and dithering out over the road (30 fps, 8 frames).
-  // It rides over START's handoff in its own layer and never delays the countdown.
-  const pats = {};
-  function pat(g, lv){ if(pats[lv]) return pats[lv]; const c = document.createElement('canvas'); c.width = c.height = 4; const k = c.getContext('2d'); k.fillStyle = '#000'; for(let i = 0; i < 16; i++) if(BAY[i] < lv) k.fillRect(i % 4, i / 4 | 0, 1, 1); return (pats[lv] = g.createPattern(c, 'repeat')); }
-  function tearF(f, base){ const M = 70, c = document.createElement('canvas'); c.width = base.width + M * 2; c.height = base.height + 24; const g = c.getContext('2d'); g.imageSmoothingEnabled = false;
-    if(f <= 1){ g.drawImage(base, M, 12); return c; }
-    const n = f - 1, dx = [0, 3, 8, 16, 27, 42, 60][Math.min(6, n)], dy = Math.min(6, n), fade = Math.max(0, Math.min(16, Math.round((n - 2) / 4 * 16))), mid = Math.round(base.width * .52);
-    for(const k of [-1, 1]){ const h = document.createElement('canvas'); h.width = base.width; h.height = base.height; const q = h.getContext('2d');
-      for(let y = 0; y < base.height; y++){ const x = mid + Math.floor((base.height - y) / 2) + [0, 2, -1, 3, 1, -2, 2, 0, -1][y % 9]; if(k < 0) q.drawImage(base, 0, y, x, 1, 0, y, x, 1); else q.drawImage(base, x, y, base.width - x, 1, x, y, base.width - x, 1); }
-      if(fade){ q.globalCompositeOperation = 'destination-out'; q.fillStyle = pat(q, fade); q.fillRect(0, 0, h.width, h.height); }
-      g.drawImage(h, M + k * dx, 12 + k * dy); }
+  const SRC = {"ksh":"data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAIIAAAAhCAMAAAAiVYOPAAADAFBMVEUAAAAKCBD/O1z07N8AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAACXC+19AAAAAXRSTlMAQObYZgAAAJ9JREFUeNrt10sKgDAMBNBh7n9od4JF0/zKFOmsU33QXwqcnITDO+mB9NYNmRUEBGYxOTMwa+ggcBMCtQS6Zmo1gWrCLLG9toRg8rxqSrIB4anYwaDiyAEvBPU8hHZVO0G/GPX7gf8mwLxzewiZxq33bESyd2y8I9DVvmKZwE+A0Sch9+8SYXy6FAARAr4PrNBnKgS81Iw9fPElmBu/PhcaThKvFdslnAAAAABJRU5ErkJggg==","kbd":"data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAIIAAAAhCAMAAAAiVYOPAAADAFBMVEUAAAAKCBD/O1z07N8AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAACXC+19AAAAAXRSTlMAQObYZgAAAShJREFUeNrtl9sOgzAIhvnD+7/zks1ZKaeCxmWJXGmF9pNyaIn+RbBL2xCrepNkCgWCUBnIGADepMgwDDlBYEe+a3gaNyBsdvgtAiKFdCcuQHgbItqpOxCA1EuLCEH4RggcEugMmfJFITgc2RrcRlDGHkdkKCYxv9c9aFEE6Oq5QBBuYhAZPgFDD/YR3ByZjCROK1C4lE0qfsQ7+HIEu1fNmPuQPdkJBOGEJIG0Q1oIevrw/yWEeGpvhM61I0E4zanCZFZHA4G7kq6v2tSgQMEL/R7ldEq7Nvq+R5AJC2dZp1lbPSIKorUif+68QEbUWMVJRQBdh0AjSj8zH8oB6XpZuExUECDPNaMekChO1dvMOoIRpWOkdHdpXmV2XWeot3rtQvfII0T0Ai8TFVDJ+r/TAAAAAElFTkSuQmCC","kshx":"data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAIIAAAAhCAMAAAAiVYOPAAADAFBMVEUAAAAKCBD/O1z07N8AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAACXC+19AAAAAXRSTlMAQObYZgAAAMVJREFUeNrtl8EOgCAMQ5f+/0d700iQraXAxR7NXN8E2Yj49YsVbskvohrXKAtwoQMZA1SGdxAkBMwivEx0BMgIjYGGgNJKFZdZRsAMAgwImYLc6wsQuvmfBzXuVfbE9zth31J4/G07aVP53whb7TsIu+1bgo8Q++IbKrH+yXwy+1nG5VtwlFIIun0Mu24xb1K+0imZs7E8XNLNutQjygONY14IffOFCyGG9iHPjBJC9wYwAVBHiFHLINLMICRgcgbiSndMFwTJEa/3nK1eAAAAAElFTkSuQmCC","kbdx":"data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAIIAAAAhCAMAAAAiVYOPAAADAFBMVEUAAAAKCBD/O1z07N8AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAACXC+19AAAAAXRSTlMAQObYZgAAAU1JREFUeNrtl+0OQiEIhn3H/d9zWzupfIO1Wit+eTgqj4iIY3yJYMrxQFT7Cck6NAjCzkDGANAlTYY1kBIEcuRhw+vxBoRrHD6LgKhDuhNrZBnVXCeinapMPb8OEYDUSyHC1ZpztREoJNAnxD4vqm8XgY4Q5uzugDgv2ATmfwtsrt7xoabwCUi1c4Ld+whD2YkMn4CgldIA3/xCJGUAYhuSQJHmcwTtBXUA2TfCWDXMVxCsu0pCTpU91V07HPsZwn5sACsDMa2ToRCYVwjaQLB+DsFaFG9+jCBjfRGEucfRF2oNI8cw1YZAXVnLT+2r63pRoOyFyPul0s10vMqNvu/dk3+FyBhnRYu+I6IQsk5+vaAu1k1GzPDkJGK/U9J3S7fHvFs6GLb5xkOiigBe1YjVo734NoKO0SFj5wXPqcqDylRv8zz5Fjwb/5dfkhsochQTSdkfkQAAAABJRU5ErkJggg==","tp":"data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAJcAAAAbCAMAAABGM+3oAAADAFBMVEUAAAAKCBD/O1z07N8AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAACXC+19AAAAAXRSTlMAQObYZgAAASBJREFUeNrtl+sOwyAIhT3h/d95yaqVy9FquyVkmX8akcrnAelWSh3INcrJJYlG50qFJUnl2uA6E9+nZi04u9cwcKVuKo2I0fkEUzdvAIjvJFSderl4dD8Ze032GHJhjas/2ER7iVnQXMZAkEMol2GfxoDCU7eexsilY4wqL1b9YhVtgV1xyQ6XV13IPTKmsE646KllhyucTpYuxEVr8O+Z02i30LyiBKxPPODqBrO7dSsLXDLTKGpMDLEUlFQUP/tHCPh/s7/FBdXZm0F0bR2VY66yQNkhUL7v/er6Ey7UfYZcR6AjlrI1e3toO6z3vZ+EXi+LRTWYcp0a4ll5QSZq3dTrA1y6PkZcob7QuZo+uiZMHvHvEr/FlTaNOf9nvwCelCPSulm8fwAAAABJRU5ErkJggg=="}, DIM = {"kw":130,"kh":33,"tw":151,"th":27,"sl":8,"cx":46,"cy":17,"cw":91,"ch":5};
+  const IM = {}; for(const k in SRC){ IM[k] = new Image(); IM[k].src = SRC[k]; }
+  const ready = () => Object.values(IM).every(i => i.complete && i.naturalWidth);
+  const MX = 22, MXR = 46, MY = 8;   // canvas margins round the lockup: the slam's overshoot, the tape's slide-in, the speed lines (the button's box is the lockup itself)
+  const mk = (w, h) => { const c = document.createElement('canvas'); c.width = w; c.height = h; const g = c.getContext('2d'); g.imageSmoothingEnabled = false; return c; };
+  let P = null, cache = {}, nCache = 0;
+  // the parts, once the art has decoded: the kanji solid / cracked (shadow and body apart, so it can lift off its shadow), its impact frame
+  // (lit 60% toward white, as the cards' whiteOf), the tape and its hot drop
+  function parts(){ if(P) return P; if(!ready()) return null;
+    const cv = i => { const c = mk(i.naturalWidth, i.naturalHeight); c.getContext('2d').drawImage(i, 0, 0); return c; };
+    const ks = cv(IM.ksh), kb = cv(IM.kbd), kx = cv(IM.kshx), kbx = cv(IM.kbdx), tp = cv(IM.tp);
+    const tint = (src, col) => { const c = mk(src.width, src.height), g = c.getContext('2d'); g.drawImage(src, 0, 0); g.globalCompositeOperation = 'source-in'; g.fillStyle = col; g.fillRect(0, 0, c.width, c.height); return c; };
+    const kw = mk(kb.width, kb.height); { const g = kw.getContext('2d'); g.drawImage(ks, 0, 0); g.drawImage(kb, 0, 0); g.globalCompositeOperation = 'source-atop'; g.globalAlpha = .6; g.fillStyle = '#ffffff'; g.fillRect(0, 0, kw.width, kw.height); }
+    P = { ks, kb, kx, kbx, kw, tp, tps:tint(tp, HOT), K:[kb.width, kb.height], T:[tp.width, tp.height] }; return P; }
+  // the two lockups (art px): tall, スタート over the tape, the tape stepped right; wide, the tape run off the kanji's right end
+  function lay(kind){ const [kw, kh] = P.K, [tw, th] = P.T;
+    if(kind === 'tall') return { kind, kx:0, ky:0, tx:8, ty:kh - 5, W:Math.max(kw, 8 + tw + 3), H:kh - 5 + th + 2 };
+    return { kind, kx:0, ky:0, tx:kw - 14, ty:kh - th, W:kw - 14 + tw + 3, H:kh + 2 }; }
+  // the slab: ink, slanted on the tape's lean, hot ordered dither gathering downward and diagonal bands, its left end dithering out to
+  // nothing (no hard edge on the night), as the loader's panel and the cards' screentone panels
+  function slab(L){ const x0 = -10, x1 = Math.round(P.K[0] * .62), y0 = L.ky - 5, y1 = L.kind === 'tall' ? L.ty + 8 : L.ky + P.K[1] - 2, h = y1 - y0, w = x1 - x0 + 4, c = mk(w, h), g = c.getContext('2d');
+    for(let y = 0; y < h; y++){ const xr = w - 4 - Math.round(y * .3); for(let x = 0; x < xr; x++){ const q = BAY[(y & 3) * 4 + ((x + x0) & 3)], fade = Math.min(1, x / 16), v = y / h;
+      const lev = (v < .3 ? 0 : .62 * Math.pow((v - .3) / .7, 1.4)) * Math.min(1, .25 + x / 20);   // hot tone only in the lower part, gathering downward
+      if(q < 16 * lev){ g.fillStyle = HOT; g.fillRect(x, y, 1, 1); } else if(q < 16 * fade){ g.fillStyle = INK; g.fillRect(x, y, 1, 1); } } }
+    return { c, x:x0, y:y0 }; }
+  // a frame. s: { kj:''|'w'|'s'|'x' (none, impact, solid, cracked), sc (kanji scale), j (kanji jitter), lift, down, tape (x offset, or null:
+  // none), cap (caption px shown, -1 all), lines (speed-line length 0..1), slab (0..1 shown, wiping in from the left), inv }
+  function paint(L, s){ const c = mk(L.W + MX + MXR, L.H + MY * 2), g = c.getContext('2d'), ox = MX, oy = MY;
+    if(s.slab > 0){ if(!L.sl) L.sl = slab(L); const w = Math.ceil(L.sl.c.width * s.slab); g.drawImage(L.sl.c, 0, 0, w, L.sl.c.height, ox + L.sl.x, oy + L.sl.y, w, L.sl.c.height); }
+    if(s.kj){ const kx = ox + L.kx + (s.j || 0), ky = oy + L.ky, d = s.down ? 2 : 0, l = s.lift ? 1 : 0;
+      if(s.kj === 'w' || (s.sc && s.sc !== 1)){ const src = s.kj === 'w' ? P.kw : (() => { const t = mk(P.K[0], P.K[1]), tg = t.getContext('2d'); tg.drawImage(P.ks, 0, 0); tg.drawImage(P.kb, 0, 0); return t; })();
+        const w = Math.round(P.K[0] * (s.sc || 1)), h = Math.round(P.K[1] * (s.sc || 1)); g.drawImage(src, Math.round(kx + P.K[0] / 2 - w / 2), Math.round(ky + P.K[1] / 2 - h / 2), w, h); }
+      else { g.drawImage(s.kj === 'x' ? P.kx : P.ks, kx, ky); g.drawImage(s.kj === 'x' ? P.kbx : P.kb, kx + d - l, ky + d - l); } }
+    if(s.tape !== null && s.tape !== undefined){ const tx = ox + L.tx + s.tape, ty = oy + L.ty, d = s.down ? 2 : 0;
+      if(!s.down) g.drawImage(P.tps, tx + 3, ty + 2); g.drawImage(P.tp, tx + d, ty + d);
+      if(s.cap >= 0 && s.cap < DIM.cw){ g.fillStyle = OFF; g.fillRect(tx + d + DIM.cx + s.cap, ty + d + DIM.cy, DIM.cw - s.cap, DIM.ch); }
+      if(s.lines > 0){ const ex = tx + P.T[0] + 2; [[5, 15, OFF], [12, 9, HOT], [19, 13, OFF]].forEach(([r, n, col], i) => { const q = Math.floor((P.T[1] - r) * DIM.sl / P.T[1]), len = Math.max(1, Math.round(n * s.lines));
+        g.fillStyle = INK; g.fillRect(ex - q + 2 + i * 2, ty + r + 1, len, 1); g.fillStyle = col; g.fillRect(ex - q + 1 + i * 2, ty + r, len, 1); }); } }
+    if(s.inv){ const im = g.getImageData(0, 0, c.width, c.height), D = im.data; for(let i = 0; i < D.length; i += 4){ if(!D[i + 3]) continue; const v = D[i] < 40 ? [244, 236, 223] : D[i] > 200 && D[i + 1] > 200 ? [10, 8, 16] : null; if(v){ D[i] = v[0]; D[i + 1] = v[1]; D[i + 2] = v[2]; } } g.putImageData(im, 0, 0); }
     return c; }
-  function tear(btn){ const cv = btn && btn.querySelector('canvas'); if(!cv || reduce || !cv.width) return; const r = cv.getBoundingClientRect(), k = r.width / cv.width, base = frame(false, true, true), o = document.createElement('canvas');
-    o.className = 'stear'; o.setAttribute('aria-hidden', 'true'); document.body.appendChild(o); const t0 = performance.now(); let f = -1;
-    const step = () => { const nf = Math.floor((performance.now() - t0) / 33); if(nf > 7){ o.remove(); return; }
-      if(nf !== f){ f = nf; const c = tearF(f, base); o.width = c.width; o.height = c.height; o.getContext('2d').drawImage(c, 0, 0); o.style.cssText = `left:${Math.round(r.left - 70 * k)}px;top:${Math.round(r.top - 12 * k)}px;width:${c.width * k}px;height:${c.height * k}px`; }
+  const HOLD = { kj:'x', tape:0, cap:-1, lines:0, slab:1 };
+  function frame(L, s){ const key = L.kind + JSON.stringify(s); if(cache[key]) return cache[key]; if(++nCache > 60){ cache = {}; nCache = 0; } return (cache[key] = paint(L, s)); }
+  const stq = (v, n) => Math.floor(Math.max(0, Math.min(1, v)) * n) / n;
+  // the title's time: the reveal once the sign has caught (the logo lights at +0.5 s; START lands on the next beat), then the idle on the
+  // call's rhythm. Returns the state for now.
+  function state(cv, now){ const btn = cv.parentNode, down = btn.matches(':active') && !btn.disabled, hover = btn.matches(':hover') && UI_IN !== 'touch';
+    if(down) return Object.assign({}, HOLD, { down:true });
+    const at = cv.closest('.attract'); let t = 99;
+    if(!reduce && at && at.classList.contains('first')){ if(!LOGO.t0) return null; t = (now - LOGO.t0 - 650) / 1000; }
+    if(T_AT !== null) t = T_AT;   // tests: a fixed moment
+    if(t < 0) return null;
+    if(t < .9){ const s = { kj:'', tape:null, cap:0, lines:0, slab:stq(t / .1, 3) };
+      // the kanji slams in (white and over-size, then a frame under, then home) and cracks a beat later with two frames of jitter: the
+      // cards' slam(); the tape then slides in from the right in four steps and overshoots by one; the caption types on, 4 px a tick
+      const k = t - .06; if(k >= 0){ if(k < .05) Object.assign(s, { kj:'w', sc:1.3 }); else if(k < .1) Object.assign(s, { kj:'w', sc:1.12 }); else if(k < .14) Object.assign(s, { kj:'s', sc:.96 }); else if(k < .2) s.kj = 's'; else { s.kj = 'x'; if(k < .3) s.j = Math.floor(k * 30) % 2 ? 1 : -1; } }
+      const k2 = t - .24; if(k2 >= 0){ const i = Math.floor(k2 / .033); s.tape = i < 4 ? [42, 20, 7, -3][i] : 0; }
+      const k3 = t - .4; if(k3 >= 0) s.cap = Math.min(DIM.cw, Math.floor(k3 / .012) * 4); if(s.cap >= DIM.cw) s.cap = -1;
+      return s; }
+    if(reduce) return Object.assign({}, HOLD, { lift:hover });
+    // ba-ba-baan, the bosozoku call the countdown plays (two short, one long), every 2.4 s (six beats of the title's 150 bpm): the kanji
+    // lifts off its shadow on each blip, and on the long one the tape's speed lines draw out and hold
+    const p = (t - .9) % 2.4, lift = p < .07 || (p > .2 && p < .27) || (p > .4 && p < .62), ln = p > .4 && p < .62 ? Math.min(1, (Math.floor((p - .4) / .033) + 1) / 3) : 0;
+    return Object.assign({}, HOLD, { lift:lift || hover, lines:ln }); }
+  let curL = null, T_AT = null;
+  function draw(cv, now){ if(!cv || !parts()) return; const fk = innerWidth + 'x' + innerHeight + 'x' + (devicePixelRatio || 1); if(cv._fk !== fk || !curL){ cv._fk = fk; fit(cv); }
+    const s = state(cv, now), f = s ? frame(curL, s) : null; if(cv._f === f && f) return; cv._f = f;
+    const W = curL.W + MX + MXR, H = curL.H + MY * 2; if(cv.width !== W || cv.height !== H){ cv.width = W; cv.height = H; }
+    const g = cv.getContext('2d'); g.clearRect(0, 0, W, H); if(f) g.drawImage(f, 0, 0); }
+  // the room START has: the screen less the logo, the bike's showroom and the rest of the column (none of which depend on START's size)
+  function room(btn){ const at = btn.closest('.attract'); if(!at) return [innerWidth - 32, innerHeight * .3, innerWidth - 32]; const cs = getComputedStyle(at); let used = parseFloat(cs.paddingTop) + parseFloat(cs.paddingBottom), n = 0;
+    for(const e of at.children){ const st = getComputedStyle(e); if(st.position === 'absolute' || st.position === 'fixed' || st.display === 'none') continue; n++; if(e === btn) continue; used += e.offsetHeight + parseFloat(st.marginTop) + parseFloat(st.marginBottom); }
+    const bs = getComputedStyle(btn); used += parseFloat(cs.rowGap || cs.gap || 0) * Math.max(0, n - 1) + parseFloat(bs.marginBottom) + parseFloat(bs.paddingTop) + parseFloat(bs.paddingBottom) + 2;
+    const lg = at.querySelector('.logo'), lw = lg ? lg.offsetWidth : 0; return [Math.min(innerWidth - 32, Math.max(lw, 360)), innerHeight - used, Math.min(innerWidth - 32, Math.max(lw * 1.5, 420))]; }   // [stacked width, height, side-by-side width]: no wider than the logo, unless the screen is short
+  // the biggest whole-device-pixel scale that fits, stacked first (a tie goes to the stacked lockup); never under one device pixel
+  function fit(cv){ if(!cv || !parts()) return; const dpr = devicePixelRatio || 1, [aw0, ah, aw1] = room(cv.parentNode); let best = null;
+    for(const kind of ['tall', 'wide']){ const L = lay(kind), aw = kind === 'tall' ? aw0 : aw1; for(let n = 16; n >= 1; n--){ const k = n / dpr; if((L.W * k <= aw && L.H * k <= ah) || n === 1){ if(!best || k > best.k + 1e-6) best = { L, k }; break; } } }
+    if(!curL || curL.kind !== best.L.kind){ curL = best.L; cache = {}; nCache = 0; cv._f = null; } const k = best.k;
+    cv.style.width = (curL.W + MX + MXR) * k + 'px'; cv.style.height = (curL.H + MY * 2) * k + 'px'; cv.style.margin = `${-MY * k}px ${-MXR * k}px ${-MY * k}px ${-MX * k}px`; cv._k = k; }
+  // the press: the slam (flat on its shadow), one inverted impact frame, then the lockup shatters along fracture lines and the shards are
+  // thrown out from the centre, dithering out over the road (30 fps, 10 frames). Its own layer over START's handoff: it never delays the countdown.
+  const pats = {};
+  function pat(g, lv){ if(pats[lv]) return pats[lv]; const c = mk(4, 4), k = c.getContext('2d'); k.fillStyle = '#000'; for(let i = 0; i < 16; i++) if(BAY[i] < lv) k.fillRect(i % 4, i / 4 | 0, 1, 1); return (pats[lv] = g.createPattern(c, 'repeat')); }
+  function shards(base){ const w = base.width, h = base.height, d = base.getContext('2d').getImageData(0, 0, w, h).data, cx = w / 2, cy = h / 2;
+    const LN = [[-.2, cx, cy + 2], [1.2, w * .36, cy], [1.95, w * .47, cy], [1.35, w * .56, cy], [1.8, w * .66, cy], [1.25, w * .29, cy]].map(([a, px, py]) => [Math.cos(a), Math.sin(a), px, py]);
+    const S = {}; for(let y = 0; y < h; y++) for(let x = 0; x < w; x++){ const i = (y * w + x) * 4; if(!d[i + 3]) continue; let code = 0, cut = false;
+      LN.forEach(([c0, s0, px, py], n) => { const v = (x - px) * s0 - (y - py) * c0; if(Math.abs(v) < .7) cut = true; if(v > 0) code |= 1 << n; }); if(cut) continue;
+      const sh = S[code] || (S[code] = { px:[], sx:0, sy:0, x0:w, y0:h, x1:0, y1:0 }); sh.px.push(x, y, i); sh.sx += x; sh.sy += y; if(x < sh.x0) sh.x0 = x; if(x > sh.x1) sh.x1 = x; if(y < sh.y0) sh.y0 = y; if(y > sh.y1) sh.y1 = y; }
+    return Object.values(S).filter(s => s.px.length > 9).map((s, n) => { const sw = s.x1 - s.x0 + 1, shh = s.y1 - s.y0 + 1, c = mk(sw, shh), g = c.getContext('2d'), im = g.createImageData(sw, shh), D = im.data;   // each shard cropped to its box
+      for(let j = 0; j < s.px.length; j += 3){ const i = s.px[j + 2], o = ((s.px[j + 1] - s.y0) * sw + s.px[j] - s.x0) * 4; D[o] = d[i]; D[o + 1] = d[i + 1]; D[o + 2] = d[i + 2]; D[o + 3] = 255; } g.putImageData(im, 0, 0);
+      const m = s.px.length / 3, mx = (s.sx / m - cx) / (w / 2 - 150), my = (s.sy / m - cy) / (h / 2 - 150); return { c, x:s.x0, y:s.y0, vx:mx + (mx < 0 ? -.25 : .25), vy:my * .5 - .15, r:.85 + ((n * 37) % 10) / 33 }; }); }   // thrown out from the centre: the outer pieces farthest
+  function tearF(f, base, sh){ const c = mk(base.width, base.height), g = c.getContext('2d');
+    if(f <= 1){ g.drawImage(base, 0, 0); return c; }
+    const n = f - 1, D = [6, 16, 30, 46, 64, 84, 106, 130][Math.min(7, n - 1)], fade = Math.max(0, Math.min(16, Math.round((n - 3) / 5 * 16)));
+    for(const s of sh){ g.drawImage(s.c, s.x + Math.round(s.vx * D * s.r), s.y + Math.round(s.vy * D * s.r + n * n * .4)); }
+    if(fade){ g.globalCompositeOperation = 'destination-out'; g.fillStyle = pat(g, fade); g.fillRect(0, 0, c.width, c.height); }
+    return c; }
+  function tear(btn){ const cv = btn && btn.querySelector('canvas'); if(!cv || reduce || !cv.width || !curL) return; const r = cv.getBoundingClientRect(), k = r.width / cv.width;
+    const slam = frame(curL, Object.assign({}, HOLD, { down:true, lines:1 })), hit = frame(curL, Object.assign({}, HOLD, { down:true, inv:true, lines:1 }));
+    const M = 150, pad = c => { const o = mk(c.width + M * 2, c.height + M * 2); o.getContext('2d').drawImage(c, M, M); return o; }, base = pad(slam), sh = shards(base), hb = pad(hit);
+    const o = document.createElement('canvas'); o.className = 'stear'; o.setAttribute('aria-hidden', 'true'); o.width = base.width; o.height = base.height;
+    o.style.cssText = `left:${r.left - M * k}px;top:${r.top - M * k}px;width:${base.width * k}px;height:${base.height * k}px`; document.body.appendChild(o);
+    const t0 = performance.now(); let f = -1;
+    const step = () => { const nf = Math.floor((performance.now() - t0) / 33); if(nf > 10){ o.remove(); return; }
+      if(nf !== f){ f = nf; const fr = f === 1 ? hb : tearF(f, base, sh), g = o.getContext('2d'); g.clearRect(0, 0, o.width, o.height); g.drawImage(fr, 0, 0); }
       requestAnimationFrame(step); };
     step(); setTimeout(() => o.remove(), 1500); }   // a background tab never leaves the layer behind
-  return { draw, fit, tear, reset(){ P = null; cache = {}; document.querySelectorAll('#startArt').forEach(c => { c._f = null; }); } };
+  return { draw, fit, tear, at(t){ T_AT = t; document.querySelectorAll('#startArt').forEach(c => { c._f = null; }); }, reset(){ cache = {}; nCache = 0; curL = null; document.querySelectorAll('#startArt').forEach(c => { c._f = null; c._fk = null; }); } };
 })();
 // a domed arcade push button seen from above, lit or unlit, in a black bezel ring (pixel grid, no curves)
 function domeURL(lit){ const c = document.createElement('canvas'); c.width = c.height = 16; const g = c.getContext('2d');
@@ -2261,7 +2315,7 @@ function startCard(){ const L = bikeList(); if(!L.some(b => b.id === BIKE.id)) B
     WARM.gating = true; frameGap().then(() => { WARM.gating = false; warmRoads(1); reset(true); $('#sheet').hidden = true; return warmGate(); }).then(() => begin()); };   /* first 60 s (research/sundown-craft/first60.md): START is the one commitment - the countdown starts at once, no second loader, no "steer to start" wait */
   $('#attract').querySelectorAll('[data-step]').forEach(b => b.onclick = () => pickBike(+b.dataset.step)); pickBike(0); $('#optBtn').onclick = titleOpts;
   { let last = null; $('#attract').addEventListener('pointerover', e => { const b = e.target.closest('button'); if(b !== last){ last = b; if(b && e.pointerType === 'mouse' && window.SFX) SFX.ui('move'); } }); }   // a mouse over a title control ticks like the keys
-  const lc = $('#logo'); fitLogo(lc); sizeBikeZone(); PSTART.draw($('#startArt'), performance.now()); if(document.fonts) document.fonts.load('16px DotGothic16', '発進').then(() => { PSTART.reset(); PSTART.draw($('#startArt'), performance.now()); }).catch(() => {});
+  const lc = $('#logo'); fitLogo(lc); sizeBikeZone(); PSTART.draw($('#startArt'), performance.now());
   drawLogo(lc, performance.now()); if(document.fonts) document.fonts.load('16px DotGothic16', 'SUNDOWN夜走').then(() => { LOGO.word = null; drawLogo($('#logo'), performance.now()); }).catch(() => {});
   attractLoop(); uiPadLoop(); try{ $('#goBtn').focus({ preventScroll:true }); }catch(e){} }   // START holds the focus, so keyboard and pad players see where Enter / A will land
 // attract mode: the bike rides the night road on its own behind the logo (no timer, no traffic collisions: the ride hasn't begun)
@@ -2854,7 +2908,7 @@ function frame(){ if(PSE.on){ pzPad(); if(PSE.dirty){ PSE.dirty = false; try{ dr
    A new version downloads in the background and waits. It is applied only on the title (never mid-ride): by itself once
    the title has sat untouched for a few seconds, or at once when the player taps "Update ready". Tap the version to check now. */
 (() => {
-  const VER = 'v22 · 9e1e51', $id = (i) => document.getElementById(i);
+  const VER = 'v23 · 548a9b', $id = (i) => document.getElementById(i);
   const SDU = window.SDUPDATE = { version: VER, waiting: null, applied: false, checks: 0 };
   let reg = null, applying = false, asked = false, needReload = false, note = '', noteT = 0, lastInput = performance.now();
   ['keydown', 'pointerdown', 'touchstart', 'wheel'].forEach((t) => addEventListener(t, () => { lastInput = performance.now(); }, { capture: true, passive: true }));
@@ -2916,5 +2970,5 @@ function frame(){ if(PSE.on){ pzPad(); if(PSE.dirty){ PSE.dirty = false; try{ dr
   }, 1000);
 })();
 </script>
-<!-- __sdbuild:22 9e1e51274ec8 --></body>
+<!-- __sdbuild:23 548a9b8f9010 --></body>
 </html>
