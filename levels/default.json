@@ -3,7 +3,7 @@
  "name": "default",
  "title": "Showcase: every road, every set piece",
  "note": "Kellan's curated order (2026-11-22): Bay Bridge to Refinery Docks. Default demo level.",
- "police": false,
+ "police": true,
  "invincible": false,
  "forks": false,
  "roads": [
