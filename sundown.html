@@ -369,6 +369,7 @@ body.paused .banner,body.paused .float{animation-play-state:paused!important}
 #optBtn .nw,.pzi .nw{position:relative;z-index:1;font-size:13px;line-height:1;padding:2px 4px 1px;background:#ff3b5c;color:#fff6ea;box-shadow:2px 2px 0 #000;letter-spacing:0}
 #optBtn:hover img{transform:rotate(45deg)}.rm #optBtn:hover img{transform:none}
 @media (max-width:560px){ #optBtn .t{display:none} #optBtn{padding:0 8px} }
+@media (hover:hover) and (pointer:fine){ #optBtn{display:none} }   /* Kellan 2026-11-22: mouse/keyboard players open options with Esc (pad: Start); the button stays only on touch screens, which have no Esc */
 /* input prompts under the menus and the name entry: the HUD's keycaps, named for the last input used (keys or pad); touch needs none */
 .ukeys{display:flex;flex-wrap:wrap;justify-content:center;gap:6px 14px;margin:0;font-family:var(--font-display);font-size:13px;line-height:1;color:var(--muted);text-shadow:2px 2px 0 #000;text-transform:uppercase;letter-spacing:1px}
 .ukeys span{display:inline-flex;align-items:center;gap:6px}
@@ -2246,7 +2247,7 @@ addEventListener('keydown', () => uiIn('key'), true); addEventListener('pointerd
 const TITLE_BTNS = ['#goBtn', '#optBtn'];
 const titleFocus = () => { const a = document.activeElement; return a && $('#attract') && !$('#sheet').hidden && a.tagName === 'BUTTON' && a.id !== 'goBtn' && a.closest('#attract') ? a : null; };   // Enter / A press the focused control (a bike arrow, the Journal), never START behind it
 const cardBtn = () => titleFocus() || $('#card .btn');
-function titleWalk(d){ const list = TITLE_BTNS.map(q => $(q)).filter(Boolean), i = Math.max(0, list.indexOf(document.activeElement)), n = list[(i + d + list.length) % list.length]; if(n){ try{ n.focus({ preventScroll:true }); }catch(e){} if(window.SFX) SFX.ui('move'); } }
+function titleWalk(d){ const list = TITLE_BTNS.map(q => $(q)).filter(el => el && el.offsetParent !== null), i = Math.max(0, list.indexOf(document.activeElement)), n = list[(i + d + list.length) % list.length]; if(n){ try{ n.focus({ preventScroll:true }); }catch(e){} if(window.SFX) SFX.ui('move'); } }
 addEventListener('keydown', e => { if((e.code === 'Enter' || e.code === 'Space' || e.code === 'NumpadEnter') && !e.repeat && !PSE.on && !(window.COS && COS.open)){ const f = titleFocus(); if(f){ e.preventDefault(); e.stopImmediatePropagation(); f.click(); } } }, true);
 addEventListener('keydown', e => { if(e.repeat && (e.code === 'Enter' || e.code === 'Space') && $('#attract') && !$('#sheet').hidden) e.stopImmediatePropagation(); }, true);
 const iniActive = () => INI.on && !!$('#ini') && RES.stage === 3;
@@ -2774,7 +2775,7 @@ function frame(){ if(PSE.on){ pzPad(); if(PSE.dirty){ PSE.dirty = false; try{ dr
    A new version downloads in the background and waits. It is applied only on the title (never mid-ride): by itself once
    the title has sat untouched for a few seconds, or at once when the player taps "Update ready". Tap the version to check now. */
 (() => {
-  const VER = 'v18 · f84be5', $id = (i) => document.getElementById(i);
+  const VER = 'v19 · 225083', $id = (i) => document.getElementById(i);
   const SDU = window.SDUPDATE = { version: VER, waiting: null, applied: false, checks: 0 };
   let reg = null, applying = false, asked = false, needReload = false, note = '', noteT = 0, lastInput = performance.now();
   ['keydown', 'pointerdown', 'touchstart', 'wheel'].forEach((t) => addEventListener(t, () => { lastInput = performance.now(); }, { capture: true, passive: true }));
@@ -2836,5 +2837,5 @@ function frame(){ if(PSE.on){ pzPad(); if(PSE.dirty){ PSE.dirty = false; try{ dr
   }, 1000);
 })();
 </script>
-<!-- __sdbuild:18 f84be5fbd06f --></body>
+<!-- __sdbuild:19 225083e86d30 --></body>
 </html>
