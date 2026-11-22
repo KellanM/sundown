@@ -1,7 +1,7 @@
 // Sundown's offline cache (written by tools/deploy-sundown.mjs). Every file is fetched on install and served
 // cache-first. A new deploy changes VERSION: the new worker fills its own cache, then WAITS until the page posts
 // SKIP_WAITING (on the title, never mid-ride), takes over, and the old cache is dropped.
-const VERSION = 'bc9550b7039e';
+const VERSION = '112c68c7dde8';
 const FILES = [
   "./",
   "audio/music.js",
@@ -23,6 +23,8 @@ const FILES = [
   "env/paddies.js",
   "env/pass.js",
   "env/refinery.js",
+  "env/roadmat-presets.json",
+  "env/roadmat.js",
   "env/sakurajima.js",
   "env/shimanami.js",
   "env/shuto.js",
@@ -39,6 +41,7 @@ const FILES = [
   "mech/arrival.js",
   "mech/breakfx.js",
   "mech/crew.js",
+  "mech/demo.js",
   "mech/director.js",
   "mech/finale.js",
   "mech/formations.js",
@@ -62,6 +65,7 @@ const FILES = [
   "setpiece/lavabreach.js",
   "setpiece/megalodon.js",
   "setpiece/naruto.js",
+  "setpiece/phantom.js",
   "setpiece/rail.js",
   "setpiece/rockslide.js",
   "setpiece/screenfall.js",

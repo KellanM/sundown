@@ -95,7 +95,8 @@
     const forced = /(^|[?&,=])force=([^&]*)(naruto|all)/.test(location.search);
     const fits = B => { if(B - PRE < ls + (forced ? 10 : 30) || B + END > border - 20) return false; if(window.inForkWindow && inForkWindow(B - PRE, B + END)) return false;
       if(!forced) for(const g of gates) if(g > B + 80 && g < B + 470) return false; return true; };   // (checkpoint arches stay out of the hazard stretch; a forced test takes any)
-    let pick = -1; for(let k = 0; k < 3; k++){ const B = a + k * CY + U0; if(fits(B)){ pick = B; break; } }
+    const Tn = DIR && DIR.target ? DIR.target(ID, i) : null;   /* demo mode: the fitting cycle whose moment (B + 232) is nearest the authored one */
+    let pick = -1; for(let k = 0; k < (Tn != null ? 8 : 3); k++){ const B = a + k * CY + U0; if(fits(B)){ if(Tn == null){ pick = B; break; } if(pick < 0 || Math.abs(B + 232 - Tn) < Math.abs(pick + 232 - Tn)) pick = B; } }
     if(pick < 0) return;
     if(plans.some(p => Math.abs(p.B - pick) < 700)) return;
     if(DIR && !DIR.request(ID, { tier:'hero', seg:pick + 232 })) return;

@@ -76,7 +76,8 @@ let lastFlow = 0, lastCrash = 0, lastGates = 0, lastTd = 0, airT = 9, escT = 9, 
 const subs = [];
 const EV = { type:'', kind:'', pts:0, chain:0, mult:1, pending:0, total:0 };
 // what env/hud.js draws: one reused object
-const V = S.view = { on:false, chain:0, mult:1, pend:0, frac:0, label:'', actT:9, multT:9, beat:0, beatT:9, beatPts:0, total:0, warnT:0 };
+// rep: how many acts in a row carried this label (the tab shows "CLOSE x3" instead of a chip per act; display only, never scored)
+const V = S.view = { on:false, chain:0, mult:1, pend:0, frac:0, label:'', rep:0, actT:9, multT:9, beat:0, beatT:9, beatPts:0, total:0, warnT:0 };
 
 function multFor(n){ let m = 1; for(let i = 1; i < MULT_AT.length; i++) if(n >= MULT_AT[i]) m = i; return Math.max(1, m); }
 function emit(type, kind, pts){ if(!subs.length) return; EV.type = type; EV.kind = kind; EV.pts = pts; EV.chain = chain; EV.mult = mult; EV.pending = pend; EV.total = total;
@@ -100,7 +101,8 @@ function act(kind, pts, lbl){ if(state !== 'play') return false; const A = ACT[k
   const p = pts != null ? +pts || 0 : A.p, m0 = mult;
   chain++; pend += p; mult = multFor(chain); win = Math.max(WIN_MIN, WIN - (mult - 1) * WIN_STEP); left = win;
   if(V.beat) V.beat = 0;   // a new chain takes the display back from a bank or loss beat
-  V.label = lbl && S.LABELS.includes(lbl) ? lbl : A.l; V.actT = 0; if(mult > m0) V.multT = 0;
+  const lab = lbl && S.LABELS.includes(lbl) ? lbl : A.l; V.rep = chain > 1 && lab === V.label ? V.rep + 1 : 1;   // repeats merge into a count
+  V.label = lab; V.actT = 0; if(mult > m0) V.multT = 0;
   st.acts++; st.kinds[kind] = (st.kinds[kind] || 0) + 1; if(chain > st.bestChain) st.bestChain = chain; if(mult > st.maxMult) st.maxMult = mult;
   sTick(chain); emit('act', kind, p); return true; }
 function bank(quiet){ if(!chain) return; const pts = pend * mult, m = mult; total += pts; st.banks++; if(pts > st.bestBank){ st.bestBank = pts; st.bestBankChain = chain; }
@@ -132,7 +134,7 @@ function gangTd(){ try{ const G = MECH.gang, s = G && G._dbg && G._dbg.ST && G._
 S.reset = () => { chain = 0; mult = 1; pend = 0; left = 0; win = WIN; total = 0; QN.n = 0; breakQ = false; offWas = false; airT = 9; escT = 9;
   lastFlow = typeof flow === 'number' ? flow : 0; lastCrash = typeof crashes === 'number' ? crashes : 0; lastGates = typeof gatesHit === 'number' ? gatesHit : 0; lastTd = gangTd();
   st = { acts:0, banks:0, breaks:0, lost:0, bestChain:0, bestBank:0, bestBankChain:0, maxMult:1, kinds:{} };
-  V.on = false; V.chain = 0; V.mult = 1; V.pend = 0; V.frac = 0; V.label = ''; V.actT = 9; V.multT = 9; V.beat = 0; V.beatT = 9; V.beatPts = 0; V.total = 0; };
+  V.on = false; V.chain = 0; V.mult = 1; V.pend = 0; V.frac = 0; V.label = ''; V.rep = 0; V.actT = 9; V.multT = 9; V.beat = 0; V.beatT = 9; V.beatPts = 0; V.total = 0; };
 S.update = dt => {
   if(!st) S.reset();
   V.actT += dt; V.multT += dt; V.beatT += dt; if(V.beat && V.beatT > (V.beat === 1 ? BANK_T : LOST_T)) V.beat = 0;

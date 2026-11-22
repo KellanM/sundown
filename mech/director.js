@@ -100,7 +100,8 @@ function makeGovernor(io, cfg){
     const key = id + '@' + seg, mm = R.memo.get(key); if(mm) return mm.ok;
     const book = (extra) => { const b = Object.assign({ id, tier, seg, i0, visit:o.visit, auto:o.auto !== false, seen:false }, extra); R.book.push(b); return b; };
     let ok = false, why = '';
-    if(FORCE.has(id) || FORCE.has('all')){ ok = true; why = 'forced'; book({ forced:true }); }
+    if(io.demo){ const e = io.demo(id, seg, tier); ok = !!e; why = e ? (e.nudge ? 'authored, nudged ' + e.nudge : 'authored') : 'not authored'; if(ok) book({ forced:true, demo:true }); }   // ?demo=: exactly the authored events (mech/demo.js), never the governor
+    else if(FORCE.has(id) || FORCE.has('all')){ ok = true; why = 'forced'; book({ forced:true }); }
     else if(tier === 'landmark'){ ok = true; why = 'landmark'; book({}); }
     else if(tier === 'hero' && FORCE.size && !FORCE.has('all')){ why = 'force mode'; }   // ?force=<id>: the forced moment plays alone (no first sighting elsewhere takes its road)
     else if(io.quiet && io.quiet(seg)){ why = 'quiet'; }   // inside the quiet stretch: nothing is staged
@@ -120,7 +121,7 @@ function makeGovernor(io, cfg){
       else { ok = true; why = seenBefore(id) ? 'roll' : 'first sighting'; book({}); } }
     R.memo.set(key, { ok, i0, why }); G.last = { id, ok, why, seg }; return ok; };
   G.dress = (id, visit) => { if(!R) G.beginRide(); const key = 'dress:' + id + '@' + visit, mm = R.memo.get(key); if(mm) return mm.ok;
-    const m = P.m[id]; let ok = !m || !m.r || m.f === R.no; if(!ok){ const k = R.no - (m.d || 0); ok = k >= 1 && u01(R.salt, R.no, 'dress', id, visit) < (io.dressChance ? io.dressChance() : C.dressChance); }   // a veteran still gets the card about 1 visit in 3 (it was damped to ~0-17% for two rides after a dressed one, so cards all but vanished)
+    const m = P.m[id]; let ok = !m || !m.r || m.f === R.no || !!io.demo;   // (a demo always dresses) if(!ok){ const k = R.no - (m.d || 0); ok = k >= 1 && u01(R.salt, R.no, 'dress', id, visit) < (io.dressChance ? io.dressChance() : C.dressChance); }   // a veteran still gets the card about 1 visit in 3 (it was damped to ~0-17% for two rides after a dressed one, so cards all but vanished)
     if(ok){ const b = R.book.find(x => x.id === id && x.visit === visit && !x.seen); if(b) b.dress = true; }
     R.memo.set(key, { ok, i0:visit | 0 }); return ok; };
   G.snapshot = pseg => { if(!R) return null; const H = heroes(), amb = R.book.filter(b => b.tier === 'ambient' && !b.forced);
@@ -135,9 +136,10 @@ if(!BROWSER) return;
 
 /* ================================================================== browser glue */
 const QS = new URLSearchParams(location.search), DEVL = /[?&]dev(?=[=&]|$)/.test(location.search);
-const FORCE = (QS.get('force') || '').split(',').map(s => s.trim()).filter(Boolean);
+const FORCE = QS.get('force') === 'paced' ? [] : (QS.get('force') || 'all').split(',').map(s => s.trim()).filter(Boolean);   // Kellan 2026-11-21: every event on by default (force=all); ?force=paced restores the governor and the first night
 const quietSys = () => !!(MECH.quiet && MECH.quiet.enabled);   // mech/arrival.js QUIET_ON: off = no quiet stretches, no breathing room, cards ~1 visit in 2
-const G = makeGovernor({ force:FORCE, salt:QS.get('dseed') || '', quiet:seg => QT.on && seg >= QT.s0 && seg <= QT.s1, breathOff:() => !quietSys(), dressChance:() => quietSys() ? CFG.dressChance : .5,
+const DEMO = window.DEMO && window.DEMO.ask ? window.DEMO : null;   // mech/demo.js (?demo=<level>): the authored night replaces the governor
+const G = makeGovernor({ force:FORCE, salt:QS.get('dseed') || '', demo:DEMO ? (id, seg, tier) => DEMO.ask(id, seg, tier) : null, quiet:seg => QT.on && seg >= QT.s0 && seg <= QT.s1, breathOff:() => !quietSys(), dressChance:() => quietSys() ? CFG.dressChance : .5,
   seen(b){ if(b.tier === 'hero' && MECH.quiet && MECH.quiet.breathe) MECH.quiet.breathe(CFG.breathS); },   // the rider passed a hero moment: breathe
   load(){ try{ return JSON.parse(localStorage.getItem(CFG.key) || 'null'); }catch(e){ return null; } },
   save(o){ try{ localStorage.setItem(CFG.key, JSON.stringify(o)); }catch(e){} },
@@ -153,6 +155,8 @@ function visitOf(seg){ const s = segs[seg]; if(!s) return { visit:seg, road:'' }
 const D = MECH.director = {
   CFG, CATALOGUE, gov:G,
   register(id, o){ G.register(id, o); return D; },
+  // demo mode: the authored spot (segment of the moment) for a set piece that chooses its own, or null (always null in normal play)
+  target(id, seg){ return DEMO ? DEMO.target(id, seg == null ? (curI >= 0 ? curI : pSeg()) : seg) : null; }, get demo(){ return !!DEMO; },
   request(id, o){ rideCheck(); o = Object.assign({}, o || {}); const placing = curI >= 0;
     if(o.seg == null) o.seg = placing ? curI : pSeg(); o.i0 = placing ? curI : (o.i0 == null ? o.seg : o.i0);
     if(o.visit == null || o.road == null){ const v = visitOf(placing ? curI : o.seg); if(o.visit == null) o.visit = v.visit; if(o.road == null) o.road = v.road; }
@@ -185,7 +189,7 @@ function reset(){ for(const c of CINES) c.endT = -1e9; CINES.length = 0; if(QT.o
 const QT = { on:false, t0:0, t1:0, s0:0, s1:0, next:CFG.quietFirstS, n:0, count:0 };
 function quietAudio(on){ try{ if(window.MUSIC && MUSIC.thin) MUSIC.thin(on ? 1 : 0); if(window.SFX && SFX.ambience) SFX.ambience(on ? 1 : 0); }catch(e){ console.warn('director quiet audio', e); } }   // proposed hooks (quiet.md); the duck below thins the music meanwhile
 function quietEnd(){ QT.on = false; QT.next = (typeof playT === 'number' ? playT : 0) + CFG.quietGapS; quietAudio(false); if(DEVL) console.log('[director] quiet ends'); }
-function quietStep(){ if(state !== 'play' || typeof playT !== 'number'){ if(QT.on && state !== 'pulled') quietEnd(); return; }
+function quietStep(){ if(DEMO) return; if(state !== 'play' || typeof playT !== 'number'){ if(QT.on && state !== 'pulled') quietEnd(); return; }
   if(QT.on){ if(playT >= QT.t1 || copT > 0) quietEnd(); return; }
   if(!quietSys() || playT < QT.next) return; QT.next = playT + CFG.quietEveryS;
   const R = G.R; if(!R || copT > 0 || CINES.length || (MECH.cutin && MECH.cutin.on && MECH.cutin.on())) return;
@@ -296,8 +300,8 @@ function letterbox(){ if((FX.lb <= 0 && !FX.lbB) || FX.lbA <= 0) return; const c
   if(h > 0){ cx.fillRect(0, 0, cw, h); if(h > 3){ cx.fillStyle = '#3a0d14'; cx.fillRect(0, h - 1, cw, 1); } }   // a dark red edge, like the card's stripes but quiet
   if(hb > 0){ cx.fillStyle = INK; cx.fillRect(0, ch - hb, cw, hb); }
   cx.restore(); }
-function post(now){ sawPost = true; camPass(); letterbox(); drawCards(); devLine(); }
-function drawScreen(now){ if(sawPost) return; letterbox(); drawCards(); devLine(); }   // until the core's post hook exists
+function post(now){ sawPost = true; camPass(); letterbox(); drawCards(); devLine(); demoLine(); }
+function drawScreen(now){ if(sawPost) return; letterbox(); drawCards(); devLine(); demoLine(); }   // until the core's post hook exists
 
 /* the moment card: mech/arrival.js's stage card (a slab with tokko stripes, the kanji stamped in, the name and a typed subtitle) when it
    offers MECH.arrival.moment(card); otherwise this compatible card, built from the same parts and timeline */
@@ -430,6 +434,9 @@ function drawBand(c, t, hold){ const o = bandArt(c.card), out = B_OUT + hold, en
   cx.restore(); }
 
 let devC = null, devKey = '';
+let demoKey = '', demoC = null;   // demo mode's dev label: the road, the current event (and any nudge), the next one, the skip key
+function demoLine(){ if(!DEMO || !DEMO.label) return; const t = DEMO.label(); if(!t) return; if(t !== demoKey){ demoKey = t; demoC = txt3(t.slice(0, 110), CREAM, INK); }
+  cx.save(); cx.setTransform(1, 0, 0, 1, 0, 0); const y = cx.canvas.height - 12; cx.fillStyle = 'rgba(7,6,12,.72)'; cx.fillRect(3, y - 2, demoC.width + 4, 10); cx.fillStyle = GOLD; cx.fillRect(3, y - 2, 1, 10); cx.drawImage(demoC, 5, y); cx.restore(); }
 function devLine(){ if(!DEVL || typeof position !== 'number') return; const s = G.snapshot(pSeg()); if(!s) return;
   const sc = FX.scale < .999 ? ' T' + FX.scale.toFixed(2) : '';
   const txt = 'DIR R' + s.ride + (s.started ? '' : '?') + ' HERO ' + s.hero + '/' + s.heroMax + (s.heroIn > 0 ? ' NEXT>=' + s.heroIn + 'S' : ' READY') + (s.next.length ? ' | ' + s.next.join(' ') : '') + ' | AMB ' + (s.amb.join(', ') || '-') + (CINES.length ? ' | CINE ' + CINES.length + sc : '');

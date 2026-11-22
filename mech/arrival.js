@@ -1066,8 +1066,8 @@ function coRank(text, o){ if(o.rank != null) return o.rank; const u = String(tex
   if(typeof TIER_NAME !== 'undefined' && TIER_NAME.some((n, i) => i && n && String(n).toUpperCase() === u)) return 4;
   if(o.sub === 'LANDMARK JUMP' || (o.kanji && o.size === 'm')) return 3; if(/CLEAN LANDING/.test(u)) return 2; return 1; }
 A.callout = (text, o) => { if(!cx || text == null || text === '') return false;
-  { const SY = MECH.style; let fold = false; try{ fold = !!(SY && SY.hear && SY.hear(String(text), o)); }catch(e){ console.warn('style hear', e); } if(fold && (Q.enabled || narrowW())) return true; }   // a phone (kodawari #8): the chain tab already names the act, so no second chip says it again   // small acts (Close, Boost, Slipstream...) show in the style chain on the HUD instead
-  { const tw = TICK[String(text).toUpperCase()]; if(tw){ try{ tickPush(tw, o); return true; }catch(e){ console.warn('ticker', e); } } }   // small frequent acts: the ticker under the HUD, not a card at the rider
+  { const SY = MECH.style; let fold = false; try{ fold = !!(SY && SY.hear && SY.hear(String(text), o)); }catch(e){ console.warn('style hear', e); } if(fold && (Q.enabled || narrowW() || TICK[String(text).toUpperCase()])) return true; }   // small acts (Close, Boost, Slipstream...) show in the style chain tab ("CLOSE x3"), never as a chip too, on any width (kodawari #8, W6); a folded card act (Big boost, Slide) keeps its card on a wide screen with quiet off
+  { const tw = TICK[String(text).toUpperCase()]; if(tw){ try{ tickPush(tw, o, Q.classOf(text, o)); return true; }catch(e){ console.warn('ticker', e); } } }   // small frequent acts: the ticker under the HUD, not a card at the rider
   o = Object.assign({ size:'s' }, o || {});
   // the arbiter (MECH.quiet, below): the arrest shows nothing else; the quiet stretch announces only danger; a breath drops information
   const prio = Q.classOf(text, o); if(Q.enabled) if(state === 'pulled' || (prio < 3 && Q.quietOn()) || (prio < 2 && Q.breathOn())){ Q.dropped++; return true; }
@@ -1085,28 +1085,49 @@ A.cardOn = () => !!(cd || (mom && mom.t0 != null) || (cur && cur.t0 != null));  
 /* ---------- the ticker: small, frequent acts, up and out of the way (Kellan: "the close / bump popups are too distracting, move them up") ----------
    References: Burnout 3 moved near-miss feedback off the HUD text into the boost bar and a sound; Tony Hawk's trick string is small type at
    the screen's edge; PGR's Kudos sum many small acts into one combo. So the small class is a compact ticker in the sky under the HUD (on a
-   phone, right under the style tab: score feedback beside the score; on a wide screen, the top-left sky beside the road tag): 1x letters on a
-   thin slanted strip with the ink outline, up to three lines, newest on top, 0.9 s each, stepping out over the last .2 s; one pixel of
+   phone, right under the style tab: score feedback beside the score; on a wide screen, the top-left sky beside the road tag): the HUD's 3x5 face at
+   1x on a small flat plate (W6), one chip on a phone and two on a wide screen, newest on top, 0.9 s each, stepping out over the last .2 s; one pixel of
    slide on its first frame, no slam, no flash. It never crosses the road or the rider. The big class (big boost, thunder, landmarks, escapes,
    police) stays a card at the rider. Words are short, in the style tab's vocabulary. Composed into its own slots made at warm-up. */
 const TICK = { 'CLOSE':'NEAR MISS', 'BUMP':'SCRAPE', 'SCRAPE':'SCRAPE', 'BOOST':'BOOST', 'BOOST PAD':'PAD BOOST', 'SLIPSTREAM':'DRAFT', 'SLIPSTREAM!':'SLINGSHOT',
   'CLEAN LANDING':'CLEAN LANDING', 'DODGED':'DODGE', 'SLID PAST':'SLID PAST', 'WOBBLE':'WOBBLE', 'KICKED':'KICKED', 'COUNTER!':'COUNTER', '+15S':'+15 SEC',
   'SPIKES!':'SPIKES', 'BIG AIR':'BIG AIR', 'SHORTCUT':'SHORTCUT', 'BIG AIR · SHORTCUT':'BIG AIR + SHORTCUT', 'COVERED':'COVERED', '← SLICK':'← SLICK',
   'SLICK →':'SLICK →', 'MATSURI!':'MATSURI', 'SCORCHED':'SCORCHED', 'SLIPPED THROUGH':'SLIPPED THROUGH' };
-const TSL = [], TK = [], TK_LIFE = .9, TK_OUT = .2, TK_N = 3, narrowW = () => typeof W === 'number' && W < 640;   // narrowW: the HUD's phone layout (env/hud.js)
-function tickPush(word, o){ slotsInit(); const col = (o && o.col) || CREAM, oo = { size:'xs', col, kanji:'' };
-  if(TK.length >= TK_N) TK.pop();   // the oldest goes (its slot is free again)
-  const key = coKey(word, oo), busy = new Set(TK.map(e => e.slot)), S = TSL.find(x => !busy.has(x) && x.key === key) || TSL.find(x => !busy.has(x));
-  const b = coCompose(word, oo, S); TK.unshift({ word, b, slot:S, t0:null }); }
-function drawTicker(now){ if(!TK.length) return; const cw = cx.canvas.width, ch = cx.canvas.height; skyY(cw, ch); const L = SKY.L; if(!L) return;
-  // a phone (kodawari #8): beside the chain tab, two lines at most, so the chips never stack down toward the road; wide: the top-left sky
-  const x0 = L.narrow ? L.chain.x + L.chain.w + 2 : L.speed.x + Math.ceil(64 / L.sx); let y = L.narrow ? L.chain.y : L.freeY + 1;
+const TSL = [], TK = [], TK_LIFE = .9, TK_OUT = .2, narrowW = () => typeof W === 'number' && W < 640;   // narrowW: the HUD's phone layout (env/hud.js)
+// one message at a time (Kellan's quiet HUD; kodawari #8, W6): the chain tab says every style act, so only words it does not say reach
+// here (a scrape, a wobble, +15 SEC...); one of each (the same word again re-arms its chip), at most one chip on a phone and two on a wide
+// screen, and none while a big card (the road card, a moment) or the director's hazard band is up: that card is the message
+const tkCap = () => narrowW() ? 1 : 2, tkHold = () => A.cardOn() || dirBand();
+const TK_PLATE = 'rgba(7,6,12,.86)', TK_SHADOW = '#000';   // env/hud.js's plate and its letters' drop pixel
+// a chip in the HUD's own face, flat on the pixel grid (no lean: sheared 1x letters broke S into a $): the 3x5 letters at 1x with a black
+// drop pixel under each (hud.js txt()), on a dark plate with a one-pixel edge in the word's colour, dimmed, and a cut top-right corner (hud.js
+// plate()). Composed once into a ticker slot when pushed; the same word and colour reuse the slot as it is.
+function tkGlyph(k, ch, x, y){ const b5 = F5X[ch]; if(b5){ for(let j = 0; j < 5; j++) for(let i = 0; i < 5; i++) if(b5[j][i] === '1') k.fillRect(x + i, y + j, 1, 1); return; }
+  const b = F3[ch] || F3X[ch]; if(b) for(let i = 0; i < 15; i++) if(b[i] === '1') k.fillRect(x + i % 3, y + ((i / 3) | 0), 1, 1); }
+function tkCompose(word, col, S){ const key = 'tk:' + word + '|' + col; if(S.key === key && S.b) return S.b;
+  let tw = 0; for(const ch of word) tw += ch === ' ' ? 4 : latW(ch) + 1;
+  const w = tw + 4, h = 9, cut = 2, k = S.k; fitCanvas(S.c, w, h); k.clearRect(0, 0, w + 2, h + 2);   // edge, a pixel of air, letters (+1 drop), air, edge
+  k.fillStyle = TK_PLATE; for(let r = 0; r < h; r++) k.fillRect(0, r, w - Math.max(0, cut - r), 1);
+  k.fillStyle = mixc(col, INK, .45); k.fillRect(0, h - 1, w, 1); k.fillRect(0, 0, w - cut, 1); k.fillRect(0, 0, 1, h); k.fillRect(w - 1, cut, 1, h - cut);
+  for(let i = 0; i < cut; i++) k.fillRect(w - cut + i, i, 1, 1);
+  for(const [c, o] of [[TK_SHADOW, 1], [col, 0]]){ k.fillStyle = c; let x = 2; for(const ch of word){ if(ch !== ' ') tkGlyph(k, ch, x + o, 2 + o); x += ch === ' ' ? 4 : latW(ch) + 1; } }
+  S.key = key; S.b = { c:S.c, w, h }; return S.b; }
+function tickPush(word, o, pr){ if(tkHold()) return; slotsInit(); const col = (o && o.col) || CREAM; pr = pr || 2;
+  for(let i = TK.length - 1; i >= 0; i--) if(TK[i].word === word) TK.splice(i, 1);   // the same word twice: one chip, re-armed
+  // full: the least urgent goes, the oldest of those (its slot is free again); a danger chip (SCRAPE) is never pushed out by information (+15 SEC)
+  while(TK.length >= tkCap()){ let v = TK.length - 1; for(let i = v - 1; i >= 0; i--) if(TK[i].pr < TK[v].pr) v = i; if(TK[v].pr > pr) return; TK.splice(v, 1); }
+  const key = 'tk:' + word + '|' + col, busy = new Set(TK.map(e => e.slot)), S = TSL.find(x => !busy.has(x) && x.key === key) || TSL.find(x => !busy.has(x));
+  const b = tkCompose(word, col, S); TK.unshift({ word, b, slot:S, t0:null, pr }); }
+function drawTicker(now){ if(!TK.length) return; if(tkHold()){ TK.length = 0; return; }
+  const cw = cx.canvas.width, ch = cx.canvas.height; skyY(cw, ch); const L = SKY.L; if(!L) return;
+  // a phone (kodawari #8): beside the chain tab, so the chip never stacks down toward the road; wide: the top-left sky
+  const x0 = L.narrow ? L.chain.x + L.chain.w + 2 : L.speed.x + Math.ceil(64 / L.sx), cap = L.narrow ? 1 : 2; let y = L.narrow ? L.chain.y : L.freeY + 1;
   cx.save(); cx.setTransform(1, 0, 0, 1, 0, 0); cx.imageSmoothingEnabled = false;
   for(let i = 0; i < TK.length; i++){ const e = TK[i], b = e.b; if(e.t0 == null) e.t0 = now; const t = (now - e.t0) / 1000;
-    if(t > TK_LIFE){ TK.splice(i--, 1); continue; }
+    if(t > TK_LIFE || i >= cap){ TK.splice(i--, 1); continue; }   // (cap: a phone turned narrow keeps the newest only)
     const a = t > TK_LIFE - TK_OUT ? (t > TK_LIFE - TK_OUT / 2 ? 1 / 3 : 2 / 3) : 1, ox = !reduce && t < .034 ? -2 : 0;
-    if(L.narrow && i >= 2) continue; const xx = L.narrow ? Math.min(x0, cw - b.w - 3) : x0;
-    cx.globalAlpha = a; cx.drawImage(b.c, 0, b.yOut, b.w + 2, b.h + 2, xx - 1 + ox, y - 1, b.w + 2, b.h + 2); y += b.h + 1; }
+    const xx = L.narrow ? Math.min(x0, cw - b.w - 3) : x0;
+    cx.globalAlpha = a; cx.drawImage(b.c, 0, 0, b.w, b.h, xx + ox, y, b.w, b.h); y += b.h + 1; }
   cx.globalAlpha = 1; cx.restore(); }
 A._tk = () => TK;
 

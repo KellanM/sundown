@@ -206,7 +206,9 @@
   function decide(i, s, L){ if(!L || L.key !== 'pass' || LANDS[s.land].key !== 'pass') return; const ls = typeof landStart === 'number' ? landStart : 0; if(i - ls !== 40) return;
     const z = zoneOfSeg(i), border = gates[2 * z + 1] !== undefined ? gates[2 * z + 1] : 1e9;
     // after the pass's landmark jump (setpiece/jump.js: its window ends ~330 segments into the road) and before the border's blend
+    const Tr = DIR && DIR.target ? DIR.target(ID, i) : null;   /* demo mode: walk on to the cliff spot nearest the authored moment (B + 300), the next valid one if that one is not */
     for(let B = Math.ceil((ls + 390) / 400) * 400; B + 600 <= border - 50; B += 400){
+      if(Tr != null && B + 300 + 200 < Tr && B + 400 + 600 <= border - 50) continue;
       if(window.inForkWindow && inForkWindow(B - 120, B + END)) continue;
       let gate = false; for(const g of gates) if(g >= B + 250 && g <= B + 640) gate = true; if(gate) continue;
       if(plans.some(p => Math.abs(p.B - B) < 800)) return;

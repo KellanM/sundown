@@ -196,7 +196,8 @@
       let gate = false; for(const g of gates) if(g >= B - 20 && g <= B + END + 20){ const r = g - B; if(!((r >= 10 && r <= 160) || r >= 515)) gate = true; } if(gate) continue;
       ok.push(B); }
     const pick = +(new URLSearchParams(location.search).get('cvpick') || -1);   // (?cvpick=N: tests take the N-th fitting bore)
-    if(ok.length){ const B = pick >= 0 ? ok[Math.min(pick, ok.length - 1)] : ok.find(b => b - jEnd >= 250) || ok[0];
+    const Tc = DIR && DIR.target ? DIR.target(ID, i) : null;   /* demo mode: the fitting bore whose moment (B + 300) is nearest the authored one */
+    if(ok.length){ const B = Tc != null ? ok.reduce((a, b) => Math.abs(b + 300 - Tc) < Math.abs(a + 300 - Tc) ? b : a) : pick >= 0 ? ok[Math.min(pick, ok.length - 1)] : ok.find(b => b - jEnd >= 250) || ok[0];
       if(plans.some(p => Math.abs(p.B - B) < 1000)) return;
       if(DIR && !DIR.request(ID, { tier:'hero', seg:B + 300 })) return;
       const qs = +(new URLSearchParams(location.search).get('cvside') || 0), m = qs ? Math.sign(qs) : H1(B * .37 + 2.1) < .5 ? -1 : 1;

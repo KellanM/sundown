@@ -424,7 +424,8 @@
   // onsen street is untouched; otherwise the first valid mouth.
   function plan(i, s, L2){ const rel = i - (typeof landStart === 'number' ? landStart : 0); if(!L2 || L2.key !== 'snow' || rel !== 60 || LANDS[s.land].key !== 'snow') return;
     const z = zoneOfSeg(i), zEnd = gates[2 * z + 1] !== undefined ? gates[2 * z + 1] : 1e9, ok = W0 => { if(W0 + L + 92 > zEnd) return false; if(window.inForkWindow && (inForkWindow(W0 - 20, W0 + L + 92) || inForkWindow(W0 + RC - 10 + 190, W0 + L + 92 + 190))) return false; for(let k = 0; k < gates.length; k++){ const g = gates[k], g0 = g - (k % 2 ? 2 : 62); if(g + 2 >= RC + W0 - 10 && g0 <= W0 + L + 92) return false; if(Math.abs(g - (W0 - BRD)) < 14) return false; } return W0 + TG - 40 > (typeof landStart === 'number' ? landStart : 0); };   // the race, shed and exit stay clear of gates (a fork's 60-segment approach counts); the long slide may pass one
-    let best = -1; for(let W0 = i + 780; W0 < i + 2600 && W0 + L + 92 <= zEnd; W0++){ if(!ok(W0)) continue; const mm = W0 % 400; if(mm >= 345 && mm <= 395){ best = W0; break; } if(best < 0) best = W0; }
+    const Ta = DIR && DIR.target ? DIR.target('avalanche', i) : null;   /* demo mode: the valid mouth nearest the authored one */
+    let best = -1; for(let W0 = i + 780; W0 < (Ta != null ? zEnd : i + 2600) && W0 + L + 92 <= zEnd; W0++){ if(!ok(W0)) continue; if(Ta != null){ if(best < 0 || Math.abs(W0 - Ta) < Math.abs(best - Ta)) best = W0; continue; } const mm = W0 % 400; if(mm >= 345 && mm <= 395){ best = W0; break; } if(best < 0) best = W0; }
     if(best < 0) return; if(DIR && !DIR.request('avalanche', { tier:'hero', seg:best })) return;
     // the mountain goes on the outside of the approach's bends, where the view opens toward it (a bend toward it would hide the slide)
     let cv = 0; for(let j = best - PATH0 - 260; j < best; j++) if(segs[j]) cv += segs[j].curve; add(best, cv > 40 ? -1 : cv < -40 ? 1 : 0); }

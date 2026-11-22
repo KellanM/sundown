@@ -177,7 +177,8 @@
     // the roll keeps the gate rule below)
     const ok = Zc => { if(Zc + END + 40 + JW_M > zEnd) return false; if(window.inForkWindow && (inForkWindow(Zc + ROLL - 60, Zc + END + 40) || inForkWindow(Zc - 30, Zc + 120) || inForkWindow(Zc + ROLL - 30 + 190, Zc + 120 + 190))) return false; for(let k = 0; k < gates.length; k++){ const g = gates[k], g0 = g - (k % 2 ? 2 : 62); if(g + 2 >= Zc + ROLL - 30 && g0 <= Zc + 120) return false; if(Math.abs(g - (Zc - BRD)) < 14) return false; }
       if(Math.abs(((Zc - BRD) % 300) - 150) < 24) return false; return true; };
-    let best = -1; for(let Zc = ls + 900; Zc < ls + 2660 && Zc + END + 40 + JW_M <= zEnd; Zc++){ if(!ok(Zc)) continue; const zz = Zc % 480; if(zz >= 300 && zz <= 420){ best = Zc; break; } if(best < 0) best = Zc; }
+    const Tj = DIR && DIR.target ? DIR.target('jetwash', i) : null;   /* demo mode: the valid crossing nearest the authored one */
+    let best = -1; for(let Zc = ls + 900; Zc < (Tj != null ? zEnd : ls + 2660) && Zc + END + 40 + JW_M <= zEnd; Zc++){ if(!ok(Zc)) continue; if(Tj != null){ if(best < 0 || Math.abs(Zc - Tj) < Math.abs(best - Tj)) best = Zc; continue; } const zz = Zc % 480; if(zz >= 300 && zz <= 420){ best = Zc; break; } if(best < 0) best = Zc; }
     if(best < 0) return; if(DIR && !DIR.request('jetwash', { tier:'hero', seg:best })) return; add(best); }
   function add(Zc){ const w = { Zc, off:false, cut:null, cut2:null, tau:-9, tt:-1, lastD:null, swept:false, shook:-1, boomed:false, done:false, push:0, minRoom:9 };
     plans.push(w); if(plans.length > 6) plans.shift(); const s2 = segs[Zc]; if(s2) s2.jwPlan = w; else w.pend = true; return w; }

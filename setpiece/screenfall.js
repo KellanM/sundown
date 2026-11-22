@@ -86,7 +86,8 @@
       for(let j = A - 170; j <= A + 60; j += 6) if(!plain(j)) return false;
       for(let j = A + CRD - 40; j <= A + 60; j += 4) if(segs[j] && segs[j].spjP) return false;   // no landmark jump (setpiece/jump.js) under the card or the fall
       return true; };
-    let best = -1; for(let A = i + 470; A + 200 < zEnd; A += 4) if(ok(A)){ best = A; break; }
+    const Ts = DIR && DIR.target ? DIR.target('screenfall', i) : null;   /* demo mode: the valid screen nearest the authored one */
+    let best = -1; for(let A = i + 470; A + 200 < zEnd; A += 4) if(ok(A)){ if(Ts == null){ best = A; break; } if(best < 0 || Math.abs(A - Ts) < Math.abs(best - Ts)) best = A; }
     if(best < 0) return; if(DIR && !DIR.request('screenfall', { tier:'hero', seg:best })) return; if(E.claim) E.claim(best - 168, best + 60);   // (the same stretch the plain check covers: it must never reach into a junction or the river)
     for(let j = best - 640; j <= best + 60; j++) if(segs[j]) segs[j].skRes = 1;   // reserved: mech/skill.js lays no kicker or roadworks on the screen's approach
     // the approach runs straight, so the screen hangs dead ahead between its towers for the whole telegraph (the road there is not placed

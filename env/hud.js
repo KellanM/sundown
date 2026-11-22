@@ -120,7 +120,7 @@ function layout(){
   // the style chain tab (mech/style.js): wide, beside the speed plate (heat.js's meter column is gone), bottoms aligned;
   // narrow, under the night strip on the left, where the sky is clear
   // (kodawari #8: with the night strip hidden, a phone stacks the tab right under the speed plate, not under the strip's empty rows)
-  const tW = 59, tH = 21, tX = narrow ? x0 : x0 + plW + 2, tY = narrow ? (SHOW_NIGHT ? nY + 9 : y0 + plH + 2) : y0 + plH - tH, tN = Math.floor((tW - 6 + 1) / 3);
+  const tW = 66, tH = 21, tX = narrow ? x0 : x0 + plW + 2, tY = narrow ? (SHOW_NIGHT ? nY + 9 : y0 + plH + 2) : y0 + plH - tH, tN = Math.floor((tW - 6 + 1) / 3);   // tW 66: a 9-letter act and its repeat count ("SLID PAST x3") fit on the label line
   Ly = { cw, ch, sx, narrow, m, iT, iR, iB, iL, bw, hMax, BW, dg, dW, drums, inner, plW, plH, nl, x0, y0, kW, kH, kX, kY, stripW, nX, nY, tW, tH, tX, tY, tN };
   const fs = narrow ? 13 : 16;
   const place = (el, x, y) => { el.style.left = Math.round(x) + 'px'; el.style.top = Math.round(y) + 'px'; el.style.fontSize = fs + 'px'; el.style.padding = narrow ? '2px 3px' : '3px 5px'; };
@@ -180,7 +180,9 @@ function chainTab(V, now, L){
   B_(s7('0123456789'[Math.min(9, m)], beat === 2 ? C.ghost3 : mFlash ? C.cream : beat === 1 ? C.gold : mc), tX + 7, tY + 3);
   // the last act's name (gold for a beat when it lands), then the points at stake / banked / lost
   const lc = beat === 1 ? C.gold : beat === 2 ? C.red : fresh ? C.gold : C.cream;
-  if(V.label) B_(t3(V.label, lc), tX + 17, tY + 3);
+  if(V.label){ B_(t3(V.label, lc), tX + 17, tY + 3);
+    // the same act again merges into a count after the name ("CLOSE x3"), one quiet message instead of a chip per act; shown only if it fits
+    if(!beat && V.rep > 1){ const r = Math.min(99, V.rep), cx0 = tX + 17 + V.label.length * 4 + 4; if(cx0 + (r > 9 ? 10 : 6) <= tX + tW - 3){ B_(t3('x', lc), cx0, tY + 3); numAt(r, cx0 + 4, tY + 3, lc, false); } } }
   const py = tY + 10;
   if(beat === 1) numAt(V.beatPts, tX + 17, py, C.gold, true);
   else if(beat === 2){ const xe = numAt(V.beatPts, tX + 17, py, LOSTC, false); R_(tX + 16, py + 2, xe - tX - 16, 1, C.red); }   // struck through

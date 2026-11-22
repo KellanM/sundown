@@ -256,13 +256,14 @@
     const z = zoneOfSeg(i), border = gates[2 * z + 1] !== undefined ? gates[2 * z + 1] : 1e9;
     // after the road's landmark jump (setpiece/jump.js: the lava leap, its window ends ~66+60 past its b0) and before the border's blend
     let j0 = ls + 300; const J = MECH.sp_jump; if(J && J._plans) for(const q of J._plans()) if(q.kind === 'bridge' && q.start === ls) j0 = Math.max(j0, q.b0 + 66 + 70);
-    const forced = /(^|[?&,=])force=([^&]*)(lava|all)/.test(location.search), qb = +(new URLSearchParams(location.search).get('lvB') || 0);
+    const forced = /(^|[?&,=])force=([^&]*)(lava|all)/.test(location.search), qb = +(new URLSearchParams(location.search).get('lvB') || 0), Tl = DIR && DIR.target ? DIR.target(ID, i) : null;   /* Tl: demo mode's authored moment (B - 200) */
     const fits = (B, tail) => { if(B - PRE < j0 || B + tail > border - 30) return false;
       if(window.inForkWindow && inForkWindow(B - PRE - 20, B + END)) return false;
       for(const g of gates){ if(g >= B - 265 && g <= B + GAP + 70) return false; for(const o of [-370, -295, -228]) if(Math.abs(g - (B + o)) < 22) return false; }
       return true; };
     let pick = -1;
     if(qb){ pick = ls + qb; }
+    else if(Tl != null){ for(let B = Math.ceil((j0 + PRE) / 10) * 10; B + 60 < border; B += 10){ const r = ((B % 600) + 600) % 600; if((Math.abs(r - 200) <= 20 || Math.abs(r - 500) <= 20) && fits(B, END) && (pick < 0 || Math.abs(B - 200 - Tl) < Math.abs(pick - 200 - Tl))) pick = B; } }
     else { for(let B = Math.ceil((j0 + PRE) / 10) * 10; B + 60 < border; B += 10){ const r = ((B % 600) + 600) % 600; if((Math.abs(r - 200) <= 20 || Math.abs(r - 500) <= 20) && fits(B, END)){ pick = B; break; } }
       // a short road (the first road of a ride): take the first fit anywhere, letting the release run into the border's blend
       if(pick < 0 && forced) for(let B = Math.ceil((j0 + PRE) / 10) * 10; B + 60 < border; B += 10) if(fits(B, GAP + 50)){ pick = B; break; } }

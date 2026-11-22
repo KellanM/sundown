@@ -141,6 +141,357 @@
   function gblit(g, x, y){ if(!g || !ATL) return; const w = g.w * PX, h = g.h * PX; if(AKU && x + w / 2 > 0 && x - w / 2 < W && y + h / 2 > 0 && y - h / 2 < H) USED[g.k] = (USED[g.k] || 0) + 1; cx.drawImage(ATL, g.ax, g.ay, g.sw, g.sh, snp(x - w / 2), snp(y - h / 2), w, h); }
   const gpick = (st, ch, px) => { const T = GA[st] && GA[st][ch]; if(!T) return null; for(let si = SZ.length - 1; si >= 0; si--){ const g = T[si]; if(g && Math.max(g.w, g.h) * PX <= px) return g; } return null; };
 
+  // ---------------------------------------------------------------- graphic signage (round 4): pixel art built once, painted at screen resolution
+  /* Kellan, round 4: "it all looks like text instead of graphics or advertisements, and they look flat". The street's signs are now pictures:
+     character banners on the blades, key art on the roof billboards and end walls, brand blocks (a colour field, an emblem, a logotype; kana
+     an accent), icon plates, two animated hero screens at the crossings and small attract screens on the arcades. Every piece is composed
+     once at warm-up into a pixel buffer, compiled into a rect list (runs merged down the rows) plus a canvas and two averaged mips, and painted
+     as Neon Ward's screen building is: the list straight onto the canvas with each edge on the pixel whose centre it covers once an art pixel
+     passes 2 screen pixels, the atlas cell (or a mip) below that. Nothing here is built during a ride. All characters, names and marks are
+     invented for this road. */
+  const AI = (w, h) => ({ w, h, c:new Array(w * h).fill(null) });
+  const ap = (I, x, y, col) => { if(x >= 0 && y >= 0 && x < I.w && y < I.h) I.c[y * I.w + x] = col; };
+  const ag = (I, x, y) => x >= 0 && y >= 0 && x < I.w && y < I.h ? I.c[y * I.w + x] : null;
+  function af(I, x, y, w, h, col){ for(let yy = y; yy < y + h; yy++) for(let xx = x; xx < x + w; xx++) ap(I, xx, yy, col); }
+  // a grid sprite: rows of characters and a map char -> colour; '.' is clear
+  const SP = (rows, map) => ({ rows, map, w:rows.reduce((m, r) => Math.max(m, r.length), 0), h:rows.length });
+  function as(I, S, x, y, flip, over){ for(let r = 0; r < S.h; r++){ const row = S.rows[r]; for(let c = 0; c < row.length; c++){ const ch = row[c]; if(ch === '.') continue; const col = over && over[ch] !== undefined ? over[ch] : S.map[ch]; if(col) ap(I, flip ? x + S.w - 1 - c : x + c, y + r, col); } } }
+  // a 1-px outline around everything drawn in L (4-neighbours), then L laid over I at (x, y)
+  function aol(L, col){ const O = AI(L.w, L.h); for(let y = 0; y < L.h; y++) for(let x = 0; x < L.w; x++){ const v = L.c[y * L.w + x]; if(v){ O.c[y * L.w + x] = v; continue; } if(ag(L, x - 1, y) || ag(L, x + 1, y) || ag(L, x, y - 1) || ag(L, x, y + 1)) O.c[y * L.w + x] = col; } return O; }
+  function alay(I, L, x, y){ for(let yy = 0; yy < L.h; yy++) for(let xx = 0; xx < L.w; xx++){ const v = L.c[yy * L.w + xx]; if(v) ap(I, x + xx, y + yy, v); } }
+  // vertical gradient bands (stepped, never smooth): n colours top to bottom with a 2x2 dither at each seam
+  function agrad(I, x, y, w, h, cols){ const n = cols.length; for(let yy = 0; yy < h; yy++){ const t = yy / h * n, k = Math.floor(t), f = t - k; for(let xx = 0; xx < w; xx++){ const c = k + 1 < n && f > .7 && ((xx + yy) & 1) ? cols[k + 1] : cols[Math.min(n - 1, k)]; ap(I, x + xx, y + yy, c); } } }
+  // a kana / kanji accent from DotGothic16 (the warm-up's scratch canvas), optionally outlined; returns its width
+  function akana(I, s, size, x, y, col, out){ let cx0 = x; for(const ch of s){ const { m, n } = mask(ch, size), b = box(m, n); if(!b){ cx0 += size >> 1; continue; }
+      const gw = b[2] - b[0] + 1; if(out) for(let yy = b[1]; yy <= b[3]; yy++) for(let xx = b[0]; xx <= b[2]; xx++) if(m[yy * n + xx]) af(I, cx0 + xx - b[0] - 1, y + yy - b[1] - 1, 3, 3, out);
+      for(let yy = b[1]; yy <= b[3]; yy++) for(let xx = b[0]; xx <= b[2]; xx++) if(m[yy * n + xx]) ap(I, cx0 + xx - b[0], y + yy - b[1], col); cx0 += gw + 1; } return cx0 - x; }
+  // a 3x5 logotype face (invented marks only), scaled by s, with an optional outline and a drop shadow
+  const F5 = { A:'010101111101101', B:'110101110101110', C:'011100100100011', D:'110101101101110', E:'111100110100111', F:'111100110100100', G:'011100101101011', H:'101101111101101', I:'111010010010111', K:'101101110101101', L:'100100100100111', M:'101111111101101', N:'110101101101101', O:'010101101101010', P:'110101110100100', R:'110101110101101', S:'011100010001110', T:'111010010010010', U:'101101101101111', V:'101101101101010', X:'101101010101101', Y:'101101010010010', Z:'111001010100111', '-':'000000111000000', '!':'010010010000010', '1':'010110010010111', '2':'111001111100111', '0':'111101101101111', '8':'111101111101111' };
+  function alogo(I, s, x, y, k, col, out, sh){ const L = AI(s.length * 4 * k + 2, 5 * k + 2); for(let c = 0; c < s.length; c++){ const g = F5[s[c]]; if(!g) continue; for(let p = 0; p < 15; p++) if(g[p] === '1') af(L, 1 + (c * 4 + p % 3) * k, 1 + ((p / 3) | 0) * k, k, k, col); }
+    const O = out ? aol(L, out) : L; if(sh){ const Sh = AI(O.w, O.h); for(let i = 0; i < O.c.length; i++) if(O.c[i]) Sh.c[i] = sh; alay(I, Sh, x, y); }
+    alay(I, O, x - 1, y - 1); return s.length * 4 * k - k; }
+  // compile: runs per row, a run identical to one directly above extends it downward; a canvas; mips averaged 2x2 and 4x4 (alpha kept)
+  function acomp(I){ const R = [], C = []; let prev = [];
+    for(let y = 0; y < I.h; y++){ const cur = []; let x = 0; while(x < I.w){ const col = I.c[y * I.w + x]; if(!col){ x++; continue; } let e = x + 1; while(e < I.w && I.c[y * I.w + e] === col) e++;
+        let p = null; for(const q of prev) if(q.x === x && q.w === e - x && q.col === col){ p = q; break; } if(p){ R[p.i * 4 + 3]++; cur.push(p); } else { const i = C.length; C.push(col); R.push(x, y, e - x, 1); cur.push({ x, w:e - x, col, i }); } x = e; } prev = cur; }
+    const cv = mk(I.w, I.h), k = cv.getContext('2d'); for(let i = 0; i < C.length; i++){ k.fillStyle = C[i]; k.fillRect(R[i * 4], R[i * 4 + 1], R[i * 4 + 2], R[i * 4 + 3]); }
+    const A = { w:I.w, h:I.h, R:Int16Array.from(R), C, n:C.length, cv, m2:null, m4:null, avg:'#000' };
+    // (the mips and the average come from the buffer itself, never a read back from the canvas: no GPU stall at warm-up)
+    const D = new Uint8ClampedArray(I.w * I.h * 4); for(let p = 0; p < I.c.length; p++){ const col = I.c[p]; if(!col) continue; const v = hx(col); D[p * 4] = v[0]; D[p * 4 + 1] = v[1]; D[p * 4 + 2] = v[2]; D[p * 4 + 3] = 255; }
+    const mip = f => { const w = Math.max(1, Math.ceil(I.w / f)), h = Math.max(1, Math.ceil(I.h / f)), c = mk(w, h), q = c.getContext('2d'), o = q.createImageData(w, h);
+        for(let y = 0; y < h; y++) for(let x = 0; x < w; x++){ let r = 0, g = 0, b = 0, a = 0, t = 0; for(let yy = y * f; yy < Math.min(I.h, y * f + f); yy++) for(let xx = x * f; xx < Math.min(I.w, x * f + f); xx++){ const p = (yy * I.w + xx) * 4, al = D[p + 3] / 255; r += D[p] * al; g += D[p + 1] * al; b += D[p + 2] * al; a += al; t++; }
+          const p = (y * w + x) * 4; if(a > 0){ o.data[p] = r / a; o.data[p + 1] = g / a; o.data[p + 2] = b / a; } o.data[p + 3] = a / t > .5 ? 255 : 0; } q.putImageData(o, 0, 0); return c; };
+    A.m2 = mip(2); A.m4 = mip(4); A.L = [{ c:cv, x:0, y:0, w:I.w, h:I.h }, { c:A.m2, x:0, y:0, w:A.m2.width, h:A.m2.height }, { c:A.m4, x:0, y:0, w:A.m4.width, h:A.m4.height }]; { let r = 0, g = 0, b = 0, a = 0; for(let p = 0; p < D.length; p += 4) if(D[p + 3]){ r += D[p]; g += D[p + 1]; b += D[p + 2]; a++; } if(a) A.avg = '#' + [r, g, b].map(v => Math.round(v / a).toString(16).padStart(2, '0')).join(''); }
+    return A; }
+  // a screen edge for an art edge: the first canvas pixel whose centre lies past it (nearest-neighbour sampling, as env/neon.js jbE)
+  const jbE = (o, u, s) => Math.ceil((o + (u + 1e-5) * s) / PX - .5) * PX;
+  /* Paint art A with its top-left at (left, top), k screen px per art px. Above 2 px per art px (1.3 cost too much at mid range): the rect list, each edge snapped as the
+     nearest-neighbour blit would put it (so the switch shows no change). Below: the canvas, or a mip once an art pixel is under 3/4 of a
+     screen pixel (no sparkle far away). A dead sign (the blackout) is the art under a near-black veil; fog is a veil of the low sky. */
+  function art(A, left, top, k){ if(!A || !AT || !(k > 0) || !fin(left + top)) return; const w = A.w * k, h = A.h * k; if(left > W + PX || top > H + PX || left + w < -PX || top + h < -PX) return;
+    if(k > PX * 2 && !AKNR){ const R = A.R, C = A.C; for(let i = 0, n = A.n; i < n; i++){ const o = i * 4, x0 = jbE(left, R[o], k), x1 = jbE(left, R[o] + R[o + 2], k); if(x1 <= x0 || x1 <= 0 || x0 >= W) continue; const y0 = jbE(top, R[o + 1], k), y1 = jbE(top, R[o + 1] + R[o + 3], k); if(y1 <= y0 || y1 <= 0 || y0 >= H) continue; cx.fillStyle = C[i]; cx.fillRect(x0, y0, x1 - x0, y1 - y0); } }
+    else { const x0 = jbE(left, 0, k), x1 = jbE(left, A.w, k), y0 = jbE(top, 0, k), y1 = jbE(top, A.h, k); if(x1 <= x0 || y1 <= y0) return; cx.imageSmoothingEnabled = false;
+      const Lv = A.L[k < PX * .375 ? 2 : k < PX * .75 ? 1 : 0]; cx.drawImage(AT, Lv.x, Lv.y, Lv.w, Lv.h, x0, y0, x1 - x0, y1 - y0); }
+    veil(left, top, w, h); }
+  function veil(x, y, w, h){ const a0 = cx.globalAlpha; if(!ON){ cx.globalAlpha = a0 * .88; cx.fillStyle = DK; pxRect(x, y, w, h); } if(FF > .02){ cx.globalAlpha = a0 * Math.min(.8, FF * .6); cx.fillStyle = fogLow; pxRect(x, y, w, h); } cx.globalAlpha = a0; }
+  // a lightbox's glow: two rings of its light, fading (pixel falloff, no blur); none when dead or far in the fog
+  const AKNR = AKX.includes('norect'), AKNH = AKX.includes('nohalo');
+  // (opaque rings, each its own stepped mix toward the night: no alpha state per sign, which cost frames on the GPU canvas)
+  function halo(x, y, w, h, col, a){ if(!ON || FF > .7 || w < PX * 6 || AKNH) return;
+    for(let r = 1, rn = w < PX * 16 ? 1 : 2; r <= rn; r++){ cx.fillStyle = fc(mixc(col, '#0a0816', r === 1 ? 1 - .42 * a : 1 - .2 * a), FF); const d = PX * r; pxRect(x - d, y - d, w + d * 2, PX); pxRect(x - d, y + h + d - PX, w + d * 2, PX); pxRect(x - d, y - d + PX, PX, h + d * 2 - PX * 2); pxRect(x + w + d - PX, y - d + PX, PX, h + d * 2 - PX * 2); } }
+  // ------------------------------------------------ the cast (grids drawn at pixel zoom from the references' banners; all invented)
+  const OUTL = '#1a0c22', SKIN = ['#ffe2cc', '#f0b49a', '#c87a6a'];
+  // a girl's head, front, light from the left: hair (h, H highlight band, d shadow), skin (s, S), eyes (e iris, E shine, l lash), mouth, blush
+  const HEAD = SP([
+    '.....kkkkkk.....',
+    '...kkhhhhhhkk...',
+    '..khHHHhhhhhhk..',
+    '.khHHhhhhhhhhdk.',
+    '.khhhhhhhhhhhdk.',
+    'khhhhhhhhhhhhhdk',
+    'khhhhhhhhhhhhddk',
+    'khhdhhhhhhhdhhdk',
+    'khdshhshhshhshdk',
+    'khdsssssssssshdk',
+    'khdlllssssllldkk',
+    'khdEeessssEeedhk',
+    'khdeeesssseeedhk',
+    'khdsssssssssSdhk',
+    'khhsbssmmssbSdhk',
+    'khdhSsssssssShdk',
+    'khdhkSSSSSSkhddk',
+    'khdk.kkkkkk.kdk.'], { k:OUTL, s:SKIN[0], S:SKIN[1], l:'#2a1030', E:'#ffffff', m:'#c8304a', b:'#ff9aa8' });
+  // the same head winking (the close-up's beat)
+  const HEADW = SP(HEAD.rows.map((r, i) => i === 10 ? 'khdlllsssssssdkk' : i === 11 ? 'khdEeessssllldhk' : i === 12 ? 'khdeeesssssssdhk' : r), HEAD.map);
+  const HAIR = { pink:['#ff7ab8', '#ffc2de', '#c0407e'], blue:['#4a7cff', '#a8c4ff', '#2a3aa8'], mint:['#3ad8b0', '#b0ffe4', '#1a8a74'], gold:['#ffc83a', '#fff0a0', '#c07a1a'], violet:['#a060ff', '#d8b8ff', '#5a2aa8'] };
+  const EYES = { pink:'#8a2a8a', blue:'#2a6ad8', mint:'#1a8a5a', gold:'#c8501a', violet:'#5a2ad8' };
+  const headMap = hc => ({ h:HAIR[hc][0], H:HAIR[hc][1], d:HAIR[hc][2], e:EYES[hc] });
+  // a mecha, front: a fin crest, a slit visor, wide shoulder blocks, a core in the chest (white armour, its shadow side blue-grey)
+  const MECHA = SP([
+    '..........kk..........',
+    '.........kOok.........',
+    '.........kOok.........',
+    '.......kkkwwkkk.......',
+    '......kwwwwwwWWk......',
+    '......kwkkkkkkWk......',
+    '......kwvVVVvvWk......',
+    '......kWkkkkkkWk......',
+    '.......kwggggWk.......',
+    '..kkkkkkkwwWkkkkkkk...',
+    '.kbbbbbbkkkkkkbbbbBk..',
+    'kbbBbbbbkwwwWkbbbBBBk.',
+    'kbbbbbbkwwooWWkbbbBBk.',
+    'kkkkkkkkwoOOWWkkkkkkk.',
+    '.kwwWWkkwwooWWkkwWWk..',
+    '.kwwWWk.kwwwWk.kwWWk..',
+    '.kggggk.kbbbBk.kggWk..',
+    '.kwwWWk.kkbkkk.kwWWk..',
+    '.kwwWWk.kwwwWk.kwWWk..',
+    '.kgggWk.kwkWWk.kggWk..',
+    '.kkkkk.kwWkkwWk.kkkk..',
+    '......kwwWk.kwWWk.....',
+    '......kwwWk.kwWWk.....',
+    '......kbbBk.kbBBk.....',
+    '......kwwWk.kwWWk.....',
+    '.....kwwwWk.kwWWWk....',
+    '.....kOOOOk.kOOOOk....',
+    '.....kkkkkk.kkkkkk....'], { k:'#12101c', w:'#f4f2ee', W:'#a8b0c8', b:'#2a54c8', B:'#1a2a78', o:'#ffb02a', O:'#e8401a', g:'#5a5e70', v:'#3ae8ff', V:'#e8ffff' });
+  const MECHAR = { w:'#f4ece6', W:'#c0988a', b:'#d8282e', B:'#7a1420', v:'#ffe23a', V:'#ffffff' };   // the rival's colours (red, a yellow eye)
+  // the idol on the screen (14 x 26): body and legs; arms are drawn per pose
+  const IDOL = SP([
+    '....kkkkkk....',
+    '..kkhhhhhhkk..',
+    '.khHHhhhhhhdk.',
+    'khhhhhhhhhhhdk',
+    'khdsshsshsshdk',
+    'khdlssssslsdhk',
+    'khdesssssesdhk',
+    'khhssbmmbsSdhk',
+    'khdkSsssSSkhdk',
+    'khdk.kssk.kddk',
+    'khk.kwrrwk.khk',
+    'khk.kpwwPk.khk',
+    'kk..kpppPk..kk',
+    '....kpppPk....',
+    '...kpPpPpPk...',
+    '..kpPpPpPpPk..',
+    '..kwwwwwwwwk..',
+    '...kkskkSkk...',
+    '....ks..Sk....',
+    '....ks..Sk....',
+    '....ks..Sk....',
+    '...kww..wwk...'], { k:OUTL, h:HAIR.pink[0], H:HAIR.pink[1], d:HAIR.pink[2], s:SKIN[0], S:SKIN[1], l:'#2a1030', e:'#8a2a8a', m:'#c8304a', b:'#ff9aa8', w:'#ffffff', r:'#ff3a6a', p:'#ff5aa8', P:'#c02a7a' });
+  // icons for the tenant plates and the brand emblems (10 x 10): a coffee cup, a game pad, a chip, a cassette, a camera, a heart, a star, a bolt
+  const ICON = [
+    SP(['..........', '...a.a....', '....a.a...', '.kkkkkkk..', '.kwwwwwkkk', '.kwwwwwk.k', '.kwwwwwkkk', '..kwwwk...', 'kkkkkkkkk.', '..........'], { k:'#2a1424', w:'#ffffff', a:'#c8c0d8' }),
+    SP(['..........', '..........', '.kkkkkkkk.', 'kwwwwwwwwk', 'kwkwwwwrwk', 'kkkkwwrwrk', 'kwkwwwwrwk', 'kwwwkkwwwk', '.kkk..kkk.', '..........'], { k:'#1a1424', w:'#e8e8f0', r:'#ff3a4a' }),
+    SP(['.w.w.w.w..', 'kkkkkkkkk.', 'kgggggggk.', 'kgyyyyygk.', 'kgy...ygk.', 'kgy...ygk.', 'kgyyyyygk.', 'kgggggggk.', 'kkkkkkkkk.', '.w.w.w.w..'], { k:'#0a0a14', g:'#2a2e3a', y:'#ffd23a', w:'#d8d8e0' }),
+    SP(['..........', 'kkkkkkkkkk', 'kwwwwwwwwk', 'kwkkwwkkwk', 'kwkokkokwk', 'kwkkwwkkwk', 'kwwwwwwwwk', 'kwwkkkkwwk', 'kkkkkkkkkk', '..........'], { k:'#1a1424', w:'#f0ece0', o:'#ff7a1a' }),
+    SP(['..........', '...kkk....', 'kkkkkkkkkk', 'kwwkkkkwwk', 'kwkbbbbkwk', 'kwkbBBbkwk', 'kwkbbbbkwk', 'kwwkkkkwwk', 'kkkkkkkkkk', '..........'], { k:'#14121c', w:'#e8e8f0', b:'#3a5ad8', B:'#a8d0ff' }),
+    SP(['..........', '.kkk..kkk.', 'krrrkkrrrk', 'krWrrrrrrk', 'krrrrrrrrk', '.krrrrrrk.', '..krrrrk..', '...krrk...', '....kk....', '..........'], { k:'#3a0820', r:'#ff3a7a', W:'#ffffff' }),
+    SP(['....kk....', '....yk....', '...kyyk...', 'kkkkyykkkk', 'kyyyyyyyyk', '.kyyyyyyk.', '..kyyyyk..', '.kyykkyyk.', '.kyk..kyk.', '.kk....kk.'], { k:'#3a1a00', y:'#ffe23a' }),
+    SP(['.....kkk..', '....kyyk..', '...kyyk...', '..kyyk....', '.kyyyyyk..', '..kkkyyk..', '....kyk...', '...kyk....', '...kk.....', '..........'], { k:'#3a1a00', y:'#ffe23a' })];
+  const IC_CUP = 0, IC_PAD = 1, IC_CHIP = 2, IC_TAPE = 3, IC_CAM = 4, IC_HEART = 5, IC_STAR = 6, IC_BOLT = 7;
+  /* The brands (invented): a field colour, its lit and shadow steps, the ink, an outline for the logotype, an emblem, a logotype, a kana
+     accent. A building carries one brand on all its signs, so a store reads as one colour block before any word (the references' red
+     and yellow towers). */
+  const BRANDS = [
+    { f:'#d8202e', fl:'#ff5a5a', fd:'#8a1020', ink:'#ffffff', out:'#5a0814', ac:'#ffd23a', ic:IC_BOLT, logo:'DEN', kana:'デンキ' },
+    { f:'#ffd23a', fl:'#fff2a0', fd:'#c8901a', ink:'#d8141e', out:'#3a1400', ac:'#ffe23a', ic:IC_STAR, logo:'KIRA', kana:'ゲーム' },
+    { f:'#2a5ed0', fl:'#6a9aff', fd:'#16307a', ink:'#ffffff', out:'#0a1440', ac:'#4af0ff', ic:IC_CHIP, logo:'MYCO', kana:'ソフト' },
+    { f:'#1e9658', fl:'#5ad08a', fd:'#0e5a32', ink:'#ffffff', out:'#04301a', ac:'#ffe23a', ic:IC_TAPE, logo:'TONE', kana:'ラジオ' },
+    { f:'#ff7a1a', fl:'#ffb06a', fd:'#a8400a', ink:'#ffffff', out:'#4a1800', ac:'#ffd8a0', ic:IC_CAM, logo:'FOTO', kana:'カメラ' },
+    { f:'#ff5aa8', fl:'#ffa8d0', fd:'#a82a6a', ink:'#ffffff', out:'#4a0a2a', ac:'#fff2a0', ic:IC_CUP, logo:'MOE', kana:'メイド' },
+    { f:'#18121e', fl:'#3a3048', fd:'#08060c', ink:'#ffd23a', out:'#000000', ac:'#ff3a4a', ic:IC_BOLT, logo:'MAX', kana:'セール' }];
+  const KBRAND = { denki:[0, 6, 2, 3], camera:[4, 0], radio:[3, 2], arcade:[1, 5], pencil:[5, 2, 3, 4], plain:[2, 6, 0] };
+  // ------------------------------------------------ compositions
+  const lite = (c, t) => mixc(c, '#ffffff', t), dark = (c, t) => mixc(c, '#06040c', t);
+  function sparkle(I, x, y, col){ ap(I, x, y, col); ap(I, x - 1, y, col); ap(I, x + 1, y, col); ap(I, x, y - 1, col); ap(I, x, y + 1, col); }
+  // halftone dots on a diagonal grid (the banners' print texture), in a step lighter than the field
+  function dots(I, x, y, w, h, col, p){ for(let yy = 0; yy < h; yy += p) for(let xx = ((yy / p) & 1) * (p >> 1); xx < w; xx += p) ap(I, x + xx, y + yy, col); }
+  // a full figure: the head, long hair behind, a sailor top, a pleated skirt, legs, shoes; light from the left (the shadow third on the right)
+  function figure(hc, top, skirt, pose){ const L = AI(20, 50), [h0, h1, h2] = HAIR[hc], [t0, t1] = top, [k0, k1] = skirt;
+    for(let y = 8; y < 33; y++){ const w = y < 28 ? 9 : 9 - (y - 28); af(L, 10 - w, y, w, 1, y % 5 === 0 ? h2 : h0); af(L, 10, y, w, 1, h2); }   // hair behind, to the waist
+    af(L, 2, 10, 1, 18, h1);
+    af(L, 9, 17, 2, 3, SKIN[1]);
+    for(let y = 19; y < 31; y++){ const w = y < 21 ? 6 : 5; af(L, 10 - w, y, w * 2, 1, t0); af(L, 10 + w - 3, y, 3, 1, t1); }   // the top, lit and shadow sides
+    af(L, 6, 19, 8, 1, '#ffffff'); for(let q = 0; q < 3; q++){ ap(L, 7 + q, 20 + q, '#ffffff'); ap(L, 12 - q, 20 + q, '#ffffff'); }   // the sailor collar's V
+    af(L, 9, 22, 2, 2, '#ff3a5a'); ap(L, 8, 23, '#ff3a5a'); ap(L, 11, 23, '#ff3a5a');
+    for(let y = 31; y < 38; y++){ const w = 5 + ((y - 31) >> 1); for(let x = 10 - w; x < 10 + w; x++) ap(L, x, y, ((x + 20) >> 1) & 1 ? k1 : k0); }   // pleats
+    for(let y = 38; y < 46; y++){ af(L, 7, y, 2, 1, SKIN[0]); af(L, 11, y, 2, 1, SKIN[1]); }
+    af(L, 6, 46, 3, 2, '#2a1a30'); af(L, 11, 46, 3, 2, '#2a1a30'); af(L, 6, 44, 3, 2, '#ffffff'); af(L, 11, 44, 3, 2, '#e0d8e8');   // socks, shoes
+    // arms: 0 down at the sides; 1 a wave (her left hand up by the face); 2 a peace sign at the chin
+    if(pose === 0){ af(L, 3, 21, 2, 9, t0); af(L, 3, 30, 2, 2, SKIN[0]); af(L, 15, 21, 2, 9, t1); af(L, 15, 30, 2, 2, SKIN[1]); }
+    else if(pose === 1){ af(L, 3, 21, 2, 9, t0); af(L, 3, 30, 2, 2, SKIN[0]); af(L, 15, 13, 2, 8, t1); af(L, 15, 10, 2, 3, SKIN[0]); ap(L, 17, 9, SKIN[0]); }
+    else { af(L, 3, 21, 2, 9, t0); af(L, 3, 30, 2, 2, SKIN[0]); af(L, 14, 21, 2, 3, t1); af(L, 12, 18, 2, 3, SKIN[0]); ap(L, 12, 16, SKIN[0]); ap(L, 13, 17, SKIN[0]); ap(L, 14, 16, SKIN[0]); }
+    as(L, HEAD, 2, 0, false, headMap(hc)); return aol(L, OUTL); }
+  /* A character banner (20 x 60): a figure on a printed field (gradient, halftone, sparkles), the title strip at the foot with a kana
+     accent and an emblem. */
+  const BAN = [
+    { hc:'pink', bg:['#2a3ad8', '#1a1a8a', '#120a50'], top:['#f4f4ff', '#a8b0d8'], sk:['#2a3a8a', '#1a2460'], pose:1, kana:'ルナ', ac:'#ffd23a' },
+    { hc:'mint', bg:['#ff5a8a', '#c82a6a', '#6a1040'], top:['#2a2a3a', '#14141e'], sk:['#2a2a3a', '#14141e'], pose:2, kana:'ミント', ac:'#ffffff' },
+    { hc:'gold', bg:['#1ac8a8', '#0e8a7a', '#06403a'], top:['#ff5a5a', '#a82a3a'], sk:['#ffffff', '#c8c0d8'], pose:0, kana:'ハル', ac:'#ffe23a' },
+    { hc:'violet', bg:['#ffd23a', '#ff9a2a', '#c8501a'], top:['#ffffff', '#b8b0d0'], sk:['#5a2aa8', '#3a1a70'], pose:1, kana:'ユメ', ac:'#3a1a70' }];
+  function banner(v){ const D = BAN[v], I = AI(22, 62); agrad(I, 0, 0, 22, 50, D.bg); dots(I, 0, 1, 22, 48, lite(D.bg[0], .18), 4);
+    for(const [x, y] of [[3, 4], [18, 9], [2, 40], [19, 34]]) sparkle(I, x, y, lite(D.bg[0], .7));
+    alay(I, figure(D.hc, D.top, D.sk, D.pose), 1, 1);
+    af(I, 0, 50, 22, 12, '#16101e'); af(I, 0, 50, 22, 1, D.ac); akana(I, D.kana, 10, 1, 51, D.ac, null);
+    return acomp(I); }
+  // the mecha's rival-coloured twin, for variety
+  function mech(I, x, y, red){ as(I, MECHA, x, y, false, red ? MECHAR : null); }
+  // speed lines radiating from a point (the key art's energy), in one colour
+  function burst(I, cx0, cy0, n, r0, r1, col){ for(let q = 0; q < n; q++){ const a = q / n * 6.283 + .2; for(let r = r0; r < r1; r++) ap(I, Math.round(cx0 + Math.cos(a) * r), Math.round(cy0 + Math.sin(a) * r * .7), col); } }
+  /* Roof billboards (48 x 28), front-lit by their spotlights: 0 mecha key art on a pale field; 1 two idols on a night sky; 2 a space game;
+     3 a maid cafe; 4.. the brands' blocks (emblem, logotype, kana). */
+  const NBB = 4;
+  function billboard(v){ const I = AI(48, 28);
+    if(v === 0){ agrad(I, 0, 0, 48, 28, ['#fbf8ff', '#e8ecff', '#c8d4f4']); burst(I, 12, 12, 18, 9, 34, '#dce2fa'); mech(I, 1, 0, false);
+      af(I, 24, 4, 24, 14, '#d8202e'); af(I, 24, 4, 24, 1, '#ff6a6a'); af(I, 24, 17, 24, 1, '#8a1020'); akana(I, '機甲', 12, 27, 5, '#ffffff', null); alogo(I, 'GARVAN', 25, 20, 1, '#1a2a78', null, null); af(I, 24, 26, 24, 1, '#1a2a78'); }
+    else if(v === 1){ agrad(I, 0, 0, 48, 28, ['#3a1a8a', '#1a1050', '#0a0828']); for(let q = 0; q < 14; q++) ap(I, (q * 17 + 5) % 48, (q * 11 + 2) % 20, q & 1 ? '#ffffff' : '#a8b8ff');
+      sparkle(I, 44, 4, '#fff2a0'); as(I, HEAD, 3, 4, false, headMap('pink')); as(I, HEAD, 17, 6, true, headMap('blue'));
+      af(I, 0, 23, 48, 5, '#ff5aa8'); af(I, 0, 23, 48, 1, '#ffc2de'); akana(I, 'ル', 10, 36, 2, '#fff2a0', null); akana(I, 'ナ', 10, 36, 12, '#fff2a0', null); alogo(I, 'LIVE!', 26, 23, 1, '#ffffff', null, null); }
+    else if(v === 2){ agrad(I, 0, 0, 48, 28, ['#0a0a28', '#14104a', '#2a1060']); for(let q = 0; q < 18; q++) ap(I, (q * 23 + 7) % 48, (q * 13 + 3) % 28, q % 3 ? '#8a8ac8' : '#ffffff');
+      for(let y = 0; y < 12; y++){ const w = Math.round(Math.sqrt(Math.max(0, 144 - (12 - y) * (12 - y))) * 1.6); af(I, 48 - w, 16 + y, w, 1, y < 2 ? '#ffb06a' : y & 2 ? '#d8603a' : '#a83a3a'); }   // the planet's limb
+      as(I, SHIP, 6, 11, false); for(let q = 0; q < 3; q++) as(I, FOE, 22 + q * 8, 4 + (q & 1) * 3, false); ap(I, 14, 8, '#ffffff'); ap(I, 14, 6, '#ffffff');
+      alogo(I, 'STAR-8', 2, 2, 1, '#ffe23a', '#a83a1a', null); akana(I, 'ゲーム', 10, 2, 17, '#ffffff', null); }
+    else if(v === 3){ agrad(I, 0, 0, 48, 28, ['#ffd8ea', '#ffb0d4', '#ff8ac0']); for(let y = 2; y < 28; y += 6) for(let x = (y % 12 ? 3 : 0); x < 48; x += 7) ap(I, x, y, '#ffffff');
+      as(I, HEAD, 4, 6, false, headMap('gold')); af(I, 5, 6, 14, 2, '#ffffff'); for(let x = 5; x < 19; x += 2) ap(I, x, 5, '#ffffff');   // the maid's frilled headband
+      af(I, 4, 24, 16, 4, '#2a1a30'); af(I, 8, 24, 8, 4, '#ffffff'); as(I, ICON[IC_CUP], 36, 15, false); as(I, ICON[IC_HEART], 36, 3, false); akana(I, 'メイド', 10, 21, 6, '#c8205a', null); alogo(I, 'CAFE', 21, 18, 1, '#ffffff', '#c8205a', null); }
+    else { const Bd = BRANDS[(v - NBB) % BRANDS.length]; agrad(I, 0, 0, 48, 28, [Bd.fl, Bd.f, Bd.f, Bd.fd]); af(I, 0, 0, 48, 1, lite(Bd.f, .6));
+      af(I, 1, 3, 13, 13, Bd.out); af(I, 2, 4, 11, 11, '#ffffff'); as(I, ICON[Bd.ic], 2, 4, false); const lw = Bd.logo.length * 8 - 2; alogo(I, Bd.logo, 16 + Math.round((31 - lw) / 2), 5, 2, Bd.ink, Bd.out, null);
+      af(I, 0, 17, 48, 11, Bd.out); const kw = akana(I, Bd.kana, 10, 2, 18, Bd.ac, null); for(let x = kw + 6; x < 46; x += 4) af(I, x, 22, 2, 2, Bd.ac); }
+    return acomp(I); }
+  const SHIP = SP(['....k.....', '...kwk....', '...kwk....', '..kwbwk...', '.kwwbwwk..', 'kwrwwwwrk.', 'kwkkwkkwk.', '.k.koOk...', '....kk....'], { k:'#0a0814', w:'#e8ecff', b:'#3ae8ff', r:'#ff3a4a', o:'#ffe23a', O:'#ff7a1a' });
+  const FOE = SP(['.k...k.', 'kgk.kgk', 'kgggggk', 'kgyggyk', '.kgggk.', 'k.k.k.k'], { k:'#0a0814', g:'#3ad86a', y:'#ffffff' });
+  /* End-wall posters (32 x 48), lightboxes on the wall above a shorter neighbour: 0 an idol (full figure, a title column); 1 the mecha with
+     its kanji title; 2.. a brand tower (the emblem, the logotype stacked, the kana down a column). */
+  const NPO = 2;
+  function poster(v){ const I = AI(32, 48);
+    if(v === 0){ agrad(I, 0, 0, 32, 48, ['#5a2ad8', '#3a1a9a', '#1a0a50']); dots(I, 0, 0, 32, 48, '#6a3ae8', 4); burst(I, 12, 14, 16, 8, 30, '#7a4af0');
+      alay(I, figure('blue', ['#ff5aa8', '#a82a6a'], ['#ffffff', '#c8c0d8'], 2), 1, 0); af(I, 23, 0, 9, 48, '#ffd23a'); af(I, 23, 0, 1, 48, '#fff2a0');
+      akana(I, 'ア', 10, 23, 3, '#c8141e', null); akana(I, 'イ', 10, 23, 14, '#c8141e', null); as(I, ICON[IC_HEART], 22, 37, false); af(I, 0, 44, 23, 4, '#16101e'); alogo(I, 'AI-1', 2, 45, 1, '#ffd23a', null, null); }
+    else if(v === 1){ agrad(I, 0, 0, 32, 48, ['#1a1a2a', '#2a1a3a', '#4a1a2a']); burst(I, 16, 18, 24, 6, 40, '#3a2a4a'); for(let y = 30; y < 48; y++) af(I, 0, y, 32, 1, y & 1 ? '#e8401a' : '#ff7a1a');
+      mech(I, 5, 12, true); af(I, 0, 0, 32, 12, '#0a0a12'); akana(I, '機甲', 12, 4, 0, '#ffffff', null); alogo(I, 'ZEROK', 6, 42, 1, '#ffffff', '#3a0a10', null); alogo(I, 'ZEROK', 6, 42, 1, '#ffffff', '#3a0a10', null); }
+    else { const Bd = BRANDS[(v - NPO) % BRANDS.length]; agrad(I, 0, 0, 32, 48, [Bd.fl, Bd.f, Bd.f, Bd.f, Bd.fd]); dots(I, 0, 0, 32, 48, lite(Bd.f, .15), 4);
+      af(I, 7, 2, 18, 18, Bd.out); af(I, 8, 3, 16, 16, '#ffffff'); asz(I, ICON[Bd.ic], 9, 4, 1); af(I, 0, 22, 32, 1, Bd.fl); const lw = Bd.logo.length * 8 - 2; alogo(I, Bd.logo, Math.round((32 - lw) / 2), 25, 2, Bd.ink, Bd.out, null);
+      af(I, 0, 37, 32, 11, Bd.out); akana(I, Bd.kana, 10, 2, 38, Bd.ac, null); }
+    return acomp(I); }
+  /* A face band (80 x 12): the brand's field, its lit top and shadow foot, the emblem in a roundel, the logotype, the kana accent, chevrons. */
+  function band(v){ const Bd = BRANDS[v], I = AI(88, 12); af(I, 0, 0, 88, 12, Bd.f); af(I, 0, 0, 88, 1, Bd.fl); af(I, 0, 11, 88, 1, Bd.fd);
+    af(I, 2, 1, 10, 10, '#ffffff'); ap(I, 2, 1, Bd.f); ap(I, 11, 1, Bd.f); ap(I, 2, 10, Bd.f); ap(I, 11, 10, Bd.f); as(I, ICON[Bd.ic], 2, 1, false);
+    const lw = alogo(I, Bd.logo, 15, 1, 2, Bd.ink, Bd.out, null); const kx = 15 + lw + 4; const kw = akana(I, Bd.kana, 10, kx, 1, Bd.ink, null);
+    for(let x = kx + kw + 3; x < 85; x += 5) for(let q = 0; q < 3; q++){ ap(I, x + q, 4 + q, Bd.fl); ap(I, x + q, 8 - q, Bd.fl); }
+    return acomp(I); }
+  /* A key-art wrap across two floors (96 x 24): idols and a mecha on a night print, a title plaque with a kana accent. */
+  function wrap(v){ const I = AI(96, 24);
+    if(v === 0){ agrad(I, 0, 0, 96, 24, ['#2a2ad8', '#1a1a8a', '#2a0a5a']); dots(I, 0, 0, 96, 24, '#3a3ae8', 4); for(const [x, y] of [[24, 4], [44, 18], [90, 5], [62, 3]]) sparkle(I, x, y, '#ffffff');
+      as(I, HEAD, 4, 4, false, headMap('pink')); as(I, HEAD, 72, 5, true, headMap('mint'));
+      af(I, 24, 5, 46, 14, '#ffffff'); af(I, 24, 18, 46, 1, '#c8c0e0'); akana(I, 'ユメイロ', 10, 26, 7, '#d8205a', null); as(I, ICON[IC_STAR], 86, 13, false); }
+    else { agrad(I, 0, 0, 96, 24, ['#ff7a1a', '#d8401a', '#5a1020']); burst(I, 70, 12, 22, 4, 60, '#ff9a3a');
+      af(I, 0, 0, 40, 24, '#16101e'); akana(I, '機甲', 12, 3, 2, '#ffffff', '#c8141e'); alogo(I, 'GARVAN', 3, 16, 1, '#ffd23a', null, null);
+      as(I, MECHA, 44, -2, false); as(I, MECHA, 66, -4, false, MECHAR); }
+    return acomp(I); }
+  /* A brand wrap across two floors (96 x 24, round 5: the FOTO band read best, so the big stores carry it at twice the size): the field
+     in three steps, the emblem at 2x in a roundel, the logotype, the kana accent at 12 px, diagonal bars. */
+  function wrapBrand(Bd){ const I = AI(96, 24); agrad(I, 0, 0, 96, 24, [Bd.fl, Bd.f, Bd.f, Bd.fd]); af(I, 0, 0, 96, 1, lite(Bd.f, .6));
+    af(I, 2, 1, 22, 22, Bd.out); af(I, 3, 2, 20, 20, '#ffffff'); asz(I, ICON[Bd.ic], 3, 2, 2);
+    alogo(I, Bd.logo, 28, 2, 2, Bd.ink, Bd.out, null); akana(I, Bd.kana, 12, 28, 13, Bd.ink, null);
+    for(let x = 70; x < 96; x += 6) for(let y = 0; y < 24; y++) for(let q = 0; q < 3; q++) ap(I, x + q + Math.floor(y / 2), y, Bd.fl);
+    return acomp(I); }
+  /* A tenant plate (12 x 16): a colour field, its lit edge, an icon in a white roundel, an ink rule. */
+  function plateArt(ic, p){ const P = PAN[p], I = AI(12, 16); af(I, 0, 0, 12, 16, P[0]); af(I, 0, 0, 12, 1, lite(P[0], .5)); af(I, 0, 15, 12, 1, dark(P[0], .35));
+    const rd = dark(P[0], .5); af(I, 1, 2, 10, 10, rd); ap(I, 1, 2, P[0]); ap(I, 10, 2, P[0]); ap(I, 1, 11, P[0]); ap(I, 10, 11, P[0]); as(I, ICON[ic], 1, 2, false, { w:lite(P[0], .55), a:lite(P[0], .3), k:dark(P[0], .8) }); af(I, 2, 13, 8, 1, P[1]); return acomp(I); }
+  // ------------------------------------------------ the screens: frames as small canvases, drawn scaled with an LED grid (as Neon Ward's)
+  const acv = I => { const c = mk(I.w, I.h), k = c.getContext('2d'); for(let y = 0; y < I.h; y++){ let x = 0; while(x < I.w){ const col = I.c[y * I.w + x]; if(!col){ x++; continue; } let e = x + 1; while(e < I.w && I.c[y * I.w + e] === col) e++; k.fillStyle = col; k.fillRect(x, y, e - x, 1); x = e; } } return c; };
+  // a sprite at a whole-number zoom (a camera close-up on the video wall: the wall's own LEDs show the zoom, so these are screen pixels)
+  function asz(I, S, x, y, z, over, flip){ for(let r = 0; r < S.h; r++){ const row = S.rows[r]; for(let c = 0; c < row.length; c++){ const ch = row[c]; if(ch === '.') continue; const col = over && over[ch] !== undefined ? over[ch] : S.map[ch]; if(col) af(I, x + (flip ? S.w - 1 - c : c) * z, y + r * z, z, z, col); } } }
+  function wedge(I, x0, y0, a, half, len, col){ for(let r = 2; r < len; r++){ const w = r * half; for(let t = -w; t <= w; t++){ const x = Math.round(x0 + Math.sin(a) * r + Math.cos(a) * t), y = Math.round(y0 + Math.cos(a) * r - Math.sin(a) * t * .2); if(((x + y) & 1) === 0) ap(I, x, y, col); } } }
+  function heart(I, cx0, cy0, r, col){ for(let y = -r; y <= r; y++) for(let x = -r - 2; x <= r + 2; x++){ const X = x / (r * 1.15), Y = -y / r + .25, q = X * X + Y * Y - 1; if(q * q * q - X * X * Y * Y * Y < 0) ap(I, cx0 + x, cy0 + y, col); } }
+  /* Hero 1, the idol (32 frames at 120 ms): 0-23 she dances on a stage under sweeping beams, a heart pulsing behind her, the crowd's
+     glowsticks swaying on the beat; 24-31 the camera cuts to her face, sparkles, a wink at 28-29, her name. */
+  const IDOLARM = [[[3, 10, 2, 5], [9, 10, 2, 5]], [[3, 10, 2, 5], [10, 4, 2, 6]], [[2, 4, 2, 6], [10, 4, 2, 6]], [[2, 4, 2, 6], [9, 10, 2, 5]]];
+  function idolFrame(f){ const I = AI(64, 40);
+    if(f < 20){ const beat = f >> 1, pose = beat & 3, sway = [0, 1, 0, -1][beat & 3];
+      // round 5: waist up for most of the loop, at 2x (the camera close on her), so she reads from down the street
+      agrad(I, 0, 0, 64, 40, ['#2a0a4a', '#3a1060', '#5a1a7a']); wedge(I, 2, -2, .6 + Math.sin(f / 20 * 6.283) * .3, .3, 44, '#8a4ab8'); wedge(I, 61, -2, -.6 - Math.sin(f / 20 * 6.283) * .3, .3, 44, '#8a4ab8');
+      heart(I, 32, 18, beat & 1 ? 17 : 16, beat & 1 ? '#ff3a8a' : '#c82a7a'); heart(I, 32, 18, beat & 1 ? 12 : 11, beat & 1 ? '#ff8ac0' : '#ff5aa8');
+      for(const [x, y, p] of [[6, 6, 0], [58, 9, 1], [9, 30, 1], [55, 28, 0]]) if((beat + p) & 1) sparkle(I, x, y, '#ffffff');
+      const L = AI(14, 17); as(L, SP(IDOL.rows.slice(0, 17), IDOL.map), 0, 0, false); for(const [ax, ay, aw, ah] of IDOLARM[pose]) af(L, ax, ay, aw, ah, SKIN[0]);
+      if(pose === 1 || pose === 2) af(L, 10, 3, 2, 1, '#ffffff'); if(pose >= 2) af(L, 2, 3, 2, 1, '#ffffff');
+      const O = aol(L, OUTL); for(let yy = 0; yy < O.h; yy++) for(let xx = 0; xx < O.w; xx++){ const v = O.c[yy * O.w + xx]; if(v) af(I, 18 + sway + xx * 2, 5 + (pose === 2 ? -1 : 0) + yy * 2, 2, 2, v); }
+      af(I, 0, 37, 64, 3, '#0a0614'); for(let q = 0; q < 11; q++){ const x = 2 + q * 6, sw = ((q + beat) & 1) ? 1 : -1; af(I, x, 36, 3, 2, '#0a0614'); const sc = ['#3ae8ff', '#ff5aa8', '#ffe23a'][q % 3]; ap(I, x + 1 + sw, 33, sc); ap(I, x + 1 + sw, 34, sc); ap(I, x + 1, 35, sc); } }
+    else if(f < 26){ const beat = f >> 1, pose = beat & 3, hop = pose === 2 ? 1 : 0;
+      agrad(I, 0, 0, 64, 32, ['#2a0a4a', '#3a1060', '#5a1a7a']);
+      wedge(I, 4, -2, .55 + Math.sin(f / 24 * 6.283) * .35, .32, 40, '#8a4ab8'); wedge(I, 59, -2, -.55 - Math.sin(f / 24 * 6.283) * .35, .32, 40, '#8a4ab8');
+      heart(I, 32, 14, beat & 1 ? 11 : 10, beat & 1 ? '#ff3a8a' : '#c82a7a'); heart(I, 32, 14, beat & 1 ? 7 : 6, beat & 1 ? '#ff8ac0' : '#ff5aa8');
+      af(I, 0, 30, 64, 6, '#2a1040'); af(I, 0, 30, 64, 1, '#ff8ac0'); for(let q = -4; q <= 4; q++) for(let y = 31; y < 36; y++) ap(I, 32 + q * 7 + Math.round(q * (y - 31) * 1.4), y, '#4a1a6a');
+      const L = AI(14, 26); as(L, IDOL, 0, 0, false); for(const [ax, ay, aw, ah] of IDOLARM[pose]) af(L, ax, ay, aw, ah, SKIN[0]);
+      if(pose === 1 || pose === 2) af(L, 10, 3, 2, 1, '#ffffff'); if(pose >= 2) af(L, 2, 3, 2, 1, '#ffffff');   // the gloves' white cuffs
+      alay(I, aol(L, OUTL), 25, 6 - hop);
+      af(I, 0, 36, 64, 4, '#0a0614'); for(let q = 0; q < 11; q++){ const x = 2 + q * 6, sw = ((q + beat) & 1) ? 1 : -1; af(I, x, 34, 3, 2, '#0a0614'); const sc = ['#3ae8ff', '#ff5aa8', '#ffe23a'][q % 3]; ap(I, x + 1 + sw, 31, sc); ap(I, x + 1 + sw, 32, sc); ap(I, x + 1, 33, sc); } }
+    else { const g = f - 24; agrad(I, 0, 0, 64, 40, ['#ffb0d4', '#ff8ac0', '#ff5aa8']);   // (frames 26-31: g 2-7, the wink at 28-29) burst(I, 32, 20, 20, 10 + (g & 1) * 2, 50, '#ffc2de');
+      asz(I, (g === 4 || g === 5) ? HEADW : HEAD, 16, 2, 2, headMap('pink'));
+      for(const [x, y, p] of [[8, 8, 0], [56, 12, 1], [10, 30, 1], [54, 32, 0]]) if(((g >> 1) + p) & 1) sparkle(I, x, y, '#ffffff');
+      if(g >= 2){ af(I, 34, 28, 30, 12, '#c8205a'); akana(I, 'キララ', 10, 35, 29, '#ffffff', null); } }
+    for(let y = 1; y < 40; y += 2) for(let x = 0; x < 64; x++){ const c = I.c[y * 64 + x]; if(c) I.c[y * 64 + x] = dark(c, .14); }   // the scan rows
+    return acv(I); }
+  /* Hero 2, the mecha launch (36 frames): 0-7 the hangar doors part under a turning beacon; 8-13 the eye flash, close up; 14-25 it climbs
+     out on its thrusters through speed lines; 26-35 the title card (a white flash, the kanji, the logotype). */
+  function mechaFrame(f){ const I = AI(64, 40);
+    if(f < 8){ const red = f & 2; af(I, 0, 0, 64, 40, red ? '#6a2028' : '#3a3a52'); for(let y = 4; y < 40; y += 6) af(I, 0, y, 64, 1, red ? '#8a2a30' : '#4a4a66');
+      const gap = 4 + f * 3; af(I, 32 - gap, 6, gap * 2, 30, '#1a1a2a'); as(I, MECHA, 21, 8, false, { w:'#8a8aa8', W:'#5a5a78', b:'#3a4a8a', B:'#2a2a5a', o:'#a8703a', O:'#8a3a2a', g:'#4a4a5a', v:'#3ae8ff', V:'#e8ffff' });
+      af(I, 0, 6, 32 - gap, 30, '#7a7a90'); af(I, 32 + gap, 6, 32 - gap, 30, '#62627a'); af(I, 32 - gap - 1, 6, 1, 30, '#a8a8c0'); for(let y = 8; y < 36; y += 4){ af(I, 32 - gap - 4, y, 3, 2, '#ffd23a'); af(I, 32 + gap + 1, y, 3, 2, '#ffd23a'); }   // the doors and their hazard marks
+      af(I, 30, 1, 4, 3, red ? '#ff3a2a' : '#5a1a1a'); af(I, 0, 36, 64, 4, '#101018'); }
+    else if(f < 14){ const g = f - 8, lit = g >= 2; agrad(I, 0, 0, 64, 40, ['#1a1a3a', '#24244a', '#3a2a5a']);
+      asz(I, SP(MECHA.rows.slice(0, 9), MECHA.map), -12, 2, 4, lit ? { w:'#c8c8e0', W:'#7a80a0', o:'#ffb02a', O:'#e8401a', g:'#5a5e70' } : { w:'#7a7a98', W:'#4a4a68', o:'#8a5a2a', O:'#7a2a1a', g:'#3a3a4a', v:'#1a3a4a', V:'#1a3a4a' });
+      if(lit){ af(I, 0, 25, 64, 1, g === 2 || g === 3 ? '#e8ffff' : '#3ae8ff'); if(g === 2 || g === 3){ af(I, 0, 24, 64, 1, '#3ae8ff'); af(I, 0, 26, 64, 1, '#3ae8ff'); af(I, 28, 16, 2, 18, '#e8ffff'); } } }
+    else if(f < 26){ const g = f - 14; agrad(I, 0, 0, 64, 40, ['#0a0a2a', '#1a1a4a', '#3a2a6a']); for(let q = 0; q < 16; q++){ const x = (q * 13 + 3) % 64, y = (q * 7 + g * 6) % 46 - 6; af(I, x, y, 1, 5, q & 1 ? '#5a5a9a' : '#8a8ac8'); }
+      const y = 40 - g * 4; as(I, MECHA, 21, y - 28, false); const fl = g & 1; af(I, 27, y, 3, 3 + fl * 2, '#ffe23a'); af(I, 34, y, 3, 3 + fl * 2, '#ffe23a'); af(I, 28, y + 2, 1, 3 + fl * 3, '#ffffff'); af(I, 35, y + 2, 1, 3 + fl * 3, '#ffffff'); }
+    else { const g = f - 26; if(g < 2){ af(I, 0, 0, 64, 40, g ? '#ffe8c0' : '#ffffff'); return acv(I); }
+      agrad(I, 0, 0, 64, 40, ['#5a0a14', '#8a1420', '#3a0610']); burst(I, 32, 18, 24, 6, 48, '#a81a2a'); akana(I, '機甲', 16, 13, 3, '#ffffff', '#1a0408');
+      alogo(I, 'GARVAN', 8, 25, 2, '#ffd23a', '#3a0a00', null); if(g & 2) sparkle(I, 56, 6, '#ffffff'); }
+    for(let y = 1; y < 40; y += 2) for(let x = 0; x < 64; x++){ const c = I.c[y * 64 + x]; if(c) I.c[y * 64 + x] = dark(c, .14); }
+    return acv(I); }
+  /* The arcades' attract screen (32 x 20, 16 frames): a star field scrolling, the fighter weaving, a row of invaders marching, a shot, a hit. */
+  function attractFrame(f){ const I = AI(32, 20); af(I, 0, 0, 32, 20, '#06061a'); for(let q = 0; q < 12; q++) ap(I, (q * 11 + 2) % 32, (q * 7 + f * (1 + (q & 1))) % 20, q & 1 ? '#5a5a9a' : '#ffffff');
+    const fx = 13 + Math.round(Math.sin(f / 16 * 6.283) * 8); for(let q = 0; q < 4; q++){ if(f >= 12 && q === 2) continue; as(I, FOE, 2 + q * 8 + (f & 4 ? 1 : 0), 2, false); }
+    if(f >= 12 && f < 16){ const r = f - 11; for(let a = 0; a < 8; a++) ap(I, 21 + Math.round(Math.cos(a * .785) * r), 4 + Math.round(Math.sin(a * .785) * r), a & 1 ? '#ffe23a' : '#ff7a1a'); }
+    if(f >= 6 && f < 12) af(I, fx + 4, 18 - (f - 6) * 2.4, 1, 2, '#ffffff');
+    as(I, SHIP, fx, 11, false); for(let x = 0; x < 32; x += 2) ap(I, x, 19, '#2a2a5a'); return acv(I); }
+  const ART = { ban:[], bb:[], po:[], band:[], wrap:[], plate:[], idol:[], mech:[], att:[] };
+  // the stepped build (one piece a step, research/sundown-craft/first60.md); after the text atlas, which builds the glyph scratch canvas
+  /* One atlas for everything (round 4 perf): ~300 small canvases drawn from per frame thrashed the GPU canvas's image cache (frames of
+     80-110 ms on desktop); every level of every piece and every screen frame now lives in one 1024-wide texture, packed in shelves. */
+  let AT = null;
+  const fobj = c => ({ c, x:0, y:0, w:c.width, h:c.height });
+  function* artSteps(){ const T = { ban:[], bb:[], po:[], band:[], wrap:[], plate:[], idol:[], mech:[], att:[] };
+    for(let v = 0; v < BAN.length; v++){ T.ban[v] = banner(v); yield; }
+    for(let v = 0; v < NBB + BRANDS.length; v++){ T.bb[v] = billboard(v); yield; }
+    for(let v = 0; v < NPO + BRANDS.length; v++){ T.po[v] = poster(v); yield; }
+    for(let v = 0; v < BRANDS.length; v++){ T.band[v] = band(v); yield; }
+    for(let v = 0; v < 2; v++){ T.wrap[v] = wrap(v); yield; } for(let v = 0; v < BRANDS.length; v++){ T.wrap[2 + v] = wrapBrand(BRANDS[v]); yield; }
+    for(let ic = 0; ic < ICON.length; ic++) for(let p = 0; p < PAN.length; p++){ T.plate[ic * PAN.length + p] = plateArt(ic, p); yield; }
+    for(let f = 0; f < 32; f++){ T.idol[f] = fobj(idolFrame(f)); yield; } for(let f = 0; f < 36; f++){ T.mech[f] = fobj(mechaFrame(f)); yield; } for(let f = 0; f < 16; f++){ T.att[f] = fobj(attractFrame(f)); yield; }
+    const all = []; for(const k of ['ban', 'bb', 'po', 'band', 'wrap', 'plate']) for(const A of T[k]) all.push(...A.L); for(const k of ['idol', 'mech', 'att']) all.push(...T[k]);
+    all.sort((a, b) => b.h - a.h || b.w - a.w); let x = 0, y = 0, rh = 0; for(const o of all){ if(x + o.w > 1024){ x = 0; y += rh + 1; rh = 0; } o.x = x; o.y = y; x += o.w + 1; if(o.h > rh) rh = o.h; } yield;
+    const at = mk(1024, y + rh + 1), g = at.getContext('2d'); yield;
+    for(let i = 0; i < all.length; i += 24){ for(let q = i; q < Math.min(all.length, i + 24); q++){ const o = all[q]; g.drawImage(o.c, o.x, o.y); } yield; }
+    try{ cx.save(); cx.setTransform(1, 0, 0, 1, 0, 0); cx.globalAlpha = .004; cx.drawImage(at, 0, 0, 1, 1); cx.restore(); }catch(e){ try{ cx.restore(); }catch(e2){} }   // its texture uploaded now, never on a ride's first frame
+    AT = at; Object.assign(ART, T); }
+  /* A video screen at (sx, sy, sw x sh): the frame drawn with its edges on the pixel grid, then the LED grid fading in as its pixels grow
+     past two screen pixels (following the screen's placement, so every line falls between two LEDs), and a slow bright roll (the refresh). */
+  function screenAt(fr, sx, sy, sw, sh, now){ if(!fr || !AT || sw < PX * 2) return; const fw = fr.w, fh = fr.h, k = sw / fw, x0 = jbE(sx, 0, k), x1 = jbE(sx, fw, k), y0 = jbE(sy, 0, sh / fh), y1 = jbE(sy, fh, sh / fh); if(x1 <= x0 || y1 <= y0) return;
+    if(!ON){ cx.fillStyle = '#06060a'; cx.fillRect(x0, y0, x1 - x0, y1 - y0); return; }
+    cx.imageSmoothingEnabled = false; cx.drawImage(AT, fr.x, fr.y, fw, fh, x0, y0, x1 - x0, y1 - y0);
+    const ex = clamp((k / PX - 2) / 1, 0, 1), a0 = cx.globalAlpha; if(ex > 0){ cx.globalAlpha = a0 * ex * .55; cx.fillStyle = '#04030a'; const uy = sh / fh;
+      for(let i = 1; i < fw; i++){ const xx = jbE(sx, i, k); if(xx > 0 && xx < W) cx.fillRect(xx, y0, PX, y1 - y0); } for(let j2 = 1; j2 < fh; j2++){ const yy = jbE(sy, j2, uy); if(yy > 0 && yy < H) cx.fillRect(x0, yy, x1 - x0, PX); } }
+    if(!reduce && k > PX){ const ry = y0 + snp(((now / 2600) % 1) * (y1 - y0)); cx.globalAlpha = a0 * .07; cx.fillStyle = '#ffffff'; cx.fillRect(x0, ry, x1 - x0, Math.min(y1 - ry, snp((y1 - y0) * .12) + PX)); }
+    cx.globalAlpha = a0; if(FF > .02) veil(x0, y0, x1 - x0, y1 - y0); }
+  // a bezel with thickness: a dark frame, its lit top and left edges, its shadowed foot, and the shadow it casts on the wall below and right
+  function bezel(x, y, w, h, t, wall){ if(w < PX * 3) return; const sh = Math.max(PX, snp(t * .8));
+    if(wall) R(x - t + sh, y - t + sh, w + t * 2, h + t * 2, F(typeof wall === 'string' ? wall : '#08060e'));
+    R(x - t, y - t, w + t * 2, h + t * 2, F('#141220')); R(x - t, y - t, w + t * 2, PX, F('#6a6480')); R(x - t, y - t, PX, h + t * 2, F('#4a4660')); R(x - t, y + h + t - PX, w + t * 2, PX, F('#08060c')); }
+
   // ---------------------------------------------------------------- the visit and its layout
   /* Each visit (zone z, border B0 to B1) is laid out from the gates alone, so place(), the set piece and the far land agree: the Sōbu line
      bridge (BR, its deck BD segments deep) about 60% of the way along, clear of fork windows and the mid checkpoint; cross streets with
@@ -158,6 +509,9 @@
     outer: for(let d = 0; d < 600; d += 4) for(const sg of [1, -1]){ const br = want + sg * d; if(br - SPL < B0 + st || br + BD + 90 > B1 - 160) continue; if(G0 !== undefined && Math.abs(G0 - br) < 40) continue; if(clear(br - SPL - 20, br + BD + 70)){ L.BR = br; L.S0 = br - SPL; break outer; } }
     for(let c = B0 + (z ? 200 : 110); c < B1 - 140; c += 230 + Math.round(H1(c * .37 + 1.1) * 70)){ if(L.BR >= 0 && c + CW > L.BR - 70 && c < L.BR + BD + 60) continue; if(G0 !== undefined && G0 > c - 6 && G0 < c + CW + 6) continue; if(clear(c - 12, c + CW + 12)) L.X.push(c); }
     for(let q = 0; q < 2; q++) fillRow(L, q ? 1 : -1, L.rows[q]);
+    // the hero screens: hung off the corner of the first building past each crossing, facing you across it (the references' crossing
+    // screens); on the left (the HUD's distance board sits top right), idol and mecha alternating; a building too low passes it right
+    L.X.forEach((c, q) => { if(!(q & 1)) return; for(const side of [-1, 1]){ const B = bAt(L, side, c + CW); if(B && B.b0 === c + CW && B.nF0 >= 4){ B.hero = q & 1; B.depth = 1.9; break; } } });
     if(LAYS.size > 40) LAYS.clear(); LAYS.set(key, L); return L; }
   // the end of the gap that segment i is in (cross street or railway corridor), or -1
   function gapEnd(L, i){ for(const c of L.X) if(i >= c && i < c + CW) return c + CW; if(L.BR >= 0 && i >= L.BR - 3 && i < L.BR + BD + 3) return L.BR + BD + 3; return -1; }
@@ -173,22 +527,30 @@
      ticker band), its blades and plate columns (camera-facing, projecting from the face), a roof board, an end-wall board. */
   function mkB(k, b0, len, side, n, ph){ const sd = H1(b0 * .71 + side * 3.1 + 5.3), hs = q => H1(sd * 97.1 + q * 13.37);
     const nF = KF[k][0] + Math.floor(hs(1) * (KF[k][1] + 1)), CL = k === 'denki' ? ['yellow', 'white', 'red', 'cream', 'yellow'][Math.floor(hs(2) * 5)] : k === 'camera' ? (hs(2) < .6 ? 'red' : 'white') : k === 'radio' ? (hs(2) < .5 ? 'grey' : 'cream') : k === 'arcade' ? (hs(2) < .6 ? 'violet' : 'blue') : k === 'pencil' ? ['tile', 'grey', 'cream', 'blue'][Math.floor(hs(2) * 4)] : ['grey', 'tile', 'blue'][Math.floor(hs(2) * 3)];
-    const B = { k, b0, len, side, sd, nF, nF0:nF, ak:1, pnF0:ph, h:G + nF * FH, x0:2.3 + (hs(3) - .5) * .08, depth:1.4 + hs(4) * .5, S:CLAD[CL], cl:CL, fl:[], wd:[], pn:[], bl:[], rb:null, ew:null, ph:ph ? G + ph * FH : 0, P:3 + Math.floor(hs(5) * 2),
+    const B = { br:KBRAND[k][Math.floor(hs(16) * KBRAND[k].length)], wv:Math.floor(hs(17) * 2), hero:-1, k, b0, len, side, sd, nF, nF0:nF, ak:1, pnF0:ph, h:G + nF * FH, x0:2.3 + (hs(3) - .5) * .08, depth:1.4 + hs(4) * .5, S:CLAD[CL], cl:CL, fl:[], wd:[], pn:[], bl:[], rb:null, ew:null, ph:ph ? G + ph * FH : 0, P:3 + Math.floor(hs(5) * 2),
       gr:k === 'arcade' ? 'crane' : k === 'radio' ? 'stall' : 'shop', tv:k === 'denki' || (k === 'camera' && hs(6) < .5), ic:k === 'radio' ? '#f0c878' : hs(7) < .7 ? '#d4dcf0' : '#f0dcb4', aw:PAN[Math.floor(hs(8) * PAN.length)] };
     const okP = p => !((CL === 'yellow' && (p === 1)) || ((CL === 'white' || CL === 'cream') && (p === 0 || p === 6)) || (CL === 'red' && p === 2));   // a plate that would vanish on its cladding
     let w0 = Math.floor(hs(9) * BW.length), p0 = Math.floor(hs(10) * PAN.length);
     for(let f = 0; f < nF; f++){ let t = 'W';
-      if(k === 'denki') t = f === nF - 1 && hs(11) < .6 ? 'W' : 'S'; else if(k === 'camera') t = f === 0 ? 'T' : f < 3 ? 'S' : 'W'; else if(k === 'arcade') t = 'N'; else if(k === 'plain') t = f === 1 && hs(12) < .7 ? 'S' : 'W';
+      if(k === 'denki') t = f === nF - 1 && hs(11) < .6 ? 'W' : (f & 1) && f > 2 ? 'W' : 'S'; else if(k === 'camera') t = f === 0 ? 'T' : f < 3 ? 'S' : 'W'; else if(k === 'arcade') t = 'N'; else if(k === 'plain') t = f === 1 && hs(12) < .7 ? 'S' : 'W';
       B.fl.push(t); let p = (p0 + f * 3) % PAN.length; for(let q = 0; q < 8 && !okP(p); q++) p = (p + 1) % PAN.length; B.pn.push(p); B.wd.push(BW[(w0 + f * 5) % BW.length]); }
     if(k === 'camera') B.wd[1] = 'カメラ';
+    // a key-art wrap across floors 1-2 on most big stores (the references' two-storey anime prints)
+    if(((k === 'denki' && hs(19) < .85) || k === 'camera') && nF >= 4){ B.fl[1] = 'K'; B.fl[2] = 'k'; if(k === 'camera' || hs(25) < .55) B.wv = 2 + B.br; }
     // blades: the big corner blade (several floors) on the stores; plate columns on the narrow and old buildings
-    const blade = (z, f0, f1, word, p, chase) => B.bl.push({ z, f0, f1, word, p, chase:!!chase, pr:.44 });
-    if(k === 'denki' || k === 'camera') { let p = Math.floor(hs(13) * 6) + 2; if(!okP(p)) p = 3; blade(1, 1, Math.min(nF, 1 + Math.max(2, BW[(w0 + 3) % BW.length].length)), k === 'camera' ? 'カメラ' : BW[(w0 + 3) % BW.length], p); if(len > 20) blade(len - 3, 2, Math.min(nF, 6), BW[(w0 + 8) % BW.length], (p + 3) % PAN.length); }
-    if(k === 'arcade') blade(2, 1, Math.min(nF, 4), 'ゲーム', 2, true);
-    if(k === 'pencil' || k === 'radio' || k === 'plain'){ const cols = k === 'radio' ? [3, len - 4] : [Math.floor(len / 2)]; for(const zc of cols){ if(zc < 1 || zc >= len) continue; const top = Math.min(nF, k === 'radio' ? 4 : nF);
-        for(let f = 0; f < top; f++){ B.bl.push({ z:zc, f0:f, f1:f + 1, word:PW[(w0 + f * 5 + zc) % PW.length], p:(p0 + f * 2 + zc) % PAN.length, chase:false, pr:.36, plate:true }); } } }
-    if(k === 'radio' || (k === 'denki' && hs(14) < .5) || (k === 'arcade' && hs(14) < .4)) B.rb = { word:k === 'radio' ? 'ラジオ' : k === 'arcade' ? 'ゲーム' : BW[(w0 + 11) % BW.length], p:k === 'radio' ? 1 : (p0 + 1) % PAN.length };
-    if(k === 'denki' || k === 'camera' || k === 'arcade') B.ew = { word:BW[(w0 + 7) % BW.length], p:(p0 + 4) % PAN.length, tk:k === 'camera' || hs(15) < .35 };
+    /* round 5, three tiers: the character banners are the big verticals (.7 wide, about three storeys, the girl filling the box); big type
+       blocks (two huge characters, the old 計測 / 部品 kind) on some corners; the icon plates only on the old radio building, sparse */
+    const blade = (z, f0, f1, word, p, chase, txt) => B.bl.push({ z, f0, f1, word, p, chase:!!chase, pr:txt ? .46 : .7, ban:txt ? undefined : Math.floor(hs(18 + B.bl.length) * BAN.length), off:.04 + hs(21 + B.bl.length) * .14 });
+    const BIGW = ['計測', '部品', '電気', '無線', '激安', '特価', '電子', '秋葉'];
+    if(k === 'denki' || k === 'camera') { let p = Math.floor(hs(13) * 6) + 2; if(!okP(p)) p = 3; blade(1, 1, Math.min(nF, 5), 'カメラ', p); if(len > 20) blade(len - 3, 2, Math.min(nF, 4), BIGW[Math.floor(hs(26) * BIGW.length)], (p + 3) % PAN.length, false, true); }
+    if(k === 'arcade') blade(2, 1, Math.min(nF, 5), 'ゲーム', 2, true);
+    if((k === 'pencil' || k === 'plain') && nF >= 3){ const r = hs(27); if(r < .35) blade(Math.floor(len / 2), 1, Math.min(nF, 3), BIGW[Math.floor(hs(28) * BIGW.length)], Math.floor(hs(29) * PAN.length), false, true); else if(r < .55) blade(Math.floor(len / 2), 1, Math.min(nF, 5), '', 0); }
+    if(k === 'radio'){ const cols = [3]; for(const zc of cols){ if(zc < 1 || zc >= len) continue; const top = Math.min(nF, 4);
+        for(let f = 0; f < top; f++){ if((f + zc) & 1) continue; B.bl.push({ z:zc, f0:f, f1:f + 1, word:PW[(w0 + f * 5 + zc) % PW.length], p:(p0 + f * 2 + zc) % PAN.length, chase:false, pr:.27, plate:true, ic:Math.floor(H1(sd * 31.7 + f * 5.3 + zc) * ICON.length), off:.02 + H1(sd * 11.3 + f * 2.9 + zc) * .08 }); } } }
+    if(k === 'radio' || (k === 'denki' && hs(14) < .5) || (k === 'arcade' && hs(14) < .4)) B.rb = { word:k === 'radio' ? 'ラジオ' : k === 'arcade' ? 'ゲーム' : BW[(w0 + 11) % BW.length], p:k === 'radio' ? 1 : (p0 + 1) % PAN.length,
+      bb:k === 'arcade' ? (hs(20) < .5 ? 2 : NBB + 1) : k === 'radio' ? NBB + B.br : hs(20) < .6 ? Math.floor(hs(22) * NBB) : NBB + B.br };
+    if(k === 'denki' || k === 'camera' || k === 'arcade') B.ew = { word:BW[(w0 + 7) % BW.length], p:(p0 + 4) % PAN.length, tk:k === 'camera' || hs(15) < .35,
+      att:k === 'arcade', po:k === 'denki' && hs(23) < .55 ? Math.floor(hs(24) * NPO) : NPO + B.br };
     return B; }
   // the visit of this road that segment i belongs to (or borders), or null
   function visitOf(i){ if(i < 0 || typeof gates === 'undefined' || !gates.length) return null; const K = landK(), z = zoneOfSeg(i);
@@ -232,7 +594,7 @@
   function drawB(sp, x, y, uw, fog, now){ const B = sp.b; fitB(B); const j = sp.k, end = B.b0 + B.len, n = spanOf(j, B.b0, end, fog); if(!n) return;
     FX1 = x; FY1 = y; FU1 = uw; if(!fin(x + y + uw) || !farEnd(j, n, sp.x)) return; FF = fog; ON = onAt(B.b0);
     const side = B.side, S = B.S, off = side < 0 ? Math.max(FX1, FX2) < -PX * 2 : Math.min(FX1, FX2) > W + PX * 2;
-    if(off){ blades(B, j, n, now); for(let f = 0; f < B.nF; f++) if(B.fl[f] === 'S') faceText(B, f, G + f * FH, j, n); if(j === B.b0) endWall(B, x, y, uw, now); return; }   // beside the camera, off the screen's edge: only what projects from it may show
+    if(off){ blades(B, j, n, now); if(j === B.b0) endWall(B, x, y, uw, now); return; }   // beside the camera, off the screen's edge: only what projects from it may show
     const hv = Math.min(B.h, Math.max(FY1 / Math.max(FU1, .01), FY2 / Math.max(FU2, .01)) + .1); if(hv <= 0) return;
     const fpx = Math.max(FU1, FU2) * FH, wpx = Math.abs(FX2 - FX1), far = fpx < 2.6;
     CAT = 'gnd'; ground(B, j, n, fpx, wpx, now); CAT = far ? 'far' : 'face';
@@ -240,9 +602,9 @@
       FQ(G, hv, base);   // (one quad: over 32 rows the engine fills it as one snapped path, far fewer ops than a band per spandrel)
       if(far){ // far: each floor one band of its main light (sign plates, lit windows), merged where they agree
         for(let f = 0; f < B.nF; f++){ const fy = G + f * FH; if(fy > hv) break; const t = B.fl[f];
-          if(t === 'S') FQ(fy + .06, fy + FH - .04, L1(PAN[B.pn[f]][0])); else if(t === 'N') FQ(fy + .2, fy + .42, L1(f & 1 ? '#c050ff' : '#ff4aa0')); else if(t === 'T') FQ(fy + .2, fy + .4, L1('#ffa020')); else { const st = floorState(B, f, 0); if(st && ON) FQ(fy + .18, fy + .46, F(st === 1 ? '#b4c2e0' : st === 2 ? '#dcb478' : '#4a4a60')); } } }
+          if(t === 'S') FQ(fy + .06, fy + FH - .04, L1(BRANDS[B.br].f)); else if(t === 'K') FQ(fy + .06, fy + FH * 2 - .04, L1(ART.wrap[B.wv] ? ART.wrap[B.wv].avg : '#3a2a8a')); else if(t === 'k') continue; else if(t === 'N') FQ(fy + .2, fy + .42, L1(f & 1 ? '#c050ff' : '#ff4aa0')); else if(t === 'T') FQ(fy + .2, fy + .4, L1('#ffa020')); else { const st = floorState(B, f, 0); if(st && ON) FQ(fy + .18, fy + .46, F(st === 1 ? '#b4c2e0' : st === 2 ? '#dcb478' : '#4a4a60')); } } }
       else for(let f = 0; f < B.nF; f++){ const fy = G + f * FH; if(fy > hv) break; if(FY1 - FU1 * (fy + FH) > H + PX * 2 && FY2 - FU2 * (fy + FH) > H + PX * 2) continue;
-        const t = B.fl[f]; CAT = t; if(t === 'X'){ xFloor(B, f, fy); continue; } if(t === 'S') signBand(B, f, fy, j, n, fpx, wpx); else if(t === 'N') neonFloor(B, f, fy, j, n, fpx, now); else if(t === 'T') tickFloor(B, fy, j, n, fpx, now); else winFloor(B, f, fy, j, n, fpx, wpx); }
+        const t = B.fl[f]; CAT = t; if(t === 'X'){ xFloor(B, f, fy); continue; } if(t === 'S') signBand(B, f, fy, j, n, fpx, wpx); else if(t === 'K') wrapBand(B, fy, j, n, fpx); else if(t === 'k') continue; else if(t === 'N') neonFloor(B, f, fy, j, n, fpx, now); else if(t === 'T') tickFloor(B, fy, j, n, fpx, now); else winFloor(B, f, fy, j, n, fpx, wpx); }
 
       if(hv >= B.h){ FQ(B.h - .05, B.h, F(S[2])); if(fpx >= 6) FQ(B.h, B.h + .1, F(S[0])); }   // the coping and a parapet
       if(B.rb && hv >= B.h) roofBoard(B, j, n, now); }
@@ -299,9 +661,30 @@
      is a square on the wall; its ink is the glyph's coverage mask at 3, 6 or 12 cells a side by the cell's size on screen (one bar when
      smaller), runs of a column merged into one band. The text reads along the street toward you on the left (+z) and away on the right,
      with each glyph's columns mirrored there, as you would read it facing the wall. */
-  function signBand(B, f, fy, j, n, fpx, wpx){ const Pn = PAN[B.pn[f]], h0 = fy + .05, h1 = fy + FH - .03; FQ(h0, h1, L1(Pn[0]));
-    if(fpx >= 14) FQ(h1 - .03, h1, L1(PANL[B.pn[f]]));
-    if(fpx >= 4) faceText(B, f, fy, j, n); }
+  /* A sign band (round 4): the building's brand as a lightbox along the floor: its field, then the band art laid on the wall in strips,
+     each strip projected at its own depth, cut per slice so a nearer slice always covers a farther one. The box stands proud of the wall:
+     a lit lip above, a shadow line under it on the cladding. */
+  function signBand(B, f, fy, j, n, fpx, wpx){ const Bd = BRANDS[B.br], h0 = fy + .05, h1 = fy + FH - .03; FQ(h0, h1, L1(Bd.f));
+    if(fpx >= 3) faceArt(B, ART.band[B.br], h0, h1, j, n, 13);
+    if(fpx >= 8){ FQ(h1, h1 + .025, L1(Bd.fl)); FQ(h0 - .04, h0, F('#06040a')); } }
+  function wrapBand(B, fy, j, n, fpx){ const A = ART.wrap[B.wv], h0 = fy + .06, h1 = fy + FH * 2 - .04; if(!A) return; FQ(h0, h1, L1(A.avg));
+    if(fpx >= 2) faceArt(B, A, h0, h1, j, n, 17);
+    if(fpx >= 8){ FQ(h1, h1 + .03, F('#d8d8e8')); FQ(h0 - .05, h0, F('#06040a')); } }
+  // (round 5: a band under 6 px tall is left to its own colour)
+  // art on the face from B.b0 + .6 to the run's end - .6, tiled every ~rep segments; this slice's part only, in strips about 4 px wide
+  const FXS = new Float64Array(26);
+  function faceArt(B, A, h0, h1, j, n, rep){ if(!A || !ON || AKX.includes('text')) return; const z0b = B.b0 + .6, Lz = B.len - 1.2; if(Lz < 1) return;
+    const copies = Math.max(1, Math.round(Lz / rep)), tl = Lz / copies, zv = Math.floor(position / SEG) + 1.02, flip = B.side > 0, X0 = B.side * B.x0;
+    const sa = Math.max(j, zv, z0b), sb = Math.min(j + n - .001, z0b + Lz); if(sb <= sa) return;
+    if(!CF(sa)) return; const xa = CFX + (X0 + laneDX(Math.floor(sa))) * CFU, ua = CFU; if(!CF(sb)) return; const xb = CFX + (X0 + laneDX(Math.floor(sb))) * CFU;
+    const hv = (h1 - h0) * Math.max(ua, CFU); if(hv < PX * 6 || !fin(xa + xb)) return; const kv = hv / A.h, Lv = A.L[kv < PX * .375 ? 2 : kv < PX * .75 ? 1 : 0], sc = A.w / Lv.w;
+    const ns = Math.max(1, Math.min(12, Math.round(Math.abs(xb - xa) / (PX * 4)))), a0 = cx.globalAlpha; cx.globalAlpha = a0 * (1 - FF * .55);
+    for(let s = 0; s <= ns; s++){ const z = sa + (sb - sa) * s / ns; FXS[s] = CF(z) ? snp(CFX + (X0 + laneDX(Math.floor(z))) * CFU) : NaN; }
+    for(let s = 0; s < ns; s++){ const za = sa + (sb - sa) * s / ns, zb = sa + (sb - sa) * (s + 1) / ns, xl = Math.min(FXS[s], FXS[s + 1]), xr = Math.max(FXS[s], FXS[s + 1]); if(!(xr > xl) || xr < -PX || xl > W + PX) continue;
+      const ta = (za - z0b) / tl, ti = Math.floor(ta), tb = Math.min(ti + 1, (zb - z0b) / tl); let u0 = ta - ti, u1 = tb - ti; if(flip){ const q = 1 - u1; u1 = 1 - u0; u0 = q; }
+      if(!CF((za + zb) / 2)) continue; const yt = snp(CFY - h1 * CFU), yb = snp(CFY - h0 * CFU); if(yb <= yt) continue;
+      cx.drawImage(AT, Lv.x + u0 * Lv.w, Lv.y, Math.max(.01, (u1 - u0) * Lv.w), Lv.h, xl, yt, xr - xl, yb - yt); }
+    cx.globalAlpha = a0; }
   /* The words on a sign band (round 2: whole glyphs, never fragments). Each character is placed once per sign, in world space (a square
      cell on the wall), and drawn once a frame, from the slice that holds its nearest visible column, so a slice edge never cuts it.
      - Legible (its cell at least 9 canvas px tall, and foreshortened to no less than 0.42 of its height): the glyph from the atlas at the
@@ -341,7 +724,8 @@
   function CF(z){ const i = Math.floor(z), sg = segs[i]; if(!sg) return false; const a = sg.p1.screen, b = sg.p2.screen; if(!a.w || !b.w) return false; const f = z - i; CFX = a.x + (b.x - a.x) * f; CFY = a.y + (b.y - a.y) * f; CFU = a.w + (b.w - a.w) * f; return fin(CFX + CFY + CFU); }
   function CR(X0, X1, h0, h1, col){ const xa = CFX + X0 * CFU, xb = CFX + X1 * CFU; R(Math.min(xa, xb), CFY - h1 * CFU, Math.abs(xb - xa), (h1 - h0) * CFU, col); }
   function blades(B, j, n, now){ const Lb = B.bl; if(!Lb.length || AKX.includes('blade')) return; for(let q = 0; q < Lb.length; q++){ const b = Lb[q], z = B.b0 + b.z; if(z >= j && z < j + n) blade(B, b, z, now); } }
-  function blade(B, b, z, now){ if(!CF(z + .5)) return; const side = B.side, lx = laneDX(Math.floor(z)), Xo = side * (B.x0 - .03) + lx, Xi = Xo - side * b.pr, u = CFU;
+  function blade(B, b, z, now){ if(!CF(z + .5)) return; const A = b.ban !== undefined ? ART.ban[b.ban] : b.plate ? ART.plate[b.ic * PAN.length + b.p] : null; if(A) return bladeArt(B, b, z, now, A);
+    const side = B.side, lx = laneDX(Math.floor(z)), Xo = side * (B.x0 - .03) + lx, Xi = Xo - side * b.pr, u = CFU;
     { const xa = CFX + Xo * u, xb = CFX + Xi * u; if((xa < -PX * 2 && xb < -PX * 2) || (xa > W + PX * 2 && xb > W + PX * 2)) return; }
     const hb = (b.f0 ? G + (b.f0 - 1) * FH : .02) + (b.plate ? (b.f0 ? FH : G) * .18 : .08) + (b.plate && b.f0 ? FH * .12 : 0), ht = Math.min(B.h - .08, (b.f0 ? G + (b.f1 - 1) * FH : G) + (b.plate ? 0 : FH - .1)) - (b.plate ? .04 : 0);
     if(ht - hb < .15) return; const Pn = PAN[b.p], pw = Math.abs(Xo - Xi) * u, ph = (ht - hb) * u;
@@ -356,16 +740,64 @@
     if(b.chase && ON && pw >= PX * 6){ // chasing bulbs down both edges of the arcade's blade (steady, every other bulb, under reduced motion)
       const step = Math.max(PX * 3, snp(ph / 22)), ph0 = reduce ? 0 : Math.floor(now / 110); cx.fillStyle = fc('#fff2b0', FF * .4);
       for(let yy = 0, k = 0; yy < ph; yy += step, k++) if((k + ph0) % 3 !== 0) for(const X of [Xi, Xo - side * .05]){ const xx = CFX + X * u; if(xx > -PX && xx < W + PX) pxRect(xx - PX / 2, CFY - ht * u + yy, PX, PX); } } }
-  // the roof board, camera-facing over the building's middle: legs, a lit panel with a pale border, its word, a row of bulbs along the top
-  function roofBoard(B, j, n, now){ const zc = B.b0 + Math.floor(B.len / 2); if(!(zc >= j && zc < j + n) || !CF(zc + .5)) return; const side = B.side, lx = laneDX(zc), Xa = side * (B.x0 + .15) + lx, Xb = side * (B.x0 + B.depth - .1) + lx, u = CFU, h0 = B.h + .18, h1 = B.h + .95, rb = B.rb, Pn = PAN[rb.p];
+  /* A blade as a picture (round 4): a character banner or a tenant plate, a lightbox standing off the wall on two steel brackets (each
+     blade its own offset, so the stack has depth), its edge seen as a strip of the box's side, a bezel with a lit top, the shadow it throws
+     on the wall in the gap, and a two-ring glow of its own light. */
+  function bladeArt(B, b, z, now, A){ const side = B.side, lx = laneDX(Math.floor(z)), Xw = side * (B.x0 - .03) + lx, Xo = Xw - side * (b.off || 0), Xi = Xo - side * b.pr, u = CFU;
+    const xw = CFX + Xw * u, xo = CFX + Xo * u, xi = CFX + Xi * u; if((Math.max(xw, xi) < -PX * 2) || (Math.min(xw, xi) > W + PX * 2)) return;
+    const hb = (b.f0 ? G + (b.f0 - 1) * FH : .02) + (b.plate ? (b.f0 ? FH : G) * .18 : .08) + (b.plate && b.f0 ? FH * .12 : 0), ht = Math.min(B.h - .08, (b.f0 ? G + (b.f1 - 1) * FH : G) + (b.plate ? 0 : FH - .1)) - (b.plate ? .04 : 0);
+    if(ht - hb < .15) return; const pw = Math.abs(xo - xi), ph = (ht - hb) * u;
+    if(b.plate && pw < PX * 4) return;   // round 5: far plates are confetti; gone
+    if(pw < PX * 5){ const hh = Math.min(ht - hb, Math.abs(Xo - Xi) * A.h / A.w); CR(Xi, Xo, ht - hh, ht, L1(A.avg)); return; }   // far: one soft block of its colour
+    const k = Math.min(pw / A.w, ph / A.h), aw = A.w * k, ah = A.h * k, left = (xo + xi) / 2 - aw / 2, top = CFY - ht * u, t = Math.max(PX, snp(k * .8));
+    if(pw >= PX * (b.plate ? 8 : 4)){ const bw = Math.max(PX, snp(u * .018)), bx = Math.min(xw, side < 0 ? left - t : left + aw + t), bxw = Math.abs(xw - (side < 0 ? left - t : left + aw + t));
+      if(bxw >= PX){ R(bx, top + ah * .1, bxw, ah * .95, F(mixc(B.S[0], '#000000', .5)));   // its shadow on the wall
+        R(bx, top + ah * .06, bxw, bw, F('#4a4656')); R(bx, top + ah * .9, bxw, bw, F('#4a4656')); } }   // the brackets
+    if(!b.plate) halo(left - t, top - t, aw + t * 2, ah + t * 2, A.avg, 1);
+    if(pw >= PX * 5){ const ew = Math.max(PX, snp(pw * .06)); R(side < 0 ? left + aw + t : left - t - ew, top - t + PX, ew, ah + t * 2 - PX, F('#24202e')); }   // the box's edge, toward the road
+    R(left - t, top - t, aw + t * 2, ah + t * 2, F('#16121c')); art(A, left, top, k);
+    if(pw >= PX * 5) R(left - t, top - t, aw + t * 2, PX, ON ? fc(mixc(A.avg, '#ffffff', .6), FF * .5) : F('#1c1a24'));   // the bezel's lit top
+    if(b.chase && ON && pw >= PX * 6){ const step = Math.max(PX * 3, snp(ah / 22)), ph0 = reduce ? 0 : Math.floor(now / 110); cx.fillStyle = fc('#fff2b0', FF * .4);
+      for(let yy = 0, q = 0; yy < ah; yy += step, q++) if((q + ph0) % 3 !== 0) for(const xx of [left - t, left + aw + t - PX]) if(xx > -PX && xx < W + PX) pxRect(xx, top + yy, PX, PX); } }
+  /* The roof billboard (round 4): key art or a brand block on a steel lattice, its bezel, three spotlights on arms throwing a warm wash down
+     its top (the references' boards are front-lit, not backlit). */
+  function roofBoard(B, j, n, now){ const zc = B.b0 + Math.floor(B.len / 2); if(!(zc >= j && zc < j + n) || !CF(zc + .5)) return; const rb = B.rb, A = rb.bb !== undefined ? ART.bb[rb.bb] : null; if(A) return billboardAt(B, zc, A, now);
+    const side = B.side, lx = laneDX(zc), Xa = side * (B.x0 + .15) + lx, Xb = side * (B.x0 + B.depth - .1) + lx, u = CFU, h0 = B.h + .18, h1 = B.h + .95, Pn = PAN[rb.p];
     if((h1 - h0) * u < PX * 2) { CR(Xa, Xb, h0, h1, L1(Pn[0])); return; }
     for(const X of [Xa + side * .2, Xb - side * .2]) CR(X - .03, X + .03, B.h, h0, F('#24202c'));
     CR(Xa, Xb, h0, h1, L1(mixc(Pn[0], '#ffffff', .4))); CR(Xa + side * .05, Xb - side * .05, h0 + .05, h1 - .05, L1(Pn[0]));
     const m = rb.word.length, w = Math.abs(Xb - Xa) * u * .9, cell = Math.min(w / m, (h1 - h0) * u * .8), xm = CFX + (Xa + Xb) / 2 * u, yc = CFY - (h0 + h1) / 2 * u, dir = side > 0 ? 1 : 1;
     if(ON) for(let c = 0; c < m; c++){ const g = gpick(Pn[2], rb.word[c], cell); const xc = xm + (c - (m - 1) / 2) * cell * dir; if(g) gblit(g, xc, yc); else if(cell > PX * 2){ cx.fillStyle = L1(Pn[1]); pxRect(xc - cell * .3, yc - cell * .15, cell * .6, Math.max(PX, cell * .3)); } }
     if(ON && (h1 - h0) * u > PX * 10){ cx.fillStyle = fc('#fff6c8', FF * .4); const st = Math.max(PX * 3, snp(w / 16)); for(let xx = CFX + Math.min(Xa, Xb) * u + st / 2; xx < CFX + Math.max(Xa, Xb) * u; xx += st) pxRect(xx, CFY - h1 * u - PX * 2, PX, PX); } }
+  function billboardAt(B, zc, A, now){ const side = B.side, lx = laneDX(zc), Xa = side * (B.x0 + .1) + lx, Xb = side * (B.x0 + B.depth - .05) + lx, u = CFU, wU = Math.abs(Xb - Xa), h0 = B.h + .26, h1 = h0 + wU * A.h / A.w;
+    if((h1 - h0) * u < PX * 2){ CR(Xa, Xb, h0, h1, L1(A.avg)); return; }
+    const left = CFX + Math.min(Xa, Xb) * u, top = CFY - h1 * u, k = wU * u / A.w, aw = A.w * k, ah = A.h * k, t = Math.max(PX, snp(k * .7)), bot = CFY - h0 * u, roof = CFY - B.h * u, sc = F('#2a2632');
+    if(u > 5){ const lw = Math.max(PX, snp(u * .02)); for(const X of [.12, .5, .88]) R(left + aw * X - lw / 2, bot, lw, roof - bot, sc);   // the lattice: legs, a catwalk, cross braces
+      R(left, bot, aw, Math.max(PX, snp(u * .015)), sc); if(roof - bot > PX * 3 && u > 10){ pline(left + aw * .12, bot, left + aw * .5, roof, sc, 1); pline(left + aw * .5, bot, left + aw * .12, roof, sc, 1); pline(left + aw * .5, bot, left + aw * .88, roof, sc, 1); pline(left + aw * .88, bot, left + aw * .5, roof, sc, 1); } }
+    bezel(left, top, aw, ah, t, false); art(A, left, top, k);
+    if(k > PX * .4){ const al = Math.max(PX, snp(ah * .16)); for(let q = 0; q < 3; q++){ const lx2 = snp(left + aw * (.18 + q * .32)); R(lx2, top - t - al, PX, al, sc); R(lx2 - PX, top - t - al - PX, PX * 3, PX, F('#3a3644'));
+        R(lx2 - PX, top - t - al, PX * 3, PX, ON ? fc('#fffaf0', FF * .3) : F('#1c1a24')); }
+      if(ON && FF < .8){ const a0 = cx.globalAlpha; cx.globalCompositeOperation = 'lighter'; cx.fillStyle = '#ffe8c0';
+        for(let q = 0; q < 3; q++){ const lx2 = left + aw * (.18 + q * .32); cx.globalAlpha = a0 * .12 * (1 - FF); pxRect(lx2 - aw * .11, top, aw * .22, ah * .2); cx.globalAlpha = a0 * .06 * (1 - FF); pxRect(lx2 - aw * .15, top + ah * .2, aw * .3, ah * .22); }
+        cx.globalCompositeOperation = 'source-over'; cx.globalAlpha = a0; } } }
   // the end wall facing the camera at the run's start: windows; on the stores, a big board above the shorter neighbour, or the LED ticker
-  function endWall(B, x, y, uw, now){ if(AKX.includes('end')) return; const side = B.side, dx = side * B.depth * uw, xl = Math.min(x, x + dx), wd = Math.abs(dx), h1 = Math.min(B.h, y / Math.max(uw, .01) + .1); if(h1 <= 0 || wd < 1 || !fin(xl + wd)) return;
+  function endWall(B, x, y, uw, now){ endWall0(B, x, y, uw, now); if(B.hero >= 0 && !AKX.includes('hero')) heroScreen(B, x, y, uw, now); }
+  /* The hero screen (round 4, at Neon Ward's screen's bar): 64 x 40 LEDs hung off the corner of the first building past a crossing, facing
+     you across it and over the pavement (the references' crossing screens), on a steel truss from the wall: posts, a top beam, a brace. A
+     bezel with thickness, its cast shadow, its glow, the LED grid fading in near by, an LED ticker under it. */
+  function heroScreen(B, x, y, uw, now){ const side = B.side, xi = x - side * .82 * uw, xo = x + side * 1.02 * uw, sw = Math.abs(xo - xi); if(!fin(xi + xo + y) || sw < PX * 3) return;
+    const sx = Math.min(xi, xo), sh = sw * 40 / 64, bot = y - uw * (G + .14), sy = bot - sh, t = Math.max(PX, snp(sw * .025)); if(sx > W + PX || sx + sw < -PX || bot < -PX || sy > H) return;
+    const sc = F('#2a2632'), bw = Math.max(PX, snp(uw * .03)), xw = x, top = sy - t * 2 - Math.max(PX * 2, snp(sh * .12));
+    if(uw > 2){ R(Math.min(xw, sx + sw * (side < 0 ? 1 : 0)) , top, Math.abs(xw - (sx + sw * (side < 0 ? 1 : 0))) + PX, bw, sc);   // the truss's top beam back to the wall
+      for(const q of [.18, .82]) R(sx + sw * q - bw / 2, top, bw, sy - top, sc);   // the hangers
+      R(sx, top, sw, bw, sc); pline(xw, bot + sh * .2, sx + sw * (side < 0 ? 1 : 0), top + bw, sc, Math.max(1, Math.round(bw / PX))); }   // the brace
+    const fr = B.hero ? ART.mech : ART.idol, f = reduce ? 6 : Math.floor(now / 120) % fr.length;
+    bezel(sx, sy, sw, sh, t, false); halo(sx - t, sy - t, sw + t * 2, sh + t * 2, B.hero ? '#ff7a3a' : '#ff6ab8', 1.3); screenAt(fr[f], sx, sy, sw, sh, now);
+    // under it, a marquee strip of amber bulbs chasing (steady under reduced motion)
+    const th = Math.max(PX * 2, snp(sh * .07)), my = sy + sh + t; R(sx - t, my, sw + t * 2, th + PX * 2, F('#141220'));
+    if(ON && th >= PX * 2){ const st = Math.max(PX * 2, snp(th * .8)), ph0 = reduce ? 0 : Math.floor(now / 90), by = my + PX + snp((th - PX) / 2); cx.fillStyle = fc('#ffb02a', FF * .4);
+      for(let xx = sx, q = 0; xx < sx + sw; xx += st, q++) if((q + ph0) % 4) pxRect(xx, by, PX, PX); } }
+  function endWall0(B, x, y, uw, now){ if(AKX.includes('end')) return; const side = B.side, dx = side * B.depth * uw, xl = Math.min(x, x + dx), wd = Math.abs(dx), h1 = Math.min(B.h, y / Math.max(uw, .01) + .1); if(h1 <= 0 || wd < 1 || !fin(xl + wd)) return;
     if(xl > W + PX || xl + wd < -PX) return; const S = B.S;
     R(xl, y - uw * h1, wd, uw * h1, F(S[0])); R(side > 0 ? xl : xl + wd - Math.max(PX, wd * .05), y - uw * h1, Math.max(PX, wd * .05), uw * h1, F(S[2]));   // the wall; its corner catching the street light
     { const gh = uw * .56, gy = y - gh; R(xl, gy, wd, gh, F(ON ? mixc(B.ic, '#5a5a78', .45) : '#0c0a12')); R(xl, y - uw * G, wd, uw * (G - .56), L1(B.aw[0]));   // the shop seen from its side: a dimmer interior, the awning's end
@@ -373,9 +805,15 @@
         R(xl, gy, wd, PX, F(ON ? '#ffffff' : '#1c1a24')); } }   // boxes stacked inside, a tube along the top
     const fpx = FH * uw, ew = B.ew, exp = Math.max(G, B.ph + .2);
     let bd0 = 99, bd1 = 0; if(ew && B.h - exp > FH * 1.6){ bd0 = exp + .15; bd1 = Math.min(B.h - .2, bd0 + Math.min(4 * FH, B.h - exp - .35)); }
+    // the hero screen: 64 x 40 LEDs across most of the wall's width, above the shop, a ticker under it, on a steel frame
+    if(B.hero >= 0){ bd0 = 99; bd1 = 0; }   // (the hero screen hangs off this corner instead of a board)
     if(fpx >= 3) for(let f = 0; f < B.nF; f++){ const fy = G + f * FH; if(fy > h1 || B.fl[f] === 'X') break; if(fy + FH > bd0 && fy < bd1) continue; const st = ON ? floorState(B, f, 99) : 0; if(!st && fpx < 7) continue;
       R(xl + wd * .2, y - uw * (fy + .48), wd * .6, uw * .3, F(st === 1 ? '#b4c2e0' : st === 2 ? '#dcb478' : st === 3 ? '#4a4a60' : '#141826')); if(wd > PX * 14) R(xl + wd * .5 - PX / 2, y - uw * (fy + .48), PX, uw * .3, F(S[0])); }
-    if(bd1 > bd0 && bd1 <= h1 + 2){ const Pn = PAN[ew.p], yt = y - uw * bd1, hh = uw * (bd1 - bd0), x0 = xl + wd * .06, ww = wd * .88;   // the board: frame, lit panel, its word set top to bottom
+    if(bd1 > bd0 && bd1 <= h1 + 2 && (ew.att || ART.po[ew.po])){ const yt = y - uw * bd1, hh = uw * (bd1 - bd0), x0 = xl + wd * .06, ww = wd * .88, hz = ew.tk ? hh * .8 : hh;   // round 4: a poster lightbox, or the arcade's attract screen
+      if(ew.att){ const sh = Math.min(hz, ww * 20 / 32), sw = sh * 32 / 20, sx = x0 + (ww - sw) / 2, t = Math.max(PX, snp(sw * .04)); bezel(sx, yt, sw, sh, t, mixc(B.S[0], '#000000', .55)); halo(sx - t, yt - t, sw + t * 2, sh + t * 2, '#5a8aff', .8); screenAt(ART.att[reduce ? 3 : Math.floor(now / 140) % 16], sx, yt, sw, sh, now); }
+      else { const A = ART.po[ew.po], k = Math.min(ww / A.w, hz / A.h), aw = A.w * k, ah = A.h * k, left = x0 + (ww - aw) / 2, t = Math.max(PX, snp(k * .8)); bezel(left, yt, aw, ah, t, mixc(B.S[0], '#000000', .55)); halo(left - t, yt - t, aw + t * 2, ah + t * 2, A.avg, 1); art(A, left, yt, k); }
+      if(ew.tk && hh > PX * 14){ const th = Math.min(hh * .14, ww * .2); tickerAt(x0 + ww * .06, yt + hh - th, ww * .88, th, now); } }
+    else if(bd1 > bd0 && bd1 <= h1 + 2){ const Pn = PAN[ew.p], yt = y - uw * bd1, hh = uw * (bd1 - bd0), x0 = xl + wd * .06, ww = wd * .88;   // the board: frame, lit panel, its word set top to bottom
       R(x0 - PX, yt - PX, ww + PX * 2, hh + PX * 2, F('#16121c')); R(x0, yt, ww, hh, L1(Pn[0]));
       if(ew.tk && hh > PX * 14){ tickerAt(x0 + ww * .06, yt + hh - Math.min(hh * .2, ww * .3), ww * .88, Math.min(hh * .2, ww * .3), now); }
       const m = ew.word.length, hz = ew.tk ? hh * .78 : hh, cell = Math.min(hz / m, ww * .8);
@@ -538,6 +976,7 @@
   function place(i, s){ regDir(); const L = visitOf(i); s.akLit = 0; if(!L) return; const sp = s.sprites, c = crossAt(L, i), inBr = L.BR >= 0 && i >= L.BR - 3 && i < L.BR + BD + 3;
     if(inBr || (c >= 0 && i >= c - 4 && i < c + CW + 4)) s.zeb = true;
     if(c >= 0 || (L.BR >= 0 && i >= L.BR - 8 && i < L.BR + BD + 8)) s.akNoHz = true;   // (no side lane at a crossing or under the bridge: the core calls a lane off where a segment carries zeb)
+    if(c >= 0 && i === c + CW + 3 && !(L.X.indexOf(c) & 1)) sp.push({ env:KEY, type:'gnt', x:0, k:i });   // round 5: the idol's screen on a gantry over the road, straight ahead
     if(c >= 0){ s.akX = i - c; if(i === c + CW) for(const side of [-1, 1]){ const B = bAt(L, side, i) || bAt(L, side, i + 1); sp.push({ env:KEY, type:'xf', x:side * ((B ? B.x0 + B.depth : 3.8)), side, k:i }); } }
     if(L.BR >= 0 && i >= L.BR && i <= L.BR + BD) sp.push({ env:KEY, type:'br', x:0, k:i, L });
     for(const side of [-1, 1]){ const B = bAt(L, side, i); if(B) sp.push({ env:KEY, type:'b', x:side * B.x0, k:i, b:B }); }
@@ -598,7 +1037,18 @@
   function draw0(sp, x, y, uw, fog, now, sk){ if(sk && sk.low) setLow(sk.low); const t = sp.type; CAT = t;
     if(t === 'b') return drawB(sp, x, y, uw, fog, now); if(t === 'w') return drawWire(sp, x, y, uw, fog, now); if(t === 'lamp') return drawLamp(sp, x, y, uw, fog, now); if(t === 'pole') return drawPole(sp, x, y, uw, fog, now);
     if(t === 'ped') return drawPed(sp, x, y, uw, fog, now); if(t === 'xf') return drawXF(sp, x, y, uw, fog, now); if(t === 'sig') return drawSig(sp, x, y, uw, fog, now); if(t === 'trk') return drawTruck(sp, x, y, uw, fog, now);
-    if(t === 'br') return drawBridge(sp, x, y, uw, fog, now); }
+    if(t === 'br') return drawBridge(sp, x, y, uw, fog, now); if(t === 'gnt') return drawGantry(sp, x, y, uw, fog, now); }
+  /* The gantry screen (round 5): the idol hero over the road just past a crossing, facing straight down it, as Neon Ward's jumbo does: two
+     steel posts at the kerbs, a lattice beam, the screen (64 x 40 LEDs, the grid fading in near by) in a bezel, its glow, a marquee. */
+  function drawGantry(sp, x, y, uw, fog, now){ if(!CF(sp.k + .5)) return; FF = fog; ON = onAt(sp.k); const u = CFU; if(u < .4) return;
+    const sw = 2.0 * u, sh = sw * 40 / 64, sx = CFX - sw / 2, bot = CFY - 1.66 * u, sy = bot - sh, t = Math.max(PX, snp(sw * .02)), sc = F('#2a2632'), pw = Math.max(PX, snp(u * .05));
+    if(sx > W + PX || sx + sw < -PX || bot < -PX || sy > H + PX) return;
+    for(const X of [-1.22, 1.22]){ const px0 = CFX + X * u; R(px0 - pw / 2, sy - t * 3, pw, CFY - sy + t * 3, sc); if(pw > PX) R(px0 - pw / 2, sy - t * 3, PX, CFY - sy + t * 3, F('#5a5668')); }
+    const bh = Math.max(PX, snp(u * .04)), by = sy - t - bh * 3; R(CFX - 1.26 * u, by, 2.52 * u, bh, sc); R(CFX - 1.26 * u, by + bh * 2, 2.52 * u, bh, sc);
+    if(u > 8) for(let X = -1.2; X < 1.2; X += .2) pline(CFX + X * u, by + bh, CFX + (X + .2) * u, by + bh * 2, sc, 1);
+    bezel(sx, sy, sw, sh, t, false); halo(sx - t, sy - t, sw + t * 2, sh + t * 2, '#ff6ab8', 1.3); screenAt(ART.idol[reduce ? 6 : Math.floor(now / 120) % 32], sx, sy, sw, sh, now);
+    const th = Math.max(PX * 2, snp(sh * .06)), my = sy + sh + t; R(sx - t, my, sw + t * 2, th + PX * 2, F('#141220'));
+    if(ON){ const st = Math.max(PX * 2, snp(th * .8)), ph0 = reduce ? 0 : Math.floor(now / 90), byy = my + PX + snp((th - PX) / 2); cx.fillStyle = fc('#ffb02a', FF * .4); for(let xx = sx, q = 0; xx < sx + sw; xx += st, q++) if((q + ph0) % 4) pxRect(xx, byy, PX, PX); } }
 
   /* ---------------------------------------------------------------- the set piece: 停電 TEIDEN, the blackout wave
      On the stretch before the bridge (S0 .. BR), driven by the rider's distance s past S0, never the clock:
@@ -631,13 +1081,13 @@
   function* warmSteps(){ regDir(); if(!PANL.length) for(const p of PAN){ PANL.push(mixc(p[0], '#ffffff', .45)); PANS.push(mixc(p[1], p[0], .3)); }
     if(AKX.includes('cnt') && !warmSteps.cnt){ warmSteps.cnt = true; const f0 = cx.fillRect; cx.fillRect = function(){ AKC[CAT] = (AKC[CAT] || 0) + 1; return f0.apply(this, arguments); }; }
     if(!ATL){ ATL = mk(1024, 1); AG = ATL.getContext('2d'); SC = mk(80, 80); SG = SC.getContext('2d', { willReadFrequently:true }); TK = mk(2048, 16); } yield;
-    yield* buildTextG(); if(!FONT){ try{ if(document.fonts && document.fonts.load) document.fonts.load('16px DotGothic16').then(() => { if(!FONT) buildText(); }, () => {}); }catch(e){} } yield;
+    yield* buildTextG(); yield* artSteps(); if(!FONT){ try{ if(document.fonts && document.fonts.load) document.fonts.load('16px DotGothic16').then(() => { if(!FONT) buildText(); }, () => {}); }catch(e){} } yield;
     buildStrips(); yield; buildPeople(); yield;
     try{ if(typeof MUSIC !== 'undefined' && MUSIC.ROAD_THEME && !MUSIC.ROAD_THEME[KEY]) MUSIC.ROAD_THEME[KEY] = 'neon'; }catch(e){}
     try{ cx.save(); cx.globalAlpha = .004; for(const c of [ATL, TK, FAR, MID, MIDD].concat(PEOPLE)) if(c) cx.drawImage(c, 0, 0, 1, 1); cx.fillStyle = ditherPat('#235250', .25); cx.fillRect(0, 0, PX, PX); cx.restore(); }catch(e){ try{ cx.restore(); }catch(e2){} }
     cx.clearRect(0, 0, W, H); }
 
-  ENV.akiba = { _mk:(ch, z) => { const q = mask(ch, z), b = box(q.m, q.n); let c = 0; for(const v of q.m) c += v; return [b, c, q.n]; }, _GA:GA, _used:USED, _atl:() => ATLY, _ga:() => { const o = {}; let A = 0; for(const st in GA) for(const ch in GA[st]) GA[st][ch].forEach((g, si) => { if(!g) return; const k = st + SZ[si]; o[k] = (o[k] || 0) + g.w * g.h; A += g.w * g.h; }); o.total = A; return o; }, _akc:AKC, _PJ:(z, x, h) => { cam(); PJ(z, x, h); return [PJX, PJY, PJU]; }, _lay:lay, _visit:visitOf, _spa:SPA, _onAt:onAt,
+  ENV.akiba = { _mk:(ch, z) => { const q = mask(ch, z), b = box(q.m, q.n); let c = 0; for(const v of q.m) c += v; return [b, c, q.n]; }, _GA:GA, _used:USED, _atl:() => ATLY, _ga:() => { const o = {}; let A = 0; for(const st in GA) for(const ch in GA[st]) GA[st][ch].forEach((g, si) => { if(!g) return; const k = st + SZ[si]; o[k] = (o[k] || 0) + g.w * g.h; A += g.w * g.h; }); o.total = A; return o; }, _akc:AKC, _PJ:(z, x, h) => { cam(); PJ(z, x, h); return [PJX, PJY, PJU]; }, _lay:lay, _visit:visitOf, _ART:ART, _artSteps:artSteps, _spa:SPA, _onAt:onAt,
     kerbs:true, moonDX:.18, road:['#1e1c26', '#1c1a23'], lampCol:'#5a5a78',
     warm(){ for(const _ of warmSteps()); }, warmSteps, place, lit, draw, roadFX, backdrop, overlay, hingeIn:() => 'over' };
 })();

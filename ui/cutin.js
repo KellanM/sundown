@@ -187,11 +187,14 @@ function tone(c, col, lev, kind, x0, y0, w, h){ x0 = x0 || 0; y0 = y0 || 0; w = 
   for(let y = 0; y < h; y++) for(let x = 0; x < w; x++){ const l = lev(x + x0, y + y0); if(l <= 0) continue; if(l >= 1 || T[((y + y0) & 3) * 4 + ((x + x0) & 3)] < l){ const i = (y * w + x) * 4; D[i] = v[0]; D[i + 1] = v[1]; D[i + 2] = v[2]; D[i + 3] = 255; } }
   g.putImageData(im, x0, y0); return c; }
 // focus lines (manga 集中線): wedges from radius r0 out past the corners, thresholded
-const focusDraw = (c, fx, fy, n, col, seed, r0, wid, jit) => g => { const R = rnd(seed), far = Math.hypot(c.width, c.height); g.fillStyle = col; g.beginPath();
+// win [half-width, row]: skip a line that would pass through the box below that row around fx (the bike's window). The random draws are
+// made for every line, so the lines kept are exactly the ones drawn without a window
+const focusDraw = (c, fx, fy, n, col, seed, r0, wid, jit, win) => g => { const R = rnd(seed), far = Math.hypot(c.width, c.height); g.fillStyle = col; g.beginPath();
     for(let i = 0; i < n; i++){ const a = (i + R() * (jit || .8)) / n * 6.2832, ri = r0 * (1 + R() * .55), ww = wid * (.35 + R()), ca = Math.cos(a), sa = Math.sin(a), nx = -sa, ny = ca;
+      if(win && sa > .05 && Math.abs(ca / (sa * .78)) * (win[1] - fy) < win[0] + ww) continue;
       g.moveTo(fx + ca * ri, fy + sa * ri * .78); g.lineTo(fx + ca * far + nx * ww, fy + sa * far * .78 + ny * ww); g.lineTo(fx + ca * far - nx * ww, fy + sa * far * .78 - ny * ww); g.closePath(); }
     g.fill(); };
-function focus(c, fx, fy, n, col, seed, r0, wid, jit){ return pass(c, focusDraw(c, fx, fy, n, col, seed, r0, wid, jit)); }
+function focus(c, fx, fy, n, col, seed, r0, wid, jit, win){ return pass(c, focusDraw(c, fx, fy, n, col, seed, r0, wid, jit, win)); }
 // stepped twins of tone / pass / focus for the cards' generator builds (first 60 s): the same pixels, worked in bands of rows with a yield
 // between bands (tone and the threshold are per pixel, so a band is exact)
 const BAND = 40;
@@ -206,14 +209,23 @@ function* inkedG(M, o){ const lw = o.lw || 0, lw2 = o.lw2 || 0, R = lw + lw2, sx
   if(lw2){ g.drawImage(paint(grow(M, R), o.line2), ox, oy); yield; }
   if(lw){ g.drawImage(paint(grow(M, lw), o.line), ox + lw2, oy + lw2); yield; }
   g.drawImage(paint(M, o.fill), ox + R, oy + R); return c; }
-function* focusG(c, fx, fy, n, col, seed, r0, wid, jit){ return yield* passG(c, focusDraw(c, fx, fy, n, col, seed, r0, wid, jit)); }
+function* focusG(c, fx, fy, n, col, seed, r0, wid, jit, win){ return yield* passG(c, focusDraw(c, fx, fy, n, col, seed, r0, wid, jit, win)); }
 // a jagged (torn-paper) polyline edge between x0..x1 at y, amplitude a
 function tornPath(g, x0, x1, y, a, seed, down){ const R = rnd(seed); let x = x0; g.lineTo(x0, y); while(x < x1){ x += 3 + R() * 6; g.lineTo(Math.min(x, x1), y + (R() - .5) * 2 * a); } }
 
 /* ================================================================== draw-time helpers (no allocation) */
-const B = (g, c, x, y) => { if(c) g.drawImage(c, Math.round(x), Math.round(y)); };
+/* Screen-anchored layers. post() lifts a whole card (only ever up, <= 12% of the height) when a crest of the live road rises over its titles.
+   A layer that reaches the screen's bottom edge (a full-screen vignette, focus field or frame) must not ride up with it, or the card ends
+   in a raw cut a few rows above the bottom (Kellan, 2026-11-21: KAIJU, INFERNO, MATSURI). Each card names those layers in `anchor`; they
+   are put in ANCH when built, and B / BS draw them back down by the lift (LIFT, < 0) so they stay pinned to the screen while the titles
+   rise. EXU (> 0 during the 'up' exit) makes an anchored layer open outward instead of sliding up: its top half leaves with the card
+   through the top edge, its bottom half through the bottom edge. */
+const ANCH = new WeakSet(); let LIFT = 0, EXU = 0;
+const B = (g, c, x, y) => { if(!c) return; if(ANCH.has(c)){ y -= LIFT; if(EXU){ const w = c.width, h = c.height, hh = h >> 1, X = Math.round(x), Y = Math.round(y);
+      g.drawImage(c, 0, 0, w, hh, X, Y, w, hh); g.drawImage(c, 0, hh, w, h - hh, X, Y + hh + EXU * 2, w, h - hh); return; } }
+  g.drawImage(c, Math.round(x), Math.round(y)); };
 // stamp scaled about its centre (nearest), the slam
-const BS = (g, c, cx0, cy0, s) => { const w = Math.round(c.width * s), h = Math.round(c.height * s); g.drawImage(c, Math.round(cx0 - w / 2), Math.round(cy0 - h / 2), w, h); };
+const BS = (g, c, cx0, cy0, s) => { if(ANCH.has(c)) cy0 -= LIFT; const w = Math.round(c.width * s), h = Math.round(c.height * s); g.drawImage(c, Math.round(cx0 - w / 2), Math.round(cy0 - h / 2), w, h); };
 // a slam: big and white on the first frames, then overshoot, then home. returns [canvas, scale]
 function slam(t, t0, c, cw){ const k = t - t0; if(k < 0) return null; if(k < .05) return [cw, 1.7]; if(k < .1) return [cw, 1.3]; if(k < .14) return [c, .94]; return [c, 1]; }
 let SHK = 0; const kick = n => { if(!reduce && typeof shake !== 'undefined') shake = Math.max(shake || 0, n); };
@@ -226,14 +238,15 @@ const CARDS = {};
 const idOfKanji = {};
 
 /* ---------------------------------------------------------------- kaiju: tokusatsu title. red / black / cream / oxblood / sail amber */
-CARDS.kaiju = { dur:2.1, out:.36, exit:'split', hold:1.2, kanji:['怪獣', '怪獣決戦'],
+CARDS.kaiju = { dur:2.1, out:.36, exit:'split', hold:1.2, kanji:['怪獣', '怪獣決戦'], anchor:['vig'],
   *build(cw, ch, nar){ const L = {}, K = { ink:'#0a0608', red:'#d0102a', dark:'#5a0410', cream:'#f4ecdf', amber:'#ffb030' }; yield;
     // SPARSE (the INFERNO model): type and graphics live at the top and the edges, the middle stays open over the road and the bike.
     // top third: a slanted red screentone swipe behind the brushed title; the titan in a small halftone sun at the right edge; ゴゴゴ
     // as a column at the left edge; a faint oxblood dot vignette in the corners, nothing over the centre.
     const PH = Math.round(ch * (nar ? .34 : .36)); yield; L.PH = PH; yield; const split = cw * .6, sl = ch * .14; yield;
-    const bg = mk(cw, ch); yield;
-    yield* toneG(bg, K.dark, (x, y) => { const r = Math.hypot((x - cw / 2) / (cw * .5), (y - ch * .45) / (ch * .55)); return r < .85 ? 0 : Math.min(.55, (r - .85) * 1.6); }, 'dot'); yield;   // corner vignette
+    const bg = mk(cw, ch), vig = mk(cw, ch); yield;
+    // the corner vignette is its own layer, pinned to the screen (anchor): it reaches the bottom edge, so it must not rise with a lift
+    yield* toneG(vig, K.dark, (x, y) => { const r = Math.hypot((x - cw / 2) / (cw * .5), (y - ch * .45) / (ch * .55)); return r < .85 ? 0 : Math.min(.55, (r - .85) * 1.6); }, 'dot'); yield; L.vig = vig; yield;
     // the swipe: a slanted band of red halftone with solid edges, under the title only
     const sw0 = Math.round(ch * (nar ? .1 : .14)), sw1 = Math.round(ch * (nar ? .3 : .34)), swR = nar ? cw * 1.1 : cw * .72, sk = (sw1 - sw0) * .45; yield;
     yield* toneG(bg, K.red, (x, y) => y >= sw0 && y < sw1 && x < swR - (y - sw0) * .45 ? .55 : 0, 'dot'); yield;
@@ -269,7 +282,7 @@ CARDS.kaiju = { dur:2.1, out:.36, exit:'split', hold:1.2, kanji:['怪獣', '怪�
         const rh = Math.min(h, Math.round(h * .35)), refl = mk(w * k, rh * k), fg = ctx(refl); yield;
         for(let y = 0; y < rh; y++){ if(y % 2) continue; for(let x = 0; x < w; x++){ const i = ((h - 1 - y) * w + x) * 4; if(sd[i + 3] < 128 || (x + y) % 3 === 0) continue; fg.fillStyle = y < rh * .4 ? '#3a0a18' : '#24060e'; fg.fillRect((w - 1 - x) * k, y * k, k, k); } } yield;
         L.sil = sil; yield; L.ribs = rb; yield; L.refl = refl; yield; L.k = k; yield;
-        if(fit < 1){ const hv = c => { const o = mk(Math.ceil(c.width / 2), Math.ceil(c.height / 2)), og = ctx(o); og.imageSmoothingEnabled = false; og.drawImage(c, 0, 0, o.width, o.height); bin(o); return o; }; yield; L.sil = hv(sil); yield; L.ribs = hv(rb); yield; L.refl = hv(refl); yield; } yield;   /* narrow screens: half scale */
+        if(fit < 1){ const s = Math.ceil(1 / fit), hv = c => { const o = mk(Math.ceil(c.width / s), Math.ceil(c.height / s)), og = ctx(o); og.imageSmoothingEnabled = false; og.drawImage(c, 0, 0, o.width, o.height); bin(o); return o; }; yield; L.sil = hv(sil); yield; L.ribs = hv(rb); yield; L.refl = hv(refl); yield; } yield;   /* small suns (phones): whole steps down (1/2, 1/3...) until he fits his sun; a fixed half overflowed it on portrait phones */
         const sw2 = L.sil.width, sh2 = L.sil.height; yield; L.silX = Math.round(dcx - sw2 * .42); yield; L.wlY = Math.round(dcy + dr * .42); yield; L.silY = L.wlY - sh2; yield;
         if(L.clawSt){ const cs = L.clawSt, cw2 = cs.st.w, ch2 = cs.st.h, cc = mk(cw2, ch2), ccg = ctx(cc); yield; ccg.drawImage(cs.L.cv, 0, 0, cw2, ch2, 0, 0, cw2, ch2); yield; const cd = ccg.getImageData(0, 0, cw2, ch2).data, ratio = L.sil.width / w * cs.st.vs / 125, ck = Math.max(1, Math.round(ratio)), stp = ratio < 1 ? Math.max(1, Math.round(1 / ratio)) : 1; yield;   /* (the claw's voxels are finer: scaled to the titan's) */
           const cl = mk(Math.ceil(cw2 / stp * ck), Math.ceil(ch2 / stp * ck)), clg = ctx(cl); yield; for(let y = 0; y < ch2; y += stp) for(let x = 0; x < cw2; x += stp){ const i = (y * cw2 + x) * 4; if(cd[i + 3] < 128) continue; const r = cd[i], g2 = cd[i + 1], b = cd[i + 2]; clg.fillStyle = g2 > r * 1.2 && b > r ? '#0e2a2a' : r > b * 1.25 && r > 70 ? K.red : (r * .3 + g2 * .59 + b * .11) > 140 ? '#8af0e0' : K.ink; clg.fillRect(Math.floor((cw2 - 1 - x) / stp) * ck, Math.floor(y / stp) * ck, ck, ck); } yield;
@@ -295,8 +308,8 @@ CARDS.kaiju = { dur:2.1, out:.36, exit:'split', hold:1.2, kanji:['怪獣', '怪�
   draw(g, t, L, rm, cw, ch){
     // entry: the panel wipes in from the left in four hard steps
     const w = rm ? 1 : stepq(t / .14, 4); if(w <= 0) return;
-    g.save(); g.beginPath(); g.rect(0, 0, Math.ceil(cw * w), ch); g.clip();
-    B(g, L.bg, 0, 0);
+    g.save(); g.beginPath(); g.rect(0, -ch, Math.ceil(cw * w), ch * 3); g.clip();   // (tall: the pinned vignette runs to the true bottom under a lift)
+    B(g, L.vig, 0, 0); B(g, L.bg, 0, 0);
     // the titan rises out of the sun's lower rim, ribs charging amber
     // ゴゴゴ, one by one, each humming a pixel: set BEHIND the titan (the menace hum), so the sail silhouette stays whole in front of it
     for(let i = 0; i < 3; i++){ if(!rm && t < .32 + i * .08) continue; const j = rm ? 0 : (Math.floor(t * 20 + i) % 2), p = L.goP[i]; B(g, L.go[i], p[0] + j, p[1] - (i === 1 ? j : 0)); }
@@ -325,7 +338,7 @@ CARDS.kaiju = { dur:2.1, out:.36, exit:'split', hold:1.2, kanji:['怪獣', '怪�
   } };
 
 /* ---------------------------------------------------------------- greatwave: Hokusai woodblock. Prussian x3 / paper / foam / seal red */
-CARDS.greatwave = { dur:2.15, out:.38, exit:'slash', hold:1.2, slashCol:'#f8f4e8', kanji:['大波'],
+CARDS.greatwave = { dur:2.15, out:.38, exit:'slash', hold:1.2, slashCol:'#f8f4e8', kanji:['大波'], anchor:['bg'],   // (bg carries the print's border round the whole screen)
   *build(cw, ch, nar){ const L = {}, K = { deep:'#0b2350', mid:'#1f4f8a', light:'#7fb0d4', paper:'#efe4c8', foam:'#fbf8ee', ink:'#14244a', seal:'#c0392a' }; yield;
     // SPARSE (the INFERNO model): no paper block, no half-screen wave. A claw-wave border instead: the Great Wave rises up the left edge
     // and curls into the top-left corner, and a frieze of crests hangs along the top edge (the barrel's lip overhead) with spray falling
@@ -350,10 +363,11 @@ CARDS.greatwave = { dur:2.15, out:.38, exit:'slash', hold:1.2, slashCol:'#f8f4e8
     // the frieze along the top: a Prussian lip with a scalloped underside, each scallop ending in a hooked claw that curls forward and down
     const fx0 = xc + R0 * .55, fx1 = nar ? cw - 4 : cw * .8, fy = Math.round(ch * (nar ? .035 : .05)), P = Math.max(18, Math.round(ch * .1)), crests = []; yield;
     for(let x = fx0; x < fx1 - P * .4; x += P) crests.push(x); yield;
-    yield* passG(bg, g => { g.fillStyle = K.deep; g.beginPath(); g.moveTo(fx0 - P, 0); g.lineTo(fx1, 0); g.lineTo(fx1, fy * .6);
+    const fxE = nar || !crests.length ? fx1 : crests[crests.length - 1] + P * 1.05; yield;   // the lip's right end: on phones the border; elsewhere the last crest's own curl (it ended in a vertical cut)
+    yield* passG(bg, g => { g.fillStyle = K.deep; g.beginPath(); g.moveTo(fx0 - P, 0); g.lineTo(fxE, 0); if(nar) g.lineTo(fx1, fy * .6);
       for(let i = crests.length - 1; i >= 0; i--){ const x = crests[i]; g.quadraticCurveTo(x + P * .55, fy * 1.1, x + P * .35, fy * 2.1); g.quadraticCurveTo(x + P * .05, fy * 1.6, x - P * .3, fy * .9); }
       g.lineTo(fx0 - P, fy * .9); g.fill(); }); yield;
-    yield* passG(bg, g => { g.strokeStyle = K.light; g.lineWidth = 1; g.beginPath(); g.moveTo(fx0, fy * .45); g.lineTo(fx1, fy * .45); g.stroke(); g.strokeStyle = K.mid; g.beginPath(); g.moveTo(fx0 - P * .5, fy * .8); g.lineTo(fx1, fy * .75); g.stroke(); }); yield;
+    { const xr = nar ? fx1 : fxE - P * .45; yield; yield* passG(bg, g => { g.strokeStyle = K.light; g.lineWidth = 1; g.beginPath(); g.moveTo(fx0, fy * .45); g.lineTo(xr, fy * .45); g.stroke(); g.strokeStyle = K.mid; g.beginPath(); g.moveTo(fx0 - P * .5, fy * .8); g.lineTo(xr - P * .2, fy * .75); g.stroke(); }); yield; }
     const frieze = (col, grow) => pass(bg, g => { g.strokeStyle = col; g.lineCap = 'round'; const R = rnd(31);
       for(const x of crests){ const ox = x + P * .35, oy = fy * 2.1, k = ch * .022;
         g.lineWidth = 1.8 + grow; g.beginPath(); g.moveTo(x - P * .3, fy * .9); g.quadraticCurveTo(x + P * .2, fy * 1.2, ox, oy); g.stroke();   // the foam lip of each crest
@@ -365,7 +379,7 @@ CARDS.greatwave = { dur:2.15, out:.38, exit:'slash', hold:1.2, slashCol:'#f8f4e8
       for(let i = 0; i < 110; i++){ const s = .3 + R() * .7, [x, y, a] = pt(s), r = th(s) + 3 + R() * ch * .06; dot(Math.round(x + Math.cos(a) * r + R() * 8), Math.round(y + Math.sin(a) * r), R() < .3 ? 2 : 1); } yield;
       for(let i = 0; i < 70; i++){ const x = fx0 + R() * (fx1 - fx0), y = fy * 2 + R() * R() * ch * .1; dot(Math.round(x), Math.round(y), R() < .25 ? 2 : 1); } yield; } yield;
     // a faint Prussian screentone along the top edge, under the frieze, fading out well above the road
-    yield* toneG(bg, K.mid, (x, y) => y < band * .7 && x > fx0 - P && x < fx1 ? .25 * (1 - y / (band * .7)) : 0, 'bay'); yield;
+    yield* toneG(bg, K.mid, (x, y) => y < band * .7 && x > fx0 - P && x < fxE ? .25 * (1 - y / (band * .7)) * clamp01((fxE - x) / P) : 0, 'bay'); yield;   // (fading out toward the lip's end)
     L.bg = bg; yield;
     // 大波 in carved woodblock type inside the vertical title cartouche (double ruled) with the subtitle column and a red seal
     const ks = Math.round(nar ? Math.min(ch * .08, cw * .17) : Math.min(ch * .15, cw * .1)); yield;
@@ -388,8 +402,8 @@ CARDS.greatwave = { dur:2.15, out:.38, exit:'slash', hold:1.2, slashCol:'#f8f4e8
   draw(g, t, L, rm, cw, ch){
     // entry: the wave sweeps in from the left (stepped), foam leading
     const w = rm ? 1 : stepq(t / .26, 5); if(w <= 0) return;
-    g.save(); g.beginPath(); g.rect(0, 0, Math.ceil(cw * w), ch); g.clip(); B(g, L.bg, 0, 0); g.restore();
-    if(!rm && w < 1){ g.fillStyle = '#fbf8ee'; for(let y = 0; y < ch; y += 3) g.fillRect(Math.round(cw * w) - 2 - ((y * 7) % 5), y, 3, 2); }
+    g.save(); g.beginPath(); g.rect(0, -ch, Math.ceil(cw * w), ch * 3); g.clip(); B(g, L.bg, 0, 0); g.restore();   // (tall: the pinned border reaches the true bottom under a lift)
+    if(!rm && w < 1){ g.fillStyle = '#fbf8ee'; for(let y = -LIFT; y < ch - LIFT; y += 3) g.fillRect(Math.round(cw * w) - 2 - ((y * 7) % 5), y, 3, 2); }   // the foam edge, top to bottom of the screen
     // the cartouche is pressed onto the paper: a pale first impression, then the full ink
     if(rm || t > .2){ const k = rm ? 9 : t - .2; if(k < .05) { g.globalAlpha = .5; B(g, L.car, L.cx, L.cy - 3); g.globalAlpha = 1; } else { B(g, L.car, L.cx, L.cy); if(!rm && !L.hit){ L.hit = true; kick(3); } }
       if(rm || k > .14) B(g, L.seal, L.sx2, L.sy2); }
@@ -397,14 +411,14 @@ CARDS.greatwave = { dur:2.15, out:.38, exit:'slash', hold:1.2, slashCol:'#f8f4e8
   } };
 
 /* ---------------------------------------------------------------- fireball: manga explosion splash. black / oxblood / orange / yellow / white-hot */
-CARDS.fireball = { dur:2.0, out:.34, exit:'tone', hold:1.0, kanji:['爆発'],
+CARDS.fireball = { dur:2.0, out:.34, exit:'tone', hold:1.0, kanji:['爆発'], anchor:['bgA', 'bgB'],
   *build(cw, ch, nar){ const L = {}, K = { ink:'#0e0503', ox:'#7a1608', red:'#d8301a', or:'#ff7a1a', ye:'#ffd23a', wh:'#fff6d0' }; yield;
-    const fx = cw / 2, fy = ch * .44, r0 = Math.min(cw, ch) * (nar ? .34 : .38); yield;
+    const fx = cw / 2, fy = ch * .44, r0 = Math.min(cw, ch) * (nar ? .34 : .38), win = [Math.max(14, cw * .07), ch * .72]; yield;   // the bike's window: half-width, from this row down
     const mkBg = function*(seed){ const c = mk(cw, ch);   // (stepped: one pass per step)
-      yield* toneG(c, K.ink, (x, y) => { const r = Math.hypot(x - fx, (y - fy) * 1.25) / (Math.hypot(cw, ch) * .5); return r < .62 ? 0 : (r - .62) * 2.6; }, 'bay'); yield;   // the black vignette
-      yield* focusG(c, fx, fy, 70, K.ox, seed, r0 * 1.05, ch * .028); yield;
-      yield* focusG(c, fx, fy, 54, K.or, seed + 1, r0 * 1.12, ch * .02); yield;
-      yield* focusG(c, fx, fy, 30, K.ye, seed + 2, r0 * 1.3, ch * .012);
+      yield* toneG(c, K.ink, (x, y) => { const r = Math.hypot(x - fx, (y - fy) * 1.25) / (Math.hypot(cw, ch) * .5); return r < .62 ? 0 : (r - .62) * 2.6 * Math.max(clamp01((Math.abs(x - fx) - win[0]) / (win[0] * 1.5)), clamp01((win[1] - y) / (ch * .12))); }, 'bay'); yield;   // the black vignette, thinning to nothing over the bike's window (on tall screens it reached solid black there)
+      yield* focusG(c, fx, fy, 70, K.ox, seed, r0 * 1.05, ch * .028, 0, win); yield;   // (win: no line crosses the bike's window)
+      yield* focusG(c, fx, fy, 54, K.or, seed + 1, r0 * 1.12, ch * .02, 0, win); yield;
+      yield* focusG(c, fx, fy, 30, K.ye, seed + 2, r0 * 1.3, ch * .012, 0, win);
       return c; }; yield;
     L.bgA = yield* mkBg(3); yield; L.bgB = yield* mkBg(9); yield; L.fx = fx; yield; L.fy = fy; yield;
     // 爆発: very heavy gothic, banded white-hot to red, cracked through with black, a black rim and an oxblood shadow
@@ -435,6 +449,7 @@ CARDS.fireball = { dur:2.0, out:.34, exit:'tone', hold:1.0, kanji:['爆発'],
     const st = paint(t3M('OUTRUN THE FIRE'), K.ye), tape = mk(st.width + 10, 9), tg = ctx(tape); yield; tg.fillStyle = K.ink; yield; tg.fillRect(0, 0, tape.width, 9); yield; tg.fillStyle = K.red; yield; tg.fillRect(0, 8, tape.width, 1); yield; tg.drawImage(st, 5, 2); yield; L.tape = tape; yield;
     L.tx = nar ? cw - L.ti.width - 4 : Math.round(cw * .68); yield; L.ty = Math.round(ch * (nar ? .42 : .44)); yield; if(L.tx + L.ti.width > cw - 6) L.tx = cw - L.ti.width - 6; yield;
     L.px = Math.min(cw - tape.width - 6, L.tx + L.ti.width - tape.width); yield; L.py = L.ty + L.ti.height + 2; yield;
+    if(L.dx + L.dk.width > L.tx - 2){ L.dy = Math.round(L.ty - L.dk.height + 2); yield; }   // too narrow for both on one row (portrait): the onomatopoeia rides up onto the balloon's rim, clear of the title
     return L; },
   draw(g, t, L, rm, cw, ch){
     // the blast: a bright starburst at the centre (never the whole screen), then the focus lines burst in from the rim; they alternate
@@ -503,7 +518,7 @@ CARDS.jetwash = { dur:2.0, out:.3, exit:'left', hold:1.1, kanji:['噴射'],
     // blast lines: straight streaks from upper left to lower right (the boards' pictogram rule), cream and steel
     yield* passG(bg, g => { const R = rnd(41); for(let i = 0; i < 34; i++){ const y = R() * PH * .9 - PH * .1, x = R() * cw, l = 20 + R() * cw * .3, w = R() < .2 ? 2 : 1; g.fillStyle = R() < .35 ? K.cr : K.st;
       g.save(); g.translate(x, y); g.rotate(.32); g.fillRect(0, 0, l, w); g.restore(); } }); yield;
-    L.bg = bg; yield; L.PH = PH; yield;
+    L.bg = bg; yield; L.PH = PH; yield; L.sl = sl; yield;
     // the 747 from below, nose up-left, crossing the panel: the game's own planform (setpiece/jump.js), whole-pixel scaled
     L.jet = null; yield; try{ const A = MECH.sp_jump && MECH.sp_jump.art && MECH.sp_jump.art(); yield; if(A){ const src = A.jetSpr(7, 0), k = Math.max(1, Math.round(PH * (nar ? 2 : 2.4) / src.width)), j = mk(src.width * k, src.height * k), jg = ctx(j); yield; jg.drawImage(src, 0, 0, j.width, j.height); yield;
       { const im = jg.getImageData(0, 0, j.width, j.height), D = im.data, T = [rgb(K.ink), rgb(K.st), rgb('#9aa8c8'), rgb(K.cr)]; yield;   // into the card's palette: ink, steel, pale steel, cream
@@ -530,7 +545,8 @@ CARDS.jetwash = { dur:2.0, out:.3, exit:'left', hold:1.1, kanji:['噴射'],
   draw(g, t, L, rm, cw, ch){
     // entry: the panel drops in four steps; the jet sweeps in from the lower right along its track; streaks pour past
     const dy = rm ? 0 : -Math.round((1 - stepq(t / .14, 4)) * L.PH * 1.1);
-    g.save(); g.beginPath(); g.rect(0, 0, cw, L.PH + 12 + dy); g.clip(); B(g, L.bg, 0, dy);
+    // (clipped along the band's slanted lower ink rule, so the big jet on phones tucks into the band instead of ending in a flat cut)
+    g.save(); g.beginPath(); g.moveTo(0, -ch); g.lineTo(cw, -ch); g.lineTo(cw, L.PH - L.sl + 9 + dy); g.lineTo(0, L.PH + 9 + dy); g.closePath(); g.clip(); B(g, L.bg, 0, dy);
     if(L.jet){ const k = rm ? 0 : 1 - stepq((t - .04) / .3, 6), j = !rm && t > .34 && t < .7 ? (Math.floor(t * 30) % 2) : 0; B(g, L.jet, L.jx + Math.round(k * cw * .4) + j, L.jy + dy - Math.round(k * L.PH * .9)); }
     if(!rm){ g.fillStyle = '#f4ecdf'; for(let i = 0; i < 14; i++){ const ph = (t * (1.6 + (i % 3) * .5) + i * .37) % 1, x = Math.round(ph * cw * 1.2 - cw * .1), y = Math.round(((i * 53) % 97) / 97 * L.PH) + dy; g.fillRect(x, y + Math.round(ph * 30), 10 + (i % 4) * 6, 1); } }
     g.restore();
@@ -551,7 +567,7 @@ CARDS.megalodon = { dur:2.4, out:.4, exit:'fade', hold:1.4, kanji:['滄竜'],
   *build(cw, ch, nar){ const L = {}, K = { ab:'#010407', d1:'#041018', d2:'#082430', d3:'#10404e', d4:'#2a7484', d5:'#7ec4cc', d6:'#c8eef0', ink:'#000103' }; yield;
     const top = nar ? Math.round(ch * .25) : 0, PH = Math.round(ch * (nar ? .2 : .25)), bg = mk(cw, PH + 4); yield;
     // the band: black water, the faintest cold light from above (a dithered falloff), sparse snow; a hair of cold light along its foot
-    yield* toneG(bg, K.ab, () => 1, 'bay'); yield; yield* toneG(bg, K.d1, (x, y) => Math.max(0, .7 - y / PH) * (.6 + .4 * Math.sin(x * .013)), 'bay'); yield;
+    yield* toneG(bg, K.ab, (x, y) => top && y < 4 ? (y + 1) / 5 : 1, 'bay'); yield; yield* toneG(bg, K.d1, (x, y) => Math.min(top && y < 4 ? (y + 1) / 5 : 1, Math.max(0, .7 - y / PH) * (.6 + .4 * Math.sin(x * .013))), 'bay'); yield;   // on phones (the band below the HUD) its top dithers in over four rows: a surface, not a cut
     yield* passG(bg, g => { const R = rnd(31); g.fillStyle = K.d3; for(let n = 0; n < cw * PH / 700; n++) g.fillRect((R() * cw) | 0, (R() * PH) | 0, 1, 1); g.fillStyle = K.d2; g.fillRect(0, PH, cw, 1); g.fillStyle = K.ink; g.fillRect(0, PH + 1, cw, 3); }); yield;
     L.bg = bg; yield; L.PH = PH; yield; L.top = top; yield;
     // the silhouette behind the title: the mosasaur's side profile in ink with a cold rim on its back, big enough to overfill the band
@@ -601,7 +617,7 @@ function shatterC(src, seed, n, gap, spread){ const R = rnd(seed), w = src.width
   og.putImageData(im, 0, 0); return out; }
 
 /* ---------------------------------------------------------------- typhoon: storm-warning broadcast. navy / cyan / white / warning red / yellow */
-CARDS.typhoon = { dur:2.1, out:.3, exit:'crt', crtY:.14, crtH:.3, hold:1.1, kanji:['台風'],
+CARDS.typhoon = { dur:2.1, out:.3, exit:'crt', hold:1.1, kanji:['台風'],
   *build(cw, ch, nar){ const L = {}, K = { navy:'#0a1846', cy:'#4ad0ff', wh:'#f4f8ff', red:'#e0102a', ye:'#ffd800', ink:'#04081a' }; yield;
     // a top band of ~28%, half-dithered so the sky shows through; everything in one broadcast row: symbol, 台風, ribbon + title + sub
     const PH = Math.round(ch * (nar ? .3 : .28)), bg = mk(cw, PH + 2); yield;
@@ -674,6 +690,7 @@ CARDS.hanabi = { dur:2.1, out:.36, exit:'tone', hold:1.2, kanji:['花火'],
     L.tx = nar ? Math.round(cw / 2 - ti.width / 2) : Math.round(cw * .05); yield; L.ty = nar ? Math.round(BH + 2) : Math.round(ch * .1); yield; L.sx = L.tx + (nar ? Math.round((ti.width - st.width) / 2) : 0); yield; L.sy = L.ty + ti.height + 2; yield;
     if(nar){ L.kx = cw - L.kj.width - 2; yield; } yield;
     L.sex = L.kx + Math.round(L.kj.width / 2 - 9); yield; L.sey = L.ky + L.kj.height + 2; yield;
+    if(nar && L.tx + ti.width > L.sex - 2 && L.ty < L.sey + 20){ L.ty = L.sey + 20; yield; L.sy = L.ty + ti.height + 2; yield; }   // phones: the title row goes under the seal (it ran through it)
     return L; },
   draw(g, t, L, rm, cw, ch){
     const a = rm ? 1 : stepq(t / .12, 3); if(a <= 0) return; g.globalAlpha = a; B(g, L.bg, 0, 0); g.globalAlpha = 1;
@@ -687,7 +704,7 @@ CARDS.hanabi = { dur:2.1, out:.36, exit:'tone', hold:1.2, kanji:['花火'],
   } };
 
 /* ---------------------------------------------------------------- matsuri: festival poster with chōchin lantern borders. red / paper / ink / gold / glow */
-CARDS.matsuri = { dur:2.1, out:.34, exit:'up', hold:1.2, kanji:['祭'],
+CARDS.matsuri = { dur:2.1, out:.34, exit:'up', hold:1.2, kanji:['祭'], anchor:['fr'],   // (the frame runs round the whole screen: pinned under a lift; on the exit it opens top and bottom)
   *build(cw, ch, nar){ const L = {}, K = { red:'#d8202a', dr:'#8a1018', pap:'#f8e8c0', ink:'#140a08', gold:'#f0b030', glow:'#ffb050' }; yield;
     const top = mk(cw, Math.round(ch * .36)), lw = Math.max(9, Math.round(ch * .055)), lh = Math.round(lw * 1.4); yield;
     // the lantern: an oval with ribs, black caps; red or paper, with a stepped glow ring
@@ -858,28 +875,37 @@ for(const id in CARDS) for(const k of CARDS[id].kanji || []) if(!idOfKanji[k]) i
 
 /* ================================================================== exits: applied around a card's hold frame. e: 0..1 */
 let SCR = null, PATS = null;
-function exitDraw(g, kind, e, body, cw, ch, D, S){
-  if(kind === 'split'){ const dx = Math.round(stepq(e, 6) * cw * .7), sl = ch * .14, sx = cw * .6;
-    g.save(); g.translate(-dx, 0); g.beginPath(); g.moveTo(-cw, 0); g.lineTo(sx + sl, 0); g.lineTo(sx - sl, ch * .7); g.lineTo(sx - sl * 2, ch); g.lineTo(-cw, ch); g.clip(); body(); g.restore();
-    g.save(); g.translate(dx, 0); g.beginPath(); g.moveTo(sx + sl, 0); g.lineTo(cw * 2, 0); g.lineTo(cw * 2, ch); g.lineTo(sx - sl * 2, ch); g.lineTo(sx - sl, ch * .7); g.clip(); body(); g.restore(); return; }
-  if(kind === 'slash'){ const x0 = -ch * .5 + stepq(e, 6) * (cw + ch * .6);
-    g.save(); g.beginPath(); g.moveTo(x0 + ch * .4, 0); g.lineTo(cw, 0); g.lineTo(cw, ch); g.lineTo(x0, ch); g.clip(); body(); g.restore();
-    g.fillStyle = D.slashCol || '#ffffff'; for(let y = 0; y < ch; y += 2){ const xx = x0 + (1 - y / ch) * ch * .4; g.fillRect(Math.round(xx) - 3 + ((y * 5) % 3), y, 3, 2); } return; }
-  if(kind === 'blinds'){ const k = 1 - stepq(e, 5), bh = 8; g.save(); g.beginPath(); for(let y = 0; y < ch; y += bh) g.rect(0, y, cw, Math.round(bh * k)); g.clip(); body(); g.restore(); return; }
-  if(kind === 'up'){ g.save(); g.translate(0, -Math.round(stepq(e, 5) * ch * .7)); body(); g.restore(); return; }
-  if(kind === 'right'){ g.save(); g.translate(Math.round(stepq(e, 3) * cw * 1.1), 0); body(); g.restore(); return; }
-  if(kind === 'left'){ g.save(); g.translate(-Math.round(stepq(e, 3) * cw * 1.1), 0); body(); g.restore(); return; }
-  if(kind === 'fade'){ g.globalAlpha = 1 - stepq(e, 4); body(); g.globalAlpha = 1; return; }
-  if(kind === 'crt'){ const h = Math.max(1, Math.round(ch * (D.crtH || 1) * (1 - stepq(e * 1.4, 5)))), w = e < .72 ? cw : Math.max(2, Math.round(cw * (1 - stepq((e - .72) / .28, 3))));
-    const cy0 = ch * (D.crtY || .26);
+// (the clips are drawn in the card's own space, which a lift moves up by -LIFT: each one runs from the screen's top to its true bottom edge, so
+// a screen-anchored layer is never clipped short of the bottom)
+// The moving exits finish at 85% of the exit (ef): their last step used to land only at the card's end, so whatever had not yet left the screen
+// (a band end, a frame edge, a jet) sat there and then vanished in one cut. Now everything has left through its edge before the card ends.
+function exitDraw(g, kind, e, body, cw, ch, D, S){ const y0 = Math.min(0, LIFT), y1 = ch - LIFT, ef = Math.min(1, e / .85);   // y0, y1: the screen's top and bottom rows, in card space
+  if(kind === 'split'){ const sl = ch * .14, sx = cw * .6, kx = sl / (ch * .3), xb = x => sx - sl - (x - ch * .7) * kx, st = stepq(ef, 6),
+      dxL = Math.round(st * Math.max(cw * .7, sx + sl - (y0 / (ch * .7)) * sl * 2 + 4)), dxR = Math.round(st * Math.max(cw * .7, cw - xb(y1) + 4));   // each half travels far enough to clear the screen (on tall screens .7 of the width did not)   // the cut's lower leg, carried on past the bottom edge
+    g.save(); g.translate(-dxL, 0); g.beginPath(); g.moveTo(-cw, y0); g.lineTo(sx + sl - (y0 / (ch * .7)) * sl * 2, y0); g.lineTo(sx - sl, ch * .7); g.lineTo(xb(y1), y1); g.lineTo(-cw, y1); g.clip(); body(); g.restore();
+    g.save(); g.translate(dxR, 0); g.beginPath(); g.moveTo(sx + sl - (y0 / (ch * .7)) * sl * 2, y0); g.lineTo(cw * 2, y0); g.lineTo(cw * 2, y1); g.lineTo(xb(y1), y1); g.lineTo(sx - sl, ch * .7); g.clip(); body(); g.restore(); return; }
+  if(kind === 'slash'){ const x0 = -ch * .5 + stepq(ef, 6) * (cw + ch * .6), xs = y => x0 + (1 - y / ch) * ch * .4;   // the slash line (screen rows)
+    g.save(); g.translate(0, -LIFT); g.beginPath(); g.moveTo(xs(0), 0); g.lineTo(cw, 0); g.lineTo(cw, ch); g.lineTo(xs(ch), ch); g.translate(0, LIFT); g.clip(); body(); g.restore();
+    g.save(); g.translate(0, -LIFT); g.fillStyle = D.slashCol || '#ffffff'; for(let y = 0; y < ch; y += 2){ g.fillRect(Math.round(xs(y)) - 3 + ((y * 5) % 3), y, 3, 2); } g.restore(); return; }
+  if(kind === 'blinds'){ const k = 1 - stepq(ef, 5), bh = 8; g.save(); g.translate(0, -LIFT); g.beginPath(); for(let y = 0; y < ch; y += bh) g.rect(0, y, cw, Math.round(bh * k)); g.translate(0, LIFT); g.clip(); body(); g.restore(); return; }
+  if(kind === 'up'){ const d = Math.round(stepq(ef, 5) * Math.max(ch * .7, (S.L.tb != null ? S.L.tb : (S.L.tb = titleBottom(S.L))) + 2)); g.save(); g.translate(0, -d); EXU = d; body(); EXU = 0; g.restore(); return; }
+  if(kind === 'right'){ g.save(); g.translate(Math.round(stepq(ef, 3) * cw * 1.1), 0); body(); g.restore(); return; }
+  if(kind === 'left'){ g.save(); g.translate(-Math.round(stepq(ef, 3) * cw * 1.1), 0); body(); g.restore(); return; }
+  if(kind === 'fade'){ g.globalAlpha = 1 - stepq(ef, 4); body(); g.globalAlpha = 1; return; }
+  if(kind === 'crt'){ // the picture collapses onto the card's own middle: from the top edge down to its lowest title row (on phones TYPHOON's
+    // title sits under the band, and a fixed .3 of the height cut it off on the first exit frame)
+    const L = S.L, bot = Math.max(L.PH ? L.PH + 2 : 0, L.tb != null ? L.tb : (L.tb = titleBottom(L))) + 2;
+    const h = Math.max(1, Math.round(bot * (1 - stepq(e * 1.4, 5)))), w = e < .72 ? cw : Math.max(2, Math.round(cw * (1 - stepq((e - .72) / .28, 3))));
+    const cy0 = bot / 2;
     if(h <= 1){ g.fillStyle = '#f4f8ff'; g.fillRect(Math.round(cw / 2 - w / 2), Math.round(cy0), w, 1); return; }
     g.save(); g.beginPath(); g.rect(0, Math.round(cy0 - h / 2), cw, h); g.clip(); body(); g.restore(); return; }
   // screentone dissolve: the hold frame is frozen into a scratch canvas once, then each nested Bayer level is punched out of it as it is reached
   // (the levels are nested, so punching is cumulative): per frame one drawImage
   if(kind === 'tone'){ if(!SCR || SCR.width !== cw || SCR.height !== ch) return body(); const sg = SCR.getContext('2d');
-    if(!S.tone){ S.tone = 1; S.lv = 0; sg.setTransform(1, 0, 0, 1, 0, 0); sg.clearRect(0, 0, cw, ch); sg.imageSmoothingEnabled = false; body(sg); }
+    // (frozen in screen space: the card is drawn into it lifted, its anchored layers pinned, so the scratch covers the whole screen)
+    if(!S.tone){ S.tone = 1; S.lv = 0; sg.setTransform(1, 0, 0, 1, 0, 0); sg.clearRect(0, 0, cw, ch); sg.imageSmoothingEnabled = false; sg.save(); sg.translate(0, LIFT); body(sg); sg.restore(); }
     const lv = Math.min(4, 1 + Math.floor(e * 4.999)); if(lv > S.lv){ S.lv = lv; sg.globalCompositeOperation = 'destination-out'; sg.fillStyle = PATS[lv]; sg.fillRect(0, 0, cw, ch); sg.globalCompositeOperation = 'source-over'; }
-    g.drawImage(SCR, 0, 0); return; }
+    g.drawImage(SCR, 0, -LIFT); return; }
   body(); }
 
 /* ================================================================== runtime */
@@ -906,7 +932,9 @@ function earlyIds(){ const R = nearRoads(); if(!R) return Object.keys(CARDS); co
 // one card's build, stepped: build() statements, then each layer's fin() copy; the table is checked after every step (a resize or font rebuild abandons it)
 function* cardGen(id, B0, cw, ch, nar){ let ms = 0, a = performance.now();
   try{ const it = CARDS[id].build(cw, ch, nar); let r; for(;;){ r = it.next(); if(r.done) break; ms += performance.now() - a; yield; a = performance.now(); if(BUILT !== B0) return; }
-    const L = r.value; for(const k in L){ L[k] = fin(L[k]); if(L[k] instanceof HTMLCanvasElement){ ms += performance.now() - a; yield; a = performance.now(); if(BUILT !== B0) return; } } B0[id] = L; }
+    const L = r.value; for(const k in L){ L[k] = fin(L[k]); if(L[k] instanceof HTMLCanvasElement){ ms += performance.now() - a; yield; a = performance.now(); if(BUILT !== B0) return; } }
+    for(const k of CARDS[id].anchor || []) [].concat(L[k]).forEach(c => { if(c instanceof HTMLCanvasElement) ANCH.add(c); });   // pinned to the screen under a lift
+    B0[id] = L; }
   catch(e){ B0[id] = null; if(!WARNED[id]){ WARNED[id] = 1; console.warn('cutin: card "' + id + '" failed to build; the moment falls back to its arrival card', e); } }   // caught per card, logged once
   ms += performance.now() - a; C.buildTimes[id] = Math.round(ms); }
 const run = it => { for(const _ of it); };
@@ -955,12 +983,17 @@ function heroAhead(){ const R = MECH.director && MECH.director.gov && MECH.direc
 // meet queue (one after the other), they are never dropped. Only the quiet system, when it is switched on (mech/arrival.js QUIET_ON), still
 // holds a jump card back in its quiet stretch.
 function spare(id){ const QT = MECH.quiet; if(prio(id) === 1 && QT && QT.quietOn()) return 'quiet'; return ''; }
-function start(id, o){ const L = BUILT[id]; L.hit = false; cur = { id, t:0, D:CARDS[id], L, dur:(o && o.dur) || CARDS[id].dur }; if(prio(id) === 1) jumpsShown++;
+function start(id, o){ const L = BUILT[id]; L.hit = false; cur = { id, t:0, D:CARDS[id], L, dur:(o && o.dur) || CARDS[id].dur, key:BKEY }; if(prio(id) === 1) jumpsShown++;
   else { const DI = MECH.director; if(DI && DI.endQuiet) DI.endQuiet(); } }   // a hero card is never held back by the quiet stretch: it ends it
 // the lowest row of a card's titles (its type, labels, tapes, kanji), from its built layers: what must stay above the road
-function titleBottom(L){ let b = 0; const h = c => c && c.height || 0;
-  for(const [y, c] of [['ty', 'ti'], ['sy', 'sub'], ['sy', 'st'], ['ly', 'lab'], ['py', 'tape'], ['dy', 'dk'], ['ky', 'kj'], ['ay', 'at2'], ['ny', 'nm'], ['by', 'bil']]) if(typeof L[y] === 'number' && L[c]) b = Math.max(b, L[y] + h(L[c]));
-  if(L.goP && L.go) L.goP.forEach((p, i) => { b = Math.max(b, p[1] + h(L.go[i])); }); return b; }
+// (and titleRows(L) -> [top, bottom]: the lift may not carry the topmost title off the screen's top edge either)
+const TROWS = [['ty', 'ti'], ['sy', 'sub'], ['sy', 'st'], ['ly', 'lab'], ['py', 'tape'], ['dy', 'dk'], ['ky', 'kj'], ['ky', 'kjL'], ['ay', 'at'], ['ny', 'nm'], ['by', 'bil'], ['cy', 'car'], ['syy', 'sym']];
+function titleRows(L){ let b = 0, t = 1e9; const h = c => (Array.isArray(c) ? c[0] : c) || null, off = typeof L.top === 'number' ? L.top : 0, row = (y, c) => { if(typeof y !== 'number' || !c) return; t = Math.min(t, y + off); b = Math.max(b, y + off + c.height); };   // (MEGALODON's band sits at L.top on phones)
+  for(const [y, c] of TROWS) row(L[y], h(L[c]));
+  if(L.goP && L.go) L.goP.forEach((p, i) => row(p[1], L.go[i]));
+  if(L.crest) row(L.ccy - L.crest.height / 2, L.crest); if(L.seal && typeof L.scy === 'number') row(L.scy - L.seal.height / 2, L.seal);   // stamped about their centres
+  return [t === 1e9 ? 0 : t, b]; }
+const titleBottom = L => titleRows(L)[1];
 function ended(c){ lastEnd = clock; if(prio(c.id) === 2){ lastHeroEnd = clock; if(MECH.quiet) MECH.quiet.breathe(32); } }   // after a hero card: breathing room (no card, no information) for ~32 s
 function rebuild(){ fontRebuild = false; BUILT = null; warm(); if(!(window.warmLater && warmLater('mech.cutinLate', lateSteps))) warmAll(); }   // on the title the rest is re-queued in steps; elsewhere it is built at once, as before
 function calm(){ if(fontRebuild && !cur && (typeof state === 'undefined' || state !== 'play')) rebuild(); }
@@ -993,20 +1026,26 @@ const C = MECH.cutin = {
     for(let i = QQ.length - 1; i >= 0; i--){ QQ[i].wait += ug; if(QQ[i].wait > 10) QQ.splice(i, 1); }   // (only a card stuck 10 s behind others goes)
     if(!cur && QQ.length && BUILT && BUILT[QQ[0].id] && QQ[0].wait >= (QQ[0].delay || 0)){ const q = QQ.shift(); start(q.id, q.o); } },
   reset(){ cur = null; QQ.length = 0; clock = 0; lastEnd = lastHeroEnd = -1e9; jumpsShown = 0; },
-  post(){ if(!cur){ calm(); return; } if(typeof cx === 'undefined') return; const g = cx, [cw, ch] = canvasSize(), D = cur.D, L = cur.L, t = cur.t, dur = cur.dur, out = D.out || .35;
+  post(){ if(!cur){ calm(); return; } if(typeof cx === 'undefined') return; const g = cx, [cw, ch] = canvasSize(), D = cur.D, t = cur.t, dur = cur.dur, out = D.out || .35;
+    // a resize mid-card: the layers on screen were built for the old canvas. Switch to the new size's build as soon as it exists (no second
+    // kick); until then draw nothing rather than old-size art on the new canvas
+    if(cur.key !== cw + 'x' + ch){ const nb = BUILT && BKEY === cw + 'x' + ch && BUILT[cur.id]; if(!nb) return; nb.hit = cur.L.hit; cur.L = nb; cur.key = BKEY; cur.dy = 0; }
+    const L = cur.L;
     g.save(); g.setTransform(1, 0, 0, 1, 0, 0); g.imageSmoothingEnabled = false; g.globalAlpha = 1; g.globalCompositeOperation = 'source-over';
-    // above the road, whole: when the live road (a crest) rises over the card's title, lift the card (only ever up, at most 12% of the height)
-    if(MECH.quiet && MECH.quiet.roadTop && typeof state !== 'undefined' && state === 'play'){ const tb = L.tb != null ? L.tb : (L.tb = titleBottom(L)), rt = MECH.quiet.roadTop() - 3;
-      cur.dy = Math.min(cur.dy || 0, -Math.min(Math.max(0, tb - rt), Math.round(ch * .12))); if(cur.dy) g.translate(0, cur.dy); }
+    // above the road, whole: when the live road (a crest) rises over the card's title, lift the card (only ever up, at most 12% of the height);
+    // its screen-anchored layers (ANCH) stay put
+    if(MECH.quiet && MECH.quiet.roadTop && typeof state !== 'undefined' && state === 'play'){ if(!L.tr) L.tr = titleRows(L); const tb = L.tr[1], rt = MECH.quiet.roadTop() - 3;
+      cur.dy = Math.min(cur.dy || 0, -Math.min(Math.max(0, tb - rt), Math.round(ch * .12), Math.max(0, Math.floor(L.tr[0]) - 1))); if(cur.dy) g.translate(0, cur.dy); }
+    LIFT = cur.dy || 0; EXU = 0;
     try{
       if(reduce){ const a = t < .4 ? stepq(t / .4, 4) : t > dur - .4 ? 1 - stepq((t - (dur - .4)) / .4, 4) : 1; if(a > 0){ g.globalAlpha = a; D.draw(g, D.hold, L, true, cw, ch); } }
       else { const te = t - (dur - out); if(te <= 0) D.draw(g, t, L, false, cw, ch);
         else { const th = dur - out; exitDraw(g, D.exit, te / out, (tg) => D.draw(tg || g, th, L, false, cw, ch), cw, ch, D, cur); } }
     }catch(e){ if(!WARNED['d:' + cur.id]){ WARNED['d:' + cur.id] = 1; console.warn('cutin: card "' + cur.id + '" failed to draw; dropped', e); } if(BUILT) BUILT[cur.id] = null; cur = null; }
-    g.restore(); },
+    LIFT = 0; EXU = 0; g.restore(); },
   // tests: seek the card on screen; draw a card at time t without the runtime
   seek(t){ if(cur) cur.t = t; },
   _drop(){ BUILT = null; LIT = null; PEND = null; },
-  frame(id, t, rm){ buildNow(id); gSave(); const L = BUILT[id]; cur = { id, t, D:CARDS[id], L, dur:CARDS[id].dur }; const r = reduce; if(rm != null) reduce = rm; C.post(); reduce = r; cur = null; }
+  frame(id, t, rm){ buildNow(id); gSave(); const L = BUILT[id]; cur = { id, t, D:CARDS[id], L, dur:CARDS[id].dur, key:BKEY }; const r = reduce; if(rm != null) reduce = rm; C.post(); reduce = r; cur = null; }
 };
 })();

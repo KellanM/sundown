@@ -174,7 +174,7 @@
     s.rv = { x:lerp(-15, VX, e), pier:i % 8 === 0, mast:i % 20 === 10, end:i === A || i === B };
     // where the race starts: the viaduct has converged, clear of a fork's split window and of the road's landmark jump (the paddies
     // RAILWAY JUMP flies right over this line: the race and its card wait until the bike has landed), and long enough to finish it
-    if(i === A + 150){ let g = i + (window.forkClear ? forkClear(i, i + 700) : 0); const J = MECH.sp_jump; if(J && J.clearAfter){ const g2 = J.clearAfter(g); if(g2 !== g) g = g2 + (window.forkClear ? forkClear(g2, g2 + 700) : 0); } R.goAt[A] = g; }
+    if(i === A + 150){ let g = i + (window.forkClear ? forkClear(i, i + 700) : 0); const J = MECH.sp_jump; if(J && J.clearAfter){ const g2 = J.clearAfter(g); if(g2 !== g) g = g2 + (window.forkClear ? forkClear(g2, g2 + 700) : 0); } { const Tk = DIR && DIR.target ? DIR.target('shinkansen', i) : null; if(Tk != null && Tk > g && B - Tk > 700) g = Tk; } R.goAt[A] = g; }   /* Tk: demo mode's authored start (never before the usual one) */
     if(i === R.goAt[A] && B - i > 700 && (!DIR || DIR.request('shinkansen', { seg:i }))) s.rvGo = true;
     // clear roadside kit that would stand inside the viaduct
     if(e > .2) s.sprites = s.sprites.filter(sp => !(sp.x < -1.25 && sp.x > -2.9));   // poles, bus stops, crows, ridge trees: the viaduct stands there now
@@ -225,7 +225,8 @@
     }
     // Fuji: on the coast as soon as the night is nearly over; on the tunnels road at the next tunnel exit (framed by the portal)
     const F = R.fj;
-    if(!F.on && state === 'play' && MOON.t > .8 && isFujiRoad(landIdx(zone()))){
+    const fT = DIR && DIR.target ? DIR.target('fuji', Math.floor(pz / SEG)) : null;   /* demo mode: Fuji from its authored spot, whatever the hour */
+    if(!F.on && state === 'play' && (MOON.t > .8 || (fT != null && pz / SEG >= fT)) && isFujiRoad(landIdx(zone()))){
       const si = Math.floor(pz / SEG), s = segs[si], key = LANDS[landIdx(zone())].key; let go = key === 'coast';
       if(key === 'tunnels' && s){ if(s.tunnel){ for(let d = 1; d < 70; d++){ const q = segs[si + d]; if(q && !q.tunnel){ go = true; break; } } } else { const q = segs[si - 30]; go = !!(q && q.tunnel); } }
       if(go && DIR && !F.ask){ F.ask = true; F.no = !DIR.request('fuji', { tier:'ambient' }); }   // asked once per ride, at the first moment it could show

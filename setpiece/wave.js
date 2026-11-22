@@ -347,7 +347,8 @@
 
   // ---- placement: decide once, ~560 segments into a coast visit, for a barrel mouth ~300 further on, clear of gates and the road's end
   function plan(i, s, L2){ const rel = i - (typeof landStart === 'number' ? landStart : 0); if(!L2 || L2.key !== 'coast' || rel !== 520 || LANDS[s.land].key !== 'coast') return;
-    let W0 = i + 300; const z = zoneOfSeg(i), zEnd = gates[2 * z + 1] !== undefined ? gates[2 * z + 1] : 1e9;
+    let W0 = i + 300; { const Tw = DIR && DIR.target ? DIR.target('greatwave', i) : null; if(Tw != null) W0 = Math.max(W0, Tw); }   /* demo mode: the authored mouth (never earlier than the usual one) */
+    const z = zoneOfSeg(i), zEnd = gates[2 * z + 1] !== undefined ? gates[2 * z + 1] : 1e9;
     for(const g of gates) if(g > W0 - 320 && g < W0 + L + 50){ W0 = g + 330; break; }
     if(window.forkClear) W0 += forkClear(W0 - 320, W0 + L + 50);
     if(W0 + L + 110 > zEnd) return; for(const g of gates) if(g > W0 - 320 && g < W0 + L + 50) return;

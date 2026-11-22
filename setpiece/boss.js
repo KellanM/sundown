@@ -253,8 +253,8 @@ function endAll(){ S.boss = null; S.R.length = 0; S.res = null; S.fin = null; S.
 
 /* ------------------------------------------------------------------ placement: book it at the start of a road visit (third road on) */
 function place(i, s){ if(S.planned && S.plan && S.plan.segs !== segs) S.planned = false; if(S.planned || S.ran === segs || typeof landStart !== 'number' || i !== landStart) return;
-  const z = typeof zoneOfSeg === 'function' ? zoneOfSeg(i) : 0, frc = forced(); if(z < (frc ? 0 : ZONE_MIN)) return;
-  let B = i + (z === 0 ? 420 : 90); const span = 2300; if(window.forkClear) B += forkClear(B, B + span) || 0;
+  const z = typeof zoneOfSeg === 'function' ? zoneOfSeg(i) : 0, Tb = DIR && DIR.target ? DIR.target(ID, i) : null, frc = forced() || Tb != null; if(z < (frc ? 0 : ZONE_MIN)) return;   /* Tb: demo mode's authored start */
+  let B = i + (z === 0 ? 420 : 90); if(Tb != null) B = Math.max(B, Tb); const span = 2300; if(window.forkClear) B += forkClear(B, B + span) || 0;
   if(DIR && !DIR.request(ID, { tier:'hero', seg:B, auto:false })) return;
   S.planned = true; S.plan = { B, z, t0:-1, segs }; }
 

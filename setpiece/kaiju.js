@@ -280,6 +280,7 @@
   // ---------------------------------------------------------------- scheduling: trigger segments, found from where each road begins
   const KJ_AT = 440, KJ_FROM = 600, KJ_TO = -420;   // d = segments still to ride to the peak (the titans rise out of the bay at d 600, 760 segments away)
   const TY_FROM = 200, TY_LEN = 520, TY_RAMP = 70;
+  const tyFC = { ls:-1, v:TY_FROM }, tyFrom = ls => { if(tyFC.ls !== ls){ tyFC.ls = ls; const T = DIR && DIR.target ? DIR.target('typhoon', ls + 1) : null; tyFC.v = T != null ? Math.max(TY_FROM, T - ls) : TY_FROM; } return tyFC.v; };   /* demo mode: the authored start (TY_FROM in normal play) */
   const kjTrig = [], tyTrig = [];
   const K = { trig:-1, lastD:null, ref:0, hold:{}, tsP:[] }, T = { trig:-1, lastP:null, told:false, thunderId:-1 };
   const pSeg = () => (position + PZ) / SEG;
@@ -1333,7 +1334,7 @@
       if(K.pitchOwn && window.CAM) CAM.pitch = 0; K.pitchOwn = false; K.shove = 0; K.lp = undefined; K.dt = -1; K.tsP = K.tsP.filter(q => q.r === segs); },
     place(i, s, L){ const rel = i - (typeof landStart === 'number' ? landStart : 0);
       // the peak sits 440 segments in, but never within a fork gate's approach: then it comes 130 segments before the gate
-      if(L.key === 'bay' && rel === 300 && !fnFirst(i)){ let pk = i + KJ_AT - 300; for(const g of gates) if(g > i - 40 && g > pk - 200 && g < pk + 140 - PASS){ pk = g + 210; K.hold[pk] = g + 6; break; } if(window.forkClear){ const d = forkClear(pk - 200, pk + 140 - PASS); if(d){ delete K.hold[pk]; pk += d; } }   /* (?split=1: clear of a fork's split window) */ /* the break zone (its approach to the far deck's end) must sit inside the bay: pushed past a fork's window it ran over the border into
+      if(L.key === 'bay' && rel === 300 && !fnFirst(i)){ let pk = i + KJ_AT - 300; { const Tk = DIR && DIR.target ? DIR.target('kaiju', i) : null; if(Tk != null) pk = Math.max(pk, Tk); } for(const g of gates) if(g > i - 40 && g > pk - 200 && g < pk + 140 - PASS){ pk = g + 210; K.hold[pk] = g + 6; break; } if(window.forkClear){ const d = forkClear(pk - 200, pk + 140 - PASS); if(d){ delete K.hold[pk]; pk += d; } }   /* (?split=1: clear of a fork's split window) */ /* the break zone (its approach to the far deck's end) must sit inside the bay: pushed past a fork's window it ran over the border into
            the next road (the chasm and the KAIJU JUMP landing on a city street). Pull it back before the border; if it then overlaps the
            fork's window there is no room for the break this visit: the fight still plays in the sky, the bridge holds. */
         { const zEnd = gates[2 * zoneOfSeg(i) + 1], SPAN = Math.max(BRK + GAP + FAR + 30, 110 - PASS);
@@ -1346,8 +1347,9 @@
       for(const q of K.tsP) if(q.r === segs && i >= q.pk - PASS + 30 && i <= q.pk - PASS + 110) tsRes(s);   // (plans are tagged with their road: a reset builds a new one)
       { const z = zoneOf(i); if(z){ reserve(s, z); const pv = segs[i - 1]; if(pv && pv.kjZ && pv.hz) pv.hz = null; } }
       if(L.key === 'bay' && K.pending === i){ s.kjPeak = true; if(!kjTrig.includes(i)) kjTrig.push(i); if(kjTrig.length > 16) kjTrig.shift(); K.pending = -1; }
-      if(L.key === 'coast' && rel === TY_FROM) tyGo = { at:i, ok:!(window.inForkWindow && inForkWindow(i, i + TY_LEN)) && (!DIR || DIR.request('typhoon', { seg:i })) };   // (?split=1: no typhoon through a fork's split window)
-      if(L.key === 'coast' && rel >= TY_FROM && rel <= TY_FROM + TY_LEN && tyGo.ok && tyGo.at === i - (rel - TY_FROM)){ tyPlace(i, s, rel - TY_FROM); if(rel === TY_FROM){ s.tyStart = true; if(!tyTrig.includes(i)) tyTrig.push(i); if(tyTrig.length > 16) tyTrig.shift(); } } },
+      const tyF = L.key === 'coast' ? tyFrom(i - rel) : TY_FROM;
+      if(L.key === 'coast' && rel === tyF) tyGo = { at:i, ok:!(window.inForkWindow && inForkWindow(i, i + TY_LEN)) && (!DIR || DIR.request('typhoon', { seg:i })) };   // (?split=1: no typhoon through a fork's split window)
+      if(L.key === 'coast' && rel >= tyF && rel <= tyF + TY_LEN && tyGo.ok && tyGo.at === i - (rel - tyF)){ tyPlace(i, s, rel - tyF); if(rel === tyF){ s.tyStart = true; if(!tyTrig.includes(i)) tyTrig.push(i); if(tyTrig.length > 16) tyTrig.shift(); } } },
     update(dt){ const p = pSeg();
       // kaiju beats: sounds and shakes as the rider crosses each d
       const t = activeKj(p);

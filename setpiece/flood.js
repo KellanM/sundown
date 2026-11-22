@@ -100,7 +100,7 @@
   function findB(z, minS){ if(typeof gates === 'undefined' || gates[2 * z] === undefined) return null; const zs = zoneStart(z), G = gates[2 * z], bd = gates[2 * z + 1];
     const SPL = typeof SPLIT_ON !== 'undefined' && SPLIT_ON, pre = typeof SPLIT_PRE === 'number' ? SPLIT_PRE : 110, post = typeof SPLIT_POST === 'number' ? SPLIT_POST : 380;
     const st = SPL ? [[zs + 20, G - pre - 31]] : [[zs + 20, G - 70]]; if(bd !== undefined) st.push(SPL ? [G + post + 1, bd - 40] : [G + 40, bd - 40]);
-    const want = +(QS.get('flB') || -1), A = AQW(), bores = A && A.bores ? A.bores : [];
+    const fT = DIR && DIR.target ? DIR.target(ID, zs + 1) : null, want = fT != null ? Math.max(0, fT - 330 - zs) : +(QS.get('flB') || -1), A = AQW(),   /* fT: demo mode, the first valid spot from the authored one */ bores = A && A.bores ? A.bores : [];
     for(const [s0, s1] of st){ const lo = Math.max(s0 + 170, minS + 170, want >= 0 ? zs + want : 0);
       for(let a = lo; a + LEN + RB + 30 <= s1; a += 10){ let ok = true;
         for(const r of bores) if(a - RA - 400 < r.b + RB && a + LEN + RB + 400 > r.a - RA) { ok = false; break; }   // never the megalodon's stretch

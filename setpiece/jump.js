@@ -415,7 +415,7 @@
     lastPlaced = i;
     if(pv0(i)) segs[i - 1].hz = null;   // hazards are rolled after place(): keep them off the bridge
     const pv = segs[i - 1], fresh = !pv || pv.land !== s.land;
-    if(fresh && THEMES[L.key]){ const th = THEMES[L.key]; let b0 = i + LEAD; if(L.tunnel) while(b0 % 320 !== 214) b0++;   // tunnels: launch straight out of a portal
+    if(fresh && THEMES[L.key] && !(window.DEMO && DEMO.jumpOff && DEMO.jumpOff(i))){ const th = THEMES[L.key];   /* (a demo level can turn a road's jump off) */ let b0 = i + LEAD; if(L.tunnel) while(b0 % 320 !== 214) b0++;   // tunnels: launch straight out of a portal
       if(window.forkClear){ let d = forkClear(b0 - 210, b0 + TOT + 30); if(d){ b0 += d; if(L.tunnel) while(b0 % 320 !== 214) b0++; } }   // (?split=1: never in a fork's split window)
       let dress = true; if(DIR){ const jid = 'jump:' + L.key; DIR.request(jid, { tier:'landmark', seg:b0 }); dress = DIR.dress(jid); }
       plans.push({ kind:'bridge', th, start:i, b0, r:th.bridge ? 0 : 1, open:true, dress }); }

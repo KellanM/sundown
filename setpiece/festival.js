@@ -401,8 +401,9 @@
       if(i === 0 || !segs[i - 1] || segs[i - 1].land !== s.land){
         for(let k = shows.length - 1; k >= 0; k--) if(shows[k].start >= i) shows.splice(k, 1);
         for(let k = parades.length - 1; k >= 0; k--) if(parades[k].start >= i) parades.splice(k, 1);
-        if((L.key === 'paddies' || L.key === 'coast') && (!DIR || DIR.request('hanabi', { seg:i + 660 }))) shows.push({ key:L.key, start:i, peak:i + 660, big:false });
-        if(L.key === 'neon' && (!DIR || DIR.request('matsuri', { seg:i + 300 }))) parades.push({ start:i, z:i + 300, dir:H1(i * .37) < .5 ? 1 : -1 }); }
+        const hT = DIR && DIR.target ? DIR.target('hanabi', i) : null, hP = hT != null ? Math.max(i + 660, hT) : i + 660, mT = DIR && DIR.target ? DIR.target('matsuri', i) : null, mZ = mT != null ? Math.max(i + 300, mT) : i + 300;   /* demo mode: the authored spots (never earlier than the usual ones) */
+        if((L.key === 'paddies' || L.key === 'coast') && (!DIR || DIR.request('hanabi', { seg:hP }))) shows.push({ key:L.key, start:i, peak:hP, big:false });
+        if(L.key === 'neon' && (!DIR || DIR.request('matsuri', { seg:mZ }))) parades.push({ start:i, z:mZ, dir:H1(i * .37) < .5 ? 1 : -1 }); }
       for(const P of parades){ const k = i - P.z; if(k < -64 || k > 10) continue;
         if(k >= -60 && k <= 6) s.sprites = s.sprites.filter(sp => !KILL_OVER.has(sp.type));
         if(k >= -5 && k <= 5){ s.sprites = s.sprites.filter(sp => !KILL_SIDE.has(sp.type)); if(s.nr) s.nr = s.nr.filter(r => Math.abs(r.x) < 1.05); s.fx_xs = k === 0 ? 2 : 1; }
