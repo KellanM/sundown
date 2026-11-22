@@ -628,6 +628,88 @@
         { const px0 = K.px(X + D * .6, yH(15), 0), py0 = K.py(X + D * .6, yH(15), 0), k = uw * YT.u; for(let i = 0; i < 7; i++){ const ph = reduce ? i / 7 : ((now / 1600 + i / 7) % 1), s2 = Math.max(PX, Math.round(k * (2 + ph * 3) / PX) * PX);   // the pot's steam, as the card had it
           cx.fillStyle = `rgba(255,${200 - ph * 60 | 0},${200 + ph * 40 | 0},${(.42 * (1 - ph)) * (1 - fog)})`; cx.fillRect(Math.round((px0 + Math.sin(ph * 5 + i) * k * 3 * ph) / PX) * PX, Math.round((py0 - ph * 26 * k) / PX) * PX, s2, s2); } } } }
     cx.globalAlpha = a0; }
+  /* ---------------------------------------------------------------- the wet street (Kellan: "in the neon ward can you please make the
+     reflections in the road more prominent?", then a palette-knife painting of a rainy street: "notice how intense the reflections are here?")
+     Seen in the references (research/sundown-craft/akiba.md section 11; the painting): every light throws a column of its own colour straight
+     down the road toward the viewer, nearly as bright as the light itself, white-hot at the core near by, broken into blocky dashes by the
+     wet; the road between the columns is not black but a cool sheen of the sky with bright flecks; people and posts cut dark breaks into
+     the columns. Built on env/roadmat.js's deferred pools (the core's sprite pass clips each segment's hook to the rows above the road in
+     front, so a reflection drawn from its light's own segment was mostly clipped away: why this street's reflections were faint):
+     - wetSrc records each light once: blade signs, lamp heads, vending machines, the 月光一番街 gate (the bulb tube's uprights and lower
+       bar, the lightbox), the lantern strings (one column per lantern), the bridge's adverts, the train, the koi screen (its water, the koi
+       swimming across it, the ticker, the pylons' shops), the lucky cat, the yatai, every street-row building as one smeared band of its lit
+       shopfronts and one of its tenants' floors (one band per front, at its middle segment: no per-sign draws), its corner tube and its wall
+       lightboxes; and a longer, hotter copy of each car's tail lights. Kept as columns, not slabs: near widths are capped in screen terms, a
+       white lightbox reflects in its characters' colour, a high light's image is pulled in, and the minor lights stay dim, because the pools
+       add ('lighter') and pink + cyan + gold summed to a white-out wherever more than three columns crossed (round 1 of this pass).
+     - wetFX lays the cool sky sheen on the near road (roadmat's own sheen is a Fresnel term that dies out near the camera), stepped by the
+       puddle mask, with 'lighten' after the pools: the brighter of the sky and the light, as a mirror shows one or the other, so a column
+       keeps its hue on the blue instead of turning lavender. Then each car's dark mirror image is cut into whatever lies under it.
+     The old per-segment streaks (reflect(), below in roadFX) are skipped while the pools are on; ?roadmat=0 brings them back. */
+  const NWX = (() => { try{ return new URLSearchParams(location.search).get('nwx') || ''; }catch(e){ return ''; } })();   // (dev: ?nwx=blade,nb,sheen,... leaves those parts out, for ablations)
+  const RMN = () => { const R = window.MECH && MECH.roadmat; return !!(R && R.on && R.ready && R.RP && R.RP.neon && R.RP.neon.pools > 0); };
+  const BLW = {}, bladeW = v => BLW[v] || (BLW[v] = v % 3 === 0 ? mixc(NEON[(v * 3 + 1) % 5], '#ffe8f0', .3) : bladeCol(v));
+  const WCORE = {}, wcore = c => WCORE[c] || (WCORE[c] = lighten(c, .62));
+  // a sprite's lateral position as drawn (over a side lane the roadside stands back: SL_PUSH)
+  const wx = (s, sp) => { const sd = s.lane ? s.lane.sd : 0, x = sp.x; return sd && !sp.ls && x * sd > 1 && x * sd < SL_BAND ? x + sd * SL_PUSH : x; };
+  // a building's upper floors as one band, and how much of the face is lit
+  //   (the commonest lit tenant's colour, not the mean: a mean of warm, pink and cyan is a pale lavender, and pale columns summed to white)
+  function nbWet(B){ if(B.wu) return B.wu; const cnt = {}; let n = 0, best = null; for(let f = 0; f < B.nF; f++){ const k = B.fl[f]; if(k === 'dark') continue; cnt[k] = (cnt[k] || 0) + 1; n++; if(!best || cnt[k] > cnt[best]) best = k; }
+    return (B.wu = { col:best ? GLASS[best][1] : '#2a2440', fr:n / Math.max(1, B.nF), top:B.gh + B.nF * B.flh }); }
+  // (far lights fade out of the water sooner than roadmat's own fade: far columns only stacked into a glare at the vanishing point; a high light's
+  // image is pulled in, or every sign up the canyon ran its column to the bottom of the screen and nine of them summed to white there)
+  function wetSrc(s, n, a, P0){ if(n > 72) return; const fd = n < 26 ? 1 : 1 - (n - 26) / 50, P = (x, y, u, h0, h1, w, c, al) => P0(x, y, u, h0, h1 > 2.1 ? Math.max(h0 + .3, 2.1 + (h1 - 2.1) * .3) : h1, w, c, al * fd); const uw = a.w; if(!(uw > .6)) return; const i = s.index, ax = a.x, by = a.y, now = performance.now(), near = uw > 110;
+    for(let q = 0; q < s.sprites.length; q++){ const sp = s.sprites[q], t = sp.type; if(sp.env !== 'neon' || (NWX && NWX.includes(t))) continue; const X = wx(s, sp), x = ax + X * uw;
+      if(t === 'blade'){ const hh = (WORDS[sp.k % WORDS.length].length * 15 + 9) * .3 / 22, col = bladeW(sp.k), w = Math.min(.24 * uw, W * .021);   // (a white lightbox's image takes its characters' colour: a third of the signs are white, and white columns summed to a white-out)
+        const up = sp.h > 1.8; if(up && n > 36) continue; P(x, by, uw, sp.h, sp.h + hh, w, col, up ? .4 : .85);   // (an upper sign's image lies under the lower one's: dimmer, or the two summed to white)
+        if(near) P(x, by, uw, sp.h + hh * .2, sp.h + hh, w * .34, wcore(col), .5); }
+      else if(t === 'lamp'){ const gx = x + (sp.x > 0 ? -1 : 1) * .07 * uw; P(gx, by, uw, .78, 1.5, Math.min(.12 * uw, W * .03), '#ffc870', 1); if(near) P(gx, by, uw, .8, 1.3, Math.min(.05 * uw, W * .012), '#fff4d8', .6);
+        }
+      else if(t === 'vend'){ P(x, by, uw, .04, .6, Math.min(.24 * uw, W * .03), ['#ffd890', '#ff4a5a', '#4a7aff'][sp.k] || '#ffd890', .75); }
+      else if(t === 'gate'){ for(const sd of [-1, 1]) P(x + sd * 1.42 * uw, by, uw, 1.43, 2.6, .1 * uw, '#ff4a5a', 1.1); P(x, by, uw, 1.43, 1.52, 2.9 * uw, '#ff3a4a', .45); P(x, by, uw, 1.58, 2.3, 1.5 * uw, '#ffd0d8', .55); }   // (the bulb tube's two uprights, its lower bar, the lightbox)
+      else if(t === 'lstr'){ for(let j = 0; j < 9; j += n > 18 ? 2 : 1){ const tt = (j + .5) / 9, hb = 1.95 - .38 * 4 * tt * (1 - tt) - .2375; P(ax + (-1.55 + 3.1 * tt) * uw, by, uw, hb, hb + .4, .13 * uw, j % 3 === 1 ? '#fff0d0' : '#ff7a4a', .75); } }
+      else if(t === 'bridge'){ P(x, by, uw, 1.47, 2.2, 2.86 * uw, '#ffd04a', 1); P(x, by, uw, 1.38, 1.45, 4.4 * uw, '#e8f0ff', .5);
+        for(const sd of [-1, 1]) P(x + sd * 1.85 * uw, by, uw, 1.47, 2.2, .44 * uw, '#ff3b8a', 1.05); }
+      else if(t === 'train'){ const tx = x + ((reduce ? .4 : now / 1000 * .3 + sp.k) % 2 - 1) * 9 * uw * 1.4; for(let c = 0; c < 5; c++) P(tx + c * 1.3 * uw, by, uw, 2.35, 3.1, 1.1 * uw, '#e8f0ff', .7); }
+      else if(t === 'jumbo'){ const f = reduce ? 6 : Math.floor(now / 120) % 44, fi = f < 32 ? f : 32, ku = 5.4 / JW;
+        P(x, by, uw, 1.89, 3.4, Math.min(SW2 * ku * uw, W * .07), fi === 32 ? '#ff2a4a' : '#2a5aff', .7);
+        if(fi < 32) for(let j = 0; j < 2; j++){ const tk = ((fi / 32) + j * .5) % 1, kx = -22 + tk * (SW2 + 26) + 11 - SW2 / 2; if(Math.abs(kx) < SW2 / 2 - 4) P(x + kx * ku * uw, by, uw, 2.1, 3.1, Math.min(20 * ku * uw, W * .025), '#ff8a3a', 1); }
+        P(x, by, uw, 1.58, 1.9, 102 * ku * uw, '#ffb040', .7); for(const sd of [-1, 1]) P(x + sd * 1.9 * uw, by, uw, .05, 1.2, Math.min(.4 * uw, W * .03), '#ffc060', .6); }
+      else if(t === 'neko'){ P(x, by, uw, 1.1, 3.2, Math.min(1.1 * uw, W * .06), '#ff6aa8', .7); }
+      else if(t === 'yatai3'){ if(i === sp.b0 + 2) P(ax + X * uw, by, uw, .08, .6, Math.min(.5 * uw, W * .045), '#ff9a50', .8); }
+      else if(t === 'nb'){ const B = sp.B, mid = B.b0 + (B.len >> 1); if(sp.k !== i || (i !== mid && i !== B.b0 && i !== B.b0 + 1)) continue;
+        if(B.tube && i === B.b0) P(x + B.side * .03 * uw, by, uw, B.gh + .04, B.h - .12, Math.max(PX, Math.min(.07 * uw, W * .01)), B.c.tube, .8);
+        if(i === B.b0 + 1 && n < 40) for(let f = 0; f < B.nF; f++){ const sc = B.c.sg[f]; if(sc){ const fy = B.gh + f * B.flh; P(x, by, uw, fy + .05, fy + .4, Math.min(.26 * uw, W * .02), sc[0] === '#f4ecf0' ? '#ff9ac0' : sc[0], .5); } }
+        if(i !== mid) continue; const tq = segs[B.b0 + B.len], t0 = segs[B.b0]; if(!tq || !t0 || !tq.p1.screen.scale || !t0.p1.screen.scale) continue;   // one smeared band per front, at its middle
+        const qa = tq.p1.screen, q0 = t0.p1.screen, xa = q0.x + X * q0.w, xb = qa.x + X * qa.w, xc = (xa + xb) / 2, w0 = Math.max(PX, Math.min(W * .036, Math.abs(xb - xa) * .24));
+        let lit = 0; for(let k = 0; k < B.len; k++) if(B.shop[k]) lit++; const fr = lit / B.len;
+        if(B.bar) P(xc, by, uw, .04, B.gh - .14, w0, '#ff8a40', .7); else if(lit){ P(xc, by, uw, .02, B.gh, w0, '#ffa040', .5 + .45 * fr); if(near) P(xc, by, uw, .08, B.gh - .1, w0 * .3, '#ffd890', .3 + .3 * fr); }
+        const U = nbWet(B); if(U.fr > 0 && n < 46) P(xc, by, uw, B.gh + B.flh, U.top, w0 * .5, U.col, .1 + .15 * U.fr); } }
+    // the cars' tail lights: a longer, hotter copy of roadmat's own (same place), with a white-hot core near by
+    if(!NWX.includes('tails')) for(let k = 0; k < cars.length; k++){ const c = cars[k]; if(c.oth || Math.floor(c.z / SEG) !== i) continue; const pct = (c.z % SEG) / SEG, b2 = s.p2.screen, w = uw + (b2.w - uw) * pct, cxp = ax + (b2.x - ax) * pct + c.x * w, cyp = by + (b2.y - by) * pct, cw = w * .36;
+      for(let sd = -1; sd <= 1; sd += 2){ const lx = cxp + sd * cw * .36; P(lx, cyp, w, .06, .5, cw * .14, '#ff2a3c', 1.3); if(cw > 30) P(lx, cyp, w, .08, .3, cw * .05, '#ffb0a0', .8); } } }
+  // the near road's sky sheen (cool, stepped by the puddle mask) and the cars' dark mirror images
+  const WSH = { T:null, c:null, w:0, h:0 }, WCAR = { n:0, x:new Float32Array(64), y:new Float32Array(64), w:new Float32Array(64), d:new Float32Array(64), last:1e9 };
+  function sheenStrip(T){ if(WSH.T === T) return WSH.c; WSH.T = T; WSH.c = null; const S = T.c && T.c[1], M = T.m && T.m[1]; if(!S || !M || M.length !== S.width * S.height) return null;
+    const w = S.width, h = S.height, [c, k] = canvas(w, h), img = k.createImageData(w, h), d = img.data;
+    for(let p = 0; p < w * h; p++){ const m = M[p] / 255, o = p * 4, L = m > .78 ? [96, 136, 220, 200] : m > .5 ? [52, 84, 170, 170] : m > .24 ? [38, 60, 136, 130] : [28, 40, 100, 90]; d[o] = L[0]; d[o + 1] = L[1]; d[o + 2] = L[2]; d[o + 3] = L[3]; }
+    k.putImageData(img, 0, 0); WSH.c = c; WSH.w = w; WSH.h = h; return c; }
+  function wetFX(s, n, r0, r1, RV, wet, T){ if(n >= WCAR.last) carMirrors(); WCAR.last = n; if(n > 200 || r1 < r0) return; const g = cx, a0 = g.globalAlpha;
+    const S = NWX.includes('sheen') ? null : sheenStrip(T); if(S){ g.globalCompositeOperation = NWX.includes('shl') ? 'lighter' : 'lighten';   // (the brighter of the sky and what is there already: a mirror shows the sky or a light, so a column keeps its hue on the blue)
+     
+      for(let r = r0; r <= r1; r += 3){ const f = RV.f[r], al = wet * .8 * (1 - Math.min(1, Math.max(0, (f - .02) / .36))); if(al < .03) continue; const xm = RV.x[r], ww = RV.w[r], X0 = Math.round((xm - ww) / PX) * PX, X1 = Math.round((xm + ww) / PX) * PX, ax = Math.max(0, X0), bx = Math.min(W, X1); if(bx <= ax) continue;
+        const u0 = (ax - X0) / (X1 - X0) * WSH.w, u1 = (bx - X0) / (X1 - X0) * WSH.w; if(u1 - u0 <= 0) continue; g.globalAlpha = Math.min(1, al); g.drawImage(S, u0, ((RV.v[r] / 4) | 0) % WSH.h, u1 - u0, 1, ax, r * PX, bx - ax, PX * Math.min(3, r1 - r + 1)); }
+      g.globalCompositeOperation = 'source-over'; }
+    // a car's image in the wet: a dark break under it in whatever light lies there (two steps, fading toward the viewer)
+    if(WCAR.n){ const ya = r0 * PX, yb = (r1 + 1) * PX; g.fillStyle = '#08060e';
+      for(let k = 0; k < WCAR.n; k++){ const y0 = WCAR.y[k], d = WCAR.d[k]; if(y0 >= yb || y0 + d <= ya) continue; const hw = WCAR.w[k] / 2, xl = Math.round((WCAR.x[k] - hw) / PX) * PX, xw = Math.max(PX, Math.round(hw * 2 / PX) * PX), ym = y0 + d * .5;
+        for(let h = 0; h < 2; h++){ const p0 = Math.max(ya, h ? ym : y0), p1 = Math.min(yb, h ? y0 + d : ym); if(p1 <= p0) continue; g.globalAlpha = (h ? .28 : .55) * wet; g.fillRect(xl + (h ? PX : 0), Math.round(p0 / PX) * PX, Math.max(PX, xw - (h ? 2 * PX : 0)), Math.max(PX, Math.round((p1 - p0) / PX) * PX)); } } }
+    g.globalAlpha = a0; }
+  // once a frame (the first, farthest wetFX call): where each car's image lies
+  function carMirrors(){ WCAR.n = 0; const b0 = segAt(position).index;
+    for(let k = 0; k < cars.length && WCAR.n < 64; k++){ const c = cars[k]; if(c.oth) continue; const s = segs[Math.floor(c.z / SEG)]; if(!s || s.index <= b0 || !s.p1.screen.scale || s.p1.camera.z <= DEPTH) continue;
+      const a = s.p1.screen, b = s.p2.screen, pct = (c.z % SEG) / SEG, w = a.w + (b.w - a.w) * pct, cw = w * .36; if(cw < PX * 3) continue; const j = WCAR.n++;
+      WCAR.x[j] = a.x + (b.x - a.x) * pct + c.x * w; WCAR.y[j] = a.y + (b.y - a.y) * pct; WCAR.w[j] = cw * .9; WCAR.d[j] = cw * .55; } }
   ENV.neon = {
     warm(){ for(const _ of ENV.neon.warmSteps()); },
     // if the signs' glyphs are already loaded the first build uses them and no second build is needed (it was always built twice)
@@ -752,7 +834,7 @@
       // 'screen', not additive: on the dark asphalt it lays a streak down almost exactly as 'lighter' did (the look is unchanged), but where
       // streaks cross each other or a sign's light pool it approaches the colour instead of summing past it, so pink + cyan + gold never
       // burn to white (research/sundown-craft/chase_clean.md, "Neon's own reflections": clipped road pixels 1.75% -> 0.31%)
-      if(s.nr || s.index - RS.last > 1){ cx.globalCompositeOperation = 'screen';
+      if(!RMN() && (s.nr || s.index - RS.last > 1)){ cx.globalCompositeOperation = 'screen';   // (while roadmat's pools are on they replace these streaks: wetSrc above)
         for(let i = RS.last + 1; i < s.index; i++){ const q = segs[i]; if(!q || !q.nr || q.p1.camera.z <= DEPTH || q.p1.screen.y > RS.lastB + PX) continue;
           reflect(q, q.p1.screen, 0, clamp(Math.pow((i - base) / DRAW, 1.6), 0, 1), now, base); }
         if(s.nr && fog <= .88) reflect(s, a, a.y - b.y, fog, now, base); cx.globalAlpha = 1; cx.globalCompositeOperation = 'source-over'; }
@@ -760,6 +842,8 @@
 
     /* far scenery: a city glow on the horizon, two cached skyline strips (far towers; nearer towers crowned with billboards and stacked
        sign columns), blinking beacons, live billboard glows, and an advertising blimp with a scrolling dot-matrix ticker */
+    wetSrc, wetFX,
+
     backdrop(o){ const { hz, now } = o, cw = cx.canvas.width, ch = cx.canvas.height, hzc = Math.round(hz / PX), ga = cx.globalAlpha;
       cx.save(); cx.setTransform(1, 0, 0, 1, 0, 0); cx.imageSmoothingEnabled = false;
       // stepped, dithered city glow

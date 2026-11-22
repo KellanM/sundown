@@ -200,12 +200,40 @@
   function halo(x, y, w, h, col, a){ if(!ON || FF > .7 || w < PX * 6 || AKNH) return;
     for(let r = 1, rn = w < PX * 16 ? 1 : 2; r <= rn; r++){ cx.fillStyle = fc(mixc(col, '#0a0816', r === 1 ? 1 - .42 * a : 1 - .2 * a), FF); const d = PX * r; pxRect(x - d, y - d, w + d * 2, PX); pxRect(x - d, y + h + d - PX, w + d * 2, PX); pxRect(x - d, y - d + PX, PX, h + d * 2 - PX * 2); pxRect(x + w + d - PX, y - d + PX, PX, h + d * 2 - PX * 2); }
     // the downpour: the light scatters in the rain, two dithered rings further out (pixels of its colour, 1/4 then 1/8 of them; no blur)
-    if(RAINON && FF < .5 && w >= PX * 10){ const P2 = hazeP(col), d0 = PX * 3, t = Math.max(PX * 2, snp(Math.min(w, h) * .09)); cx.fillStyle = P2[0]; ring(x, y, w, h, d0, t); cx.fillStyle = P2[1]; ring(x, y, w, h, d0 + t, t + PX); } }
-  function ring(x, y, w, h, d, t){ pxRect(x - d - t, y - d - t, w + 2 * (d + t), t); pxRect(x - d - t, y + h + d, w + 2 * (d + t), t); pxRect(x - d - t, y - d, t, h + 2 * d); pxRect(x + w + d, y - d, t, h + 2 * d); }
+    if(RAINON && FF < .4 && w >= PX * 16 && (a >= 1.3 || HZD < HZN)){ const P2 = hazeP(col), d0 = PX * 3, t = Math.max(PX * 2, snp(Math.min(w, h) * .09)); ring(P2[0], x, y, w, h, d0, t); } }   // (perf pass, Kellan: the haze only on the nearest signs (HZN segments) and always on the hero screens and the gantry (a 1.3); the outer 1/8 ring dropped)
+  function ring(pat, x, y, w, h, d, t){ cx.beginPath(); const n = hzRect(x - d - t, y - d - t, w + 2 * (d + t), t) + hzRect(x - d - t, y + h + d, w + 2 * (d + t), t) + hzRect(x - d - t, y - d, t, h + 2 * d) + hzRect(x + w + d, y - d, t, h + 2 * d); if(n){ cx.fillStyle = pat; cx.fill(); } }
   // the dithered haze patterns per light colour (all made in warm-up by hazeWarm; a colour first seen later is made once and kept)
+  /* (perf pass) The haze is a pattern fill, and every pattern draw costs the canvas a shader set-up: drawn through poly(), each row of a sign
+     band's haze was its own draw (about 500 a frame, ~1.9 ms, and the round's frame spikes). Now a band's row spans (the engine's pxPolyN
+     spans, merged the same way) and a ring's four sides are gathered into one path of whole-pixel rects and filled once: the same pixels. */
   const HZM = new Map(); let HZPX = 0;
   function hazeP(col){ if(HZPX !== PX){ HZPX = PX; HZM.clear(); } let p = HZM.get(col); if(!p){ p = [ditherPat(col, .25), ditherPat(col, .125)]; HZM.set(col, p); } return p; }
-  function hazeWarm(){ for(const k of ['ban', 'bb', 'po', 'band', 'wrap', 'plate']) for(const A of (ART[k] || [])) if(A && A.avg) hazeP(A.avg); for(const Bd of BRANDS) hazeP(Bd.f); for(const c of ['#ff8a2a', '#e8d8a0']) hazeP(c); }
+  function* hazeWarm(){ const cs = new Set(); for(const k of ['ban', 'bb', 'po', 'band', 'wrap', 'plate']) for(const A of (ART[k] || [])) if(A && A.avg) cs.add(A.avg); for(const Bd of BRANDS) cs.add(Bd.f); for(const c of ['#ff8a2a', '#e8d8a0']) cs.add(c);
+    for(const c of cs){ if(HZM.has(c) && HZPX === PX) continue; for(const d of [.25, .125]){ try{ if(!UPC) UPC = mk(2, 2).getContext('2d'); UPC.fillStyle = ditherPat(c, d); UPC.fillRect(0, 0, 2, 2); UPC.getImageData(0, 0, 1, 1); }catch(e){} yield; } hazeP(c); } }   // (perf pass: stepped, one pattern made, used and flushed per step)
+  // cells [x0, x1) x [y0, y1) added to the current path, cropped to the screen
+  function hzCells(x0, y0, x1, y1){ const cw = Math.ceil(W / PX) + 1, ch = Math.ceil(H / PX) + 1; if(x0 < -1) x0 = -1; if(y0 < -1) y0 = -1; if(x1 > cw) x1 = cw; if(y1 > ch) y1 = ch; if(x1 <= x0 || y1 <= y0) return 0;
+    cx.rect(x0 * PX, y0 * PX, (x1 - x0) * PX, (y1 - y0) * PX); return 1; }
+  // pxRect's rounding, in haze
+  function hzRect(x, y, w, h){ if(w < 0){ x += w; w = -w; } if(h < 0){ y += h; h = -h; } if(!(w > 0 && h > 0)) return 0; let x0 = Math.round(x / PX), y0 = Math.round(y / PX), x1 = Math.round((x + w) / PX), y1 = Math.round((y + h) / PX);
+    if(x1 <= x0){ x0 = Math.floor((x + w / 2) / PX); x1 = x0 + 1; } if(y1 <= y0){ y0 = Math.floor((y + h / 2) / PX); y1 = y0 + 1; } return hzCells(x0, y0, x1, y1); }
+  // FQ(h0, h1) across the whole slice, in haze: FQ's thin case, else the engine's pxPolyN spans (the same rows, merged the same way)
+  const HQ = new Float64Array(8);
+  function hzQ(h0, h1, pat){ cx.beginPath(); if(hzQp(h0, h1)){ cx.fillStyle = pat; cx.fill(); } }
+  function hzQp(h0, h1){ const xa = FX1, xb = FX2, ya = FY1, yb = FY2, ua = FU1, ub = FU2, t0 = ya - ua * h1, t1 = yb - ub * h1, b0 = ya - ua * h0, b1 = yb - ub * h0;
+    if((xa < -PX * 2 && xb < -PX * 2) || (xa > W + PX * 2 && xb > W + PX * 2) || (t0 > H + PX * 2 && t1 > H + PX * 2) || (b0 < -PX * 2 && b1 < -PX * 2)) return 0;
+    if(Math.abs(xb - xa) < PX * 2.5 || (Math.abs(t1 - t0) < PX * .75 && Math.abs(b1 - b0) < PX * .75)){ const tm = CLY((t0 + t1) / 2), bm = CLY((b0 + b1) / 2), xl = CLX(Math.min(xa, xb)); if(!fin(tm + bm + xl)) return 0; return hzRect(xl, Math.min(tm, bm), CLX(Math.max(xa, xb)) - xl, Math.abs(bm - tm)); }
+    if(!fin(xa + b0 + xb + b1 + t1 + t0)) return 0; HQ[0] = CLX(xa); HQ[1] = CLY(b0); HQ[2] = CLX(xb); HQ[3] = CLY(b1); HQ[4] = CLX(xb); HQ[5] = CLY(t1); HQ[6] = CLX(xa); HQ[7] = CLY(t0);
+    let y0 = Infinity, y1 = -Infinity; for(let i = 0; i < 4; i++){ const y = HQ[i * 2 + 1]; if(y < y0) y0 = y; if(y > y1) y1 = y; }
+    const r0 = Math.max(0, Math.ceil(y0 / PX - .5)), r1 = Math.min(Math.round(H / PX) - 1, Math.floor(y1 / PX - .5)); if(r1 < r0) return 0;
+    const xmn = -PX, xmx = W + PX; let rl = 0, rr = 0, rs = 0, re = 0, nr = 0;
+    for(let r = r0; r <= r1; r++){ const yc = (r + .5) * PX; let a = Infinity, b = -Infinity;
+      for(let i = 0; i < 4; i++){ const j = (i + 1) & 3, px = HQ[i * 2], py = HQ[i * 2 + 1], qx = HQ[j * 2], qy = HQ[j * 2 + 1];
+        if((py <= yc && qy > yc) || (qy <= yc && py > yc)){ const xx = px + (yc - py) * (qx - px) / (qy - py); if(xx < a) a = xx; if(xx > b) b = xx; } }
+      if(!(b >= a)) continue; if(a < xmn) a = xmn; if(b > xmx) b = xmx; let xl = Math.round(a / PX), xr = Math.round(b / PX);
+      if(xr <= xl){ xl = Math.floor((a + b) / 2 / PX); xr = xl + 1; }
+      if(xl === rl && xr === rr && r === re){ re = r + 1; continue; }
+      if(re > rs) nr += hzCells(rl, rs, rr, re); rl = xl; rr = xr; rs = r; re = r + 1; }
+    if(re > rs) nr += hzCells(rl, rs, rr, re); return nr; }
   // ------------------------------------------------ round 6: the title cards' language (ui/cutin.js), no characters
   /* Kellan, round 6: "remove the anime girls. what happened to the koi and beautiful animations inspired by anime? think of the title
      cards". Every girl, idol and the old mecha is gone. The signs are now drawn as the cards are: hard 1-bit edges, three or four colours
@@ -297,6 +325,9 @@
     '..rrrrrrrrrrRR..',
     '....rrrrrrRR....'], { r:'#e0202e', R:'#8a1020', w:'#f8f0e0', k:'#0c0812', y:'#ffc830' });
   // a game pad (the grips, the cross key, two buttons)
+  function lanternL(c){ const L = AI(16, 32); af(L, 4, 0, 8, 3, INK); af(L, 5, 1, 6, 1, '#c8a040'); for(let y = 3; y < 27; y++){ const t = (y - 15) / 12, w = Math.round(7 * Math.sqrt(Math.max(0, 1 - t * t))) + 1; af(L, 8 - w, y, w * 2, 1, (y & 3) === 0 ? dark('#e0302a', .3) : '#e0302a'); ap(L, 8 - w + 1, y, '#ff8a6a'); }
+    af(L, 4, 27, 8, 3, INK); af(L, 5, 28, 6, 1, '#c8a040'); af(L, 7, 30, 2, 2, c); const K = kanL('祭', 1, CREAM); alay(L, K, 8 - (K.w >> 1), 9); return L; }   // a chōchin: ribs, caps, its kanji
+  function starL(c){ const L = AI(18, 18), P = []; for(let k = 0; k < 10; k++){ const a = -Math.PI / 2 + k * Math.PI / 5, r = k & 1 ? 3.6 : 8.6; P.push([9 + Math.cos(a) * r, 9 + Math.sin(a) * r]); } apoly(L, P, c); ap(L, 9, 4, '#ffffff'); ap(L, 8, 5, '#ffffff'); return L; }
   function padL(z){ const L = AI(22 * z, 12 * z), F = (x, y, w, h, c) => af(L, x * z, y * z, w * z, h * z, c), c = '#f4ecdf', C = '#b8b0c8';
     F(2, 1, 18, 7, c); F(1, 2, 20, 6, c); F(0, 4, 7, 6, c); F(15, 4, 7, 6, c); F(1, 10, 5, 1, c); F(16, 10, 5, 1, c); F(15, 8, 7, 2, C); F(19, 4, 3, 4, C);
     F(4, 3, 1, 5, INK); F(2, 5, 5, 1, INK); F(15, 4, 2, 2, '#e0202e'); F(17, 2, 2, 2, '#ffc830'); F(9, 5, 2, 1, '#6a6480'); F(12, 5, 2, 1, '#6a6480'); return L; }
@@ -349,7 +380,16 @@
     { f:'#c8142a', s:'#ff6a5a', t:'#8a0a1a', k:'招', m:'neko' },
     { f:'#ffc830', s:'#fff2b0', t:'#d0102a', k:'福', m:'daruma' },
     { f:'#221a5a', s:'#3ad8ff', t:'#ff4aa0', k:'遊', m:'pad' },
-    { f:'#0c1828', s:'#1e6a7a', t:'#ff8a2a', k:'光', m:'tube' }];
+    { f:'#0c1828', s:'#1e6a7a', t:'#ff8a2a', k:'光', m:'tube' },
+    // round 7: the pool widened (Kellan: "the signs repeat too frequently"): new motifs, and old motifs in new liveries with their own kanji
+    { f:'#0e2a4a', s:'#3ad8ff', t:'#ffd23a', k:'鯉', m:'carp' },
+    { f:'#2a0e1a', s:'#ff4a6a', t:'#ffe0a0', k:'祭', m:'lantern' },
+    { f:'#101830', s:'#ffd23a', t:'#ff5aa8', k:'星', m:'star' },
+    { f:'#0e3a24', s:'#8af0b0', t:'#ffe23a', k:'雷', m:'bolt' },
+    { f:'#3a0a3a', s:'#ff6ad8', t:'#3ad8ff', k:'夢', m:'neko' },
+    { f:'#f4ecdf', s:'#d0102a', t:'#1a1034', k:'達', m:'daruma' },
+    { f:'#ff7a1a', s:'#ffd8a0', t:'#3a1400', k:'響', m:'tube' },
+    { f:'#1a1a40', s:'#c050ff', t:'#ffd23a', k:'祭', m:'lantern' }];
   function banner(v){ const D = BAN[v], I = AI(22, 62); af(I, 0, 0, 22, 62, D.f);
     slab(I, -6, 6, 22, 30, .4, D.s); atone(I, 0, 0, 22, 62, D.s, (x, y) => y < 6 ? .55 - y * .05 : y > 36 && y < 44 ? .35 - (y - 36) * .04 : 0);   // the slab, the tone fading off its edges
     atone(I, 0, 6, 22, 30, D.f, (x, y) => (x + y) % 9 < 1 ? 1 : 0);   // speed hatching across it
@@ -359,6 +399,9 @@
     else if(D.m === 'neko') inkL(I, spL(NEKO, 1), 1, 8, INK, sh, 2);
     else if(D.m === 'daruma'){ inkL(I, spL(DARUMA, 1), 3, 12, INK, sh, 2); af(I, 0, 2, 22, 1, D.t); }
     else if(D.m === 'pad'){ inkL(I, padL(1), 0, 16, INK, sh, 2); for(const [x, y] of [[4, 6], [17, 9], [12, 32]]) sparkle(I, x, y, D.t); }
+    else if(D.m === 'carp'){ inkL(I, carpL(), 4, 3, INK, sh, 2); for(let y = 4; y < 38; y += 5) ap(I, 2 + (y % 3), y, lite(D.s, .5)); }   // the carp climbing, spray beside it
+    else if(D.m === 'lantern') inkL(I, lanternL(D.t), 3, 5, INK, sh, 2);
+    else if(D.m === 'star'){ inkL(I, starL(D.s === '#ffd23a' ? '#fff2a0' : D.s), 2, 9, INK, sh, 2); for(const [x, y] of [[3, 5], [18, 6], [4, 33], [17, 31]]) sparkle(I, x, y, D.t); }
     else { inkL(I, tubeL(true), 5, 6, INK, sh, 2); for(let r = 7; r < 12; r += 2) for(let a = 0; a < 16; a++){ const q = a / 16 * 6.283; if(a & 1) ap(I, 11 + Math.round(Math.cos(q) * r), 16 + Math.round(Math.sin(q) * r * 1.2), '#ffb060'); } }
     af(I, 0, 41, 22, 21, INK); af(I, 0, 41, 22, 1, D.t);   // the foot: ink, a rule in the accent
     inkL(I, kanL(D.k, 1, CREAM), 3, 43, null, D.t, 1); af(I, 2, 60, 18, 1, D.t);
@@ -675,13 +718,14 @@
     all.sort((a, b) => b.h - a.h || b.w - a.w); let x = 0, y = 0, rh = 0; for(const o of all){ if(x + o.w > 1024){ x = 0; y += rh + 1; rh = 0; } o.x = x; o.y = y; x += o.w + 1; if(o.h > rh) rh = o.h; } yield;
     const at = mk(1024, y + rh + 1), g = at.getContext('2d'); yield;
     for(let i = 0; i < all.length; i += 24){ for(let q = i; q < Math.min(all.length, i + 24); q++){ const o = all[q]; g.drawImage(o.c, o.x, o.y); } yield; }
+    upW(at); yield;
     try{ cx.save(); cx.setTransform(1, 0, 0, 1, 0, 0); cx.globalAlpha = .004; cx.drawImage(at, 0, 0, 1, 1); cx.restore(); }catch(e){ try{ cx.restore(); }catch(e2){} }   // its texture uploaded now, never on a ride's first frame
     AT = at; Object.assign(ART, T); }
   /* A video screen at (sx, sy, sw x sh): the frame drawn with its edges on the pixel grid, then the LED grid fading in as its pixels grow
      past two screen pixels (following the screen's placement, so every line falls between two LEDs), and a slow bright roll (the refresh). */
-  function screenAt(fr, sx, sy, sw, sh, now){ if(!fr || !AT || sw < PX * 2) return; const fw = fr.w, fh = fr.h, k = sw / fw, x0 = jbE(sx, 0, k), x1 = jbE(sx, fw, k), y0 = jbE(sy, 0, sh / fh), y1 = jbE(sy, fh, sh / fh); if(x1 <= x0 || y1 <= y0) return;
+  function screenAt(fr, sx, sy, sw, sh, now){ if(!fr || !(fr.c || AT) || sw < PX * 2) return; const fw = fr.w, fh = fr.h, k = sw / fw, x0 = jbE(sx, 0, k), x1 = jbE(sx, fw, k), y0 = jbE(sy, 0, sh / fh), y1 = jbE(sy, fh, sh / fh); if(x1 <= x0 || y1 <= y0) return;
     if(!ON){ cx.fillStyle = '#06060a'; cx.fillRect(x0, y0, x1 - x0, y1 - y0); return; }
-    cx.imageSmoothingEnabled = false; cx.drawImage(AT, fr.x, fr.y, fw, fh, x0, y0, x1 - x0, y1 - y0);
+    cx.imageSmoothingEnabled = false; cx.drawImage(fr.c || AT, fr.x, fr.y, fw, fh, x0, y0, x1 - x0, y1 - y0);
     const ex = clamp((k / PX - 2) / 1, 0, 1), a0 = cx.globalAlpha; if(ex > 0){ cx.globalAlpha = a0 * ex * .55; cx.fillStyle = '#04030a'; const uy = sh / fh;
       for(let i = 1; i < fw; i++){ const xx = jbE(sx, i, k); if(xx > 0 && xx < W) cx.fillRect(xx, y0, PX, y1 - y0); } for(let j2 = 1; j2 < fh; j2++){ const yy = jbE(sy, j2, uy); if(yy > 0 && yy < H) cx.fillRect(x0, yy, x1 - x0, PX); } }
     if(!reduce && k > PX){ const ry = y0 + snp(((now / 2600) % 1) * (y1 - y0)); cx.globalAlpha = a0 * .07; cx.fillStyle = '#ffffff'; cx.fillRect(x0, ry, x1 - x0, Math.min(y1 - ry, snp((y1 - y0) * .12) + PX)); }
@@ -717,17 +761,21 @@
      street within 8 segments, so no banner faces itself and the whole set comes round before any repeats. Shop fronts alternate their two
      variants per kind; the konbini livery rotates. Text blades: every third steps its characters on in turn (a neon sign lighting stroke by
      stroke, then a blink); others get chasing bulbs. */
+  const HERO_AD = ['fox', 'whale', 'sat', 'ramen'];
   function deck(L){ const all = L.rows[0].concat(L.rows[1]).sort((a, b) => a.b0 - b.b0); let sd = L.B0 * .0173 + 3.3;
     const mkD = n => { const d = []; for(let i = 0; i < n; i++) d.push(i); for(let i = n - 1; i > 0; i--){ const j = Math.floor(H1(sd += 1.37) * (i + 1)), t = d[i]; d[i] = d[j]; d[j] = t; } return d; };
     const D = n => ({ n, d:[], p:0, rec:[], k:Math.max(0, Math.min(n - 2, 6)) });
     const pick = (Dk, ban) => { for(let t = 0; t < Dk.n * 3; t++){ if(Dk.p >= Dk.d.length){ Dk.d = mkD(Dk.n); Dk.p = 0; } const c = Dk.d[Dk.p++]; if(Dk.rec.indexOf(c) < 0 && ban.indexOf(c) < 0){ Dk.rec.push(c); if(Dk.rec.length > Dk.k) Dk.rec.shift(); return c; } } return Dk.d[Math.max(0, Dk.p - 1)]; };
-    const dBan = D(BAN.length), dBB = D(NBB), dPO = D(NPO), cnt = {}; let kb = Math.floor(H1(sd) * 3), tb = 0;
+    const dBan = D(BAN.length), dBB = D(NBB), dPO = D(NPO), cnt = {}; let kb = Math.floor(H1(sd) * 3), tb = 0, ha = Math.floor(H1(sd + 2.2) * 4), pa = 0; const seen = {};
     const across = (B, f) => { const o = []; for(const C of L.rows[B.side < 0 ? 1 : 0]) if(C.b0 < B.b0 + B.len + 8 && C.b0 + C.len > B.b0 - 8) f(C, o); return o; };
     for(const B of all){
       for(const b of B.bl){ if(b.ban !== undefined && !b.plate) b.ban = pick(dBan, across(B, (C, o) => { for(const c of C.bl) if(c.ban !== undefined) o.push(c.ban); }));
         else if(!b.plate && b.word && B.k !== 'arcade'){ b.seq = (tb % 3) === 0; if(!b.seq && (tb % 3) === 1) b.chase = true; tb++; } }
       if(B.rb && B.rb.bb < NBB) B.rb.bb = pick(dBB, across(B, (C, o) => { if(C.rb) o.push(C.rb.bb); }));
       if(B.ew && B.ew.po < NPO) B.ew.po = pick(dPO, across(B, (C, o) => { if(C.ew) o.push(C.ew.po); }));
+      if(B.hero >= 0){ B.ad = HERO_AD[ha++ % 4]; }   // the corner screens: fox, whale, sat, ramen in turn
+      if(B.ew && !B.ew.att && B.ew.po < NPO){ const id = pa & 1 ? 'hana' : 'jelly'; if(B.b0 - (seen[id] === undefined ? -1e9 : seen[id]) > 380){ B.ew.ad = id; seen[id] = B.b0; pa++; } }   // jelly and hana in turn on the end-wall lightboxes, never twice within the draw distance
+      if(B.rb && B.nF0 >= 6 && B.b0 - (seen.navi === undefined ? -1e9 : seen.navi) > 380){ B.rb.ad = 'navi'; seen.navi = B.b0; }   // the navi spot on a tall store's roof board, once per draw distance
       B.svv = (cnt[B.sv] = (cnt[B.sv] || 0) + 1) & 1; if(B.sv === SH_KONB) B.kb = kb++ % 3; } }
   // the end of the gap that segment i is in (cross street or railway corridor), or -1
   function gapEnd(L, i){ for(const c of L.X) if(i >= c && i < c + CW) return c + CW; if(L.BR >= 0 && i >= L.BR - 3 && i < L.BR + BD + 3) return L.BR + BD + 3; return -1; }
@@ -783,9 +831,15 @@
 
   // ---------------------------------------------------------------- building slices (as env/shuto.js: a face per slice, bands by FQ)
   let FX1 = 0, FY1 = 0, FU1 = 0, FX2 = 0, FY2 = 0, FU2 = 0, BASE = '#000';
+  /* (bug fix, Kellan: "the front of the convenience store is misplaced and almost in the middle of the road") Over a side lane the core pushes
+     a roadside sprite out by SL_PUSH only on the lane's own side and only for x in (1, SL_BAND); laneDX() is the push for that side. The
+     facade's world-projected parts (interior, face art, text, blades, boards) added laneDX() on both sides, so on the far side of a side lane
+     they slid 1.85 half-road widths into the road. laneS / laneP give the push this building's side actually gets. */
+  const laneS = (i, side, X) => { const t = segs[i]; return t && t.lane && t.lane.sd === side && X > 1 && X < SL_BAND ? t.lane.sd * SL_PUSH : 0; };
+  let LSD = 0, LSX = 0; const laneP = i => laneS(i, LSD, LSX);
   function FQ(h0, h1, col, ta, tb){ if(ta === undefined){ ta = 0; tb = 1; } const xa = FX1 + (FX2 - FX1) * ta, xb = FX1 + (FX2 - FX1) * tb, ya = FY1 + (FY2 - FY1) * ta, yb = FY1 + (FY2 - FY1) * tb, ua = FU1 + (FU2 - FU1) * ta, ub = FU1 + (FU2 - FU1) * tb;
     const t0 = ya - ua * h1, t1 = yb - ub * h1, b0 = ya - ua * h0, b1 = yb - ub * h0;
-    if((xa < -PX * 2 && xb < -PX * 2) || (xa > W + PX * 2 && xb > W + PX * 2) || (t0 > H + PX * 2 && t1 > H + PX * 2) || (b0 < -PX * 2 && b1 < -PX * 2)) return;
+    if((xa < -PX * 2 && xb < -PX * 2) || (xa > W + PX * 2 && xb > W + PX * 2) || (t0 > H + PX * 2 && t1 > H + PX * 2) || (b0 < -PX * 2 && b1 < -PX * 2)) return 0;
     if(Math.abs(xb - xa) < PX * 2.5 || (Math.abs(t1 - t0) < PX * .75 && Math.abs(b1 - b0) < PX * .75)){ const tm = CLY((t0 + t1) / 2), bm = CLY((b0 + b1) / 2), xl = CLX(Math.min(xa, xb)); if(!fin(tm + bm + xl)) return; cx.fillStyle = col; pxRect(xl, Math.min(tm, bm), CLX(Math.max(xa, xb)) - xl, Math.abs(bm - tm)); return; }
     poly4(xa, b0, xb, b1, xb, t1, xa, t0, col); }
   const SPANF = f => { f = fogPx(f); return f < .02 ? 1 : f < .055 ? 2 : f < .13 ? 4 : f < .28 ? 8 : 16; };
@@ -793,8 +847,8 @@
   const SPT = new Uint8Array(1024); let SPTOK = false, SPF = -1, SPB = 0;
   const at = k => { const d = k - SPB; return d < 0 ? 1 : d > 1023 ? 16 : SPT[d]; };
   function spanOf(j, b0, end, fog){ if(!SPTOK){ SPTOK = true; for(let d = 0; d < 1024; d++) SPT[d] = SPANF(clamp(Math.pow(d / DRAW, 1.6), 0, 1)); } if(SPF !== DRAWN){ SPF = DRAWN; SPB = segAt(position).index; }
-    const lx = laneDX(j), lcut = j > b0 && laneDX(j - 1) !== lx;
-    if(j > b0 && !lcut && (j - b0) % at(j)) return 0; let n = 1; while(j + n < end && n < 16 && (j + n - b0) % at(j + n) && laneDX(j + n) === lx) n++; return n; }
+    const lx = laneP(j), lcut = j > b0 && laneP(j - 1) !== lx;
+    if(j > b0 && !lcut && (j - b0) % at(j)) return 0; let n = 1; while(j + n < end && n < 16 && (j + n - b0) % at(j + n) && laneP(j + n) === lx) n++; return n; }
   function farEnd(j, n, X){ const t = segs[j + n - 1]; if(!t || !t.p2.screen.scale) return false; const q = t.p2.screen; FX2 = q.x + X * q.w; FY2 = q.y; FU2 = q.w; return fin(FX2 + FY2 + FU2); }
   // a face point at sub-span t, height h
   let FPX = 0, FPY = 0, FPU = 0; function fpt(t, h){ FPU = FU1 + (FU2 - FU1) * t; FPX = FX1 + (FX2 - FX1) * t; FPY = FY1 + (FY2 - FY1) * t - FPU * h; }
@@ -808,10 +862,10 @@
   // share a light state, so the taller canyon costs a few quads, not a building's worth of detail
   function xFloor(B, f, fy){ if(!ON) return; const st = floorState(B, f & ~1, 5); if(st !== 1 && st !== 2) return; if((f & 1) && f - 1 >= B.nF0) return;
     const top = f + 1 < B.nF && !(f & 1) ? fy + FH + .48 : fy + .48; FQ(fy + .16, top, F(st === 1 ? '#b4c2e0' : '#dcb478')); }
-  function drawB(sp, x, y, uw, fog, now){ const B = sp.b; fitB(B); const j = sp.k, end = B.b0 + B.len, n = spanOf(j, B.b0, end, fog); if(!n) return;
+  function drawB(sp, x, y, uw, fog, now){ const B = sp.b; fitB(B); LSD = B.side; LSX = B.x0; const j = sp.k, end = B.b0 + B.len, n = spanOf(j, B.b0, end, fog); if(!n) return;
     FX1 = x; FY1 = y; FU1 = uw; if(!fin(x + y + uw) || !farEnd(j, n, sp.x)) return; FF = fog; ON = onAt(B.b0);
-    const side = B.side, S = B.S, off = side < 0 ? Math.max(FX1, FX2) < -PX * 2 : Math.min(FX1, FX2) > W + PX * 2;
-    if(off){ blades(B, j, n, now); if(j === B.b0) endWall(B, x, y, uw, now); return; }   // beside the camera, off the screen's edge: only what projects from it may show
+    const side = B.side, S = B.S, off = side < 0 ? Math.max(FX1, FX2) < -PX * 2 : Math.min(FX1, FX2) > W + PX * 2; HZG = hzGroup(B, j, n);
+    if(off){ if(HZG > j + n) hazeGroup(B, j, sp.x); blades(B, j, n, now); if(j === B.b0) endWall(B, x, y, uw, now); return; }   // beside the camera, off the screen's edge: only what projects from it may show
     const hv = Math.min(B.h, Math.max(FY1 / Math.max(FU1, .01), FY2 / Math.max(FU2, .01)) + .1); if(hv <= 0) return;
     const fpx = Math.max(FU1, FU2) * FH, wpx = Math.abs(FX2 - FX1), far = fpx < 2.6;
     CAT = 'gnd'; ground(B, j, n, fpx, wpx, now); CAT = far ? 'far' : 'face';
@@ -823,6 +877,7 @@
       else for(let f = 0; f < B.nF; f++){ const fy = G + f * FH; if(fy > hv) break; if(FY1 - FU1 * (fy + FH) > H + PX * 2 && FY2 - FU2 * (fy + FH) > H + PX * 2) continue;
         const t = B.fl[f]; CAT = t; if(t === 'X'){ xFloor(B, f, fy); continue; } if(t === 'S') signBand(B, f, fy, j, n, fpx, wpx); else if(t === 'K') wrapBand(B, fy, j, n, fpx); else if(t === 'k') continue; else if(t === 'N') neonFloor(B, f, fy, j, n, fpx, now); else if(t === 'T') tickFloor(B, fy, j, n, fpx, now); else winFloor(B, f, fy, j, n, fpx, wpx); }
 
+      if(HZG > j + n) hazeGroup(B, j, sp.x);
       if(hv >= B.h){ FQ(B.h - .05, B.h, F(S[2])); if(fpx >= 6) FQ(B.h, B.h + .1, F(S[0])); }   // the coping and a parapet
       if(B.rb && hv >= B.h) roofBoard(B, j, n, now); }
     CAT = 'blade'; blades(B, j, n, now); CAT = 'end';
@@ -835,7 +890,7 @@
     else { FQ(.56, G, L1(B.gr === 'crane' ? '#ff3a7a' : B.aw[0])); if(gp >= 12) awningInk(B, j, n, .59, G - .02); }
     FQ(0, .56, ON ? L1(A ? A.avg : B.ic) : F('#0c0a12'));
     const Q = ART.int && ART.int[B.sv] ? ART.int[B.sv][B.svv | 0] : null;
-    if(A && ON && gp >= 5){ if(Q && gp >= 16 && !AKX.includes('noint')) interior(B, Q, 0, .56, j, n, 7.4); else faceArt(B, A, 0, .56, j, n, 7.4); }
+    if(A && ON && gp >= 5){ if(Q && gp >= 28 && !AKX.includes('noint')) interior(B, Q, 0, .56, j, n, 7.4); else faceArt(B, A, 0, .56, j, n, 7.4); }   // (perf pass: the layers from 28 px; below that their slide is a texel or two: the pre-composite)
     if(gp >= 10) FQ(.54, .56, F(ON ? '#fffaf0' : '#201c28'));   // the tube line under the awning
     if(RAINON && gp >= 10 && FF < .5) drips(B, j, n, now);
     if(ON && gp >= 14 && FF < .6) spill(B); }
@@ -873,7 +928,27 @@
   function signBand(B, f, fy, j, n, fpx, wpx){ const Bd = BRANDS[B.br], h0 = fy + .05, h1 = fy + FH - .03; FQ(h0, h1, L1(Bd.f));
     if(fpx >= 3) faceArt(B, ART.band[B.br], h0, h1, j, n, 13);
     if(fpx >= 8){ FQ(h1, h1 + .025, L1(Bd.fl)); FQ(h0 - .04, h0, F('#06040a')); }
-    if(RAINON && ON && fpx >= 4 && FF < .5){ const P2 = hazeP(Bd.f); FQ(h1 + .025, h1 + .09, P2[0]); FQ(h1 + .09, h1 + .16, P2[1]); } }
+    if(RAINON && ON && fpx >= 4 && FF < .5 && HZG === j + n && j - HZB() < HZN){ const P2 = hazeP(Bd.f); hzQ(h1 + .025, h1 + .09, P2[0]); } }   // (the inner 1/4 band only, near signs only)
+  /* (perf pass) Each slice's haze was two pattern draws (most of the haze's ~1.9 ms). Slices never straddle a 16-segment block of their building
+     (spanOf breaks every slice there, and at a lane shift), so within a block of one lane offset the nearest drawn slice lays the haze across
+     the whole block, after its floors, and the farther slices of the block lay none. Each band stops where the floor above starts its own fill
+     (which covered it before), so the order of the layers is kept. */
+  const HG = 16, HZN = 32; let HZG = 0, HZF = -1, HZ0 = 0, HZD = 0, HZBF = -1, HZBI = 0;   // HZN: the haze reaches this many segments out (HZD: the sprite being drawn)
+  const HZB = () => { if(HZBF !== DRAWN){ HZBF = DRAWN; HZBI = segAt(position).index; } return HZBI; };
+  function hzGroup(B, j, n){ if(!RAINON) return j + n; if(HZF !== DRAWN){ HZF = DRAWN; const b = segAt(position).index, s1 = segs[b + 1]; HZ0 = s1 && s1.p1.camera.z > DEPTH ? b + 1 : b + 2; }
+    const g = Math.floor((j - B.b0) / HG), lx = laneP(j);
+    if(j - 1 >= Math.max(B.b0, HZ0) && Math.floor((j - 1 - B.b0) / HG) === g && laneP(j - 1) === lx) return 0;   // a nearer slice of this block lays it
+    const end = Math.min(B.b0 + B.len, B.b0 + (g + 1) * HG); let k = j + n;
+    while(k < end && laneP(k) === lx){ const m = spanOf(k, B.b0, B.b0 + B.len, 0); if(!m) break; k += m; }
+    return k; }
+  const HZTOP = { S:.01, K:.01, N:.1, T:.12 };
+  function hazeGroup(B, j, X){ if(j - HZB() >= HZN) return; const e = HZG, x2 = FX2, y2 = FY2, u2 = FU2; if(!ON || FF >= .5 || !farEnd(j, e - j, X)){ FX2 = x2; FY2 = y2; FU2 = u2; return; }
+    const fpx = Math.max(FU1, FU2) * FH;
+    if(fpx >= 4) for(let f = 0; f < B.nF; f++){ if(B.fl[f] !== 'S') continue; const fy = G + f * FH, h1 = fy + FH - .03, P2 = hazeP(BRANDS[B.br].f), up = HZTOP[B.fl[f + 1]], top = up === undefined ? 9 : fy + FH + up;
+      if(FY1 - FU1 * (h1 + .16) > H + PX * 2 && FY2 - FU2 * (h1 + .16) > H + PX * 2) continue; if(FY1 - FU1 * h1 < -PX * 2 && FY2 - FU2 * h1 < -PX * 2) continue;
+      const lo = f === B.nF - 1 ? B.h + (fpx >= 6 ? .1 : 0) : -9;   // (the top floor's haze starts above the coping and parapet, which covered it)
+      const a = Math.max(lo, h1 + .025), b = Math.min(top, h1 + .09); if(b > a) hzQ(a, b, P2[0]); }
+    FX2 = x2; FY2 = y2; FU2 = u2; }
   function wrapBand(B, fy, j, n, fpx){ const A = ART.wrap[B.wv], h0 = fy + .06, h1 = fy + FH * 2 - .04; if(!A) return; FQ(h0, h1, L1(A.avg));
     if(fpx >= 2) faceArt(B, A, h0, h1, j, n, 17);
     if(fpx >= 8){ FQ(h1, h1 + .03, F('#d8d8e8')); FQ(h0 - .05, h0, F('#06040a')); } }
@@ -883,10 +958,10 @@
   function faceArt(B, A, h0, h1, j, n, rep){ if(!A || !ON || AKX.includes('text')) return; const z0b = B.b0 + .6, Lz = B.len - 1.2; if(Lz < 1) return;
     const copies = Math.max(1, Math.round(Lz / rep)), tl = Lz / copies, zv = Math.floor(position / SEG) + 1.02, flip = B.side > 0, X0 = B.side * B.x0;
     const sa = Math.max(j, zv, z0b), sb = Math.min(j + n - .001, z0b + Lz); if(sb <= sa) return;
-    if(!CF(sa)) return; const xa = CFX + (X0 + laneDX(Math.floor(sa))) * CFU, ua = CFU; if(!CF(sb)) return; const xb = CFX + (X0 + laneDX(Math.floor(sb))) * CFU;
+    if(!CF(sa)) return; const xa = CFX + (X0 + laneP(Math.floor(sa))) * CFU, ua = CFU; if(!CF(sb)) return; const xb = CFX + (X0 + laneP(Math.floor(sb))) * CFU;
     const hv = (h1 - h0) * Math.max(ua, CFU); if(hv < PX * 6 || !fin(xa + xb)) return; const kv = hv / A.h, Lv = A.L[kv < PX * .375 ? 2 : kv < PX * .75 ? 1 : 0], sc = A.w / Lv.w;
     const ns = Math.max(1, Math.min(12, Math.round(Math.abs(xb - xa) / (PX * 4)))), a0 = cx.globalAlpha; cx.globalAlpha = a0 * (1 - FF * .55);
-    for(let s = 0; s <= ns; s++){ const z = sa + (sb - sa) * s / ns; FXS[s] = CF(z) ? snp(CFX + (X0 + laneDX(Math.floor(z))) * CFU) : NaN; }
+    for(let s = 0; s <= ns; s++){ const z = sa + (sb - sa) * s / ns; FXS[s] = CF(z) ? snp(CFX + (X0 + laneP(Math.floor(z))) * CFU) : NaN; }
     for(let s = 0; s < ns; s++){ const za = sa + (sb - sa) * s / ns, zb = sa + (sb - sa) * (s + 1) / ns, xl = Math.min(FXS[s], FXS[s + 1]), xr = Math.max(FXS[s], FXS[s + 1]); if(!(xr > xl) || xr < -PX || xl > W + PX) continue;
       const ta = (za - z0b) / tl, ti = Math.floor(ta), tb = Math.min(ti + 1, (zb - z0b) / tl); let u0 = ta - ti, u1 = tb - ti; if(flip){ const q = 1 - u1; u1 = 1 - u0; u0 = q; }
       if(!CF((za + zb) / 2)) continue; const yt = snp(CFY - h1 * CFU), yb = snp(CFY - h0 * CFU); if(yb <= yt) continue;
@@ -896,13 +971,20 @@
      depth x how obliquely this strip of the front is seen (1 straight on at the screen's edge, 0 toward the vanishing point), in whole
      texels, toward the far end of the street on either side. At most 8 strips, so a near front is a few dozen drawImages. */
   const IDEP = [1, .62, .32, 0];
+  /* Round 7b: the six animated adverts (env/akiba_ads.js, research/sundown-craft/akiba-ads.md), hung in our slots with our bezel, halo, LED
+     grid, roll and veil: the corner screens rotate fox / whale / sat / ramen, the end-wall lightboxes jelly / hana, the roof boards navi on
+     the taller stores. Dealt by the visit's deck (deck()), so the same ad never shows twice in view. Reduced motion: each holds its tag card. */
+  const ADS = { whale:{ w:64, h:40, fps:8, tag:40, col:'#3fc4ff' }, jelly:{ w:48, h:80, fps:8, tag:30, col:'#e25cbc' }, sat:{ w:64, h:40, fps:10, tag:36, col:'#a6dcff' },
+    navi:{ w:96, h:32, fps:12, tag:37, col:'#ff3474' }, ramen:{ w:64, h:40, fps:10, tag:35, col:'#f2a43c' }, hana:{ w:48, h:80, fps:10, tag:34, col:'#e2648f' } };
+  for(const k in ADS){ const D = ADS[k]; D.avg = D.col; D.tagT = D.tag * 1000 / D.fps + 1; }
+  const adFrame = (id, now) => { const E = ENV.akibaAds; if(!E || !E.frame) return null; try{ return E.frame(id, reduce ? ADS[id].tagT : now); }catch(e){ return null; } };
   function interior(B, Q, h0, h1, j, n, rep){ const z0b = B.b0 + .6, Lz = B.len - 1.2; if(Lz < 1) return;
     const copies = Math.max(1, Math.round(Lz / rep)), tl = Lz / copies, zv = Math.floor(position / SEG) + 1.02, flip = B.side > 0, X0 = B.side * B.x0, dir = flip ? -1 : 1;
     const sa = Math.max(j, zv, z0b), sb = Math.min(j + n - .001, z0b + Lz); if(sb <= sa) return;
-    if(!CF(sa)) return; const xa = CFX + (X0 + laneDX(Math.floor(sa))) * CFU, ua = CFU; if(!CF(sb)) return; const xb = CFX + (X0 + laneDX(Math.floor(sb))) * CFU;
+    if(!CF(sa)) return; const xa = CFX + (X0 + laneP(Math.floor(sa))) * CFU, ua = CFU; if(!CF(sb)) return; const xb = CFX + (X0 + laneP(Math.floor(sb))) * CFU;
     const hv = (h1 - h0) * Math.max(ua, CFU); if(hv < PX * 6 || !fin(xa + xb)) return; const kv = hv / 32, li = kv < PX * .375 ? 2 : kv < PX * .75 ? 1 : 0;
     const ns = Math.max(1, Math.min(8, Math.round(Math.abs(xb - xa) / (PX * 6)))), a0 = cx.globalAlpha; cx.globalAlpha = a0 * (1 - FF * .55);
-    for(let s = 0; s <= ns; s++){ const z = sa + (sb - sa) * s / ns; FXS[s] = CF(z) ? snp(CFX + (X0 + laneDX(Math.floor(z))) * CFU) : NaN; }
+    for(let s = 0; s <= ns; s++){ const z = sa + (sb - sa) * s / ns; FXS[s] = CF(z) ? snp(CFX + (X0 + laneP(Math.floor(z))) * CFU) : NaN; }
     for(let s = 0; s < ns; s++){ const za = sa + (sb - sa) * s / ns, zb = sa + (sb - sa) * (s + 1) / ns, xl = Math.min(FXS[s], FXS[s + 1]), xr = Math.max(FXS[s], FXS[s + 1]); if(!(xr > xl) || xr < -PX || xl > W + PX) continue;
       const ta = (za - z0b) / tl, ti = Math.floor(ta), tb = Math.min(ti + 1, (zb - z0b) / tl); let u0 = ta - ti, u1 = tb - ti; if(flip){ const q = 1 - u1; u1 = 1 - u0; u0 = q; }
       if(!CF((za + zb) / 2)) continue; const yt = snp(CFY - h1 * CFU), yb = snp(CFY - h0 * CFU); if(yb <= yt) continue;
@@ -924,18 +1006,18 @@
     const wordW = m * pitch, copies = Math.max(1, Math.floor((B.len + 4) / (wordW + 6))), span = copies * wordW + (copies - 1) * 6, st0 = B.b0 + (B.len - span) / 2, flip = B.side > 0, zv = Math.floor(position / SEG) + 1.02;   // (the first segment wholly in front of the camera)
     for(let q = 0; q < copies; q++){ const zs = st0 + q * (wordW + 6);
       for(let c = 0; c < m; c++){ const z0 = zs + (flip ? m - 1 - c : c) * pitch + (pitch - gl) / 2, z1 = z0 + gl, za = Math.max(z0, zv); if(za >= z1 || za < j || za >= j + n) continue;
-        const zm = Math.max(za, (z0 + z1) / 2); if(!CF(zm)) continue; const X = B.side * B.x0 + laneDX(Math.floor(zm)), hp = gh * CFU; if(hp < PX * 3) continue;
+        const zm = Math.max(za, (z0 + z1) / 2); if(!CF(zm)) continue; const X = B.side * B.x0 + laneP(Math.floor(zm)), hp = gh * CFU; if(hp < PX * 3) continue;
         const xm = CFX + X * CFU, ym = CFY, um = CFU, wp = Math.abs(xAtF(B, Math.min(z1 - .001, Math.max(zm + .001, z1 - .001))) - xAtF(B, za));
         if(hp >= PX * 9 && wp >= hp * .42 && glyphFace(B, word[c], Pn[2], z0, z1, hc, gh, zv)) continue;
         // the slug: the middle of the cell, the ink mixed toward the plate (a soft, regular read, not a hard mark)
         const hw = Math.max(PX * .5, wp * .22); R(xm - hw, ym - (hc + gh * .2) * um, hw * 2, Math.max(PX, gh * .4 * um), L1(PANS[B.pn[f]])); } } }
   // the screen x of the face of B at segment-float z (NaN if that segment isn't projected)
-  function xAtF(B, z){ return CF(z) ? CFX + (B.side * B.x0 + laneDX(Math.floor(z))) * CFU : NaN; }
+  function xAtF(B, z){ return CF(z) ? CFX + (B.side * B.x0 + laneP(Math.floor(z))) * CFU : NaN; }
   const GX = new Float64Array(16);
   function glyphFace(B, ch, st, z0, z1, hc, gh, zv){ const zm = (z0 + z1) / 2; if(!CF(zm)) return false; const hcv = gh * CFU / PX, g = gpickH(st, ch, hcv); if(!g) return false;
     const half = (z1 - z0) * Math.min(1, g.w / g.h) / 2, flip = B.side > 0, ns = Math.max(1, Math.min(g.w, 12)), X0 = B.side * B.x0;
     const zAt = t => flip ? zm + half - 2 * half * t : zm - half + 2 * half * t;
-    for(let k = 0; k <= ns; k++){ const z = Math.max(zv, zAt(k / ns)); if(!CF(z)) return false; GX[k] = snp(CFX + (X0 + laneDX(Math.floor(z))) * CFU); }   // (strips behind the near plane collapse to nothing)
+    for(let k = 0; k <= ns; k++){ const z = Math.max(zv, zAt(k / ns)); if(!CF(z)) return false; GX[k] = snp(CFX + (X0 + laneP(Math.floor(z))) * CFU); }   // (strips behind the near plane collapse to nothing)
     const a0 = cx.globalAlpha; cx.globalAlpha = a0 * (1 - FF * .5);
     for(let k = 0; k < ns; k++){ const sx0 = Math.floor(k * g.w / ns), sx1 = Math.floor((k + 1) * g.w / ns); if(sx1 <= sx0) continue; const xl = Math.min(GX[k], GX[k + 1]), xr = Math.max(GX[k], GX[k + 1]); if(xr <= xl || xr < -PX || xl > W + PX) continue;
       if(!CF(Math.max(zv, zAt((k + .5) / ns)))) continue; const yt = snp(CFY - (hc + gh / 2) * CFU), yb = snp(CFY - (hc - gh / 2) * CFU); if(yb <= yt || !fin(yt + yb)) continue;
@@ -950,7 +1032,7 @@
   function CR(X0, X1, h0, h1, col){ const xa = CFX + X0 * CFU, xb = CFX + X1 * CFU; R(Math.min(xa, xb), CFY - h1 * CFU, Math.abs(xb - xa), (h1 - h0) * CFU, col); }
   function blades(B, j, n, now){ const Lb = B.bl; if(!Lb.length || AKX.includes('blade')) return; for(let q = 0; q < Lb.length; q++){ const b = Lb[q], z = B.b0 + b.z; if(z >= j && z < j + n) blade(B, b, z, now); } }
   function blade(B, b, z, now){ if(!CF(z + .5)) return; const A = b.ban !== undefined ? ART.ban[b.ban] : b.plate ? ART.plate[b.ic * PAN.length + b.p] : null; if(A) return bladeArt(B, b, z, now, A);
-    const side = B.side, lx = laneDX(Math.floor(z)), Xo = side * (B.x0 - .03) + lx, Xi = Xo - side * b.pr, u = CFU;
+    const side = B.side, lx = laneP(Math.floor(z)), Xo = side * (B.x0 - .03) + lx, Xi = Xo - side * b.pr, u = CFU;
     { const xa = CFX + Xo * u, xb = CFX + Xi * u; if((xa < -PX * 2 && xb < -PX * 2) || (xa > W + PX * 2 && xb > W + PX * 2)) return; }
     const hb = (b.f0 ? G + (b.f0 - 1) * FH : .02) + (b.plate ? (b.f0 ? FH : G) * .18 : .08) + (b.plate && b.f0 ? FH * .12 : 0), ht = Math.min(B.h - .08, (b.f0 ? G + (b.f1 - 1) * FH : G) + (b.plate ? 0 : FH - .1)) - (b.plate ? .04 : 0);
     if(ht - hb < .15) return; const Pn = PAN[b.p], pw = Math.abs(Xo - Xi) * u, ph = (ht - hb) * u;
@@ -970,7 +1052,7 @@
   /* A blade as a picture (round 4): a character banner or a tenant plate, a lightbox standing off the wall on two steel brackets (each
      blade its own offset, so the stack has depth), its edge seen as a strip of the box's side, a bezel with a lit top, the shadow it throws
      on the wall in the gap, and a two-ring glow of its own light. */
-  function bladeArt(B, b, z, now, A){ const side = B.side, lx = laneDX(Math.floor(z)), Xw = side * (B.x0 - .03) + lx, Xo = Xw - side * (b.off || 0), Xi = Xo - side * b.pr, u = CFU;
+  function bladeArt(B, b, z, now, A){ const side = B.side, lx = laneP(Math.floor(z)), Xw = side * (B.x0 - .03) + lx, Xo = Xw - side * (b.off || 0), Xi = Xo - side * b.pr, u = CFU;
     const xw = CFX + Xw * u, xo = CFX + Xo * u, xi = CFX + Xi * u; if((Math.max(xw, xi) < -PX * 2) || (Math.min(xw, xi) > W + PX * 2)) return;
     const hb = (b.f0 ? G + (b.f0 - 1) * FH : .02) + (b.plate ? (b.f0 ? FH : G) * .18 : .08) + (b.plate && b.f0 ? FH * .12 : 0), ht = Math.min(B.h - .08, (b.f0 ? G + (b.f1 - 1) * FH : G) + (b.plate ? 0 : FH - .1)) - (b.plate ? .04 : 0);
     if(ht - hb < .15) return; const pw = Math.abs(xo - xi), ph = (ht - hb) * u;
@@ -988,20 +1070,20 @@
       for(let yy = 0, q = 0; yy < ah; yy += step, q++) if((q + ph0) % 3 !== 0) for(const xx of [left - t, left + aw + t - PX]) if(xx > -PX && xx < W + PX) pxRect(xx, top + yy, PX, PX); } }
   /* The roof billboard (round 4): key art or a brand block on a steel lattice, its bezel, three spotlights on arms throwing a warm wash down
      its top (the references' boards are front-lit, not backlit). */
-  function roofBoard(B, j, n, now){ const zc = B.b0 + Math.floor(B.len / 2); if(!(zc >= j && zc < j + n) || !CF(zc + .5)) return; const rb = B.rb, A = rb.bb !== undefined ? ART.bb[rb.bb] : null; if(A) return billboardAt(B, zc, A, now);
-    const side = B.side, lx = laneDX(zc), Xa = side * (B.x0 + .15) + lx, Xb = side * (B.x0 + B.depth - .1) + lx, u = CFU, h0 = B.h + .18, h1 = B.h + .95, Pn = PAN[rb.p];
+  function roofBoard(B, j, n, now){ const zc = B.b0 + Math.floor(B.len / 2); if(!(zc >= j && zc < j + n) || !CF(zc + .5)) return; const rb = B.rb, A = rb.ad ? ADS[rb.ad] : rb.bb !== undefined ? ART.bb[rb.bb] : null; if(A) return billboardAt(B, zc, A, now);
+    const side = B.side, lx = laneP(zc), Xa = side * (B.x0 + .15) + lx, Xb = side * (B.x0 + B.depth - .1) + lx, u = CFU, h0 = B.h + .18, h1 = B.h + .95, Pn = PAN[rb.p];
     if((h1 - h0) * u < PX * 2) { CR(Xa, Xb, h0, h1, L1(Pn[0])); return; }
     for(const X of [Xa + side * .2, Xb - side * .2]) CR(X - .03, X + .03, B.h, h0, F('#24202c'));
     CR(Xa, Xb, h0, h1, L1(mixc(Pn[0], '#ffffff', .4))); CR(Xa + side * .05, Xb - side * .05, h0 + .05, h1 - .05, L1(Pn[0]));
     const m = rb.word.length, w = Math.abs(Xb - Xa) * u * .9, cell = Math.min(w / m, (h1 - h0) * u * .8), xm = CFX + (Xa + Xb) / 2 * u, yc = CFY - (h0 + h1) / 2 * u, dir = side > 0 ? 1 : 1;
     if(ON) for(let c = 0; c < m; c++){ const g = gpick(Pn[2], rb.word[c], cell); const xc = xm + (c - (m - 1) / 2) * cell * dir; if(g) gblit(g, xc, yc); else if(cell > PX * 2){ cx.fillStyle = L1(Pn[1]); pxRect(xc - cell * .3, yc - cell * .15, cell * .6, Math.max(PX, cell * .3)); } }
     if(ON && (h1 - h0) * u > PX * 10){ cx.fillStyle = fc('#fff6c8', FF * .4); const st = Math.max(PX * 3, snp(w / 16)); for(let xx = CFX + Math.min(Xa, Xb) * u + st / 2; xx < CFX + Math.max(Xa, Xb) * u; xx += st) pxRect(xx, CFY - h1 * u - PX * 2, PX, PX); } }
-  function billboardAt(B, zc, A, now){ const side = B.side, lx = laneDX(zc), Xa = side * (B.x0 + .1) + lx, Xb = side * (B.x0 + B.depth - .05) + lx, u = CFU, wU = Math.abs(Xb - Xa), h0 = B.h + .26, h1 = h0 + wU * A.h / A.w;
+  function billboardAt(B, zc, A, now){ const side = B.side, lx = laneP(zc), Xa = side * (B.x0 + .1) + lx, Xb = side * (B.x0 + B.depth - .05) + lx, u = CFU, wU = Math.abs(Xb - Xa), h0 = B.h + .26, h1 = h0 + wU * A.h / A.w;
     if((h1 - h0) * u < PX * 2){ CR(Xa, Xb, h0, h1, L1(A.avg)); return; }
     const left = CFX + Math.min(Xa, Xb) * u, top = CFY - h1 * u, k = wU * u / A.w, aw = A.w * k, ah = A.h * k, t = Math.max(PX, snp(k * .7)), bot = CFY - h0 * u, roof = CFY - B.h * u, sc = F('#2a2632');
     if(u > 5){ const lw = Math.max(PX, snp(u * .02)); for(const X of [.12, .5, .88]) R(left + aw * X - lw / 2, bot, lw, roof - bot, sc);   // the lattice: legs, a catwalk, cross braces
       R(left, bot, aw, Math.max(PX, snp(u * .015)), sc); if(roof - bot > PX * 3 && u > 10){ pline(left + aw * .12, bot, left + aw * .5, roof, sc, 1); pline(left + aw * .5, bot, left + aw * .12, roof, sc, 1); pline(left + aw * .5, bot, left + aw * .88, roof, sc, 1); pline(left + aw * .88, bot, left + aw * .5, roof, sc, 1); } }
-    bezel(left, top, aw, ah, t, false); art(A, left, top, k);
+    bezel(left, top, aw, ah, t, false); if(A === ADS.navi){ halo(left - t, top - t, aw + t * 2, ah + t * 2, A.col, 1.2); screenAt(adFrame('navi', now), left, top, aw, ah, now); } else art(A, left, top, k);
     if(k > PX * .4){ const al = Math.max(PX, snp(ah * .16)); for(let q = 0; q < 3; q++){ const lx2 = snp(left + aw * (.18 + q * .32)); R(lx2, top - t - al, PX, al, sc); R(lx2 - PX, top - t - al - PX, PX * 3, PX, F('#3a3644'));
         R(lx2 - PX, top - t - al, PX * 3, PX, ON ? fc('#fffaf0', FF * .3) : F('#1c1a24')); }
       if(ON && FF < .8){ const a0 = cx.globalAlpha; cx.globalCompositeOperation = 'lighter'; cx.fillStyle = '#ffe8c0';
@@ -1018,8 +1100,8 @@
     if(uw > 2){ R(Math.min(xw, sx + sw * (side < 0 ? 1 : 0)) , top, Math.abs(xw - (sx + sw * (side < 0 ? 1 : 0))) + PX, bw, sc);   // the truss's top beam back to the wall
       for(const q of [.18, .82]) R(sx + sw * q - bw / 2, top, bw, sy - top, sc);   // the hangers
       R(sx, top, sw, bw, sc); pline(xw, bot + sh * .2, sx + sw * (side < 0 ? 1 : 0), top + bw, sc, Math.max(1, Math.round(bw / PX))); }   // the brace
-    const fr = ART.fox, f = reduce ? 20 : Math.floor(now / 120) % fr.length;   // round 6: the foxfire screen (the crane hangs on the gantry)
-    bezel(sx, sy, sw, sh, t, false); halo(sx - t, sy - t, sw + t * 2, sh + t * 2, '#ff8a2a', 1.3); screenAt(fr[f], sx, sy, sw, sh, now);
+    const fr = ART.fox, f = reduce ? 20 : Math.floor(now / 120) % fr.length, ad = B.ad && B.ad !== 'fox' ? adFrame(B.ad, now) : null;   // round 6: the foxfire screen; round 7b: or the ad dealt to this corner
+    bezel(sx, sy, sw, sh, t, false); halo(sx - t, sy - t, sw + t * 2, sh + t * 2, ad ? ADS[B.ad].col : '#ff8a2a', 1.3); screenAt(ad || fr[f], sx, sy, sw, sh, now);
     // under it, a marquee strip of amber bulbs chasing (steady under reduced motion)
     const th = Math.max(PX * 2, snp(sh * .07)), my = sy + sh + t; R(sx - t, my, sw + t * 2, th + PX * 2, F('#141220'));
     if(ON && th >= PX * 2){ const st = Math.max(PX * 2, snp(th * .8)), ph0 = reduce ? 0 : Math.floor(now / 90), by = my + PX + snp((th - PX) / 2); cx.fillStyle = fc('#ffb02a', FF * .4);
@@ -1038,7 +1120,7 @@
       R(xl + wd * .2, y - uw * (fy + .48), wd * .6, uw * .3, F(st === 1 ? '#b4c2e0' : st === 2 ? '#dcb478' : st === 3 ? '#4a4a60' : '#141826')); if(wd > PX * 14) R(xl + wd * .5 - PX / 2, y - uw * (fy + .48), PX, uw * .3, F(S[0])); }
     if(bd1 > bd0 && bd1 <= h1 + 2 && (ew.att || ART.po[ew.po])){ const yt = y - uw * bd1, hh = uw * (bd1 - bd0), x0 = xl + wd * .06, ww = wd * .88, hz = ew.tk ? hh * .8 : hh;   // round 4: a poster lightbox, or the arcade's attract screen
       if(ew.att){ const sh = Math.min(hz, ww * 20 / 32), sw = sh * 32 / 20, sx = x0 + (ww - sw) / 2, t = Math.max(PX, snp(sw * .04)); bezel(sx, yt, sw, sh, t, mixc(B.S[0], '#000000', .55)); halo(sx - t, yt - t, sw + t * 2, sh + t * 2, '#5a8aff', .8); screenAt(ART.att[reduce ? 3 : Math.floor(now / 140) % 16], sx, yt, sw, sh, now); }
-      else { const A = ART.po[ew.po], k = Math.min(ww / A.w, hz / A.h), aw = A.w * k, ah = A.h * k, left = x0 + (ww - aw) / 2, t = Math.max(PX, snp(k * .8)); bezel(left, yt, aw, ah, t, mixc(B.S[0], '#000000', .55)); halo(left - t, yt - t, aw + t * 2, ah + t * 2, A.avg, 1); art(A, left, yt, k); }
+      else { const A = ew.ad ? ADS[ew.ad] : ART.po[ew.po], k = Math.min(ww / A.w, hz / A.h), aw = A.w * k, ah = A.h * k, left = x0 + (ww - aw) / 2, t = Math.max(PX, snp(k * .8)); bezel(left, yt, aw, ah, t, mixc(B.S[0], '#000000', .55)); halo(left - t, yt - t, aw + t * 2, ah + t * 2, A.avg, 1); if(ew.ad) screenAt(adFrame(ew.ad, now), left, yt, aw, ah, now); else art(A, left, yt, k); }
       if(ew.tk && hh > PX * 14){ const th = Math.min(hh * .14, ww * .2); tickerAt(x0 + ww * .06, yt + hh - th, ww * .88, th, now); } }
     else if(bd1 > bd0 && bd1 <= h1 + 2){ const Pn = PAN[ew.p], yt = y - uw * bd1, hh = uw * (bd1 - bd0), x0 = xl + wd * .06, ww = wd * .88;   // the board: frame, lit panel, its word set top to bottom
       R(x0 - PX, yt - PX, ww + PX * 2, hh + PX * 2, F('#16121c')); R(x0, yt, ww, hh, L1(Pn[0]));
@@ -1250,7 +1332,9 @@
       poly4(a.x + a.w * X2, a.y, a.x + a.w * X3, a.y, b.x + b.w * X3, b.y, b.x + b.w * X2, b.y, f((i % 4) === 0 ? '#1a1820' : pc));   // the pavement tiles (a joint every 4), lit by the shop it fronts
       if(B && on && fog < .45){ const wc = B.wc || (B.wc = wetCols(B, pc));
         // the soaked tiles mirror the shop: three stepped bands of its light, brightest at the sill, the joint rows left dark (the tile grid shows through)
-        for(let q = 0; q < 3; q++){ if(q === 2 && (i & 3) === 0) continue; const Xa = side * (x0 - WB[q]), Xb = side * (x0 - WB[q + 1]); poly4(a.x + a.w * Xb, a.y, a.x + a.w * Xa, a.y, b.x + b.w * Xa, b.y, b.x + b.w * Xb, b.y, f(wc[q])); } }
+        // (perf pass: past fog .2 a band is a few pixels across and a row deep, and the three steps read as their middle: one band there)
+        if(fog >= .2){ const Xa = side * (x0 - WB[0]), Xb = side * (x0 - WB[3]); poly4(a.x + a.w * Xb, a.y, a.x + a.w * Xa, a.y, b.x + b.w * Xa, b.y, b.x + b.w * Xb, b.y, f(wc[1])); }
+        else for(let q = 0; q < 3; q++){ if(q === 2 && (i & 3) === 0) continue; const Xa = side * (x0 - WB[q]), Xb = side * (x0 - WB[q + 1]); poly4(a.x + a.w * Xb, a.y, a.x + a.w * Xa, a.y, b.x + b.w * Xa, b.y, b.x + b.w * Xb, b.y, f(wc[q])); } }
       // a puddle on the pavement: a dark mirror, the shop's light in it, a lit far rim
       if(RAINON && fog < .4 && H1(i * 1.37 + side * .53) < .2){ const h = H1(i * 2.9 + side), Xa = side * (1.24 + h * .5), Xb = Xa + side * (.22 + .2 * H1(i * 4.3 + side)), t0 = .15 + .3 * h, t1 = t0 + .35;
         const ya = a.y + (b.y - a.y) * t0, yb = a.y + (b.y - a.y) * t1, xa = a.x + (b.x - a.x) * t0, xb = a.x + (b.x - a.x) * t1, wa = a.w + (b.w - a.w) * t0, wb = a.w + (b.w - a.w) * t1;
@@ -1305,18 +1389,19 @@
       else if(t === 'N') o.push([fy + .2, fy + .42, f & 1 ? '#c050ff' : '#ff4aa0']); else if(t === 'T') o.push([fy + .2, fy + .4, '#ffa020']); }
     return (B.rs = o); }
   function wetSrc(s, n, a, P){ if(!RAINON || AKX.includes('nrpool')) return; const V = s.akV !== undefined ? s.akV : (s.akV = visitOf(s.index) || null); if(!V) return; const i = s.index, uw = a.w; if(!(uw > .5)) return;
-    if(n > 170) return; const st = n < 8 ? 1 : n < 20 ? 2 : n < 48 ? 4 : 8, fa = 1 - Math.pow(n / DRAW, 1.6) * .9, lx = laneDX(i);
-    if(s.akG && onAt(i)){ const x = a.x + lx * uw; P(x, a.y, uw, 1.66, 2.91, 2 * uw, '#4a5cc8', .55 * fa); P(x + .25 * uw, a.y, uw, 2.1, 2.7, .55 * uw, '#f0e4c8', .5 * fa); P(x, a.y, uw, 1.58, 1.66, 1.9 * uw, '#ffb02a', .45 * fa); }
+    if(n > 100) return; const st = n < 10 ? 2 : n < 30 ? 4 : 8, fa = 1 - Math.pow(n / DRAW, 1.6) * .9, lx = 0;   // (bug fix: the gantry and the train stand over the road, which a side lane does not push)
+    if(s.akG && onAt(i)){ const x = a.x + lx * uw; P(x, a.y, uw, 1.66, 2.91, 2 * uw, '#4a5cc8', .75 * fa); P(x + .25 * uw, a.y, uw, 2.1, 2.7, .55 * uw, '#f0e4c8', .5 * fa); P(x, a.y, uw, 1.58, 1.66, 1.9 * uw, '#ffb02a', .45 * fa); }
     // the blackout's lights: the train standing lit across the bridge, the signals on backup power (their pools are all the street has)
     if(i === V.BR && SPA.on && SPA.L === V && !SPA.rel2) P(a.x + lx * uw, a.y, uw, HT + .3, HT + .6, 3.2 * uw, '#ffd23a', .55 * fa);
-    if(s.akX === -3) for(let side = -1; side <= 1; side += 2) P(a.x + (side * 1.14 + lx) * uw, a.y, uw, 1.28, 1.42, .14 * uw, '#3aff9a', .7 * fa);
-    if(s.akLit > .55 && onAt(i)) for(let side = -1; side <= 1; side += 2) P(a.x + (side * .86 + lx) * uw, a.y, uw, 1.5, 1.62, Math.min(.12 * uw, W * .02), '#c8d8ff', .55 * fa);   // the mercury lamps
-    for(let side = -1; side <= 1; side += 2){ const B = bAt(V, side, i); if(!B || !onAt(B.b0)) continue;
-      if(B.hero >= 0 && i === B.b0){ const x = a.x + (side * (B.x0 + .1) + lx) * uw; P(x, a.y, uw, .88, 2.03, 1.84 * uw, '#3a3c8a', .5 * fa); P(x, a.y, uw, 1.1, 1.8, .6 * uw, '#ff8a2a', .55 * fa); }
+    if(s.akX === -3) for(let side = -1; side <= 1; side += 2) P(a.x + (side * 1.14 + laneS(i, side, 1.14)) * uw, a.y, uw, 1.28, 1.42, .14 * uw, '#3aff9a', .7 * fa);
+    if(s.akLit > .55 && onAt(i)) for(let side = -1; side <= 1; side += 2) P(a.x + (side * .86 + laneS(i, side, .86)) * uw, a.y, uw, 1.5, 1.62, Math.min(.12 * uw, W * .02), '#c8d8ff', .55 * fa);   // the mercury lamps
+    for(let side = -1; side <= 1; side += 2){ const B = bAt(V, side, i); if(!B || !onAt(B.b0)) continue; const lx = laneS(i, side, B.x0);
+      if(B.hero >= 0 && i === B.b0){ const x = a.x + (side * (B.x0 + .1) + lx) * uw, ad = B.ad && B.ad !== 'fox' ? ADS[B.ad] : null; P(x, a.y, uw, .88, 2.03, 1.84 * uw, ad ? '#1a1c3a' : '#3a3c8a', .5 * fa); P(x, a.y, uw, 1.1, 1.8, .6 * uw, ad ? ad.col : '#ff8a2a', .6 * fa); }
+      if(B.ew && B.ew.ad && i === B.b0){ const x = a.x + (side * (B.x0 + B.depth * .5) + lx) * uw; P(x, a.y, uw, (B.ph || 1.5) + .2, (B.ph || 1.5) + 1.3, .5 * uw, ADS[B.ew.ad].col, .55 * fa); }
       for(const b of B.bl){ if(b.plate) continue; const z = B.b0 + b.z; if(Math.floor(z / st) * st !== i) continue; const X = side * (B.x0 - b.off - b.pr / 2) + lx;
         P(a.x + X * uw, a.y, uw, G + b.f0 * FH, G + b.f1 * FH, b.pr * uw, b.ban !== undefined ? BAN[b.ban].s : PAN[b.p][0], .85 * fa); }
-      if(i % st) continue; const t = segs[i + st]; if(!t || !t.p1.screen.scale) continue; const q = t.p1.screen, X = side * B.x0, xa = a.x + (X + lx) * uw, xb = q.x + (X + laneDX(i + st)) * q.w, w0 = Math.abs(xb - xa) * .55, xc = (xa + xb) / 2;   // (a column, not the whole span: the stripes of the references, not a slab)
-      P(xc, a.y, uw, .04, .56, w0, SHOPL[B.sv] || '#ffc070', .34 * fa); P(xc, a.y, uw, .56, G, w0, B.gr === 'crane' ? '#ff3a7a' : B.aw[0], .24 * fa);
+      if(i % st) continue; const t = segs[i + st]; if(!t || !t.p1.screen.scale) continue; const q = t.p1.screen, X = side * B.x0, xa = a.x + (X + lx) * uw, xb = q.x + (X + laneS(i + st, side, B.x0)) * q.w, w0 = Math.abs(xb - xa) * .55, xc = (xa + xb) / 2;   // (a column, not the whole span: the stripes of the references, not a slab)
+      P(xc, a.y, uw, .04, G, w0, SHOPL[B.sv] || '#ffc070', .34 * fa);
       const rs = signSrc(B); for(let k = 0; k < rs.length; k++) P(xc, a.y, uw, rs[k][0], rs[k][1], w0, rs[k][2], .78 * fa); } }
   // on the road, under the cars: splash crowns, rain rings where the water stands, the glint on the lane paint (per segment, near only)
   let AKDK = 0;
@@ -1339,23 +1424,26 @@
     g.globalAlpha = a0; g.globalCompositeOperation = 'source-over'; }
   // the rain sheets: three depths x four slants, tileable, white with the alpha baked (built in warm-up)
   const RTS = 96, RLAY = [{ n:320, len:[2, 3, 4, 5], a:.34 }, { n:110, len:[5, 8, 11, 14], a:.55 }, { n:26, len:[11, 17, 24, 32], a:.8 }], RSL = [.05, .13, .24, .36], RVEL = [.5, .95, 1.6];
-  let RSH = null;
-  function buildRain(){ RSH = []; for(let L = 0; L < 3; L++){ const row = []; for(let v = 0; v < 4; v++){ const c = mk(RTS, RTS), g = c.getContext('2d'), id = g.createImageData(RTS, RTS), D = id.data, Ld = RLAY[L];
-        for(let q = 0; q < Ld.n; q++){ const x0 = H1(q * 1.37 + L * 11.1) * RTS, y0 = H1(q * 2.71 + L * 5.3) * RTS, len = Math.max(2, Math.round(Ld.len[v] * (.7 + .6 * H1(q * 4.1 + L)))), sl = RSL[v];
+  let RSH = null, RSHT = null;
+  /* (perf pass, Kellan: the rain reads too dense at top speed on the phone) A portrait screen takes the mid and near sheets from a sparser set:
+     the same streaks, the first 60 % of them (no streak moves), and the near layer fades a little more with speed there. Landscape is unchanged. */
+  function buildRain(){ RSH = []; RSHT = []; for(let L = 0; L < 3; L++){ const row = [], rowT = []; for(let v = 0; v < 4; v++){ row.push(rainSheet(L, v, RLAY[L].n)); rowT.push(L ? rainSheet(L, v, Math.round(RLAY[L].n * .6)) : row[v]); } RSH.push(row); RSHT.push(rowT); } }
+  function rainSheet(L, v, nq){ const c = mk(RTS, RTS), g = c.getContext('2d'), id = g.createImageData(RTS, RTS), D = id.data, Ld = RLAY[L];
+        for(let q = 0; q < nq; q++){ const x0 = H1(q * 1.37 + L * 11.1) * RTS, y0 = H1(q * 2.71 + L * 5.3) * RTS, len = Math.max(2, Math.round(Ld.len[v] * (.7 + .6 * H1(q * 4.1 + L)))), sl = RSL[v];
           for(let k = 0; k < len; k++){ const xx = ((Math.round(x0 - sl * k) % RTS) + RTS) % RTS, yy = Math.round(y0 + k) % RTS, j = (yy * RTS + xx) * 4, t = k / len, al = Ld.a * (t < .3 ? .45 : 1);
             D[j] = D[j + 1] = D[j + 2] = 255; D[j + 3] = Math.max(D[j + 3], Math.round(al * 255)); } }
-        g.putImageData(id, 0, 0); row.push(c); } RSH.push(row); } }
-  function sheet(c, ox, oy){ const P = RTS * PX, x0 = snp(-(((ox % P) + P) % P)), y0 = snp((((oy % P) + P) % P) - P); for(let y = y0; y < H; y += P) for(let x = x0; x < W; x += P) cx.drawImage(c, x, y, P, P); }
+        g.putImageData(id, 0, 0); const c2 = mk(RTS * 2, RTS * 2), g2 = c2.getContext('2d'); for(let k = 0; k < 4; k++) g2.drawImage(c, (k & 1) * RTS, (k >> 1) * RTS); return c2; }   // (perf pass: the tile laid 2 x 2, a quarter of the drawImages per sheet; the same pixels)
+  function sheet(c, ox, oy){ const P = RTS * 2 * PX, x0 = snp(-(((ox % P) + P) % P)), y0 = snp((((oy % P) + P) % P) - P); for(let y = y0; y < H; y += P) for(let x = x0; x < W; x += P) cx.drawImage(c, x, y, P, P); }
   function rainOverlay(al, now){ if(!RSH || !RAINON || al < .02 || AKX.includes('nrov')) return; const g = cx, a0 = g.globalAlpha, t = now / 1000, sp = clamp(speed / MAXS, 0, 1), v = Math.min(3, Math.round(sp * 3.4)), cs = Math.floor(position / SEG);
     AKDK += ((onAt(cs + 12) ? 0 : 1) - AKDK) * .08; const dk = AKDK; try{ const rp = MECH.roadmat && MECH.roadmat.RP[KEY]; if(rp) rp.sheen = .8 + 1.1 * dk; }catch(e){}   // (in the dark the puddles hold only the sky: colder and stronger, the moon's glitter with them) g.imageSmoothingEnabled = false;
-    const rs = reduce ? .3 : 1, par = skyPar('mid');
-    for(let L = 0; L < 3; L++){ if(reduce && L === 2) break; const vel = RVEL[L] * H * rs * (1 + sp * .35), oy = t * vel, ox = oy * RSL[v] - par * (.4 + L * .3), c = RSH[L][v];
+    const rs = reduce ? .3 : 1, par = skyPar('mid'), por = H > W * 1.2, thin = por ? 1 - .3 * sp : 1;
+    for(let L = 0; L < 3; L++){ if(reduce && L === 2) break; const vel = RVEL[L] * H * rs * (1 + sp * .35), oy = t * vel, ox = oy * RSL[v] - par * (.4 + L * .3), c = (por ? RSHT : RSH)[L][v], th = L === 2 ? thin : 1;
       if(L === 0){ g.globalCompositeOperation = 'source-over'; g.globalAlpha = a0 * al * (.18 + .3 * dk); sheet(c, ox, oy); continue; }
-      g.globalCompositeOperation = 'overlay'; g.globalAlpha = a0 * al * (L === 1 ? .85 : 1) * (1 - .7 * dk); sheet(c, ox, oy);
-      g.globalCompositeOperation = 'lighter'; g.globalAlpha = a0 * al * ((L === 1 ? .04 : .055) + (L === 1 ? .2 : .32) * dk); sheet(c, ox, oy); }
+      g.globalCompositeOperation = 'overlay'; g.globalAlpha = a0 * al * (L === 1 ? .85 : 1) * (1 - .7 * dk) * th; sheet(c, ox, oy);
+      g.globalCompositeOperation = 'lighter'; g.globalAlpha = a0 * al * ((L === 1 ? .04 : .055) + (L === 1 ? .2 : .32) * dk) * th; sheet(c, ox, oy); }
     // the blackout: the streaks catch the moon (a band of them brighter under it)
     if(dk > .05 && !reduce){ const mx = MOON.x || W / 2, vy = t * RVEL[2] * H * (1 + sp * .35); g.save(); g.beginPath(); g.rect(snp(mx - W * .2), 0, snp(W * .4), H); g.clip(); g.globalCompositeOperation = 'lighter'; g.globalAlpha = a0 * al * .28 * dk;
-      sheet(RSH[2][v], vy * RSL[v] - par, vy); g.restore(); }
+      sheet((por ? RSHT : RSH)[2][v], vy * RSL[v] - par, vy); g.restore(); }
     g.globalCompositeOperation = 'source-over'; g.globalAlpha = a0; }
   // the hiss: a looped noise bed (a high hiss and a low body) on the SFX bus, only while riding this road; unwired elsewhere (it then costs nothing)
   const AR = { src:null, g:null, wired:false, t:0, off:0 };
@@ -1374,6 +1462,7 @@
   // ---------------------------------------------------------------- draw dispatch
   function draw(sp, x, y, uw, fog, now, sk){ draw0(sp, x, y, uw, fog, now, sk); CAT = 'o'; }
   function draw0(sp, x, y, uw, fog, now, sk){ if(sk && sk.low) setLow(sk.low); const t = sp.type; CAT = t; if(RAINON) fog = Math.min(1, fog + (1 - fog) * fog * .7);   // the downpour: the far canyon sinks sooner into a lit haze (fogLow is lifted toward it in setLow)
+    HZD = sp.k !== undefined ? sp.k - HZB() : 0;
     if(t === 'b') return drawB(sp, x, y, uw, fog, now); if(t === 'w') return drawWire(sp, x, y, uw, fog, now); if(t === 'lamp') return drawLamp(sp, x, y, uw, fog, now); if(t === 'pole') return drawPole(sp, x, y, uw, fog, now);
     if(t === 'ped') return drawPed(sp, x, y, uw, fog, now); if(t === 'xf') return drawXF(sp, x, y, uw, fog, now); if(t === 'sig') return drawSig(sp, x, y, uw, fog, now); if(t === 'trk') return drawTruck(sp, x, y, uw, fog, now);
     if(t === 'pv') return drawProp(sp, x, y, uw, fog, now); if(t === 'br') return drawBridge(sp, x, y, uw, fog, now); if(t === 'gnt') return drawGantry(sp, x, y, uw, fog, now); }
@@ -1417,13 +1506,19 @@
   function snd(notes, type, v){ try{ if(typeof M === 'undefined' || !M.ac || !M.tone) return; const t0 = M.ac.currentTime; notes.forEach(([f, d], k) => M.tone(f, d, { type, v, at:t0 + k * .12 })); }catch(e){} }
 
   // ---------------------------------------------------------------- warm-up
+  // (perf pass) a source's upload paid in its own step: drawn into a scratch canvas and flushed there (never a read-back of the game canvas)
+  let UPC = null; function upW(c){ try{ if(!UPC) UPC = mk(2, 2).getContext('2d'); UPC.drawImage(c, 0, 0, 1, 1); UPC.getImageData(0, 0, 1, 1); }catch(e){} }
   function* warmSteps(){ regDir(); if(!PANL.length) for(const p of PAN){ PANL.push(mixc(p[0], '#ffffff', .45)); PANS.push(mixc(p[1], p[0], .3)); }
     if(AKX.includes('cnt') && !warmSteps.cnt){ warmSteps.cnt = true; const f0 = cx.fillRect; cx.fillRect = function(){ AKC[CAT] = (AKC[CAT] || 0) + 1; return f0.apply(this, arguments); }; }
     if(!ATL){ ATL = mk(1024, 1); AG = ATL.getContext('2d'); SC = mk(80, 80); SG = SC.getContext('2d', { willReadFrequently:true }); TK = mk(2048, 16); } yield;
     yield* buildTextG(); yield* artSteps(); if(!FONT){ try{ if(document.fonts && document.fonts.load) document.fonts.load('16px DotGothic16').then(() => { if(!FONT) buildText(); }, () => {}); }catch(e){} } yield;
-    buildStrips(); yield; buildPeople(); buildProps(); yield; buildRain(); yield; hazeWarm(); yield;
+    buildStrips(); yield; buildPeople(); buildProps(); yield;
+    if(ENV.akibaAds && ENV.akibaAds.warmSteps) yield* ENV.akibaAds.warmSteps();
+    { const f = adFrame('whale', 0); if(f && f.c){ upW(f.c); yield; try{ cx.save(); cx.globalAlpha = .004; cx.drawImage(f.c, 0, 0, 1, 1); cx.restore(); }catch(e){ try{ cx.restore(); }catch(e2){} } } } yield; buildRain(); yield; upW(RSH[2][3]); yield; yield* hazeWarm(); yield;
     try{ if(typeof MUSIC !== 'undefined' && MUSIC.ROAD_THEME && !MUSIC.ROAD_THEME[KEY]) MUSIC.ROAD_THEME[KEY] = 'neon'; }catch(e){}
-    try{ cx.save(); cx.globalAlpha = .004; for(const c of [ATL, TK, FAR, MID, MIDD].concat(PEOPLE, PROPS)) if(c) cx.drawImage(c, 0, 0, 1, 1); cx.fillStyle = ditherPat('#235250', .25); cx.fillRect(0, 0, PX, PX); cx.restore(); }catch(e){ try{ cx.restore(); }catch(e2){} }
+    // (perf pass: one texture upload per step, the clear in its own: the single final step of all of them cost 400+ ms on a re-run)
+    for(const c of [ATL, TK, FAR, MID, MIDD].concat(PEOPLE, PROPS, RSH ? [].concat(...RSH, ...RSHT) : [])){ if(!c) continue; upW(c); yield; try{ cx.save(); cx.globalAlpha = .004; cx.drawImage(c, 0, 0, 1, 1); cx.restore(); }catch(e){ try{ cx.restore(); }catch(e2){} } yield; }
+    try{ cx.save(); cx.globalAlpha = .004; cx.fillStyle = ditherPat('#235250', .25); cx.fillRect(0, 0, PX, PX); cx.restore(); }catch(e){ try{ cx.restore(); }catch(e2){} } yield;
     cx.clearRect(0, 0, W, H); }
 
   ENV.akiba = { _mk:(ch, z) => { const q = mask(ch, z), b = box(q.m, q.n); let c = 0; for(const v of q.m) c += v; return [b, c, q.n]; }, _GA:GA, _used:USED, _atl:() => ATLY, _ga:() => { const o = {}; let A = 0; for(const st in GA) for(const ch in GA[st]) GA[st][ch].forEach((g, si) => { if(!g) return; const k = st + SZ[si]; o[k] = (o[k] || 0) + g.w * g.h; A += g.w * g.h; }); o.total = A; return o; }, _akc:AKC, _PJ:(z, x, h) => { cam(); PJ(z, x, h); return [PJX, PJY, PJU]; }, _lay:lay, _visit:visitOf, _ART:ART, _AT:() => AT, _artSteps:artSteps, _spa:SPA, _onAt:onAt,

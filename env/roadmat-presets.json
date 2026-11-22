@@ -1,5 +1,7 @@
 {
   "version": 1,
   "fields": {},
-  "roads": {}
+  "roads": {
+    "neon": { "pools": 1.75, "refl": 1, "sheen": 0.9, "sheenCol": "#4a5cb0" }
+  }
 }

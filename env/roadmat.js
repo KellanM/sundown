@@ -363,9 +363,9 @@ function paint(s, n, key, wt){ if(wt < .03) return; const p = RP[key]; if(!p || 
   // wet: the sky in the puddles (Fresnel: strong toward the horizon), the moon's broken glitter, the lamps' and tail lights' streaks
   const wet = p.wet * (WETK[key] !== undefined ? WETK[key] : 1) * wt; if(wet <= .02) return; const Q = TINT[key];
   g.globalCompositeOperation = 'lighter';
-  if(r1 >= r0 && Q){ const sh = wet * p.sheen;
-    for(let r = r0; r <= r1; r++){ const f = ROWF[r], fr = ss(.004, .4, f) * (1 - ss(.72, .98, f)), lod = ROWL[r], a = sh * fr * Math.min(1, Math.max(0, (4.8 - lod) / 1.2)); if(a < .02) continue;
-      const lv = Math.min(NL - 1, Math.max(0, Math.ceil(lod - .3))), vr = Math.floor(ROWV[r] / (1 << (2 * lv))) % LH[lv]; SA(Math.min(1, a)); blitRow(Q.c[lv], ROWX[r] - ROWW[r], ROWX[r] + ROWW[r], r, vr); }
+  if(r1 >= r0 && Q){ const sh = wet * p.sheen, h2 = p.pools > 0;   // (perf pass: roads with pools (Akihabara) lay the sky sheen on even rows, each two rows deep)
+    for(let r = r0; r <= r1; r++){ if(h2 && (r & 1) && r > r0) continue; const f = ROWF[r], fr = ss(.004, .4, f) * (1 - ss(.72, .98, f)), lod = ROWL[r], a = sh * fr * Math.min(1, Math.max(0, (4.8 - lod) / 1.2)); if(a < .02) continue;
+      const lv = Math.min(NL - 1, Math.max(0, Math.ceil(lod - .3))), vr = Math.floor(ROWV[r] / (1 << (2 * lv))) % LH[lv]; SA(Math.min(1, a)); blitRow(Q.c[lv], ROWX[r] - ROWW[r], ROWX[r] + ROWW[r], r, vr, h2 && r < r1 ? 2 : 1); }
     const mx = MOON.x, ma = sh * .5 * (1 - ss(.85, 1, MOON.t || 0)); if(ma > .02){ g.fillStyle = MOONC;
       for(let r = r0; r <= r1; r++){ const x = ROWX[r], w = ROWW[r]; if(mx < x - w || mx > x + w) continue; const f = ROWF[r], fr = (.25 + .75 * ss(0, .5, f)) * (1 - ss(.7, .95, f)), m = maskAt(T, (mx - x) / w, ROWV[r]);
         const I = m > .7 ? 1 : m > .4 ? .55 : m > .15 ? .25 : 0; if(!I) continue; SA(Math.min(1, ma * fr * I)); const hw = Math.max(PX, w * (.03 + .05 * m)); pxRect(mx - hw, r * PX, hw * 2, PX); } } }
@@ -378,9 +378,9 @@ function paint(s, n, key, wt){ if(wt < .03) return; const p = RP[key]; if(!p || 
   SA(1); g.globalCompositeOperation = 'source-over';
   const E2 = ENV[key]; if(E2 && E2.wetFX && r1 >= r0) E2.wetFX(s, n, r0, r1, RV, wet, T); }
 // one row of a strip across [x0, x1] (CSS px), on the grid, cropped to the screen
-function blitRow(C, X0, X1, r, vr){ const cw = C.width, dx0 = Math.round(X0 / PX) * PX, dx1 = Math.round(X1 / PX) * PX, ax = Math.max(0, dx0), bx = Math.min(W, dx1); if(bx <= ax || X1 <= X0) return;
+function blitRow(C, X0, X1, r, vr, hh){ const cw = C.width, dx0 = Math.round(X0 / PX) * PX, dx1 = Math.round(X1 / PX) * PX, ax = Math.max(0, dx0), bx = Math.min(W, dx1); if(bx <= ax || X1 <= X0) return;
   const su0 = (ax - X0) / (X1 - X0) * cw, su1 = (bx - X0) / (X1 - X0) * cw, u0 = Math.max(0, su0), u1 = Math.min(cw, su1); if(u1 - u0 <= 0) return;
-  cx.drawImage(C, u0, vr, u1 - u0, 1, ax, r * PX, bx - ax, PX); }
+  cx.drawImage(C, u0, vr, u1 - u0, 1, ax, r * PX, bx - ax, hh === 2 ? PX * 2 : PX); }
 // a light's reflection on the wet road: centred on its mirror image (base + height), broken row by row by the world-anchored wet mask
 // (module-level run state, so a streak allocates nothing)
 let SK_rs = -1, SK_I = 0, SK_W = 0, SK_X = 0, SK_A = 0;
@@ -401,22 +401,25 @@ const RV = { x:null, w:null, p:null, v:null, f:null, n:null, mask:(T, u, v) => m
 const PLM = 1024, PLX = new Float32Array(PLM), PLB = new Float32Array(PLM), PLU = new Float32Array(PLM), PLH0 = new Float32Array(PLM), PLH1 = new Float32Array(PLM), PLW = new Float32Array(PLM), PLA = new Float32Array(PLM), PLL = new Float32Array(PLM), PLYA = new Int16Array(PLM), PLYB = new Int16Array(PLM), PLC = new Array(PLM).fill(''), PLT = new Array(PLM).fill(null);
 let PLN = 0;
 function POOL(lx, by, uw, h0, h1, w0, col, al){ al *= PK.rf; if(PLN >= PLM || al < .02 || !(w0 >= PX * .6) || !(uw > 0) || !(lx === lx) || !(by === by)) return;
-  w0 = Math.min(w0, W * .07); const ya = Math.max(0, Math.ceil((by + h0 * uw * .9) / PX)), yb = Math.min(RN - 1, Math.floor((by + (h1 * 1.9 + .25) * uw) / PX)); if(yb < ya) return; const k = PLN++;
+  w0 = Math.min(w0, W * .12); const ya = Math.max(0, Math.ceil((by + h0 * uw * .9) / PX)), yb = Math.min(RN - 1, Math.floor((by + (h1 * 1.9 + .25) * uw) / PX)); if(yb < ya) return; const k = PLN++;
   PLX[k] = lx; PLB[k] = by; PLU[k] = uw; PLH0[k] = h0; PLH1[k] = h1; PLW[k] = w0; PLA[k] = al; PLL[k] = PK.lim; PLYA[k] = ya; PLYB[k] = yb; PLC[k] = col; PLT[k] = PK.T; }
 let PL_rs = -1, PL_I = 0, PL_W = 0, PL_X = 0, PL_lx = 0, PL_a = 0;
 function poolFlush(re){ if(PL_rs >= 0 && PL_I > 0){ const x = PL_lx + PL_X; SA(Math.min(1, PL_a * PL_I)); cx.fillRect(Math.round((x - PL_W / 2) / PX) * PX, PL_rs * PX, PL_W, (re - PL_rs) * PX);
-    if(PL_W >= PX * 6){ const w2 = Math.round(PL_W * 1.8 / PX) * PX; SA(Math.min(1, PL_a * PL_I * .28)); cx.fillRect(Math.round((x - w2 / 2) / PX) * PX, PL_rs * PX, w2, (re - PL_rs) * PX); } } }
+    if(PL_W >= PX * 10){ const w2 = Math.round(PL_W * 1.8 / PX) * PX; SA(Math.min(1, PL_a * PL_I * .28)); cx.fillRect(Math.round((x - w2 / 2) / PX) * PX, PL_rs * PX, w2, (re - PL_rs) * PX); } } }
 /* One pool's rows inside [r0, r1]: the mirror image of a light standing h0..h1 above its base, stretched toward the viewer (to ~1.9x its height),
    full in the puddles and thinner on the film, shivering sideways in the ripples except where the water is deep; out to its limit across (the
    pavements' puddles are the road's mask, mirrored). Runs of equal rows are one rect, with a dimmer wider fringe near by (a rough mirror's spread). */
-function drawPools(r0, r1){ const c0 = cx.fillStyle;
+/* (perf pass) A far pool (its road under 48 px a side) is sampled on even screen rows only, each sample held for two rows: half the rects where
+   a row is already finer than the mask, and the same whole-pixel grid. The colour is set only when it changes (pools come in runs of one light). */
+const PL_HALF = 48;
+function drawPools(r0, r1){ const c0 = cx.fillStyle; let cc = '';
   for(let k = 0; k < PLN; k++){ if(PLYB[k] < r0 || PLYA[k] > r1) continue; const lx = PLX[k], by = PLB[k], uw = PLU[k], h0 = PLH0[k], h1 = PLH1[k], w0 = PLW[k], lim = PLL[k], T = PLT[k];
-    const yt = by + h0 * uw * .9, ym = by + (h0 + h1) * .5 * uw, ye = by + (h1 * 1.9 + .25) * uw, dm = Math.max(1, ym - yt), de = Math.max(1, ye - ym), ra = Math.max(r0, PLYA[k]), rb = Math.min(r1, PLYB[k]);
-    cx.fillStyle = PLC[k]; PL_rs = -1; PL_I = 0; PL_W = 0; PL_X = 0; PL_lx = lx; PL_a = PLA[k];
-    for(let r = ra; r <= rb; r++){ let I = 0, ww = 0, ox = 0;
+    const yt = by + h0 * uw * .9, ym = by + (h0 + h1) * .5 * uw, ye = by + (h1 * 1.9 + .25) * uw, dm = Math.max(1, ym - yt), de = Math.max(1, ye - ym), ra = Math.max(r0, PLYA[k]), rb = Math.min(r1, PLYB[k]), half = uw < PL_HALF;
+    if(PLC[k] !== cc){ cc = PLC[k]; cx.fillStyle = cc; } PL_rs = -1; PL_I = 0; PL_W = 0; PL_X = 0; PL_lx = lx; PL_a = PLA[k];
+    for(let r = ra; r <= rb; r++){ if(half && (r & 1) && r > ra) continue; let I = 0, ww = 0, ox = 0;
       if(ROWN[r] >= 0){ const u = (lx - ROWX[r]) / ROWW[r], au = u < 0 ? -u : u;
         if(au < lim){ const yc = (r + .5) * PX, pr = yc < ym ? .45 + .55 * (yc - yt) / dm : Math.max(0, 1 - (yc - ym) / de), m = maskAt(T, au <= 1 ? u : (u > 0 ? 2 - au : au - 2), ROWV[r]);
-          I = Math.round(pr * (.3 + .7 * m) * 3) / 3; if(I > 0){ ww = Math.round(Math.max(PX, w0 * (.7 + .5 * m)) / PX) * PX; if(m < .8) ox = Math.round((ih((ROWV[r] / 4) | 0, PK.ph, 5) - .5) * w0 * .3 / PX) * PX; } } }
+          I = pr * (.3 + .7 * m) > .62 ? 1 : pr * (.3 + .7 * m) > .28 ? .5 : 0; if(I > 0){ ww = Math.round(Math.max(PX, w0 * (.7 + .5 * m)) / PX) * PX; if(m < .8) ox = Math.round((ih((ROWV[r] / 4) | 0, PK.ph, 5) - .5) * w0 * .3 / PX) * PX; } } }
       if(I !== PL_I || ww !== PL_W || ox !== PL_X){ poolFlush(r); PL_rs = r; PL_I = I; PL_W = ww; PL_X = ox; } }
     poolFlush(rb + 1); }
   cx.fillStyle = c0; }

@@ -898,7 +898,7 @@
   // (skRes / police / no hazards, curves straightened) the same way the drawbridge does.
   const BRK = 86, GAP = 48, RAMP = 22, HR = 3000, LOW = 2200, LANDX = 6, FAR = 44, BLAST_D = 64, WATER = 0, DEEP = 2600, PEAK = 3400;
   const zones = [];
-  const zoneOf = i => { for(const z of zones) if(i >= z.B - 200 && i <= z.B + GAP + FAR + 30) return z; return null; };
+  const zoneOf = i => { for(let n = zones.length - 1; n >= 0; n--){ const z = zones[n]; if(i >= z.B - 200 && i <= z.B + GAP + FAR + 30) return z; } return null; };   // newest first: a re-placed stretch belongs to its newest zone
   function reserve(q, z){ if(!q || q.kjZ === z) return; q.kjZ = z; q.skRes = 1; q.police = 1; q.hz = null; const o = q.index - z.B;
     const f = o < -100 ? clamp((-70 - o) / 30, 0, 1) : o > GAP + FAR ? clamp((o - GAP - FAR) / 20, 0, 1) : 0; q.curve *= f; }
   function addZone(pk){ const z = { pk, B:pk + BRK, blown:false, launched:false, landed:false }; zones.push(z); if(zones.length > 8) zones.shift();
@@ -1333,6 +1333,10 @@
       K.trig = -1; K.lastD = null; T.trig = -1; T.lastP = null; T.told = false;
       if(K.pitchOwn && window.CAM) CAM.pitch = 0; K.pitchOwn = false; K.shove = 0; K.lp = undefined; K.dt = -1; K.tsP = K.tsP.filter(q => q.r === segs); },
     place(i, s, L){ const rel = i - (typeof landStart === 'number' ? landStart : 0);
+      /* a new ride: the road is built from scratch, so last ride's break zones go (as fireball.js does). They were kept, and the same
+         layout gives the same pk: zoneOf handed the new deck to last ride's zone, already blown/launched/landed, so Play again (and every
+         demo ride after the first) had the torn deck with no blast and no launch, and the bike drove down into the gap */
+      if(i === 0) zones.length = 0;
       // the peak sits 440 segments in, but never within a fork gate's approach: then it comes 130 segments before the gate
       if(L.key === 'bay' && rel === 300 && !fnFirst(i)){ let pk = i + KJ_AT - 300; { const Tk = DIR && DIR.target ? DIR.target('kaiju', i) : null; if(Tk != null) pk = Math.max(pk, Tk); } for(const g of gates) if(g > i - 40 && g > pk - 200 && g < pk + 140 - PASS){ pk = g + 210; K.hold[pk] = g + 6; break; } if(window.forkClear){ const d = forkClear(pk - 200, pk + 140 - PASS); if(d){ delete K.hold[pk]; pk += d; } }   /* (?split=1: clear of a fork's split window) */ /* the break zone (its approach to the far deck's end) must sit inside the bay: pushed past a fork's window it ran over the border into
            the next road (the chasm and the KAIJU JUMP landing on a city street). Pull it back before the border; if it then overlaps the

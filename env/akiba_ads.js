@@ -149,7 +149,7 @@
     const b = bell(f); M.fill(0);
     // filaments from the margin (whisper-thin, mostly the deep colour), then the four oral arms: each point k takes the bell's place k * lag
     // frames ago, so they trail and stretch when it lurches
-    for(let i = 0; i < 8; i++){ const a = ((i + .5) / 8) * 2 - 1, L = 34 + hsh(i, 21) * 18; let px = null, py = null;
+    for(let i = 0; i < 6; i++){ const a = ((i + .5) / 6) * 2 - 1, L = 30 + hsh(i, 21) * 24; let px = null, py = null;
       for(let k = 0; k <= L; k++){ const s = bell(f - k * .3), x = s.x + a * s.rx * .92 + Math.sin(k * .2 - f * .4 + i) * Math.min(k * .07, 1.6), y = marg(s, a) + 1 + k * .95;
         const c = k < 8 ? 2 : k < L * .6 ? 1 : (dz(Math.round(x), Math.round(y), 1 - k / L) ? 1 : -1); if(c >= 0){ if(px !== null && Math.abs(x - px) + Math.abs(y - py) > 1.5) LN(px, py, x, y, c); else P(x, y, c); } px = x; py = y; } }
     for(let i = 0; i < 4; i++){ const o = (i - 1.5) * 2.6, L = [22, 28, 26, 20][i];
@@ -167,7 +167,7 @@
     for(const [ox, oy] of [[-1, -1], [1, -1], [-1, 1], [1, 1]]){ const cx = bx + ox * 4.2 * b.rx / 17, cy = by - b.ry * .45 + oy * 2.4 * b.ry / 10, rr = 2.4 * b.rx / 17 + .3; ELL(cx + .5, cy + .5, rr, 1.9, 4); P(cx - .5, cy - 2.2, 5); }
     for(let i = 0; i < 5; i++){ const a = -2.3 + i * .18; P(bx + Math.cos(a) * b.rx * .72 - .5, by + Math.sin(a) * b.ry * .8 - .5, 5); }   // the specular on the dome
     halo(1, .55, 1, 0);
-    if(f >= 25){ const ch = '水', z = 2, x = (W - kw(ch, z)) >> 1, y = 46;
+    if(f >= 25){ const ch = '水', z = 2, x = (W - kw(ch, z)) >> 1, y = 40;
       if(f === 25) kanji(ch, x, y, z, 3, -1, -1, (X, Y) => hsh(X, Y) < .45);
       else if(f === 26) kanji(ch, x, y, z, 5, 5, 0);
       else { kanji(ch, x, y, z, 5, 3, 0); const s = 'MIO'; txt(s, (W - tw(s)) >> 1, 73, 4, 2); for(let i = 0; i < 5; i++){ Pi(8 + i, 75 + (i & 1), 2); Pi(35 + i, 75 + (i & 1), 2); } } } }
@@ -177,7 +177,7 @@
      three beats with an overshoot; 15-19 a glint runs across the cells; 20-27 the beam rings down; 22-29 the cities link up; 26-31 the
      orbital sunrise on the limb; 32 the cut (a flash); 33-39 星環 inside an orbit, the satellite riding it. */
   const CITY = []; for(let i = 0; i < 18; i++) CITY.push(2 + hsh(i, 41) * 72, 29 + hsh(i, 42) * 10, hsh(i, 43));
-  const LINKS = [0, 3, 3, 7, 7, 1, 1, 9, 2, 8, 8, 11, 11, 5];
+  const LINKS = [0, 3, 3, 7, 7, 1, 2, 8, 8, 11];
   const vn = (x, y) => { const xi = Math.floor(x), yi = Math.floor(y), fx = x - xi, fy = y - yi, s = k => k * k * (3 - 2 * k), a = hsh(xi, yi), b2 = hsh(xi + 1, yi), c = hsh(xi, yi + 1), d = hsh(xi + 1, yi + 1); return lerp(lerp(a, b2, s(fx)), lerp(c, d, s(fx)), s(fy)); };
   function earth(cx, cy, R, f, net, sunK){
     for(let y = 0; y < H; y++) for(let x = 0; x < W; x++){ const d = Math.sqrt((x + .5 - cx) ** 2 + (y + .5 - cy) ** 2), o = y * W + x, r = d - R;
@@ -194,7 +194,7 @@
   function sat(f){
     for(let i = 0; i < 16; i++){ const x = (hsh(i, 51) * W) | 0, y = (hsh(i, 52) * 26) | 0, t = (f + i * 3) % 13; if(t < 11) Pi(x, y, t < 2 ? 3 : 2); }
     if(f >= 33){ earth(32, 40 + 170, 172, f, 99, 1); const ox = 32, oy = 14, rx = 27, ry = 7, a = f * .45 + 1.4;
-      ELL(ox, oy, rx, ry, 2, Math.PI, TAU); const w0 = kw('星', 1), x0 = (W - w0 * 2 - 3) >> 1; kanji('星', x0, 6, 1, 5); kanji('環', x0 + w0 + 3, 6, 1, 5); ELL(ox, oy, rx, ry, 3, .12, Math.PI - .12);
+      ELL(ox, oy, rx, ry, 2, Math.PI, TAU); const w0 = kw('星', 1), x0 = (W - w0 * 2 - 3) >> 1; RF(x0 - 2, 5, w0 * 2 + 7, kh('星', 1) + 3, 0); kanji('星', x0, 6, 1, 5); kanji('環', x0 + w0 + 3, 6, 1, 5); ELL(ox, oy, rx, ry, 3, .12, Math.PI - .12);
       const sx = ox + Math.cos(a) * rx, sy = oy + Math.sin(a) * ry; if(Math.sin(a) > -.2){ P(sx - .5, sy - .5, 5); P(sx - 1.5, sy - .5, 2); P(sx + .5, sy - .5, 2); }
       const s = 'SEIKAN'; txt(s, (W - tw(s) - 5) >> 1, 27, 3, 2); return; }
     if(f === 32){ RF(0, 0, W, H, 3); for(let y = 0; y < H; y++) for(let x = 0; x < W; x++) if(dz(x, y, 1 - Math.abs(y - 18) / 14)) D[y * W + x] = 5; return; }
@@ -202,7 +202,7 @@
     earth(8, 150, 126, f, f >= 22 ? (f - 21) * 1.2 : 0, sunK);
     const sx = Math.round(28 + f * .1), sy = Math.round(9 + Math.sin(f / 40 * TAU) * .8 + (f === 8 ? 1 : 0));
     // the beam: rings from the dish, down to the Earth (never over it)
-    for(const born of [20, 22, 24]){ const r = (f - born) * 3.2; if(r <= 0 || r > 28) continue; const n = Math.ceil(r * 4); for(let i = 0; i <= n; i++){ const a = .2 + (Math.PI - .4) * i / n, x = sx + 3 + Math.cos(a) * r, y = sy + 11 + Math.sin(a) * r * .42;
+    for(const born of [20, 23]){ const r = (f - born) * 3.2; if(r <= 0 || r > 20) continue; const n = Math.ceil(r * 4); for(let i = 0; i <= n; i++){ const a = .2 + (Math.PI - .4) * i / n, x = sx + 3 + Math.cos(a) * r, y = sy + 11 + Math.sin(a) * r * .42;
       if(Math.sqrt((x - 8) ** 2 + (y - 150) ** 2) > 127) P(x - .5, y - .5, r < 13 ? 3 : 2); } }
     // panels: three 7 x 6 segments a side, opened 0..3 (the boom overshoots a pixel at 13)
     const open = f < 10 ? 0 : f < 12 ? 1 : f < 13 ? 2 : 3, boom = f === 13 ? 4 : 3, shiv = f === 9 ? 1 : 0;
@@ -241,27 +241,28 @@
     // the streets: the block outlines on the ground, dim
     const bx0 = Math.floor((cxw - 40) / 8), by0 = Math.floor((cyw - 40) / 8);
     for(let bx = bx0; bx < bx0 + 11; bx++) for(let by = by0; by < by0 + 11; by++){ const X0 = bx * 8, Y0 = by * 8; LN(isx(X0, Y0), isy(X0, Y0, 0), isx(X0 + 6, Y0), isy(X0 + 6, Y0, 0), 1); LN(isx(X0, Y0), isy(X0, Y0, 0), isx(X0, Y0 + 6), isy(X0, Y0 + 6, 0), 1); }
-    // the route on the ground: start to the turn to the destination; pulses run ahead of the car
-    const cx0 = ncar(f), seg = [[cx0, NRY, NTX, NRY], [NTX, NRY, NTX, NDY]];
-    for(const [xa, ya, xb, yb] of seg){ if(xb < xa) continue; LN(isx(xa, ya), isy(xa, ya, 0), isx(xb, yb), isy(xb, yb, 0), 4); LN(isx(xa, ya), isy(xa, ya, 0) + 1, isx(xb, yb), isy(xb, yb, 0) + 1, 4); }
-    const total = (NTX - cx0) + (NDY - NRY); for(let k = 0; k < 5; k++){ const d = ((f * 1.3 + k * 6) % 30); if(d > total) continue; const [X, Y] = d < NTX - cx0 ? [cx0 + d, NRY] : [NTX, NRY + d - (NTX - cx0)];
-      Pi(Math.round(isx(X, Y)), Math.round(isy(X, Y, 0)), 5); Pi(Math.round(isx(X, Y)) + 1, Math.round(isy(X, Y, 0)), 5); }
     // the blocks, back to front: a building (or two) per block, dark faces, lit edges, windows, red roof lights
     const L = [];
     for(let bx = bx0; bx < bx0 + 11; bx++) for(let by = by0; by < by0 + 11; by++){ const h0 = hsh(bx * 7 + 3, by * 13 + 5), X0 = bx * 8, Y0 = by * 8;
-      if(h0 < .12) continue; const tall = 3 + Math.floor(Math.pow(hsh(bx, by + 99), 1.6) * 15);
-      if(h0 < .45){ L.push([X0 + .5, Y0 + .5, X0 + 2.8, Y0 + 5.5, tall], [X0 + 3.6, Y0 + .5, X0 + 5.5, Y0 + 5.5, Math.max(2, tall - 4 - Math.floor(hsh(bx, by) * 5))]); } else L.push([X0 + .5, Y0 + .5, X0 + 5.5, Y0 + 5.5, tall]); }
+      if(h0 < .4){ if(h0 < .16) for(let q = 0; q < 6; q++) Pi(Math.round(isx(X0 + 1 + hsh(q, bx) * 4, Y0 + 1 + hsh(q, by) * 4)), Math.round(isy(X0 + 1 + hsh(q, bx) * 4, Y0 + 1 + hsh(q, by) * 4, 0)), 1); continue; }   // empty lots, a park's trees
+      const tall = hsh(bx, by + 99) > .74 ? 10 + Math.floor(hsh(bx + 5, by) * 7) : 2 + Math.floor(hsh(bx + 9, by) * 4);
+      if(h0 < .6){ L.push([X0 + .5, Y0 + .5, X0 + 2.8, Y0 + 5.5, tall], [X0 + 3.6, Y0 + .5, X0 + 5.5, Y0 + 5.5, Math.max(2, tall - 4 - Math.floor(hsh(bx, by) * 5))]); } else L.push([X0 + .5, Y0 + .5, X0 + 5.5, Y0 + 5.5, tall]); }
     L.sort((a, b) => (a[0] + a[1] + a[2] + a[3]) - (b[0] + b[1] + b[2] + b[3]));
     for(const [X0, Y0, X1, Y1, h] of L){ const sxm = isx(X1, Y1); if(sxm < -14 || isx(X0, Y0) > W + 14 || isy(X1, Y1, 0) < -1 || isy(X0, Y0, h) > H + 1) continue;
       QX[0] = isx(X0, Y1); QY[0] = isy(X0, Y1, 0); QX[1] = isx(X1, Y1); QY[1] = isy(X1, Y1, 0); QX[2] = isx(X1, Y1); QY[2] = isy(X1, Y1, h); QX[3] = isx(X0, Y1); QY[3] = isy(X0, Y1, h); poly(4, 0);
-      QX[0] = isx(X1, Y1); QY[0] = isy(X1, Y1, 0); QX[1] = isx(X1, Y0); QY[1] = isy(X1, Y0, 0); QX[2] = isx(X1, Y0); QY[2] = isy(X1, Y0, h); QX[3] = isx(X1, Y1); QY[3] = isy(X1, Y1, h); poly(4, 1, (x, y) => dz(x, y, .35) ? 1 : 0);
-      QX[0] = isx(X0, Y0); QY[0] = isy(X0, Y0, h); QX[1] = isx(X1, Y0); QY[1] = isy(X1, Y0, h); QX[2] = isx(X1, Y1); QY[2] = isy(X1, Y1, h); QX[3] = isx(X0, Y1); QY[3] = isy(X0, Y1, h); poly(4, 1);
+      QX[0] = isx(X1, Y1); QY[0] = isy(X1, Y1, 0); QX[1] = isx(X1, Y0); QY[1] = isy(X1, Y0, 0); QX[2] = isx(X1, Y0); QY[2] = isy(X1, Y0, h); QX[3] = isx(X1, Y1); QY[3] = isy(X1, Y1, h); poly(4, 1, (x, y) => dz(x, y, .2) ? 1 : 0);
+      QX[0] = isx(X0, Y0); QY[0] = isy(X0, Y0, h); QX[1] = isx(X1, Y0); QY[1] = isy(X1, Y0, h); QX[2] = isx(X1, Y1); QY[2] = isy(X1, Y1, h); QX[3] = isx(X0, Y1); QY[3] = isy(X0, Y1, h); poly(4, 0);
       // windows on both faces, a few lit
       for(let z = 2; z < h - 1; z += 2){ for(let t = .8; t < X1 - X0 - .4; t += 1){ const q = hsh(Math.round((X0 + t) * 4), z * 7 + Math.round(Y1)); if(q < .5) Pi(Math.round(isx(X0 + t, Y1)), Math.round(isy(X0 + t, Y1, z)), q < .06 ? 3 : 2); }
         for(let t = .8; t < Y1 - Y0 - .4; t += 1){ const q = hsh(Math.round((Y0 + t) * 4) + 77, z * 7 + Math.round(X1)); if(q < .4) Pi(Math.round(isx(X1, Y0 + t)), Math.round(isy(X1, Y0 + t, z)), q < .05 ? 3 : 2); } }
-      const e = h > 9 ? 3 : 2; LN(isx(X0, Y0), isy(X0, Y0, h), isx(X1, Y0), isy(X1, Y0, h), e); LN(isx(X1, Y0), isy(X1, Y0, h), isx(X1, Y1), isy(X1, Y1, h), e); LN(isx(X1, Y1), isy(X1, Y1, h), isx(X0, Y1), isy(X0, Y1, h), e); LN(isx(X0, Y1), isy(X0, Y1, h), isx(X0, Y0), isy(X0, Y0, h), e);
-      LN(isx(X1, Y1), isy(X1, Y1, 0), isx(X1, Y1), isy(X1, Y1, h), 3); LN(isx(X0, Y1), isy(X0, Y1, 0), isx(X0, Y1), isy(X0, Y1, h), 2); LN(isx(X1, Y0), isy(X1, Y0, 0), isx(X1, Y0), isy(X1, Y0, h), 2);
-      if(h >= 13 && ((f >> 2) + Math.round(X0 + Y0)) & 1) Pi(Math.round(isx((X0 + X1) / 2, (Y0 + Y1) / 2)), Math.round(isy((X0 + X1) / 2, (Y0 + Y1) / 2, h)) - 1, 4); } }
+      const e = h > 9 ? 3 : 2, ev = h > 9 ? 2 : 1; LN(isx(X0, Y0), isy(X0, Y0, h), isx(X1, Y0), isy(X1, Y0, h), e); LN(isx(X1, Y0), isy(X1, Y0, h), isx(X1, Y1), isy(X1, Y1, h), e); LN(isx(X1, Y1), isy(X1, Y1, h), isx(X0, Y1), isy(X0, Y1, h), e); LN(isx(X0, Y1), isy(X0, Y1, h), isx(X0, Y0), isy(X0, Y0, h), e);
+      LN(isx(X1, Y1), isy(X1, Y1, 0), isx(X1, Y1), isy(X1, Y1, h), e); LN(isx(X0, Y1), isy(X0, Y1, 0), isx(X0, Y1), isy(X0, Y1, h), ev); LN(isx(X1, Y0), isy(X1, Y0, 0), isx(X1, Y0), isy(X1, Y0, h), ev);
+      if(h >= 13 && ((f >> 2) + Math.round(X0 + Y0)) & 1) Pi(Math.round(isx((X0 + X1) / 2, (Y0 + Y1) / 2)), Math.round(isy((X0 + X1) / 2, (Y0 + Y1) / 2, h)) - 1, 4); }
+    // the route, drawn over the city as a navigation screen draws it: start to the turn to the destination; pulses run ahead of the car
+    const cx0 = ncar(f), seg = [[cx0, NRY, NTX, NRY], [NTX, NRY, NTX, NDY]];
+    for(const [xa, ya, xb, yb] of seg){ if(xb < xa) continue; LN(isx(xa, ya), isy(xa, ya, 0), isx(xb, yb), isy(xb, yb, 0), 4); LN(isx(xa, ya), isy(xa, ya, 0) + 1, isx(xb, yb), isy(xb, yb, 0) + 1, 4); }
+    const total = (NTX - cx0) + (NDY - NRY); for(let k = 0; k < 5; k++){ const d = ((f * 1.3 + k * 6) % 30); if(d > total) continue; const [X, Y] = d < NTX - cx0 ? [cx0 + d, NRY] : [NTX, NRY + d - (NTX - cx0)];
+      Pi(Math.round(isx(X, Y)), Math.round(isy(X, Y, 0)), 5); Pi(Math.round(isx(X, Y)) + 1, Math.round(isy(X, Y, 0)), 5); } }
   function navi(f){
     if(f >= 30){
       if(f === 30){ for(let x = 0; x < W; x++){ Pi(x, 16, 5); if(dz(x, 15, .5)) Pi(x, 15, 3); if(dz(x, 17, .5)) Pi(x, 17, 3); } return; }
@@ -269,8 +270,8 @@
       if(f === 31){ for(let y = 11; y < 22; y++) for(let x = 0; x < W; x++) if(dz(x, y, 1 - Math.abs(y - 16) / 6)) D[y * W + x] = Math.abs(y - 16) < 2 ? 5 : 3; return; }
       const w0 = kw('道', 1), x0 = 7; kanji('道', x0, 3, 1, 5); kanji('標', x0 + w0 + 3, 3, 1, 5); txt('MICHISHIRUBE', 45, 5, 3); txt('NAVI', 45, 12, 4); for(let i = 0; i < 4; i++) Pi(63 + i * 2, 14, 2);
       const e = eOut(step(31, 35, f)), xe = Math.round(7 + 72 * e); for(let x = 7; x <= xe; x++){ Pi(x, 25, 4); Pi(x, 26, 4); } for(let x = 7; x <= xe; x++) if(((x - f * 2) & 7) < 2) Pi(x, 25, 5);
-      if(f >= 36){ sprite(f === 36 ? NPSQ : NPIN, 80, 26); if(f === 36) ELL(80, 26.5, 7, 1.6, 4); else if(f === 37) ELL(80, 26.5, 10, 2.2, 2); } return; }
-    const cx0 = ncar(f), k = eOut(step(14, 26, f)), cxw = lerp(cx0, NTX - 4, k * .7), cyw = lerp(NRY, NDY * .6, k * .7);
+      if(f >= 36){ if(f === 36) ELL(80, 26.5, 7, 1.6, 2); sprite(f === 36 ? NPSQ : NPIN, 80, 26); } return; }
+    const cx0 = ncar(f), k = eOut(step(14, 26, f)), cxw = lerp(cx0, NTX - 1, k * .85), cyw = lerp(NRY, NDY * .95, k * .85);
     navCity(f, cxw, cyw);
     // the car's puck: a white chevron on the route with a slow ring
     { const X = cx0, Y = NRY, sx = Math.round(isx(X, Y)), sy = Math.round(isy(X, Y, 0)); Pi(sx, sy, 5); Pi(sx - 1, sy - 1, 5); Pi(sx - 2, sy - 1, 3); Pi(sx - 1, sy + 1, 5); Pi(sx - 2, sy + 1, 3); Pi(sx + 1, sy, 5);
@@ -283,7 +284,7 @@
      Steam curls up from the broth on a 20-frame cycle; rain beads run down the glass at 1.25 and 2.5 px a frame (50 px a loop); two street
      lights glow out of focus behind. 6-8 the chopsticks come in and dip; 10 they push down (anticipation); 11-12 they snap up with the
      noodles; 13 the overshoot; 14-21 the hold, noodles swaying and dripping broth; 22-24 they lower; 25 they leave. 30 the seal slams in
-     large; 31-39 麺 夜鳴, the steam and the rain still going. */
+     large; 31-39 the seal (a bowl mark, its steam moving) and らーめん YONAKI, the steam and the rain still going (麺 and 夜鳴 were too dense to read at this size). */
   const TIPS = { 6:[52, 4], 7:[42, 13], 8:[35, 20], 9:[35, 21], 10:[35, 22], 11:[37, 11], 12:[39, 5], 13:[39, 3], 14:[39, 4], 22:[38, 9], 23:[36, 16], 24:[35, 20], 25:[50, 4] };
   const tipAt = f => TIPS[f] || (f >= 15 && f <= 21 ? [39 + (f === 18 ? 1 : 0), 4 + (f === 17 || f === 18 ? 1 : 0)] : null);
   const DROPS = [[5, 3, 1.25], [16, 30, 2.5], [26, 12, 1.25], [48, 41, 1.25], [58, 20, 2.5], [37, 6, 2.5]];
@@ -295,16 +296,21 @@
     for(let y = 20; y >= 0; y--){ const p = (20 - y) / 20, x = x0 + Math.sin(y * .32 + f * TAU / 20 + ph) * (1 + p * 2.6) + p * (w - 1) * 3, dn = (1 - p) * .75 * k0 * (.45 + .55 * Math.sin(y * .45 + f * TAU / 10 + ph));
       if(dn > 0){ const xi = Math.round(x); if(dz(xi, y, dn) && G(xi, y) < 3) Pi(xi, y, 4); if(dz(xi + 1, y, dn * .6) && G(xi + 1, y) < 3) Pi(xi + 1, y, 4); } } } }
   function disc(x, y, r, c, rim = -1){ for(let j = -r; j <= r; j++) for(let i = -r; i <= r; i++){ const d = Math.hypot(i, j); if(d <= r + .3) Pi(Math.round(x + i), Math.round(y + j), rim >= 0 && d > r - .7 ? rim : c); } }
-  function ramenBack(){ disc(7, 6, 5, 1); disc(57, 4, 4, 1); disc(50, 11, 2, 1, 2); disc(14, 13, 2, 1);
-    for(let y = 0; y < H; y++) for(let x = 0; x < W; x++){ const d = Math.hypot((x - 31) / 1.5, (y - 25) * 1.1); if(d < 14 || (d < 15.5 && dz(x, y, .5))) D[y * W + x] = 1; } }
+  function ramenBack(){ disc(7, 6, 5, 1); disc(57, 4, 4, 1); disc(50, 11, 2, 1); disc(14, 13, 2, 1);
+    for(let y = 0; y < H; y++) for(let x = 0; x < W; x++){ const d = Math.hypot((x - 31) / 1.7, (y - 22) * 1.15); if(d < 10 || (d < 11.5 && dz(x, y, .5))) D[y * W + x] = 1; } }
   function ramen(f){
-    ramenBack();
-    if(f >= 30){ steam(f, .7); const big = f === 30, s = big ? 3 : 0, x = 3 - s, y = 4 - s, n = 32 + s * 2; RF(x + 2, y + 2, n, n, 0); RF(x, y, n, n, 2);
+    if(f < 30) ramenBack();
+    if(f >= 30){ steam(f, .7); const big = f === 30, s = big ? 3 : 0, x = 2 - s, y = 2 - s, n = 30 + s * 2; RF(x + 2, y + 2, n, n, 0); RF(x, y, n, n, 2);
       for(let i = 0; i < n; i++){ Pi(x + i, y, 4); Pi(x, y + i, 3); Pi(x + i, y + n - 1, 1); Pi(x + n - 1, y + i, 1); }
-      for(let i = 2; i < n - 2; i++){ Pi(x + i, y + 2, 1); Pi(x + 2, y + i, 1); Pi(x + i, y + n - 3, 3); Pi(x + n - 3, y + i, 3); }
-      const ch = '麺', z = -2; kanji(ch, x + ((n - kw(ch, z)) >> 1), y + ((n - kh(ch, z)) >> 1), z, 4);
-      if(!big){ const h0 = kh('夜', 1); kanji('夜', 42, 4, 1, 3); kanji('鳴', 42, 7 + h0, 1, 3); for(let i = 0; i < 3; i++) Pi(50, 38 - i * 2, 2); }
-      rain(f); return; }
+      for(let i = 2; i < n - 2; i++){ Pi(x + i, y + 2, 4); Pi(x + 2, y + i, 4); Pi(x + i, y + n - 3, 4); Pi(x + n - 3, y + i, 4); }
+      // the seal's mark: a bowl, its chopsticks and three curls of steam (the steam moves), cream on the red
+      const ox = x + 4 + s, oy = y + 4 + s;
+      for(let j = 0; j < 8; j++){ const hw = Math.round(10 * Math.sqrt(1 - (j / 8.5) ** 2)); for(let i = -hw; i <= hw; i++) Pi(ox + 11 + i, oy + 12 + j, 4); } RF(ox + 7, oy + 20, 9, 1, 4); RF(ox + 1, oy + 11, 21, 1, 4);
+      for(let i = 0; i < 18; i += 2) Pi(ox + 3 + i, oy + 14, 2);
+      LN(ox + 14, oy + 10, ox + 21, oy + 1, 4); LN(ox + 16, oy + 10, ox + 22, oy + 2, 4);
+      for(let w = 0; w < 3; w++) for(let j = 0; j < 7; j++) Pi(ox + 5 + w * 4 + Math.round(Math.sin(j * .9 + f * .8 + w) * .8), oy + 2 + j + (w === 1 ? -1 : 0), 4);
+      rain(f); if(!big){ kanji('ら', 33, 2, 1, 4); kanji('ー', 48, 2, 1, 4); kanji('め', 33, 18, 1, 4); kanji('ん', 48, 18, 1, 4); RF(36, 34, 25, 7, 0); txt('YONAKI', 37, 35, 3); }
+      return; }
     RF(0, 36, W, 4, 1); for(let x = 0; x < W; x++) Pi(x, 36, (x & 3) ? 3 : 1);   // the counter's edge catching the light
     // the bowl: the foot, the body (lit left, shaded right), the meander band, the rim (the lip lit in front), the broth
     const cx = 30, ry = 23, RX = 21; RF(cx - 7, 34, 15, 2, 1);
@@ -369,7 +375,7 @@
     { id:'jelly', w:48, h:80, n:40, fps:8, title:'水 MIO deep-sea water', brand:'MIO', slot:'vertical', paint:jelly, gl:17,
       pal:['#06030c', '#1d0c36', '#7a2a8c', '#e25cbc', '#ffb8ea', '#fff4fc'] },
     { id:'sat', w:64, h:40, n:40, fps:10, title:'星環 SEIKAN telecom', brand:'SEIKAN', slot:'hero', paint:sat, gl:24,
-      pal:['#02030a', '#0b1838', '#2d6fe0', '#a6dcff', '#e0a646', '#fffbea'] },
+      pal:['#02030a', '#0b1838', '#2d6fe0', '#a6dcff', '#f4c45e', '#fffbea'] },
     { id:'navi', w:96, h:32, n:40, fps:12, title:'道標 MICHISHIRUBE navigation', brand:'MICHISHIRUBE', slot:'wide', paint:navi, gl:12, src:SRC_HOLD(37, 39),
       pal:['#03040b', '#141c44', '#2c4cb0', '#7aa4ff', '#ff3474', '#fff0f4'] },
     { id:'ramen', w:64, h:40, n:40, fps:10, title:'夜鳴 YONAKI ramen', brand:'YONAKI', slot:'hero', paint:ramen, gl:27,
@@ -392,7 +398,7 @@
       for(let x = 0; x < W; x++){ let c = pal[D[y * W + clamp(x - sh, 0, W - 1)]]; if(gl){ const c2 = pal[D[y * W + clamp(x - sh + 1, 0, W - 1)]]; c = ((c & 0xffffff00) | (c2 & 0xff)) >>> 0; } U32[row + x] = c; } } }
   function* warmSteps(){ if(READY) return; const t0 = performance.now(); FONT = fontOK(); AH = layout(); ATL = document.createElement('canvas'); ATL.width = AW; ATL.height = AH; AX = ATL.getContext('2d'); IMG = AX.createImageData(AW, AH); U32 = new Uint32Array(IMG.data.buffer); yield;
     for(const A of ADS) for(const f of A.cell){ render(A, f); yield; }
-    for(let y = 0; y < AH; y += 96){ AX.putImageData(IMG, 0, 0, 0, y, AW, Math.min(96, AH - y)); yield; }
+    for(let y = 0; y < AH; y += 48){ AX.putImageData(IMG, 0, 0, 0, y, AW, Math.min(48, AH - y)); yield; }   // (perf pass: 48-row bands, each step well under 12 ms)
     for(const A of ADS) for(let f = 0; f < A.n; f++) A.R[f].c = ATL; READY = true; MS = performance.now() - t0;
     if(!FONT && document.fonts && document.fonts.load) document.fonts.load('16px DotGothic16').then(() => { if(!fontOK()) return; FONT = true; for(const k in KM) delete KM[k]; for(const A of ADS) for(const f of A.cell){ const R = A.R[f]; render(A, f); AX.putImageData(IMG, 0, 0, R.x, R.y, R.w, R.h); } }, () => {}); }
   function frame(id, t){ const A = MAP.get(id); if(!A || !READY) return null; const f = Math.floor(t * A.fps / 1000) % A.n; return A.R[f < 0 ? f + A.n : f]; }

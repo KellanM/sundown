@@ -527,6 +527,7 @@ window.SKY_TIER = { sky:30, moon:40, far:120, mid:250, near:450, edge:700 };</sc
 <script src="env/minato.js"></script>
 <script src="env/shuto.js"></script>
 <script src="env/kurobe.js"></script>
+<script src="env/akiba_ads.js"></script>
 <script src="env/akiba.js"></script>
 <script src="env/gion.js"></script>
 <script src="env/roadmat.js"></script>
@@ -2754,7 +2755,7 @@ function frame(){ if(PSE.on){ pzPad(); if(PSE.dirty){ PSE.dirty = false; try{ dr
    A new version downloads in the background and waits. It is applied only on the title (never mid-ride): by itself once
    the title has sat untouched for a few seconds, or at once when the player taps "Update ready". Tap the version to check now. */
 (() => {
-  const VER = 'v15 · 754beb', $id = (i) => document.getElementById(i);
+  const VER = 'v16 · c2ae6f', $id = (i) => document.getElementById(i);
   const SDU = window.SDUPDATE = { version: VER, waiting: null, applied: false, checks: 0 };
   let reg = null, applying = false, asked = false, needReload = false, note = '', noteT = 0, lastInput = performance.now();
   ['keydown', 'pointerdown', 'touchstart', 'wheel'].forEach((t) => addEventListener(t, () => { lastInput = performance.now(); }, { capture: true, passive: true }));
@@ -2816,5 +2817,5 @@ function frame(){ if(PSE.on){ pzPad(); if(PSE.dirty){ PSE.dirty = false; try{ dr
   }, 1000);
 })();
 </script>
-<!-- __sdbuild:15 754beb905e31 --></body>
+<!-- __sdbuild:16 c2ae6f9b310f --></body>
 </html>
