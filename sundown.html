@@ -2170,7 +2170,6 @@ function domeURL(lit){ const c = document.createElement('canvas'); c.width = c.h
 let attractRAF = 0, attractRun = false;
 function startCard(){ const L = bikeList(); if(!L.some(b => b.id === BIKE.id)) BIKE.id = L[0].id; const many = L.length > 1;
   $('#card').innerHTML = `<div class="fs attract${LOGO.t0 ? '' : ' first'}" id="attract">
-    <span class="vcol" aria-hidden="true">日没から夜明けまで</span>
     <div class="logo-wrap"><h2 class="sr-only">Sundown</h2><canvas class="logo" id="logo" width="300" height="104" role="img" aria-label="Sundown, 夜走"></canvas>
 <small class="sndh" id="sndHint" role="status" style="visibility:hidden"><span class="tabk">音</span>PRESS ANY KEY FOR SOUND</small></div>
     <span class="fplay" aria-hidden="true">${cap('FREE PLAY', '#ffd04a', 2)}</span>
@@ -2775,7 +2774,7 @@ function frame(){ if(PSE.on){ pzPad(); if(PSE.dirty){ PSE.dirty = false; try{ dr
    A new version downloads in the background and waits. It is applied only on the title (never mid-ride): by itself once
    the title has sat untouched for a few seconds, or at once when the player taps "Update ready". Tap the version to check now. */
 (() => {
-  const VER = 'v20 · 35e393', $id = (i) => document.getElementById(i);
+  const VER = 'v21 · 74abc2', $id = (i) => document.getElementById(i);
   const SDU = window.SDUPDATE = { version: VER, waiting: null, applied: false, checks: 0 };
   let reg = null, applying = false, asked = false, needReload = false, note = '', noteT = 0, lastInput = performance.now();
   ['keydown', 'pointerdown', 'touchstart', 'wheel'].forEach((t) => addEventListener(t, () => { lastInput = performance.now(); }, { capture: true, passive: true }));
@@ -2837,5 +2836,5 @@ function frame(){ if(PSE.on){ pzPad(); if(PSE.dirty){ PSE.dirty = false; try{ dr
   }, 1000);
 })();
 </script>
-<!-- __sdbuild:20 35e393ec5902 --></body>
+<!-- __sdbuild:21 74abc2b039f4 --></body>
 </html>
