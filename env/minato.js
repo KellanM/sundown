@@ -416,9 +416,13 @@
           const w2 = Math.max(1, Math.round(cs * .8)), h2 = Math.max(2, Math.round(cs * 1.1)); for(let j = 0; j < h2; j++) for(let i = 0; i < w2; i++){ const ec = i === 0 || i === w2 - 1 || j === 0 || j === h2 - 1; put(X - (w2 >> 1) + i, Y + 1 + j, ec ? gd : j > 0 && j < h2 * .6 && H1(k * 3.1) < .62 * lightA ? (j === 1 ? gw2 : gw) : gb); }
           if(cs >= 3) put(X, Y, gd); } } }
     // the spokes: warm along their length, white-cyan at the tip (the light show), with a dim halo; failing sectors go dark when broken
+    /* W11 #25 (2026-11-21): all the spokes ran in to the hub, so near it they packed closer than a pixel and beat into moire (at mid
+       distance, 60 spokes on a 55-px wheel). Now a spoke starts where its own tier is at least SPW canvas px apart: every 4th drawn spoke
+       runs from the hub, every 2nd from where half the count fits, the rest from where all of them fit (the radial thins inward). */
+    const SPW = 3.4, sTier = [nsp / 4, nsp, nsp / 2, nsp];
     for(let k = 0; k < NSP; k += step){ const a = st.rot + k / NSP * 6.283; if(br > 0 && H1(k * 5.3 + Math.floor(now / (reduce ? 4000 : 360))) < br * .7) continue; if(lightA < 1 && H1(k * 2.9) > lightA) continue;
-      const [ci, ct] = spokeCols(k, a, now, st), ca = Math.cos(a), sa = Math.sin(a);
-      wseg(ca * .62, sa * .62, ca * WR * .72, sa * WR * .72, dim(ci, 0), refl || upx < 90 ? 0 : c32(F(ci), 60), refl); wseg(ca * WR * .72, sa * WR * .72, ca * WR * .985, sa * WR * .985, dim(ct, 0), refl || upx < 90 ? 0 : c32(F(ct), 60), refl);
+      const [ci, ct] = spokeCols(k, a, now, st), ca = Math.cos(a), sa = Math.sin(a), r0 = Math.max(.62, SPW * sTier[Math.round(k / step) % 4] / 6.283 / Math.max(1, upx) * WR);
+      if(r0 < WR * .72) wseg(ca * r0, sa * r0, ca * WR * .72, sa * WR * .72, dim(ci, 0), refl || upx < 90 ? 0 : c32(F(ci), 60), refl); wseg(ca * WR * .72, sa * WR * .72, ca * WR * .985, sa * WR * .985, dim(ct, 0), refl || upx < 90 ? 0 : c32(F(ct), 60), refl);
       if(refl && k % (step * 2) === 0){ const tp = wpt(ca * WR * .985, sa * WR * .985, true); if(tp.ok) rcol(tp.x, tp.y, WR * PJU * .55, c32(mixc(ct, '#06101e', .15), 230), c32(mixc(ci, '#06101e', .35), 200)); } }
     // the rim's lights: short pale dashes all round
     { const N = upx < 30 ? 40 : 90, c = dim('#dff6ff', 0); for(let k = 0; k < N; k += 2){ if(br > 0 && H1(k * 1.7 + Math.floor(now / (reduce ? 4000 : 300))) < br * .5) continue; if(lightA < 1 && H1(k * 4.3) > lightA) continue; const a1 = st.rot + k / N * 6.283, a2 = st.rot + (k + 1) / N * 6.283; wseg(Math.cos(a1) * WR, Math.sin(a1) * WR, Math.cos(a2) * WR, Math.sin(a2) * WR, c, 0, refl); } }

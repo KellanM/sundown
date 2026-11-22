@@ -2582,7 +2582,7 @@ function warmIdle(){ cancelAnimationFrame(WARM.idleT); let last = 0; const tick 
   const warmBit = () => { if(PSE.on || (window.JOURNAL && JOURNAL.open) || (window.COS && COS.open) || WARM.finishing || WARM.gating) return; const title = (!!$('#attract') || state === 'over') && !$('#sheet').hidden; if(!title && !$('#sheet').hidden) return;   // the title, or the results board
     const cdOn = !title && state === 'ready', a = performance.now(), fr = WARM.frame || 16, bud = title || cdOn ? Math.min(12, Math.max(WARM.budget, fr * .25)) : Math.min(4, Math.max(1.5, fr * .1));   // the title and the countdown: 4 ms or a quarter frame; a ride: 1.5-4 ms (a slow device gets a quarter of its frame on the title, so a phone isn't left warming for a minute)
     if(cdOn) return;   // the countdown is never disturbed
-    if(!title){ const j = WARM.q.find(x => x[3] && x.it && (WARM.step[x[2]] || 99) < 12); if(j && warmSlice(j, bud)){ const i = WARM.q.indexOf(j); if(i >= 0) WARM.q.splice(i, 1); } return; }   // a ride: only a stepped job already seen to step in under 12 ms here; anything heavier waits for the title, the results or extend()'s warmNeed
+    if(!title){ if(fr >= 20) return; const j = WARM.q.find(x => x[3] && x.it && (WARM.step[x[2]] || 99) < 8); if(j && warmSlice(j, bud)){ const i = WARM.q.indexOf(j); if(i >= 0) WARM.q.splice(i, 1); } return; }   // a ride: only a stepped job already seen to step in under 8 ms (headroom under the 12 ms rule: steps vary), and only on a device holding its frames under 20 ms (a 4x-throttled phone saw a 186 ms cut-in step mid-ride); anything heavier waits for the title, the results or extend()'s warmNeed
     while(WARM.q.length && performance.now() - a < bud){ const j = WARM.q[0]; if(warmSlice(j, bud - (performance.now() - a))){ if(WARM.q[0] === j) WARM.q.shift(); } else break; } };
   WARM.idleT = requestAnimationFrame(tick); }
 const frameGap = () => new Promise(r => { let ok = false; const go = () => { if(!ok){ ok = true; setTimeout(r, 0); } }; requestAnimationFrame(go); setTimeout(go, 50); });   // a frame for the bar (or 50 ms in a background tab)
@@ -2649,7 +2649,7 @@ function frame(){ if(PSE.on){ pzPad(); if(PSE.dirty){ PSE.dirty = false; try{ dr
    A new version downloads in the background and waits. It is applied only on the title (never mid-ride): by itself once
    the title has sat untouched for a few seconds, or at once when the player taps "Update ready". Tap the version to check now. */
 (() => {
-  const VER = 'v11 · 16efde', $id = (i) => document.getElementById(i);
+  const VER = 'v12 · 0b0306', $id = (i) => document.getElementById(i);
   const SDU = window.SDUPDATE = { version: VER, waiting: null, applied: false, checks: 0 };
   let reg = null, applying = false, asked = false, needReload = false, note = '', noteT = 0, lastInput = performance.now();
   ['keydown', 'pointerdown', 'touchstart', 'wheel'].forEach((t) => addEventListener(t, () => { lastInput = performance.now(); }, { capture: true, passive: true }));
@@ -2711,5 +2711,5 @@ function frame(){ if(PSE.on){ pzPad(); if(PSE.dirty){ PSE.dirty = false; try{ dr
   }, 1000);
 })();
 </script>
-<!-- __sdbuild:11 16efde1d0ac0 --></body>
+<!-- __sdbuild:12 0b030615f0dd --></body>
 </html>

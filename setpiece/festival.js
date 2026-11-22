@@ -170,10 +170,17 @@
     return bake(r, NP, { ink:1, outline:true }); }); }
   // spectators at the kerb: yukata colours, heads, raised uchiwa fans, a child on shoulders; a warm rim from the lanterns on the road side
   const YK = ['#2a3a70', '#ece4d4', '#b8486a', '#3a5a8a', '#5a3a6a', '#24304a', '#d8c09a'];
-  function crowd(v, f){ return cache('cr' + v + f, () => { const w = 66, h = 25, r = raster(w, h), pal = NP.concat(YK, ['#ff6a4a', '#ffd04a', '#ff90b4', '#ffb070']), base = NP.length, OBI = base + YK.length, RIM = OBI + 3;
+  /* W11 #23 (2026-11-21): the bodies were flat rectangles overlapping by a pixel, so a row of spectators merged into one block of colour
+     patches, and at the right kerb (2.5-4x) that block was all you saw. Same layout and the same H1 draws; added per figure: a shaded
+     column on the side away from the lanterns (which also parts each figure from the one behind), a yukata collar V with the neck,
+     and a dark hem row. YKD holds the shaded yukata colours (made in the builder: mixc is not defined yet when this file loads). */
+  function crowd(v, f){ return cache('cr' + v + f, () => { const w = 66, h = 25, r = raster(w, h), YKD = YK.map(c => mixc(c, '#140a1c', .42)), pal = NP.concat(YK, ['#ff6a4a', '#ffd04a', '#ff90b4', '#ffb070'], YKD), base = NP.length, OBI = base + YK.length, RIM = OBI + 3, SHD = RIM + 1 - base;
     let x = 1, j = 0;
     while(x < w - 6){ const kid = H1(v * 17 + j * 5.9) > .8, hh = kid ? 10 + Math.floor(H1(j * 2.3 + v) * 2) : 15 + Math.floor(H1(v * 31 + j * 3.3) * 5), top = h - hh, cl = base + Math.floor(H1(v * 7 + j * 1.7) * YK.length), bw = kid ? 5 : 7;
-      r.rect(x, top + 5, bw, hh - 5, cl); r.rect(x + 1, top + 4, bw - 2, 1, cl); r.rect(x, top + 8 + (kid ? -1 : 0), bw, 2, OBI + (j + v) % 3);
+      r.rect(x, top + 5, bw, hh - 5, cl); r.rect(x + 1, top + 4, bw - 2, 1, cl);
+      { const sh = cl + SHD, cc = x + (bw >> 1), wc = cl === base + 1 ? base : base + 1; r.rect(x, top + 5, 1, hh - 5, sh); r.rect(x, h - 1, bw, 1, sh);   // shade column and hem (W11 #23)
+        if(!kid){ r.set(cc - 1, top + 5, wc); r.set(cc + 1, top + 5, wc); r.set(cc, top + 6, wc); r.set(cc, top + 5, RIM); } }
+      r.rect(x, top + 8 + (kid ? -1 : 0), bw, 2, OBI + (j + v) % 3);
       if(H1(j * 9.3 + v) > .5) { r.set(x + 1, top + 11, OBI + 1); r.set(x + 3, top + 14, OBI + 1); }
       r.rect(x + 1, top - 1, bw - 2, 5, 11); r.rect(x + 2, top - 2, bw - 4, 1, 11); r.set(x + bw - 2, top + 1, 23); r.set(x + bw - 2, top + 2, 23); r.set(x + bw - 3, top + 2, 23); r.set(x + bw - 2, top - 1, RIM); r.set(x + bw - 3, top - 2, RIM);
       if(!kid && H1(v * 5 + j * 9.1) > .6){ const up = (j + f) % 2, fy = top - 2 - up * 2, fx = x + bw; r.line(x + bw - 1, top + 6, fx, fy + 2, 23, 1); r.ell(fx + .5, fy - 1, 2.4, 2.4, (j % 2) ? 3 : 16); r.set(fx, fy - 1, j % 2 ? 16 : 3); }
@@ -335,21 +342,23 @@
   const KILL_SIDE = new Set(['fac', 'blade', 'vend', 'yatai', 'neko', 'crowd', 'signal', 'lamp', 'cat', 'pachinko', 'sign']);
   const KILL_OVER = new Set(['gate', 'bridge', 'train', 'jumbo', 'lstr', 'arch', 'rail']);
 
-  function drawParade(s, P, sx0, sy0, uw, fog, now){ const ps = (position + PZ) / SEG, D = P.z + .5 - ps, u = parU(D), a = 1 - fog * .7;
+  function drawParade(s, P, sx0, sy0, uw, fog, now){ const ps = (position + PZ) / SEG, D = P.z + .5 - ps, u = parU(D), a0 = 1 - fog * .7;
     const stepF = (() => { const ac = AC(); return ac && M.step ? M.step - (M.next - ac.currentTime) / (SPB / 4) : T * BPM / 15; })(), bp = ((stepF % 4) + 4) % 4;
     const dfr = reduce ? 1 : bp < 1 ? 2 : bp < 2.6 ? 0 : 1, bob = reduce ? 0 : Math.floor(now / 300) % 2, hop = reduce ? 0 : Math.floor(stepF / 2) % 2;
     // warm light first: pools on the asphalt, the wet-road reflection, the halo
-    for(const e of PEL){ const X = P.dir * (u + e.o), x = sx0 + X * uw; if(x < -uw * 2 || x > W + uw * 2) continue;
+    // W11 #23: passing the crossing, an element beside the camera reached ~20x (the float as a wall of flat blocks round the rider's
+    // cut-out); each one now fades from 7x to 12x, its light with it (pf: its scale fade, from the same width its blit uses)
+    const pf = e => scaleFade(uw * e.w / (e.k === 'neb' ? NW : e.k === 'tai' ? 50 : e.k === 'bea' ? 26 : haneto(0).width), 7, 12);
+    for(const e of PEL){ const X = P.dir * (u + e.o), x = sx0 + X * uw; if(x < -uw * 2 || x > W + uw * 2) continue; const a = a0 * pf(e); if(a <= 0) continue;
       if(e.k === 'neb'){ cx.globalCompositeOperation = 'lighter'; cx.fillStyle = '#ff9a40';
         for(const [rf, al] of [[1, .05], [.72, .07], [.45, .09]]){ cx.globalAlpha = al * a; cx.beginPath(); cx.ellipse(x, sy0, uw * .95 * rf, uw * .16 * rf, 0, 0, 6.283); cx.fill(); }
         const spr = nebuta(0), k = uw * e.w / NW; cx.globalAlpha = .32 * a; blitF(cache('nebR', () => reflOf(nebuta(0))), x, sy0 + spr.height * k * .62, k * 1, P.dir < 0); cx.globalAlpha = 1; cx.globalCompositeOperation = 'source-over';
         glow(x, sy0 - spr.height * k * .62, uw * .95, '#ffb050', .26 * a); glow(x, sy0 - spr.height * k * .6, uw * .45, '#fff0c0', .12 * a); }
       else if(e.k === 'tai'){ const k = uw * e.w / 50; glow(x - 16 * k, sy0 - 33 * k, uw * .12, '#ff6a3a', .45 * a); glow(x + 16 * k, sy0 - 33 * k, uw * .12, '#ff6a3a', .45 * a); }
       else if(e.k === 'bea'){ const k = uw * e.w / 26; for(let j = 0; j < 2; j++) glow(x + (-4 + j * 12) * k, sy0 - 44 * k, uw * .17, '#fff0c8', .5 * a); } }
-    cx.globalAlpha = a;
     for(const e of PEL){ const X = P.dir * (u + e.o), x = sx0 + X * uw; if(x < -uw * 2 || x > W + uw * 2) continue;
-      const spr = e.k === 'neb' ? nebuta(bob) : e.k === 'tai' ? taiko(dfr) : e.k === 'bea' ? bearers(bob) : haneto((hop + (e.f || 0)) % 2);
-      blitF(spr, x, sy0, uw * e.w / spr.width, P.dir < 0); }
+      const spr = e.k === 'neb' ? nebuta(bob) : e.k === 'tai' ? taiko(dfr) : e.k === 'bea' ? bearers(bob) : haneto((hop + (e.f || 0)) % 2), k = uw * e.w / spr.width, sf = scaleFade(k, 7, 12);
+      if(sf <= 0) continue; cx.globalAlpha = a0 * sf; blitF(spr, x, sy0, k, P.dir < 0); }
     cx.globalAlpha = 1; }
 
   function drawCrossStreet(s, fog){ const a = s.p1.screen, b = s.p2.screen; if(b.y >= a.y) return; const col = mixc('#161424', '#3a1a40', fog * .6);
@@ -435,13 +444,13 @@
       if(s.fx_xs) drawCrossStreet(s, fog);
       if(s.fx_fw && uw > 1) for(const sd of [-1, 1]){ const spr = farWall((s.index + (sd > 0 ? 1 : 0)) % 2), k = uw * 3.6 / spr.width; cx.globalAlpha = 1 - fog * .7; blitF(spr, sx0 + sd * uw * 3.25, sy0, k, sd > 0); cx.globalAlpha = 1;
         if(fog < .7) for(let j = 0; j < 4; j++) glow(sx0 + sd * uw * (1.6 + j * .9), sy0 - uw * .5, uw * .35, '#ffb060', .14 * (1 - fog)); }
-      if(s.fx_xc && uw > 1) for(const sd of [-1, 1]){ const spr = crowd(2 + (s.fx_xc > 0 ? 1 : 0), Math.floor(now / 520) % 2), k = uw * 1.5 / spr.width; cx.globalAlpha = 1 - fog * .7; blitF(spr, sx0 + sd * uw * 2.0, sy0, k, sd > 0); cx.globalAlpha = 1; }
+      if(s.fx_xc && uw > 1) for(const sd of [-1, 1]){ const spr = crowd(2 + (s.fx_xc > 0 ? 1 : 0), Math.floor(now / 520) % 2), k = uw * 1.5 / spr.width, sf = scaleFade(k, 5, 8); if(sf <= 0) continue; cx.globalAlpha = (1 - fog * .7) * sf; blitF(spr, sx0 + sd * uw * 2.0, sy0, k, sd > 0); cx.globalAlpha = 1; }   // (fades 5-8x beside the camera, W11 #23)
       if(s.fx_par){ const P = s.fx_par, near = P.z + .5 - (position + PZ) / SEG < 8;
         // the float never paints over the rider: near the crossing, the bike's box is cut out of the float's layer, so whatever draws
         // the bike (the core, a slide, the crash cam's frozen frame) the float reads as passing behind it
         if(near){ const bs = Math.min(W * .2, H * .27), y0 = H - 8 - (typeof AIR !== 'undefined' ? AIR.h : 0) - bs * 1.1; cx.save(); cx.beginPath(); cx.rect(0, 0, W, H); cx.rect(Math.round(W / 2 - bs * .55), Math.round(y0), Math.round(bs * 1.1), H); cx.clip('evenodd'); }
         drawParade(s, P, sx0, sy0, uw, fog, now); if(near) cx.restore(); }
-      if(s.fx_sp && uw > 1) for(const sd of [-1, 1]){ const spr = crowd((s.index + (sd > 0 ? 1 : 0)) % 2, reduce ? 0 : Math.floor(now / 520 + s.index) % 2), k = uw * .64 / spr.width; cx.globalAlpha = 1 - fog * .7; blitF(spr, sx0 + sd * uw * 1.4, sy0, k, sd > 0); cx.globalAlpha = 1; }
+      if(s.fx_sp && uw > 1) for(const sd of [-1, 1]){ const spr = crowd((s.index + (sd > 0 ? 1 : 0)) % 2, reduce ? 0 : Math.floor(now / 520 + s.index) % 2), k = uw * .64 / spr.width, sf = scaleFade(k, 5, 8); if(sf <= 0) continue; cx.globalAlpha = (1 - fog * .7) * sf; blitF(spr, sx0 + sd * uw * 1.4, sy0, k, sd > 0); cx.globalAlpha = 1; }
       if(s.fx_ls) drawString(s, sx0, sy0, uw, fog, now);
       if(now !== fstFrame && CUR_SHOW && CUR_SHOW.key === 'paddies' && s.sprites.some(sp => sp.env === 'paddies')){ fstFrame = now; mirrorPass(s); } },
     overlay(now, sk){ // a new burst tints sky and land in its colour for a moment, in two flat steps (never with reduce)

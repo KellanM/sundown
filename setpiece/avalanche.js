@@ -77,7 +77,7 @@
       const nx = (px - best.x) / best.r, ny = (py - best.y) / best.r, nz = Math.sqrt(Math.max(0, 1 - nx * nx - ny * ny)), lit = -nx * .45 - ny * .7 + nz * .55, th = (BY[(y & 3) * 4 + (x & 3)] + .5) / 16;
       let t = lit + (th - .5) * .18; t = t > .62 ? 0 : t > .3 ? 1 : t > -.05 ? 2 : 3;
       const rim = (nx * nx + ny * ny) > .78; if(rim && t < 3 && ny > .1) t++;   // the edge of a lobe turns away: one tone darker below
-      if(tail && th > (y < N * .55 ? .45 : .62)) continue;
+      if(tail && (th > (y < N * .55 ? .45 : .62) || th > Math.min(px, py, N - px, N - py) / (N * .14))) continue;   // (the dither thins to nothing toward the sprite's border: lobes that ran past it were cut square, W11 #27)
       mask[y * N + x] = 1; tone[y * N + x] = t; }
     for(let y = 0; y < N; y++) for(let x = 0; x < N; x++){ const i = y * N + x; if(!mask[i]) continue; const o = i * 4; let col = rgb[tone[i]];
       // outline on the shadow side: an empty pixel below or to the right (never on the lit top-left)
@@ -122,10 +122,14 @@
     for(const c of parts){ k.drawImage(c, x, c.hand ? ((hh - 13) >> 1) + 1 : 0); x += HAND_W(c) + 2; } return out; }
   const HAND_W = c => c.hand ? 14 : c.width - 2;
   function texts(){ S.tWarn = textMask('雪崩注意'); S.tName = textMask('雪見洞門'); S.gOn = gantry(true, S.tWarn); S.gOff = gantry(false, S.tWarn); S.board = board(S.tName); S.label = lbl('崩', '#d6def2', 16); }
-  const BV = 4, BF = 4, SIZES = [32, 64];
+  /* W11 #27 (2026-11-21): a big tail puff (the exit cloud and the run-out beside the road, D up to ~450 canvas px) drew the 64-px sprite at
+     ~7x, so its 4x4 ordered dither became a coarse checkerboard of 7-px squares, cut square where lobes met the sprite's edge. Tails now
+     also come at 128 and 256 px (used above 88 and 176 canvas px across), so the dither cell stays at about 2 canvas px or under, and
+     their dither dissolves toward the border. */
+  const BV = 4, BF = 4, SIZES = [32, 64], TSIZES = [32, 64, 128, 256];
   function build(){
     for(const N of SIZES) for(let v = 0; v < BV; v++) for(let f = 0; f < BF; f++){ S['b' + N + '_' + v + '_' + f] = billow(N, v, f, BILL, BOUT, false); }
-    for(const N of SIZES) for(let v = 0; v < 2; v++) for(let f = 0; f < BF; f++) S['t' + N + '_' + v + '_' + f] = billow(N, v + 5, f, BILL, BOUT, true);
+    for(const N of TSIZES) for(let v = 0; v < 2; v++) for(let f = 0; f < BF; f++) S['t' + N + '_' + v + '_' + f] = billow(N, v + 5, f, BILL, BOUT, true);
     for(let v = 0; v < 3; v++) for(let f = 0; f < BF; f++) S['w_' + v + '_' + f] = billow(48, v + 9, f, WARMB, WOUT, false);
     for(let v = 0; v < 3; v++) for(let r = 0; r < 4; r++) S['k' + v + r] = block(v, r);
     for(let r = 0; r < 4; r++) S['p' + r] = pine(r);
@@ -232,7 +236,7 @@
 
   // ---------------------------------------------------------------- the cloud
   // a billow of on-screen diameter D (css px) centred at (x, y): the 32 or 64 px art, fog-tinted, churning on its own phase
-  function puff(x, y, D, v, ph, fog, tail, now, al){ if(D < PX * 2 || x < -D || x > W + D || y < -D || y > H + D * .6) return; const N = D / PX > 44 ? 64 : 32, f = ((now / (reduce ? 700 : 240) + ph * 4) | 0) % BF, key = (tail ? 't' : 'b') + N + '_' + (v % (tail ? 2 : BV)) + '_' + f;
+  function puff(x, y, D, v, ph, fog, tail, now, al){ if(D < PX * 2 || x < -D || x > W + D || y < -D || y > H + D * .6) return; const N = tail && D / PX > 176 ? 256 : tail && D / PX > 88 ? 128 : D / PX > 44 ? 64 : 32, f = ((now / (reduce ? 700 : 240) + ph * 4) | 0) % BF, key = (tail ? 't' : 'b') + N + '_' + (v % (tail ? 2 : BV)) + '_' + f;
     const spr = fogB(S[key], key, fog), k = D / N; cx.globalAlpha = al; blit(spr, x, y + D / 2, k); }
   function drawCloud(w, s, sx0, sy0, uw, fog, now, p){ const i = s.index, u = frontAt(w, i, p); if(u < 0 || w.u <= 0) return; const n = fog > .45 ? 5 : fog > .2 ? 4 : 3; if(i % n) return;
     // down the face for u < .78, then running out across the flat between the slope's foot and the road (Zinal: the cloud runs out over

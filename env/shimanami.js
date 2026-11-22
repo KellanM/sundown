@@ -357,24 +357,30 @@
      From 2.5x the legs are drawn again over the sprite at canvas resolution in the sprite's own geometry (same taper, same footprint, so
      nothing moves): a 1-px outline, a moonlit edge band and a shaded far band about 1.5 sprite px wide, the floodlight climbing from the
      foot in five hard steps instead of three, a 1-px joint with a lit lip every 22 rows. Rows of equal state are filled as one run. */
-  const KLEG = ['#e2ecf8', '#9eb0d0', '#8a9cc4', '#7a8cb4', '#6a7ca4', '#5a6c94'];
-  let LN_O = '', LN_D = '', LN_L = '', LN_H = '', LN_F = 0, LN_E = 1, LN_Y = 0;   // legsNear's colours and frame for its run filler (no closures per frame)
+  /* W11 #24 (2026-11-21): close up the upper leg was still one flat pale value (5a6c94 brightened by two floodlight glows of 24 and 14
+     sprite px, which at 4-6x became soft discs on the column). Now, as the leg nears (LN_T: 0 at 2.5x, 1 at 4x), the floodlight's
+     reach is shown: the upper leg steps darker toward the top (bands creeping down from the top, so nothing pops), the box section's
+     side face grows in from the shaded edge one step darker, and drawKTower fades the leg glows out from 2x to 3.5x. */
+  const KLEG = ['#e2ecf8', '#9eb0d0', '#8a9cc4', '#7a8cb4', '#6a7ca4', '#5a6c94', '#4e5f88', '#44547c', '#3a4870'];
+  let LN_O = '', LN_D = '', LN_L = '', LN_H = '', LN_F = 0, LN_E = 1, LN_Y = 0, LN_T = 0;   // legsNear's colours and frame for its run filler (no closures per frame)
   function legRun(a0, r, L0, R0, mid, jt){ if(r <= a0) return; const cp = PX, yy = LN_Y + a0 * cp, hh = (r - a0) * cp, n = R0 - L0; if(n <= 0) return;
     cx.fillStyle = LN_O; cx.fillRect(L0 * cp, yy, n * cp, hh); if(n <= 2) return;
     cx.fillStyle = jt === 1 ? LN_D : fc(KLEG[mid], LN_F); cx.fillRect((L0 + 1) * cp, yy, (n - 2) * cp, hh); if(jt === 1) return;
-    const e = Math.min(LN_E, n - 2); cx.fillStyle = jt === 2 || mid <= 1 ? LN_H : LN_L; cx.fillRect((L0 + 1) * cp, yy, e * cp, hh); cx.fillStyle = LN_D; cx.fillRect((R0 - 1 - e) * cp, yy, e * cp, hh); }
+    const e = Math.min(LN_E, n - 2); cx.fillStyle = jt === 2 || mid <= 1 ? LN_H : LN_L; cx.fillRect((L0 + 1) * cp, yy, e * cp, hh); cx.fillStyle = LN_D; cx.fillRect((R0 - 1 - e) * cp, yy, e * cp, hh);
+    const sf = Math.round((n - 2 - 2 * e) * .36 * Math.min(1, LN_T * 2)); if(sf > 0){ cx.fillStyle = fc(KLEG[Math.min(8, mid + 1)], LN_F); cx.fillRect((R0 - 1 - e - sf) * cp, yy, sf * cp, hh); } }
   function legsNear(x, y, k, fog){ const w = snap(TW * k), h = snap(TH * k), X0 = snap(x - w / 2), Y0 = snap(y) - h, ks = w / TW, kh = h / TH, cp = PX;
-    LN_O = fc(KST[0], fog); LN_D = fc(KST[1], fog); LN_L = fc(KST[3], fog); LN_H = fc(KST[4], fog); LN_F = fog; LN_E = Math.max(1, Math.round(1.5 * ks / cp)); LN_Y = Y0;
+    LN_O = fc(KST[0], fog); LN_D = fc(KST[1], fog); LN_L = fc(KST[3], fog); LN_H = fc(KST[4], fog); LN_F = fog; LN_E = Math.max(1, Math.round(1.5 * ks / cp)); LN_Y = Y0; LN_T = clamp((k / PX - 2.5) / 1.5, 0, 1);
     const r0 = Math.max(0, Math.floor(-Y0 / cp)), r1 = Math.ceil((snap(y) - Y0) / cp);
     for(let sd = -1; sd <= 1; sd += 2){ const c = X0 + (TW / 2 + sd * LEGC) * ks; if(c + 8 * ks < 0 || c - 8 * ks > W) continue;
       let a0 = r0, pL = 0, pR = 0, pM = -1, pJ = 0;
       for(let r = r0; r <= r1; r++){ let L = 0, R = 0, mid = -1, jt = 0;
         if(r < r1){ const sy = (r * cp + cp / 2) / kh, up = 1 - sy / TH, hw = (3.6 + 1.2 * (sy / TH) + 1) * ks, jr = (sy % 22) * kh / cp; L = Math.round((c - hw) / cp); R = Math.round((c + hw) / cp);
-          mid = up < .05 ? 1 : up < .1 ? 2 : up < .17 ? 3 : up < .24 ? 4 : 5; jt = sy > 4 && jr < 1 ? 1 : sy > 4 && jr < 2 ? 2 : 0; }
+          mid = up < .05 ? 1 : up < .1 ? 2 : up < .17 ? 3 : up < .24 ? 4 : 5; if(mid === 5 && LN_T > 0){ const dd = (up - .24) / .76 * LN_T; mid = dd > .62 ? 8 : dd > .38 ? 7 : dd > .16 ? 6 : 5; } jt = sy > 4 && jr < 1 ? 1 : sy > 4 && jr < 2 ? 2 : 0; }
         if(L !== pL || R !== pR || mid !== pM || jt !== pJ){ if(pM >= 0) legRun(a0, r, pL, pR, pM, pJ); pL = L; pR = R; pM = mid; pJ = jt; a0 = r; } } } }
   function drawKTower(sp, x, y, uw, fog, now){ const ea = edgeA(fog); if(ea <= 0) return; const spr = fogged(ktower(), 'kt', fog), k = uw * TK, a = (1 - fog * .8) * ea; cx.globalAlpha = ea; blit(spr, x, y, k); if(k / PX >= 2.5) legsNear(x, y, k, fog); cx.globalAlpha = 1;
     const blink = reduce ? 1 : (Math.sin(now / 520 + sp.k) > -.3 ? 1 : .2);
-    for(let sd = -1; sd <= 1; sd += 2){ const lx = x + sd * LEGC * k; gl(lx, y - 20 * k, 24 * k, '#cfe4ff', .2 * a); gl(lx, y - 60 * k, 14 * k, '#cfe4ff', .1 * a);
+    const gN = clamp((3.5 - k / PX) / 1.5, 0, 1);   // the leg floodlight glows fade out close up (W11 #24)
+    for(let sd = -1; sd <= 1; sd += 2){ const lx = x + sd * LEGC * k; gl(lx, y - 20 * k, 24 * k, '#cfe4ff', .2 * a * gN); gl(lx, y - 60 * k, 14 * k, '#cfe4ff', .1 * a * gN);
       const rs = Math.max(PX, snap(2.2 * k)); cx.fillStyle = '#ff3a3a'; cx.globalAlpha = blink * ea; cx.fillRect(snap(lx - rs / 2), snap(y - TH * k - rs), rs, rs); cx.globalAlpha = 1; gl(lx, y - TH * k - rs / 2, 10 * k + PX * 2, '#ff2a3a', .45 * blink * a); } }
   function drawPylon(sp, x, y, uw, fog, now){ const ea = edgeA(fog); if(ea <= 0) return; const spr = fogged(pylon(), 'py', fog), k = uw * PK, sf = scaleFade(k), a = (1 - fog * .8) * ea * sf; if(sf <= 0) return; cx.globalAlpha = ea * sf; blit(spr, x, y, k); cx.globalAlpha = 1;
     const blink = reduce ? 1 : (Math.sin(now / 520 + sp.k) > -.3 ? 1 : .2);
