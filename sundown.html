@@ -1202,8 +1202,9 @@ function update(dt){ const rdt = dt; FEEL.slowCd -= rdt;   // FEEL: the kick's s
   // The slide is readable, never a coin toss (it used to pick a side at random, half the time into the car beside you): you slip off the
   // side of the puddle you clipped, and from its dead centre toward the middle of the road, where there is room. The callout's arrow says which.
   for(let i = Math.floor((prevPos + PZ) / SEG) + 1; i <= Math.floor((position + PZ) / SEG) && state === 'play'; i++){ const h = segs[i] && segs[i].hz; if(!h || h.hit || Math.abs(h.x - playerX) > .26) continue; h.hit = true;
-    if(h.type === 'oil'){ slicks++; slideT = .85; const off = playerX - h.x; slideDir = Math.abs(off) > .06 ? Math.sign(off) : -Math.sign(playerX) || (Math.random() < .5 ? -1 : 1); drift = 0; charge = 0; tier = 0; M.slick(); floatText(slideDir < 0 ? '← Slick' : 'Slick →', W / 2, H * .5, 26, '#b06bff'); }
+    if(h.type === 'oil'){ slicks++; slideT = .85; const off = playerX - h.x; slideDir = Math.abs(off) > .06 ? Math.sign(off) : -Math.sign(playerX) || (Math.random() < .5 ? -1 : 1); drift = 0; charge = 0; tier = 0; M.slick(); oilHit(h); floatText(slideDir < 0 ? '← Slick' : 'Slick →', W / 2, H * .5, 26, '#b06bff'); }
     else { pads++; mech('pad_boost'); if(boostT <= 0) boostTier = 1; boostT = Math.max(boostT, .9); speed = Math.max(speed, MAXS * 1.05); if(copT > 0) copT = Math.max(.01, copT - 1.5); M.boost(1, flow); floatText('Boost pad', W / 2, H * .5, 22, '#4ff0ff'); } }
+  oilWheels(dt);   // oil on the tyres: the tracks they lay and the droplets they throw (no random draws)
   // the chase: a crash puts a patrol car on your tail; ride clean, boost and graze traffic to lose it
   if(state === 'play' && copT > 0){ copT -= dt; if(copT <= 0){ copT = 0; if(!mech('escaped')) floatText('Lost them', W / 2, H * .4, 26, '#4ff0ff'); } }
   copShown = lerp(copShown, state === 'pulled' ? 1 : copT > 0 ? .45 + copT / COP_T * .55 : 0, 1 - Math.exp(-3 * dt));
@@ -1483,7 +1484,7 @@ function draw(now){ DRAWN++;
   const sq = Math.abs(POSE.squash) > .01 && !BIKE.hidden; if(sq){ const q = clamp(POSE.squash, -1, 1), ay = H - 8 + bob - AIR.h, sy = Math.max(PX, Math.round(bs * (1 - .22 * q) / PX) * PX) / bs, sx = Math.round(bs * (1 + .12 * q) / PX) * PX / bs;   // whole-pixel heights, so the squash steps cleanly
     cx.save(); cx.translate(W / 2, ay); cx.scale(sx, sy); cx.translate(-W / 2, -ay); }
   const ghA = recov > 0 && state === 'play' ? (reduce || (window.ASSIST && ASSIST.noFlash) ? .55 : (Math.floor(recov * 8) % 2 ? .4 : .9)) : 1; if(ghA < 1) cx.globalAlpha = ghA;   // recovery blink (steady half-alpha under reduced motion)
-  if(!BIKE.hidden){ if(ENV.bikes && ENV.bikes.draw && BIKE.id !== 'sport') ENV.bikes.draw(BIKE.id, W / 2, H - 8 + bob - AIR.h, bs, leanV, now); else drawBike(W / 2, H - 8 + bob - AIR.h, bs, leanV, now); }   // BIKE.hidden: a mech draws the bike itself (the arrest lays it on its side)
+  if(!BIKE.hidden){ if(ENV.bikes && ENV.bikes.draw && BIKE.id !== 'sport') ENV.bikes.draw(BIKE.id, W / 2, H - 8 + bob - AIR.h, bs, leanV, now); else drawBike(W / 2, H - 8 + bob - AIR.h, bs, leanV, now); }   oilBike(W / 2, H - 8 + bob - AIR.h, bs, leanV, now);   // BIKE.hidden: a mech draws the bike itself (the arrest lays it on its side)
   if(ghA < 1) cx.globalAlpha = 1;
   if(POSE.pitch > .01) cx.restore();
   if(sq) cx.restore();
@@ -1566,7 +1567,7 @@ function drawRoad(base, basePct, py, moonX, now, FK_G, FK_L, FK_K, FK_A, FK_ON, 
 const SEG_HK = { drawSeg:[], drawSegBack:[] };
 function segHooks(){ for(const nm in SEG_HK){ const L = SEG_HK[nm]; L.length = 0; for(const k in MECH){ const o = MECH[k]; if(o && o[nm]) L.push(k); } } }
 function mechSeg(L, name, s, x, y, uw, fog, now){ for(let i = 0; i < L.length; i++){ const k = L[i], o = MECH[k], fn = o && o[name]; if(fn){ try{ fn(s, x, y, uw, fog, now, undefined); }catch(err){ console.error('mech', k, name, err); } } } }
-function drawSprites(base, now, sk, fga, FK_G, FK_L, FK_K, FK_A, fkB){ segHooks();
+function drawSprites(base, now, sk, fga, FK_G, FK_L, FK_K, FK_A, fkB){ segHooks(); oilSpan(base);
   for(let n = DRAW - 1; n > 0; n--){ const s = segs[base.index + n]; if(!s || !s.p1.screen.scale || s.p1.camera.z <= DEPTH) continue; const sc = s.p1.screen.scale, sx0 = s.p1.screen.x, sy0 = s.p1.screen.y, uw = sc * ROADW * W / 2, fog = clamp(Math.pow(n / DRAW, 1.6), 0, 1);
     cx.save(); cx.beginPath(); cx.rect(0, 0, W, s.clip); cx.clip();
     if(s.tunnel){ const ET = ENV[LANDS[s.land].key]; if(ET && ET.drawTunnel) ET.drawTunnel(s, sx0, sy0, uw, fog, now, sk.low); else if(ENV.tunnels && ENV.tunnels.drawTunnel) ENV.tunnels.drawTunnel(s, sx0, sy0, uw, fog, now, sk.low); else drawTunnel(s, sx0, sy0, uw, fog, now, sk.low); }
@@ -1589,6 +1590,8 @@ function drawSprites(base, now, sk, fga, FK_G, FK_L, FK_K, FK_A, fkB){ segHooks(
     if(n > DRAW - 1 - EDGE_N && !s.tunnel){ EDGE *= (DRAW - 1 - n) / EDGE_N;   // (not inside tunnels: the far end of the bore must stay solid)
       if(EDGE < .04){ EDGE = 1; cx.restore(); continue; } cx.globalAlpha = 1; }
     mechSeg(SEG_HK.drawSegBack, 'drawSegBack', s, sx0, sy0, uw, fog, now);   // things standing just beyond this segment's props (rail.js's viaduct slice): its props, gates, cars and set pieces draw over them
+    if(OILW.n && s.index >= OILW.i0 && s.index <= OILW.i1) oilTrack(s);   // oil laid by the tyres, on this segment
+    if(n === 1) for(let k = 1; k <= 5; k++){ const o = segs[s.index - k]; if(o && o.hz && o.hz.type === 'oil'){ drawOil(o, o.hz, fog, now); if(ASSIST.contrast) hazOutline(o, o.hz); } }   // a slick whose first segment is already behind the camera: the rest of it, from here
     if(s.hz) drawHazard(s, sx0, sy0, uw, fog, now);   // a used pad stays on the road, dimmed (drawPad), instead of vanishing under the bike
     if(SPLIT_ON && fga >= 0 && s.index === fga - SPLIT_PRE - SPLIT_ADV) fkAdvance(sx0, sy0, uw, fog, forkChoices(gatesHit / 2).map(k => LANDS[k]));
     const gI = gates.indexOf(s.index);   // (one lookup: is this segment a gate, and which)
@@ -1953,50 +1956,127 @@ function drawTunnel(s, x, y, uw, fog, now, fogc){ const top = y - uw * 1.3, l = 
 function drawHazard(s, x0, y, uw, fog, now){ const h = s.hz, x = x0 + h.x * uw, rw = uw * .2, rh = Math.max(1, (s.p1.screen.y - s.p2.screen.y) * 1.6);
   if(h.type === 'oil'){ drawOil(s, h, fog, now); if(ASSIST.contrast) hazOutline(s, h); }
   else drawPad(s, h, fog, now); }
-/* Oil slick (audit #5): wet oil on asphalt at night, not a toy. A dark glossy patch painted flat on the road, row by row on the pixel grid
-   (the boost pads' method): an irregular blob fixed to the world (lobes from the segment's hash, so it never shimmers), a soft dithered rim,
-   a near-black core, a lamp-light reflection band across its far half and, just inside the edge, a faint thin-film ring dithered at half
-   strength in three muted night tones (dusk violet, sea teal, the road's own lamp colour greyed). The film's tones shift as you close in,
-   the way a real slick's colours change with the viewing angle; one small iridescent fleck, a couple of world-fixed glints.
-   Read at distance (Fresnel: a wet patch seen at a grazing angle is a mirror): when the slick is only a few pixel rows tall it shows mostly
-   as a pale sliver of reflected light over a dark lip, and it never shrinks below two rows, so it reads about 1.2 s ahead at top speed.
+/* Oil slick (audit #5; Kellan 2026-11-22: "the slick itself shouldn't really change shape, like a real oil slick ... some kind of oil slick
+   coming out of the player's wheels ... a way to make them more visible"). Wet oil on asphalt at night, not a toy: a dark glossy puddle
+   painted flat on the road, row by row on the pixel grid, an irregular blob fixed to the world (lobes from the segment's hash).
+   Its shape never moves. Every row is mapped to the world by its true depth inside its own segment (1/z is linear in screen y within a
+   segment, as roadmat.js samples its strip), so the outline rides toward you exactly as the asphalt does and simply slides off the
+   bottom of the screen as you cross it. (The old one mapped its rows linearly between its near edge, clamped to the screen bottom, and
+   its far edge: once the near edge left the screen the whole blob was squeezed into what was left, the "goofy stretch" as you ran over
+   it; and it vanished at once when its first segment went behind the camera, so it is now also drawn from the nearest visible segment.)
+   The layers: a soft dithered rim, a near-black core with a touch of blue, a lamp-light reflection band across the far half that a slow
+   swell of light crosses now and then (the sheen, never the outline), and at the edge, where the film is thinnest, the interference
+   colours of oil (violet, rose, amber, teal, kept to the night palette but brighter at the very edge), half strength just inside.
+   Far off (Fresnel: a wet patch at a grazing angle is a mirror) it is two rows: a bright sliver of reflected sky with iridescent ends,
+   a glint that sweeps across it every few seconds, over a black lip. That sliver is what reads at about 1.5 s at top speed.
+   The surface reacts when a tyre crosses it: a ripple ring spreads from where the tyre went in, and the tyre's groove shows thinner film.
    Scenic roads where oil makes no sense carry none (LANDS oil: Kurobe, Gion, Shimanami, Snow 0; Paddies and the coast fewer). */
-const OIL_TONE = new Map();   // per road: [reflection, sheen, film x3, highlight], from its lamp colour
+const OIL_TONE = new Map();   // per road: [reflection, sheen, film x3, highlight, edge film x4], from its lamp colour
 function oilTones(L){ let t = OIL_TONE.get(L.key); if(!t){ const lc = (ENV[L.key] || NOENV).lampCol || '#8a6440';
-    t = [mixc(lc, '#7a86b8', .7), mixc(lc, '#2a2c46', .7), '#4e4270', '#2e5a64', mixc(lc, '#4a4658', .45), mixc(lc, '#c4c8e4', .7)]; OIL_TONE.set(L.key, t); } return t; }
-// high-contrast hazards: hazard-tape edges (yellow and black, on the pixel grid) round the slick's footprint
-function hazOutline(s, h){ const f = segs[s.index + 6]; if(!f || !f.p1.screen.scale) return; const a = s.p1.screen, b = f.p1.screen, y0 = Math.min(a.y, H), y1 = b.y; if(y0 - y1 < 1) return; const st = PX;
-  for(let yy = Math.floor(y1 / st) * st; yy < y0; yy += st){ const v = (a.y - yy) / (a.y - b.y); if(v < 0 || v > 1) continue; const pcx = lerp(a.x + h.x * a.w, b.x + h.x * b.w, v), hw = lerp(a.w, b.w, v) * .44, col = (yy / st | 0) % 4 < 2 ? '#ffe600' : '#000';
-    cx.fillStyle = col; cx.fillRect(snap(pcx - hw) - st, yy, st * 2, st); cx.fillRect(snap(pcx + hw) - st, yy, st * 2, st); }
-  for(const [yy, w] of [[y1, b.w], [y0 - st, a.w]]){ const pcx = yy === y1 ? b.x + h.x * b.w : a.x + h.x * a.w, hw = w * .44; for(let x = snap(pcx - hw) - st; x < pcx + hw + st; x += st * 2){ cx.fillStyle = ((x / st | 0) >> 1) % 2 ? '#000' : '#ffe600'; cx.fillRect(x, snap(yy), st * 2, st); } } }
-function drawOil(s, h, fog, now){ const f = segs[s.index + 6]; if(!f || !f.p1.screen.scale) return;
-  const a = s.p1.screen, b = f.p1.screen, step = PX, y0 = Math.min(a.y, H); let y1 = b.y; if(y0 - y1 < .5) return;
-  if(y0 - y1 < 2 * step) y1 = y0 - 2 * step;   // a legibility floor: far off, the slick keeps two rows (its reflection over its dark lip)
-  const rowsN = Math.max(2, Math.round((y0 - y1) / step)), far = clamp(1 - (rowsN - 2) / 7, 0, 1), al = 1 - fog * .45, sd = s.index * 7.31;
-  const T = oilTones(LANDS[s.land]), fi = Math.floor(rowsN / 5);   // fi: the film's tones walk as you close in (the viewing angle changes)
+    t = [mixc(lc, '#7a86b8', .7), mixc(lc, '#2a2c46', .7), '#4e4270', '#2e5a64', mixc(lc, '#4a4658', .45), mixc(lc, '#d2d6ee', .74),
+      mixc('#8e5cc0', lc, .15), mixc('#c0608e', lc, .15), mixc('#cfa452', lc, .15), mixc('#3ea8aa', lc, .15)]; OIL_TONE.set(L.key, t); } return t; }
+// the slick's rows on screen, mapped to the world: y, v (0 near edge .. 1 far edge, from the row's true depth), centre x, road half-width
+const OIL_N = 1024, OIL_RY = new Float32Array(OIL_N), OIL_RV = new Float32Array(OIL_N), OIL_RX = new Float32Array(OIL_N), OIL_RW = new Float32Array(OIL_N);
+let OIL_B = 0;   // this frame's camera segment (drawSprites): segments at or behind it are not projected
+function oilRows(s, h){ let n = 0;
+  for(let k = 0; k < 6; k++){ const q = segs[s.index + k]; if(!q || q.index <= OIL_B) continue; const P1 = q.p1, P2 = q.p2; if(P1.camera.z <= DEPTH || P2.camera.z <= P1.camera.z) continue;
+    const y1 = P1.screen.y, y2 = P2.screen.y; if(y2 >= y1 || y2 >= H) continue;
+    const c1 = P1.camera.z, iz1 = 1 / c1, iz2 = 1 / P2.camera.z, dc = P2.camera.z - c1, r0 = Math.ceil(y2 / PX - .5), r1 = Math.ceil(Math.min(y1, H) / PX - .5);
+    for(let r = r0; r < r1 && n < OIL_N; r++){ const t = (y1 - (r + .5) * PX) / (y1 - y2), z = 1 / (iz1 + (iz2 - iz1) * t), w = P1.screen.w + (P2.screen.w - P1.screen.w) * t;
+      OIL_RY[n] = r * PX; OIL_RV[n] = (k + (z - c1) / dc) / 6; OIL_RW[n] = w; OIL_RX[n] = P1.screen.x + (P2.screen.x - P1.screen.x) * t + h.x * w; n++; } }
+  return n; }
+// high-contrast hazards: hazard-tape edges (yellow and black, on the pixel grid) round the slick's footprint (the same world-mapped rows)
+function hazOutline(s, h){ const n = oilRows(s, h), st = PX; if(n < 2) return; let iN = 0, iF = 0;
+  for(let j = 0; j < n; j++){ const yy = OIL_RY[j], pcx = OIL_RX[j], hw = OIL_RW[j] * .44; if(OIL_RV[j] < OIL_RV[iN]) iN = j; if(OIL_RV[j] > OIL_RV[iF]) iF = j;
+    cx.fillStyle = (yy / st | 0) % 4 < 2 ? '#ffe600' : '#000'; cx.fillRect(snap(pcx - hw) - st, yy, st * 2, st); cx.fillRect(snap(pcx + hw) - st, yy, st * 2, st); }
+  for(const j of [iF, iN]){ if(j === iN && OIL_RV[j] > .08) continue; const yy = OIL_RY[j], pcx = OIL_RX[j], hw = OIL_RW[j] * .44;
+    for(let x = snap(pcx - hw) - st; x < pcx + hw + st; x += st * 2){ cx.fillStyle = ((x / st | 0) >> 1) % 2 ? '#000' : '#ffe600'; cx.fillRect(x, yy, st * 2, st); } } }
+function drawOil(s, h, fog, now){ const f = segs[s.index + 6]; if(!f) return;
+  const step = PX, al = 1 - fog * .45, sd = s.index * 7.31, T = oilTones(LANDS[s.land]), tm = reduce ? 0 : now / 1000;
   const lob = [hash(sd) * .22, hash(sd + 1) * 6.28, hash(sd + 2) * .16, hash(sd + 3) * 6.28], gl = hash(sd + 4) * .6 - .3;   // two lobes make every slick a different blob; gl: where its reflection sits across it
+  const cz = (s.index + 3) * SEG - position, est = cz > PZ ? H * PZ * 600 / (cz * cz) / step : 99;   // est: the slick's true height in rows (its distance, not what is left on screen)
+  const far = clamp(1 - (est - 2) / 7, 0, 1), fi = Math.floor(est / 5);   // far: Fresnel (the reflection widens far off); fi: the film's tones walk as you close in (the viewing angle changes)
+  let n = oilRows(s, h), sliver = false;
+  if(n < 2){ if(s.index <= OIL_B || !s.p1.screen.scale || !f.p1.screen.scale || est > 2.5) return;   // a legibility floor: far off, two rows (its reflection over its dark lip)
+    const a = s.p1.screen, b = f.p1.screen, r = Math.round((a.y + b.y) / 2 / step) - 1; if(a.y <= b.y || r * step >= H) return;
+    for(let j = 0; j < 2; j++){ OIL_RY[j] = (r + j) * step; OIL_RV[j] = j ? .3 : .7; OIL_RW[j] = (a.w + b.w) / 2; OIL_RX[j] = (a.x + b.x) / 2 + h.x * OIL_RW[j]; } n = 2; sliver = true; }
+  else if(est <= 3) sliver = true;
+  // the surface reacts to a tyre: a ripple ring from where it went in (world units: the blob is 1600 across, 1200 long), and its groove
+  const hit = h.hitT !== undefined, ripA = hit ? OILW.clock - h.hitT : -1, rip = ripA >= 0 && ripA < .9 && !reduce, rr0 = .1 + ripA * 1.7, ru = hit ? h.hitU : 0, rd = hit ? h.hitD * .3 : 0;
+  const swell = ((tm * .42 + hash(sd + 6) * 3) % 2.4) * 1.25 - 1.25;   // the sheen's slow swell: crosses the reflection, then rests (about 2.4 s a cycle)
   cx.globalAlpha = al;
-  for(let yy = Math.floor(y1 / step) * step; yy < y0; yy += step){ const v = clamp((y0 - yy - step * .5) / (y0 - y1), 0, 1), row = yy / step | 0;   // v: 0 near edge .. 1 far edge
-    const pcx = lerp(a.x + h.x * a.w, b.x + h.x * b.w, v), hw = lerp(a.w, b.w, v) * .4, n = Math.max(2, Math.round(hw * 2 / step));
+  for(let j = 0; j < n; j++){ const yy = OIL_RY[j], v = OIL_RV[j], row = yy / step | 0, pcx = OIL_RX[j], hw = OIL_RW[j] * .4, nc = Math.max(2, Math.round(hw * 2 / step));
     // cells of one colour in a row go out as one rect (a near slick is thousands of cells: per-cell fills cost ~10 ms), on the pixel grid
     const x0 = snap(pcx - hw); let runC = null, runI = 0;
-    const flush = i => { if(runC !== null){ cx.fillStyle = runC; cx.fillRect(x0 + runI * step, yy, (i - runI) * step, step); runC = null; } };
-    const band = 1 - Math.abs(v - (.66 + .14 * far)) / (.12 + .2 * far);   // the reflection band across the far half; wider when far (Fresnel)
-    for(let i = 0; i < n; i++){ const u = (i + .5) / n * 2 - 1, vv = v * 2 - 1, ang = Math.atan2(vv, u), ch = (i + row) & 1,
-        r = Math.hypot(u, vv) / (.84 + lob[0] * Math.sin(ang * 2 + lob[1]) + lob[2] * Math.sin(ang * 3 + lob[3]));
-      if(r > 1 || (r > .93 && ch)){ flush(i); continue; }   // outside, or the dithered outer rim (half the cells: a soft edge, no outline)
-      let col;
-      if(r > .93) col = '#0c0b14';
-      else if(rowsN <= 3) col = v > .5 ? (Math.abs(u - gl * .3) < .7 ? T[5] : T[0]) : '#05040a';   // far off: a cool sliver of reflected sky over a black lip
-      else if(r > .8 && ch === 0) col = T[2 + (Math.floor(ang * 1.1 + r * 5) + fi + 9) % 3];   // the thin film, half strength
-      else if(band > 0 && Math.abs(u - gl * (1 - far)) < .62 + .3 * far){ const q = band * (1 - Math.abs(u - gl) * .5); col = q > .7 ? T[5] : q > .4 ? T[0] : q > .15 || ch ? T[1] : '#0a0912'; }   // the reflection: sky and lamp light, cooler than a lane dash
-      else if(Math.abs(u - gl) < .09 && v > .18) col = ch ? T[1] : '#0a0912';   // a lamp's streak, drawn toward you on the gloss
-      else col = r > .7 && ch ? '#100e1a' : '#07060c';   // the glossy near-black core, a touch of sheen toward its rim
-      if(r < .6 && rowsN > 4 && hash(sd + i * 3.1 + row * .7) > .985) col = '#e8e4f0';   // glints, fixed to the world
-      if(rowsN > 5 && i === (n * (.3 + hash(sd + 5) * .4) | 0) && Math.abs(v - .35) * rowsN < .6) col = '#9a8ec4';   // one iridescent fleck
-      if(col !== runC){ flush(i); runC = col; runI = i; } }
-    flush(n); }
+    const band = 1 - Math.abs(v - (.66 + .14 * far)) / (.12 + .2 * far), vv = v * 2 - 1, vc = Math.floor(v * 14);   // the reflection band across the far half; wider when far (Fresnel)
+    for(let i = 0; i <= nc; i++){ let col = null;
+      if(i < nc){ const u = (i + .5) / nc * 2 - 1, ang = Math.atan2(vv, u), ch = (i + row) & 1, uc = Math.floor((u + 1) * 12),
+          r = Math.hypot(u, vv) / (.84 + lob[0] * Math.sin(ang * 2 + lob[1]) + lob[2] * Math.sin(ang * 3 + lob[3]));
+        if(r <= 1 && !(r > .93 && ch)){   // inside, less the dithered outer rim (half the cells: a soft edge, no outline)
+          if(sliver){ const e = r > .72;   // far off: a bright sliver of reflected sky with iridescent ends over a black lip; the swell is a glint sweeping across it
+            col = v > .5 ? (Math.abs(u - swell) < .13 ? '#f6f4ff' : e ? T[6 + (uc + fi) % 4] : Math.abs(u - gl * .3) < .62 ? T[5] : T[0]) : (e && ch ? T[6 + (uc + 2) % 4] : '#04030a'); }
+          else if(r > .93) col = '#0c0b14';
+          else if(r > .86) col = ch && r < .89 ? '#0c0b14' : T[6 + (Math.floor(ang * 1.3 + r * 4) + fi + 12) % 4];   // the thin edge: oil's interference colours, brightest where the film is thinnest
+          else if(r > .79 && ch === 0) col = T[2 + (Math.floor(ang * 1.1 + r * 5) + fi + 9) % 3];   // the film just inside, half strength
+          else if(hit && Math.abs(u - ru - rd * v) < .07) col = ch ? T[2 + (vc + fi) % 3] : T[1];   // the tyre's groove: the oil pushed aside, thinner film
+          else if(band > 0 && Math.abs(u - gl * (1 - far)) < .62 + .3 * far){ const q = band * (1 - Math.abs(u - gl) * .5) + .3 * Math.max(0, 1 - Math.abs(u - swell) * 2.2);
+            col = q > .7 ? T[5] : q > .4 ? T[0] : q > .15 || ch ? T[1] : '#0a0912'; }   // the reflection: sky and lamp light, cooler than a lane dash
+          else if(Math.abs(u - gl) < .09 && v > .18) col = ch ? T[1] : '#0a0912';   // a lamp's streak, drawn toward you on the gloss
+          else col = r > .7 && ch ? '#0e0c1a' : '#05040b';   // the glossy near-black core, a touch of sheen toward its rim
+          if(!sliver){
+            if(r < .6 && hash(sd + uc * 3.1 + vc * .7) > .975 && Math.sin(tm * 1.7 + uc * 2.3 + vc) > -.3) col = '#e8e4f0';   // glints, fixed to the world, each now and then
+            if(rip && r < .93){ const dd = Math.hypot(u - ru, v * 1.5); if(Math.abs(dd - rr0) < .07 && (ch || ripA < .35)) col = ripA < .5 ? T[5] : T[0]; } } } }   // the ripple, thinning as it spreads
+      if(col !== runC){ if(runC !== null){ cx.fillStyle = runC; cx.fillRect(x0 + runI * step, yy, (i - runI) * step, step); } runC = col; runI = i; } } }
   cx.globalAlpha = 1; }
+/* Oil on the tyres. Once you have ridden through a slick the tyres carry oil for about 1.6 s and lay it down: two dark glossy tracks
+   (front and rear; they part while the rear steps out in the slide and close up as it gathers), world-anchored in a fixed ring of points,
+   laid from the front tyre's contact patch and drawn segment by segment in the sprite pass, so they ride with the road through curves and
+   hills and pass under the bike. They fade as the oil wears off. The camera rides about four segments behind the bike, so what you see of
+   them is the stretch under the bike and the strip below its rear tyre: in the slide they run out from under it to the side.
+   The rear tyre throws droplets (pooled, screen space) for the first half second, and it shows a wet sheen while the oil lasts.
+   Nothing here uses Math.random (the hash only), so the ride's random draws are exactly what they were. */
+const OILW = { amt:0, clock:0, side:0, lastZ:-1e9, n:0, head:0, N:96, z:new Float32Array(96), xf:new Float32Array(96), xr:new Float32Array(96), a:new Float32Array(96),
+  spray:0, acc:0, seq:0, i0:0, i1:-1, NP:40, P:new Float32Array(40 * 6) };   // P: droplets [x, y, vx, vy, life, life0]
+const OIL_WB = 520, OIL_TW = .02;   // the front tyre's lead on the rear (world units: the wheelbase); each track's half-width (road half-widths)
+function oilHit(h){ const O = OILW; O.amt = 1; O.side = slideDir; O.spray = .5; h.hitT = O.clock; h.hitU = clamp((playerX - h.x) / .4, -1, 1); h.hitD = slideDir; }
+function oilWheels(dt){ const O = OILW; O.clock += dt;
+  if(position + PZ < O.lastZ - OIL_WB - SEG * 8){ O.n = 0; O.amt = 0; O.spray = 0; O.lastZ = -1e9; }   // a new ride
+  if(O.amt > 0){ O.amt = Math.max(0, O.amt - dt / 1.6); const z = position + PZ + OIL_WB;
+    if(z - O.lastZ > 24){ const k = O.head, st = clamp(slideT / .85, 0, 1); O.z[k] = z; O.xf[k] = playerX; O.xr[k] = playerX + O.side * .06 * st; O.a[k] = Math.pow(O.amt, .7); O.head = (k + 1) % O.N; O.n = Math.min(O.N, O.n + 1); O.lastZ = z; } }
+  const P = O.P, bs = Math.min(W * .2, H * .27), kp = Math.max(PX, Math.round(bs / 30 / PX) * PX), g = 260 * kp;
+  if(O.spray > 0 && !reduce && state === 'play'){ O.spray -= dt; O.acc += dt * 80 * clamp(O.spray / .5, 0, 1) + (O.spray > .42 ? dt * 60 : 0);
+    while(O.acc >= 1){ O.acc--; let q = -1; for(let i = 0; i < O.NP; i++) if(P[i * 6 + 4] <= 0){ q = i * 6; break; } if(q < 0) break;
+      const r = k => hash(O.seq * 1.618 + k * 7.31), sd = r(0) < .5 + .3 * O.side ? 1 : -1, hy = (1 + r(1) * 4) * kp; O.seq++;
+      P[q] = W / 2 + sd * (3.5 + r(2) * 1.5) * kp + leanV * hy; P[q + 1] = H - 8 - hy; P[q + 2] = sd * (20 + r(3) * 46) * kp; P[q + 3] = -(26 + r(4) * 40) * kp; P[q + 5] = P[q + 4] = .3 + r(5) * .3; } }
+  for(let i = 0; i < O.NP; i++){ const q = i * 6; if(P[q + 4] <= 0) continue; P[q] += P[q + 2] * dt; P[q + 1] += P[q + 3] * dt; P[q + 3] += g * dt; P[q + 4] -= dt; if(P[q + 1] > H + 4 * kp) P[q + 4] = 0; } }
+// this frame's segment span of the tracks (drawSprites calls it once, before its loop)
+function oilSpan(base){ const O = OILW; OIL_B = base.index; O.i0 = 0; O.i1 = -1; if(!O.n) return; let lo = 1e12, hi = -1e12;
+  for(let k = 0; k < O.n; k++){ const z = O.z[k]; if(z < lo) lo = z; if(z > hi) hi = z; } O.i0 = Math.max(base.index + 1, Math.floor(lo / SEG)); O.i1 = Math.floor(hi / SEG); }
+// the tracks inside segment s, rows near to far on the pixel grid
+function oilTrack(s){ const O = OILW, P1 = s.p1, P2 = s.p2; if(P1.camera.z <= DEPTH || P2.camera.z <= P1.camera.z) return; const y1 = P1.screen.y, y2 = P2.screen.y; if(y2 >= y1 || y2 >= H) return;
+  const zs = P1.world.z, ze = P2.world.z, iz1 = 1 / P1.camera.z, iz2 = 1 / P2.camera.z, T = oilTones(LANDS[s.land]);
+  for(let k = 1; k < O.n; k++){ const ib = (O.head - k + O.N) % O.N, ia = (ib - 1 + O.N) % O.N, zb = O.z[ib], za = O.z[ia];   // b: the newer point, a: the older
+    if(zb <= za || zb - za > 3 * SEG || zb < zs || za >= ze) continue;
+    const tB = (1 / (Math.min(zb, ze) - position) - iz1) / (iz2 - iz1), tA = (1 / (Math.max(za, zs) - position) - iz1) / (iz2 - iz1), r0 = Math.ceil((y1 - tB * (y1 - y2)) / PX - .5), r1 = Math.ceil(Math.min(y1 - tA * (y1 - y2), H) / PX - .5);
+    for(let r = r0; r < r1; r++){ const t = (y1 - (r + .5) * PX) / (y1 - y2), zw = 1 / (iz1 + (iz2 - iz1) * t) + position; if(zw < za || zw > zb) continue;
+      const gq = (zw - za) / (zb - za), w = P1.screen.w + (P2.screen.w - P1.screen.w) * t, xc = P1.screen.x + (P2.screen.x - P1.screen.x) * t, a = O.a[ia] + (O.a[ib] - O.a[ia]) * gq;
+      if(a < .03) continue; const hw = Math.max(PX * .5, OIL_TW * w), yy = r * PX;
+      for(let tr = 0; tr < 2; tr++){ const xu = tr ? O.xr[ia] + (O.xr[ib] - O.xr[ia]) * gq : O.xf[ia] + (O.xf[ib] - O.xf[ia]) * gq, px = xc + xu * w, xa = snap(px - hw), xb = Math.max(xa + PX, snap(px + hw));
+        cx.globalAlpha = a * (tr ? .8 : .92); cx.fillStyle = '#06050b'; cx.fillRect(xa, yy, xb - xa, PX);
+        if(xb - xa >= PX * 3){ cx.fillStyle = hash(Math.floor(zw / 60) * .37 + tr) > .55 ? T[5] : T[1]; cx.fillRect(xa + PX, yy, PX, PX); } } } }   // the gloss along each track, broken as it catches the light
+  cx.globalAlpha = 1; }
+// the oily rear tyre (a wet sheen and a rolling glint on the rows below the tail) and the droplets it throws; after the bike, in its transform
+function oilBike(x, y, bs, lean, now){ const O = OILW, P = O.P;
+  for(let i = 0; i < O.NP; i++){ const q = i * 6, l = P[q + 4]; if(l <= 0) continue; const pr = 1 - l / P[q + 5], sz = PX * (pr > .55 ? 2 : 1), dx = snap(P[q]), dy = snap(P[q + 1]);   // nearer the camera, bigger
+    cx.globalAlpha = Math.min(1, l * 5); cx.fillStyle = '#07060d'; cx.fillRect(dx, dy, sz, sz); if(sz > PX){ cx.fillStyle = '#b8bcd8'; cx.fillRect(dx, dy, PX, PX); } }
+  cx.globalAlpha = 1; if(O.amt <= .02 || BIKE.hidden) return;
+  const k = Math.max(PX, Math.round(bs / 30 / PX) * PX), a = Math.min(1, O.amt * 1.5), EB = ENV.bikes, f0 = EB && EB.poseLean && EB._cur ? EB.poseLean(EB._cur()) : lean, t = f0 + clamp(lean - f0, -.14, .14);
+  cx.save(); cx.translate(Math.round(x), Math.round(y)); cx.rotate(t);
+  cx.globalAlpha = .5 * a; cx.fillStyle = '#04030a'; cx.fillRect(-1.5 * k, -6 * k, 3 * k, 5 * k);   // the tread goes wet-black
+  const ph = reduce ? 0 : Math.floor(now / 45) % 5; cx.globalAlpha = .85 * a;
+  for(let ry = -6; ry <= -2; ry++){ cx.fillStyle = ry === -6 + ph ? '#f4f2ff' : (ry + ph) & 1 ? '#9aa0c4' : '#5c6286'; cx.fillRect(-2.5 * k, ry * k, k, k); }   // the gloss down its lit side, a glint rolling with the tread
+  cx.globalAlpha = .5 * a; cx.fillStyle = '#6a7092'; cx.fillRect(1.5 * k, -5 * k, k, k); cx.fillRect(1.5 * k, -3 * k, k, k);
+  cx.restore(); }
 /* Boost pad: a dash plate set flat into the asphalt (F-Zero's dash plates, Mario Kart's dash panels), drawn in perspective row by row on the pixel grid.
    A dark steel frame with a lit rim, a deep-blue plate, and three chevrons that chase forward: white-hot core, cyan body, blue edge. */
 const PAD_COL = ['#0a1a3a', '#12305e', '#1a5a9a', '#4ff0ff', '#e8ffff'];
@@ -2774,7 +2854,7 @@ function frame(){ if(PSE.on){ pzPad(); if(PSE.dirty){ PSE.dirty = false; try{ dr
    A new version downloads in the background and waits. It is applied only on the title (never mid-ride): by itself once
    the title has sat untouched for a few seconds, or at once when the player taps "Update ready". Tap the version to check now. */
 (() => {
-  const VER = 'v21 · 74abc2', $id = (i) => document.getElementById(i);
+  const VER = 'v22 · 9e1e51', $id = (i) => document.getElementById(i);
   const SDU = window.SDUPDATE = { version: VER, waiting: null, applied: false, checks: 0 };
   let reg = null, applying = false, asked = false, needReload = false, note = '', noteT = 0, lastInput = performance.now();
   ['keydown', 'pointerdown', 'touchstart', 'wheel'].forEach((t) => addEventListener(t, () => { lastInput = performance.now(); }, { capture: true, passive: true }));
@@ -2836,5 +2916,5 @@ function frame(){ if(PSE.on){ pzPad(); if(PSE.dirty){ PSE.dirty = false; try{ dr
   }, 1000);
 })();
 </script>
-<!-- __sdbuild:21 74abc2b039f4 --></body>
+<!-- __sdbuild:22 9e1e51274ec8 --></body>
 </html>
