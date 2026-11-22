@@ -21,7 +21,7 @@
      s  -10  S1: a wave bursts over the left rail 130 ahead and floods the left lanes (the right is open)
      s  +22  a strike reveals V1 opening on the left; +40 gust 2 (pushes left); +70 S2 floods the right lanes 130 ahead (the left is open)
      s +140  the giant V3 opens beside and under the bridge (eye just off the left deck edge); +150 gust 3 (pushes right)
-     s +232  THE strike into V3's eye: slow motion 0.5 held 1.2 s, the insert panel for 2.3 real seconds (wipe in, a locked-off shot, wipe out)
+     s +232  THE strike into V3's eye: slow motion 0.5 held 1.2 s, the insert panel for 1.6 real seconds (wipe in, a locked-off shot, wipe out)
      s +262  S3: waves over both rails flood both outer lanes 130 ahead (the centre is open)
      s +300  a strike on the wind-warning gantry 132 ahead: the left leg buckles, the board drops onto the left lanes (down at +306,
              126 ahead); the beam rests on it, rising over the right lanes (open)
@@ -226,7 +226,7 @@
   // the deck, its girder face, lamps); the towers, cables and your lights are projected over it. The panel never covers the road.
   const PNL = { t:-1, on:false, fr:0, full:false, cam:new Float64Array(12) };
   let PCv = null, PG = null, PI = null, PU = null, PWc = 0, PHc = 0, PE2 = null, PC2 = null, PR2 = null;
-  const PN_HOLD = 2.3, PN_IN = .22, PN_OUT = .25;
+  const PN_HOLD = 1.6, PN_IN = .22, PN_OUT = .25;   // (the hold was 2.3 s; shortened in W11 #28, the strike's dense frames all fall inside it)
   function panelRect(){ const x0 = Math.round(W * .06 / PX), x1 = Math.round(W * .94 / PX), y0 = Math.round(H * .115 / PX), y1 = Math.round(H * .445 / PX); return [x0, y0, x1, y1]; }
   function ensurePanel(){ const R = panelRect(), w = R[2] - R[0], h = R[3] - R[1]; if(PCv && PWc >= w && PHc >= h) return; PWc = Math.max(w, PWc); PHc = Math.max(h, PHc); PCv = can(PWc, PHc); PG = PCv.getContext('2d', { willReadFrequently:true }); PI = PG.createImageData(PWc, PHc); PU = new Uint32Array(PI.data.buffer); PE2 = new Uint8Array(PWc * PHc); PC2 = new Int32Array(PWc * PHc).fill(-99999); PR2 = new Int32Array(PWc * PHc).fill(-99999); }
   // the panel's camera: a drone up and back over the right of the bridge, looking at the giant's eye, pushing in over the hold
@@ -268,7 +268,7 @@
         else ci = 1;
         PU[o + x] = PF[ci]; } }
     PG.putImageData(PI, 0, 0, 0, 0, w, h); }
-  // Pre-rendered in warm(): the shot is locked off and the hold is 2.3 s, so its frames are made once. A dummy plan at B = 0 (the camera and
+  // Pre-rendered in warm(): the shot is locked off and the hold is 1.6 s, so its frames are made once. A dummy plan at B = 0 (the camera and
   // the bridge are relative to the giant's eye), the whirlpools as they stand at the strike, the water turning at the slow-motion pace;
   // dense frames through the strike's two strokes, then one every 0.14 s (7 a second, a hand-animation rate). Calm gets its own soft swell
   // frames for the first 0.7 s. ~24 frames of the panel's size: about 3 MB at 1280x760.
@@ -293,11 +293,17 @@
     cx.save(); cx.globalAlpha = al;
     // the panel's shape: a parallelogram (slanted sides), clipped
     const L = X0 + xa * PX, Rr = X0 + xb * PX, shape = (d) => { cx.beginPath(); cx.moveTo(L + sl + d, Y0 + d); cx.lineTo(Rr - d, Y0 + d); cx.lineTo(Rr - sl - d, Y0 + HH - d); cx.lineTo(L + d, Y0 + HH - d); cx.closePath(); };
-    shape(0); cx.fillStyle = '#05060a'; cx.save(); cx.translate(PX * 2, PX * 2); cx.fill(); cx.restore();
-    cx.save(); cx.clip(); cx.imageSmoothingEnabled = false; cx.drawImage(img, 0, 0, w, h, X0, Y0, WW, HH);
-    panelOver(p, ps, now, X0, Y0, w, h); cx.restore();
-    // the frame: a black rule with a cream inner line (the cut-in style)
-    shape(0); cx.strokeStyle = '#05060a'; cx.lineWidth = PX * 2; cx.stroke(); shape(PX * 2); cx.strokeStyle = '#e8e2d0'; cx.lineWidth = PX; cx.stroke(); cx.restore(); }
+    /* the frame (W11 #28, 2026-11-21): a 1-px rule round the picture read as a flat card laid on the world. Now a cut-in bezel, inside the
+       same rect so the panel still never reaches the road: a black rule, a 2-px cream band, a black rule, then the picture; vermilion slash
+       tabs on the band at the top-left and bottom-right corners; a 3-px drop shadow down-right lifts it off the scene. */
+    shape(0); cx.fillStyle = '#05060a'; cx.save(); cx.translate(PX * 3, PX * 3); cx.globalAlpha = al * .8; cx.fill(); cx.restore();
+    cx.fill(); shape(PX); cx.fillStyle = '#e8e2d0'; cx.fill();
+    { const tl = Math.round((Rr - L) * .16 / PX) * PX, tb = PX * 2, k = sl / HH; cx.fillStyle = '#e8402a';   // the slash tabs, on the cream band
+      cx.beginPath(); cx.moveTo(L + sl - k * PX, Y0 + PX); cx.lineTo(L + sl - k * PX + tl, Y0 + PX); cx.lineTo(L + sl - k * (PX + tb) + tl - PX * 3, Y0 + PX + tb); cx.lineTo(L + sl - k * (PX + tb), Y0 + PX + tb); cx.closePath(); cx.fill();
+      cx.beginPath(); cx.moveTo(Rr - sl + k * PX, Y0 + HH - PX); cx.lineTo(Rr - sl + k * PX - tl, Y0 + HH - PX); cx.lineTo(Rr - sl + k * (PX + tb) - tl + PX * 3, Y0 + HH - PX - tb); cx.lineTo(Rr - sl + k * (PX + tb), Y0 + HH - PX - tb); cx.closePath(); cx.fill(); }
+    shape(PX * 3); cx.fillStyle = '#05060a'; cx.fill();
+    shape(PX * 4); cx.save(); cx.clip(); cx.imageSmoothingEnabled = false; cx.drawImage(img, 0, 0, w, h, X0, Y0, WW, HH);
+    panelOver(p, ps, now, X0, Y0, w, h); cx.restore(); cx.restore(); }
   // over the panel's raster: the towers and main cables (projected), your bike's lights on the deck, the strike
   const PQ3 = [0, 0, 0], PQ4 = [0, 0, 0];
   function panelOver(p, ps, now, X0, Y0, w, h){ const pt = (X, Y, Z, o) => { const q = panelProj(X, Y, Z, w, h); if(!q) return null; o[0] = X0 + q[0] * PX; o[1] = Y0 + q[1] * PX; o[2] = q[2]; return o; };

@@ -258,7 +258,7 @@ canvas.map{display:block;max-width:100%;image-rendering:pixelated}
 .rx.pzi{height:auto;box-shadow:none;width:auto;margin:0;outline:0}
 .rx.pzi:disabled{cursor:default}
 .st3>.rx{min-width:220px;margin-top:6px}
-.rexits{display:grid;grid-template-columns:1fr 1fr;gap:14px 26px;width:min(620px,100%);padding:0 34px;margin:6px auto 0}
+.rexits{display:grid;grid-template-columns:minmax(0,320px);justify-content:center;gap:14px 26px;width:min(620px,100%);padding:0 34px;margin:6px auto 0}
 .rexits .pzi small{display:block;font-size:13px;line-height:1.25;letter-spacing:1px;margin-top:4px;opacity:.8;text-wrap:balance}
 /* the ways out never scroll away: on a short or narrow screen they ride the bottom edge over a dark band */
 .res[data-stage="4"] .rexits{position:sticky;bottom:0;z-index:2;padding-block:14px 16px;background:linear-gradient(transparent,rgba(5,4,10,.94) 22px)}
@@ -2184,8 +2184,7 @@ function finish(reason){
           <p class="line" style="text-align:left;font-size:13px">${caughtEnd ? `Pulled over on ${here.name}.` : `Dawn on ${here.name}.`}${longest}</p></div>
           <div>${boardHTML(top, rec)}</div></div>
         ${cosNew.length ? `<p class="line" style="font-size:13px"><span class="pb">NEW IN THE GARAGE:</span> ${cosNew.map(it => `${it.kj} ${it.name} (${it.text.toLowerCase()})`).join(' · ')}</p>` : ''}
-        <div class="rexits"><button type="button" class="pzi rx btn sel" data-x="lobby">${pzSlab()}<span class="tabk n">車庫</span><span class="t">LOBBY<small>bikes&nbsp;·&nbsp;garage</small></span><span></span></button>
-          <button type="button" class="pzi rx" data-x="again">${pzSlab()}<span class="tabk">再走</span><span class="t">PLAY AGAIN<small>a fresh road from sundown</small></span><span></span></button></div></section></div>`;
+        <div class="rexits"><button type="button" class="pzi rx btn sel" data-x="again">${pzSlab()}<span class="tabk">再走</span><span class="t">PLAY AGAIN<small>a fresh road from sundown</small></span><span></span></button></div></section></div>`;
     $('#card').scrollTop = 0; $('#sheet').hidden = false; uiKeys();
     $('#card').querySelectorAll('.chips').forEach(ch => ch.addEventListener('click', e => { const b = e.target.closest('button'); if(!b) return; ch.querySelectorAll('button').forEach(x => x.setAttribute('aria-pressed', x === b)); rec.survey[ch.dataset.k] = +b.dataset.v; store.set('arcade.sundown', prev); }));
     if(INI.on){ $('#ini').querySelectorAll('.slot').forEach(s => { s.querySelectorAll('button').forEach(b => b.onclick = () => { INI.i = +s.dataset.i; iniBump(+b.dataset.b); }); s.querySelector('b').onclick = () => { INI.i = +s.dataset.i; iniDraw(); }; }); iniDraw(); }
@@ -2214,7 +2213,7 @@ function resStage(n){ const r = $('#res'); if(!r || n > 4) return; if(n === 3 &&
     const c = $('#mapMini'); sizeMap(c, 200); drawMap(c, RES.caughtEnd, 1, performance.now()); if(!reduce) RES.raf = setInterval(() => drawMap(c, RES.caughtEnd, 1, performance.now()), 50);
     const xs = [...r.querySelectorAll('[data-x]')]; xs.forEach(b => { b.disabled = true; }); RES.timers.push(setTimeout(() => xs.forEach(b => { b.disabled = false; }), 700));   // nor land straight in the lobby
     if(document.fonts) document.fonts.load('16px DotGothic16', '港橋街隧峠油').then(() => { if($('#mapMini') === c) drawMap(c, RES.caughtEnd, 1, 0); }).catch(() => {}); } }
-// the board's two ways out (both slanted slabs; LOBBY is chosen first, so A / Enter / a tap take you to the title screen and its garage)
+// the board's one way out: PLAY AGAIN (Kellan, 2026-11-21: LOBBY removed; the garage is reached from the title via pause > Quit to title). A / Enter / a tap press it
 const resExitActive = () => RES.stage === 4 && !!$('#res') && !$('#sheet').hidden;
 function resExitSel(b){ $('#res').querySelectorAll('[data-x]').forEach(x => { const on = x === b; x.classList.toggle('sel', on); x.classList.toggle('btn', on); }); }
 function resExitNav(dir){ const xs = [...$('#res').querySelectorAll('[data-x]')], i = xs.findIndex(x => x.classList.contains('sel')); resExitSel(xs[(i + (dir === 'left' || dir === 'up' ? -1 : 1) + xs.length) % xs.length]);
@@ -2649,7 +2648,7 @@ function frame(){ if(PSE.on){ pzPad(); if(PSE.dirty){ PSE.dirty = false; try{ dr
    A new version downloads in the background and waits. It is applied only on the title (never mid-ride): by itself once
    the title has sat untouched for a few seconds, or at once when the player taps "Update ready". Tap the version to check now. */
 (() => {
-  const VER = 'v12 · 0b0306', $id = (i) => document.getElementById(i);
+  const VER = 'v13 · bc9550', $id = (i) => document.getElementById(i);
   const SDU = window.SDUPDATE = { version: VER, waiting: null, applied: false, checks: 0 };
   let reg = null, applying = false, asked = false, needReload = false, note = '', noteT = 0, lastInput = performance.now();
   ['keydown', 'pointerdown', 'touchstart', 'wheel'].forEach((t) => addEventListener(t, () => { lastInput = performance.now(); }, { capture: true, passive: true }));
@@ -2711,5 +2710,5 @@ function frame(){ if(PSE.on){ pzPad(); if(PSE.dirty){ PSE.dirty = false; try{ dr
   }, 1000);
 })();
 </script>
-<!-- __sdbuild:12 0b030615f0dd --></body>
+<!-- __sdbuild:13 bc9550b7039e --></body>
 </html>
