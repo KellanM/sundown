@@ -529,12 +529,17 @@ G.drawSeg = (s, sx0, sy0, uw, fog, now) => { if(!R.length) return; const pz = pz
       if(Math.floor(r.down.rz / SEG) === s.index && r.down.rz - pz >= 0){ const Q = projOn(s, r.down.rz, r.down.rx); drawTumble(r, Q.x, Q.y, Q.w * K / W, fog); } }
     else if(on){ const P = projOn(s, zz, r.x), J = MECH.sp_jump, A = J && J.vehAir ? J.vehAir(r) : null, lift = A ? J.vehLift(s, zz, A.h) : 0; if(lift > 1) J.vehShadow(P.x, P.y, P.w); drawRider(r, P.x, P.y - lift, P.w * K / W, fog, now, EDGE); } } };   // (EDGE: the core's fade in the last stretch of the draw distance)
 function projOn(s, z, x){ const pct = (z % SEG) / SEG, w = lerp(s.p1.screen.w, s.p2.screen.w, pct); return { x:lerp(s.p1.screen.x, s.p2.screen.x, pct) + x * w, y:lerp(s.p1.screen.y, s.p2.screen.y, pct), w }; }
-// rivals between you and the camera (passing you, or falling behind) are drawn in screen space over the bike
+// rivals between you and the camera (passing you, or falling behind) are drawn in screen space UNDER the bike, so one alongside or just
+// behind never covers yours (audit #12), and fade out as the near projection passes 3 canvas px a sprite px (gone by 4.5), before the
+// art turns to blocks. A kick's wind-up starts within 260 of you, where the fade is still 1: every tell reads as before.
+const nearA = k => { const s = k / PX; return s <= 3 ? 1 : s >= 4.5 ? 0 : (4.5 - s) / 1.5; };
+G.drawUnderBike = now => { if(!R.length) return; const pz = pzz();
+  for(const r of R){ const g = r.z - pz; if(g >= 0 || r.st === 'down' || offBehind(r, g)) continue;
+    const p = nearScreen(r, undefined, undefined, .2), a = nearA(p.k); if(a > .01) drawRider(r, p.x, p.y, p.k, 0, now, a); } };   // (it grows as it passes the camera, like traffic you overtake)
+// over the bike: the wrecks, the kick, the stars, smoke and debris, the duel plate and the call-out
 G.drawScreen = now => {
   const pz = pzz();
-  for(const r of R){ const g = r.z - pz; if(g >= 0) continue;
-    if(r.st === 'down'){ const p = nearScreen(r); drawWreck(r, p.x, p.y, p.k, 0, now); continue; }
-    if(offBehind(r, g)) continue; const p = nearScreen(r, undefined, undefined, .2); drawRider(r, p.x, p.y, p.k, 0, now); }   // (it grows as it passes the camera, like traffic you overtake)
+  for(const r of R){ if(r.st === 'down' && r.z - pz < 0){ const p = nearScreen(r); drawWreck(r, p.x, p.y, p.k, 0, now); } }
   for(const r of R) if(r.st === 'down' && r.down.rz - pz < 0){ const q = nearScreen(r, r.down.rz, r.down.rx); drawTumble(r, q.x, q.y, q.k, 0); }
   drawKick(now);
   for(const f of fx){ if(f.t < 0) continue;

@@ -584,12 +584,24 @@
     try{ if(!document.fonts || !document.fonts.check('16px "DotGothic16"')) return null; }catch(e){ return null; }
     // four times the sprite's resolution: the kanji at 32 px (the font's grid doubled), the romaji at its native 16 px
     const c = signCv || (signCv = document.createElement('canvas')); c.width = 448; c.height = 240; const k = c.getContext('2d'); k.fillStyle = '#f0f0e4'; k.textBaseline = 'top';
-    for(const [x0, w, main, sub] of SIGNS){ k.font = '32px "DotGothic16"'; k.fillText(main, (x0 + 2) * 4, 86); k.font = '16px "DotGothic16"'; k.fillText(sub, (x0 + 2) * 4, 125); }
+    for(const [x0, w, main] of SIGNS){ k.font = '32px "DotGothic16"'; k.fillText(main, (x0 + 2) * 4, 86); }   // (the romaji: ROMA below, a 3x5 face drawn on the grid)
     const img = k.getImageData(0, 0, 448, 240), d = img.data; for(let i = 3; i < d.length; i += 4) d[i] = d[i] > 110 ? 255 : 0; k.putImageData(img, 0, 0); return signText = c; }
+  /* The English line (audit #15: 16 px DotGothic at a quarter of a sprite pixel came out as garbage glyphs, "AH 3 x IIPDT"): the HUD's 3x5
+     face, one 1:1 canvas per sign made at load, drawn at a whole number of canvas pixels a font pixel (1 at the common distance, growing
+     in steps as the sign nears). Where even 1 canvas pixel would not fit, each word is a dashed line: it reads as a line of text, not mush. */
+  const R3 = { A:'010101111101101', D:'110101101101110', E:'111100110100111', H:'101101111101101', I:'111010010010111', L:'100100100100111', M:'101111111101101',
+    N:'110101101101101', O:'010101101101010', P:'110101110100100', R:'110101110101101', T:'111010010010010', "'":'010010000000000', '.':'000000000000010', ' ':'000000000000000' };
+  const ROMA = SIGNS.map(([, , , sub]) => { const c = document.createElement('canvas'); c.width = sub.length * 4 - 1; c.height = 5; const g = c.getContext('2d'); g.fillStyle = '#f0f0e4';
+    [...sub].forEach((ch, n) => { const b = R3[ch] || R3[' ']; for(let i = 0; i < 15; i++) if(b[i] === '1') g.fillRect(n * 4 + i % 3, (i / 3) | 0, 1, 1); }); return c; });
+  const ROOM = [31, 34];   // sprite px free for the line on each sign (the first ends before the plane pictogram at column 45)
+  function roma(x, top, k){
+    SIGNS.forEach(([x0, , , sub], i) => { const fu = Math.floor(k * Math.min(.75, ROOM[i] / ROMA[i].width) / PX) * PX, lx = Math.round((x + (x0 + 2 - 56) * k) / PX) * PX, ty = Math.round((top + 31.5 * k) / PX) * PX, c = ROMA[i];
+      if(fu >= PX){ cx.imageSmoothingEnabled = false; cx.drawImage(c, lx, ty, c.width * fu, c.height * fu); return; }
+      cx.fillStyle = '#f0f0e4'; let xx = lx; for(const wd of sub.split(' ')){ const ww = (wd.length * 4 - 1) * k * .75; for(let d = 0; d < ww - PX; d += 3 * PX) pxRect(xx + d, ty + PX, Math.min(2 * PX, ww - d), PX); xx += (wd.length + 1) * 4 * k * .75; } }); }
   const GANTRY_LT = [18, 50, 72, 94];   // the gantry's floodlights (sprite columns)
   function drawGantry(sp, x, y, uw, fog, now, sk){ const spr = fogged(gantrySpr(), 'gantry', fog, sk.low), k = uw * 2.8 / spr.width, a = 1 - fog * .7; blit(spr, x, y, k);
     const top = y - spr.height * k, tx = k * 8 >= 7 ? signTextSpr() : null;
-    if(tx){ if(fog > .3) cx.globalAlpha = 1 - fog * .5; blit(tx, x, y, k / 4); cx.globalAlpha = 1; }
+    if(tx){ if(fog > .3) cx.globalAlpha = 1 - fog * .5; blit(tx, x, y, k / 4); roma(x, top, k); cx.globalAlpha = 1; }
     else { cx.fillStyle = fog > .3 ? mixc('#f0f0e4', '#136a40', fog * .6) : '#f0f0e4'; for(const [x0, w] of SIGNS){ const lx = x + (x0 + 3 - 56) * k, ty = top + 21 * k; pxRect(lx, ty + k, w * .5 * k, Math.max(PX * .7, 3 * k)); pxRect(lx, ty + k * 10.5, w * .6 * k, Math.max(PX * .5, 1.5 * k)); } }
     if(fog < .8){ for(const sx of GANTRY_LT) glow(x + (sx - 56) * k, top + 18 * k, uw * .1 + 1, '#e8f8e0', .3 * a); } }
 

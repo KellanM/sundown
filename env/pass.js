@@ -276,7 +276,7 @@
       const dc = near > .66 ? '#fff0b8' : near > .33 ? '#ffc060' : fc('#d07028', fog, low); if(sz > PX * 2.5) reflector(x, ry, sz, near > .66 ? '#ffb040' : dc, near > .66); else { cx.fillStyle = dc; pxRect(x - sz / 2, ry, sz, sz); }
       if(near > .33 && uw > 18) glow(x, ry + sz / 2, uw * .12, '#ffb050', .5 * near); } }
   // the cut side of a bend: a dark rock cliff in vertical columns (one shade per segment), moonlit ledges, moss, a concrete footing and a grassy crest
-  const WC = { rock:['#0c1214', '#101719', '#0e1518', '#131b1c'], ledge:'#3a4a54', ledgeD:'#070b0d', foot:'#2c323c', footL:'#4a525e', moss:'#16281f', rim:'#8ea8b4', crest:'#081011', leaf:'#4e7472', cell:'#122019', latL:'#7a848c', latD:'#20262c', net:'#5a6a70', post:'#3a4248' };
+  const WC = { rock:['#0c1214', '#101719', '#0e1518', '#131b1c'], ledge:'#3a4a54', ledgeD:'#070b0d', foot:'#2c323c', footL:'#4a525e', moss:'#16281f', rim:'#8ea8b4', crest:'#081011', leaf:'#4e7472', cell:'#0e1611', latL:'#7a848c', latD:'#20262c', latM:'#46505a', latF:'#3a444c', grass:'#1a3022', grassL:'#2a4430', net:'#5a6a70', post:'#3a4248' };
   // the cliff is one continuous wall: every segment draws a slice whose height follows the smoothed profile, so it rises out of a low bank
   // and tapers away. Behind and above each slice a dark forest mass runs to the screen edge, so nothing can be seen through or past it.
   // the slope above the cut: summit height over the crest (x the cliff profile h, in half-road widths), smooth along the road
@@ -331,8 +331,14 @@
     const blk = Math.floor(k / 44), lattice = hash(blk * 5.3) > .6, net = !lattice && hash(blk * 2.9) > .45, near = fog < .14 && H1 > PX * 10;
     wBand(0, 1, lattice ? WC.cell : WC.rock[(k + (hash(k * .37 | 0) * 4 | 0)) % 4]);
     wBand(0, .07, WC.foot); if(uw > 30){ wBand(.07, .085, WC.footL); if(k % 3 === 0){ wP(.035); const ax = WPT[0], ay = WPT[1]; cx.fillStyle = fc('#05080a', fog, low); pxRect(ax - uw * .02, ay - uw * .02, uw * .05, uw * .04); } }   // footing with drainage holes
-    if(lattice){ for(const f of LAT_F){ wBand(f - .012, f + .018, WC.latL); wBand(f + .018, f + .03, WC.latD); }
-      if(k % 3 === 0 && sh > .3){ const w = Math.max(PX, uw * .05) * side; poly(x + L1 * .07, y - H1 * .07, x + L1 * .97, y - H1 * .97, x + L1 * .97 - w, y - H1 * .97, x + L1 * .07 - w, y - H1 * .07, fc(WC.latL, fog, low)); }
+    /* The lattice frame (audit #19: a uniform pale line grid over flat green, a debug grid behind the cedars): each cell is dark soil with a
+       grass band growing on the beam below it; each beam is a body with a lit top edge (only near: far away the beams keep to the mid tone,
+       so the contrast falls with distance) and a dark shadow under it; the posts are a mid body with a lit edge on one side, a shadow on the other. */
+    if(lattice){ const lit = uw > 24 && fog < .3, gr = uw > 30;
+      for(const f of LAT_F){ if(gr) wBand(f - .07, f - .012, uw > 60 ? WC.grassL : WC.grass);
+        wBand(f - .012, f + .018, lit ? WC.latM : WC.latF); if(lit) wBand(f - .012, f - .004, WC.latL); wBand(f + .018, f + .03, WC.latD); }
+      if(k % 3 === 0 && sh > .3){ const w = Math.max(PX, uw * .05) * side, e = Math.max(PX, uw * .014) * side, P = (o0, o1, c) => poly(x + L1 * .07 - o0, y - H1 * .07, x + L1 * .97 - o0, y - H1 * .97, x + L1 * .97 - o1, y - H1 * .97, x + L1 * .07 - o1, y - H1 * .07, fc(c, fog, low));
+        if(lit) P(-e, 0, WC.latD); P(0, w, lit ? WC.latM : WC.latF); if(lit) P(w - e, w, WC.latL); }
       if(near && hash(k * 3.7) > .45){ const f = TUFT_F[k % 3], sx = (x + x2) / 2 + (L1 + L2) / 2 * f, sy = (y + y2) / 2 - (H1 + H2) / 2 * f, kk = Math.max(uw * .16, Math.abs(x2 - x)) / 9; cx.globalAlpha = (1 - fog) * scaleFade(kk, 4, 7); blit(tuftSpr(k % 3), sx, sy + 2 * kk, kk); cx.globalAlpha = 1; } }   // (tufts are clutter: past 4 canvas px a pixel they fade, not grow into blocks)
     else if(near){   // rock: faceted boulder clusters stuck to the face in rows that follow the slope, one variant per pair of segments so they cluster
       const dw = Math.max(Math.abs(x2 - x) * 1.7, uw * .2); cx.globalAlpha = clamp(1 - fog * 1.5, 0, 1);

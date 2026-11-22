@@ -475,11 +475,19 @@
     /* Nothing of it may stand over the road where you pass it: everything right of the road's left edge (X -1.25 at its depth) is clipped
        away (one pixel-aligned rect clip), so the wing on that side ends at the kerb. */
     const RL = (-1.25 - X0) / GS; let clip = false; if(RL < 3.4){ const xr = snp(OX + RL * u); if(xr < -PX) return; cx.save(); cx.beginPath(); cx.rect(-W, -H, xr + W, H * 3); cx.clip(); clip = true; }
-    try{ gateBody(u, fog); } finally { if(clip) cx.restore(); } }
-  function gateBody(u, fog){
+    try{ gateBody(u, fog, RL); } finally { if(clip) cx.restore(); } }
+  function gateBody(u, fog, RL){
     const V = q => L1(VERM[q]), Wt = q => L1(WHITE[q]), Gn = q => F(GREEN[q]), lod = u * .06 > PX;
-    // the forest behind (Maruyama), lit from below near the gate
-    PP(-3.4, .4, 3.4, .4, 3.0, 2.9, -3.2, 3.1, F('#070c0c')); PP(-2.4, 2.2, -1.2, 3.3, 0, 3.45, 1.4, 3.2, F('#070c0c')); PP(-2.8, .4, 2.8, .4, 2.4, 1.7, -2.6, 1.8, F('#0e1814'));
+    /* The forest behind (Maruyama): a wooded hill, never a card (audit #14: it was a straight-edged dark box against the sky). Stepped
+       columns on the pixel grid; tree crowns (rounded steps, each its own height) make the skyline ragged; the hill is highest behind the
+       roof and falls to the ground at both sides; a moonlit rim on every crown top (the tunnels headwall hill's recipe). The near canopy
+       is lit from below by the gate's floodlights. Where the clip cuts it at the road as you pass, it falls away to the cut first. */
+    { const cw = Math.max(PX, Math.min(2 * PX, snp(u * .09))), x0 = snp(OX - 3.4 * u), xe = Math.min(3.4, RL), CWu = .34;
+      for(let xs = x0; xs < OX + 3.4 * u; xs += cw){ if(xs > W + PX) break; if(xs + cw < -PX) continue; const X = (xs + cw / 2 - OX) / u; if(X > xe + .05) break;
+        const f = Math.min(1, Math.abs(X) / 3.4), cc = (X + 3.4) / CWu, cr = Math.floor(cc), t = (cc - cr) * 2 - 1, fall = sm((RL - X) / 1.1), dome = Math.sqrt(Math.max(0, 1 - t * t));
+        const hb = .4 + (2.7 * (1 - f * f) + H1(cr * .37 + 5) * .34 * (1 - f * .5) + dome * (.12 + H1(cr * 1.13 + 2) * .1)) * fall, top = snp(OY - hb * u), bot = snp(OY - .4 * u);
+        if(bot - top < PX) continue; R(xs, top, cw, bot - top, F(H1(cr * 2.9 + 1) > .7 ? '#0a1210' : '#070c0c')); R(xs, top, cw, PX, F(dome > .45 ? '#1c2a26' : '#142220'));
+        if(Math.abs(X) < 2.9){ const g = Math.abs(X) / 2.9, hl = .4 + (1.35 * (1 - g * g) + H1(cr * 3.7 + 9) * .22 + dome * .08) * fall, tl = snp(OY - hl * u); if(bot - tl >= PX) R(xs, tl, cw, bot - tl, F('#0e1814')); } } }
     // the wings: lower halls each side (vermilion posts, white panels, green windows), dark roofs with pale edges
     for(const s of [-1, 1]){ PR(s * 1.12, s * 2.75, .42, 1.02, Wt(0)); PR(s * 1.12, s * 2.75, .42, .62, V(1)); if(lod){ for(let q = 0; q < 4; q++){ const a = s * (1.2 + q * .4); PR(a, a + s * .05, .42, 1.02, V(2)); } PR(s * 1.45, s * 1.8, .7, .92, Gn(1)); PR(s * 2.1, s * 2.45, .7, .92, Gn(1)); }
       PP(s * 1.05, 1.02, s * 2.95, 1.02, s * 2.7, 1.24, s * 1.15, 1.26, F(TILE)); PR(s * 1.05, s * 2.95, 1.0, 1.04, Wt(2)); }

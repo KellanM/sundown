@@ -559,10 +559,17 @@ function drawSeg(s, sx0, sy0, uw, fog, now){ if(S.st === 'idle') return; const p
     if(Math.floor(r.z / SEG) === s.index && r.z - pz >= 0){ const P = projOn(s, r.z, r.x); drawRider(r, P.x, P.y, P.w * K / W, fog, now, EDGE); } }
   const b = S.boss; if(b && Math.floor(b.z / SEG) === s.index && b.z - pz >= 0){ const P = projOn(s, b.z, b.x); drawBoss(b, P.x, P.y, P.w * K / W, fog, now, EDGE); } }
 function drawSegBack(s, sx0, sy0, uw, fog, now){ if(S.st === 'idle') return; drawPaint(s); drawLine(s, now); }
-// riders and the boss between you and the camera, over the bike (they grow as they pass, like traffic you overtake)
+// riders and the boss between you and the camera (they grow as they pass, like traffic you overtake). Drawn UNDER the bike: a rival
+// alongside or just behind never covers yours (audit #12: he sat over it at 6x). And faded out as the near projection passes 3 canvas px a
+// sprite px (gone by 4.5), before the art turns to blocks. Every tell (kick wind-up, swerve, finisher) starts within 330 of you, where
+// the fade is still 1, so they all read exactly as before.
+const nearA = k => { const s = k / PX; return s <= 3 ? 1 : s >= 4.5 ? 0 : (4.5 - s) / 1.5; };
+function drawUnder(now){ if(S.st === 'idle') return; const pz = pzz();
+  for(const r of S.R){ const g = r.z - pz; if(g >= 0 || g < -PZ * .8 || r.st === 'down') continue; const p = nearScreen(r.z, r.x, .2), a = nearA(p.k); if(a > .01) drawRider(r, p.x, p.y, p.k, 0, now, a); }
+  const b = S.boss; if(b && b.z - pz < 0 && b.z - pz > -PZ * .8){ const p = nearScreen(b.z, b.x, .2), a = nearA(p.k); if(a > .01) drawBoss(b, p.x, p.y, p.k, 0, now, a); } }
+// over the bike: the wrecks (they tumble out to the side), the hit stars and debris, the panel and the duel plate
 function drawScreen(now){ if(S.st === 'idle') return; const pz = pzz();
-  for(const r of S.R){ const g = r.z - pz; if(g >= 0) continue; if(r.st === 'down'){ const p = nearScreen(r.z, r.x); drawWreck(r, p.x, p.y, p.k); continue; } if(g < -PZ * .8) continue; const p = nearScreen(r.z, r.x, .2); drawRider(r, p.x, p.y, p.k, 0, now); }
-  const b = S.boss; if(b && b.z - pz < 0 && b.z - pz > -PZ * .8){ const p = nearScreen(b.z, b.x, .2); drawBoss(b, p.x, p.y, p.k, 0, now); }
+  for(const r of S.R){ if(r.st === 'down' && r.z - pz < 0){ const p = nearScreen(r.z, r.x); drawWreck(r, p.x, p.y, p.k); } }
   for(const f of FX){ const sz = f.kind === 'big' ? 3 : 1.4, kk = Math.max(PX, Math.round(kP() * sz * (f.t < .1 ? 1 : .7) / PX) * PX); cx.fillStyle = '#fff4c0'; cx.globalAlpha = f.t > .28 ? .5 : 1;
     cx.fillRect(snap(f.x - 3 * kk), snap(f.y - kk / 2), 6 * kk, kk); cx.fillRect(snap(f.x - kk / 2), snap(f.y - 3 * kk), kk, 6 * kk); cx.globalAlpha = 1; }
   for(const p of DEB){ cx.globalAlpha = Math.min(1, p.life * 3); cx.fillStyle = p.c; cx.fillRect(snap(p.x), snap(p.y), Math.max(PX, snap(p.w)), Math.max(PX, snap(p.h))); } cx.globalAlpha = 1;
@@ -621,7 +628,7 @@ function drawMeter(now){ const P = PX, sx = W / cv.width, narrow = W < 640, show
   cx.restore(); }
 
 /* ------------------------------------------------------------------ the module */
-MECH.sp_boss = { warm, reset, place, update, drawSeg, drawSegBack, drawScreen,
+MECH.sp_boss = { warm, reset, place, update, drawSeg, drawSegBack, drawScreen, drawUnderBike:drawUnder,
   finish(rec){ if(RES.won || RES.lost) rec.boss = { won:RES.won, lost:RES.lost }; },
   // tests and bots
   _start(){ warm(); if(S.st === 'idle'){ start(); return true; } return false; },

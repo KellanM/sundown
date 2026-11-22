@@ -76,11 +76,21 @@
     const c = mk(8, 8), k = c.getContext('2d'); k.font = px + 'px DotGothic16, monospace'; c.width = Math.ceil(k.measureText(str).width) + 2; c.height = px + 4;
     k.font = px + 'px DotGothic16, monospace'; k.textBaseline = 'middle'; k.fillStyle = col; k.fillText(str, 1, c.height / 2);
     const im = k.getImageData(0, 0, c.width, c.height), d = im.data; for(let n = 3; n < d.length; n += 4) d[n] = d[n] > 70 ? 255 : 0; k.putImageData(im, 0, 0); return SPR[key] = c; }
-  // live type for signs: drawn at screen resolution in the pixel font once it is big enough to read (else the caller draws bars)
-  const TW16 = {};
-  function liveText(str, x, yMid, maxW, maxH, col){ let w = TW16[str]; if(w === undefined){ cx.font = '16px DotGothic16, monospace'; w = TW16[str] = cx.measureText(str).width; }
-    const px = Math.floor(Math.min(16 * maxW / w, maxH)); if(px < 10 || !fontOK()) return false;
-    cx.font = px + 'px DotGothic16, monospace'; cx.textAlign = 'center'; cx.textBaseline = 'middle'; cx.fillStyle = col; cx.fillText(str, Math.round(x), Math.round(yMid)); cx.textAlign = 'left'; cx.textBaseline = 'alphabetic'; return true; }
+  /* Type for signs (audit #16: it was drawn live at screen resolution, thin anti-aliased strokes much finer than the world's grid, so it
+     read as a UI overlay): the pixel font rasterised once per string as a hard mask (16 px, its native grid, then 13, 11 and 9 px for the
+     middle distance), drawn at a whole number of canvas pixels a font pixel, tinted through one scratch canvas (the sign colours carry the fog).
+     Too small for even one canvas pixel a font pixel: false, and the caller draws its bars. Masks and scratch are built in warm(). */
+  const TMK = {}, TSZ = [16, 13, 11, 9]; let TSC = null;
+  function textMask(str, px){ const key = str + '|' + px; if(TMK[key]) return TMK[key]; if(!fontOK()) return null;
+    const c = mk(8, 8), k = c.getContext('2d'); k.font = px + 'px DotGothic16, monospace'; c.width = Math.ceil(k.measureText(str).width) + 2; c.height = px + 4;
+    k.font = px + 'px DotGothic16, monospace'; k.textBaseline = 'middle'; k.fillStyle = '#fff'; k.fillText(str, 1, c.height / 2);
+    const im = k.getImageData(0, 0, c.width, c.height), d = im.data, th = px >= 16 ? 70 : 150; for(let n = 3; n < d.length; n += 4) d[n] = d[n] > th ? 255 : 0; k.putImageData(im, 0, 0); return TMK[key] = c; }   // (below its native size the font is cut harder, so strokes stay one pixel)
+  function liveText(str, x, yMid, maxW, maxH, col){ if(!TSC) return false;
+    for(const px of TSZ){ const m = textMask(str, px); if(!m) return false; const fit = Math.min(maxW / m.width, maxH / (m.height - 4)); if(fit < PX) continue;
+      const s = px === 16 ? Math.floor(fit / PX) * PX : PX, w = m.width, h = m.height; if(w > TSC.width || h > TSC.height) return false;
+      const g = TSC.getContext('2d'); g.clearRect(0, 0, w, h); g.globalCompositeOperation = 'source-over'; g.drawImage(m, 0, 0); g.globalCompositeOperation = 'source-in'; g.fillStyle = col; g.fillRect(0, 0, w, h); g.globalCompositeOperation = 'source-over';
+      cx.imageSmoothingEnabled = false; cx.drawImage(TSC, 0, 0, w, h, Math.round((x - w * s / 2) / PX) * PX, Math.round((yMid - h * s / 2) / PX) * PX, w * s, h * s); return true; }
+    return false; }
   const blitW = (c, x, yMid, w) => { const sc = w / c.width; blit(c, x, yMid + c.height * sc / 2, sc); };
   const gl = (x, y, r, col, a) => { if(a <= .01 || x + r < 0 || x - r > W || y + r < 0 || y - r > H) return; glow(x, y, Math.min(r, H * .3), col, a); };
 
@@ -843,7 +853,7 @@
       for(const w of [UWC, UWFC, windRefl()]) cx.drawImage(w, 0, 0, 1, 1);   /* upload now, not at the first window */
       for(const L of [96, 48, 24, 12, 6]) for(let st = 0; st <= 6; st++)   /* every fog step at every size: a ring met at an unexpected distance was built mid-ride */ for(let blk = 0; blk < 2; blk++) for(let j = 0; j < 2; j++) ringImg(L, blk, j, st);
       for(const key of Object.keys(T)){ const v = T[key]; for(const c of Array.isArray(v) ? v : [v]) if(typeof c === 'string' && c[0] === '#') for(let st = 0; st < 7; st++) for(let cs = 0; cs <= 6; cs++) tc(c, st / 7 + .01, cs); }
-      const txt = () => { textSprite(TUN_NAME, '#c8f4ff', 16); for(const v of Object.values(DEPTH)) textSprite(v, '#8ff0ff', 16); for(const v of Object.values(KMB)) textSprite(v, '#0a1a24', 16); };
+      if(!TSC) TSC = mk(320, 24); const txt = () => { for(const v of [TUN_NAME, '海面', ...Object.values(DEPTH), ...Object.values(KMB)]) for(const px of TSZ) textMask(v, px); textSprite(TUN_NAME, '#c8f4ff', 16); for(const v of Object.values(DEPTH)) textSprite(v, '#8ff0ff', 16); for(const v of Object.values(KMB)) textSprite(v, '#0a1a24', 16); };
       try{ document.fonts.load('16px DotGothic16').then(txt, txt); }catch(e){ txt(); } },
     lit(i){ const d = lampD(i); return d === 0 ? .3 : d === 1 ? .12 : 0; },
     place(i, s, L){ const k = i % 320, sp = s.sprites, add = o => sp.push(Object.assign({ env:'aqua', k:i }, o));

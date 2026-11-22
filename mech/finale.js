@@ -30,7 +30,8 @@ const ROADCOL = { harbour:'#ff5a8a', bay:'#4ff0ff', neon:'#c77dff', tunnels:'#ff
   aqua:'#3ab0ff', shimanami:'#ff9a8a', sakurajima:'#ff6a3a', haneda:'#6a80ff', minato:'#ff8ad8', shuto:'#3ad67a', kurobe:'#9ae0ff', akiba:'#ffd23a', gion:'#ff9a4a' };   // the arrival cards' and results screen's road colours
 function cards(rec){ const out = [], km = n => (+n || 0).toFixed(1);
   const nights = (store.get('arcade.sundown', []) || []).length, bike = (ENV.bikes && ENV.bikes.list || []).find(b => b.id === rec.bike);
-  out.push(['今夜', 'TONIGHT', `<p class="fbig">${esc(new Date(rec.t).toLocaleDateString(undefined, { weekday:'long', day:'numeric', month:'long' }))}</p><p>Night ${nights}${bike ? ' · on the ' + esc(bike.name) : ''}</p>`]);
+  const day = new Date(rec.t);   // the weekday big on one line, the date under it (a long date at 32 px wrapped and left the day's number alone: audit #7)
+  out.push(['今夜', 'TONIGHT', `<p class="fbig">${esc(day.toLocaleDateString(undefined, { weekday:'long' }))}</p><p class="fdate">${esc(day.toLocaleDateString(undefined, { day:'numeric', month:'long' }))}</p><p>Night ${nights}${bike ? ' · on the ' + esc(bike.name) : ''}</p>`]);
   const route = Array.isArray(rec.route) && rec.route.length ? rec.route : [LANDS.findIndex(l => l.name === rec.land)].filter(i => i >= 0), seen = new Set();
   const roads = route.filter(i => LANDS[i] && !seen.has(i) && seen.add(i)).map(i => { const L = LANDS[i], k = rec.roadKm && rec.roadKm[L.key];
     return `<li><b style="color:${ROADCOL[L.key] || '#f4ecdf'}">${L.kanji}</b><span>${esc(L.name.toUpperCase())}</span><i>${k ? km(k) + ' km' : ''}</i></li>`; });
@@ -95,26 +96,32 @@ body.finale .top,body.finale .home,body.finale .info,body.finale #journalBtn,bod
 #fin{position:fixed;inset:0;z-index:20;pointer-events:auto;cursor:pointer;font-family:var(--font-display);color:#f4ecdf}
 #fin .fwash{position:absolute;inset:0;background:#fff0d0;opacity:0;animation:finwash 1.4s steps(6) both;pointer-events:none}
 @keyframes finwash{0%{opacity:0}30%{opacity:.34}100%{opacity:0}}
-#fin .fcol{position:absolute;left:0;top:12vh;bottom:10vh;width:min(460px,48vw);padding-left:max(24px,6vw);overflow:hidden;background:linear-gradient(90deg,rgba(7,6,12,.62) 0 55%,rgba(7,6,12,.3) 55% 80%,transparent 80%);-webkit-mask:linear-gradient(transparent 0,#000 12%,#000 82%,transparent 100%);mask:linear-gradient(transparent 0,#000 12%,#000 82%,transparent 100%)}
-#fin .froll{position:absolute;left:max(24px,6vw);right:24px;top:0;display:flex;flex-direction:column;gap:42px;will-change:transform}
+#fin .fcol{position:absolute;left:0;top:12vh;bottom:10vh;width:min(440px,46vw);overflow:hidden;background:linear-gradient(90deg,rgba(7,6,12,.66) 0 calc(100% - 24px),rgba(7,6,12,.42) calc(100% - 24px) calc(100% - 12px),rgba(7,6,12,.2) calc(100% - 12px));-webkit-mask:linear-gradient(transparent 0 3%,rgba(0,0,0,.34) 3% 6%,rgba(0,0,0,.67) 6% 9%,#000 9% 85%,rgba(0,0,0,.67) 85% 89%,rgba(0,0,0,.34) 89% 93%,transparent 93%);mask:linear-gradient(transparent 0 3%,rgba(0,0,0,.34) 3% 6%,rgba(0,0,0,.67) 6% 9%,#000 9% 85%,rgba(0,0,0,.67) 85% 89%,rgba(0,0,0,.34) 89% 93%,transparent 93%);transition:opacity .9s steps(6);animation:finpanel 1.4s steps(5) backwards}
+@keyframes finpanel{from{opacity:0}}
+#fin.out .fcol{opacity:0}
+#fin .froll{position:absolute;left:max(24px,5vw);right:36px;top:0;display:flex;flex-direction:column;gap:42px;will-change:transform}
 #fin .fc{display:flex;flex-direction:column;gap:8px;text-shadow:2px 2px 0 #000,0 0 0 #000}
 #fin .fc h3{margin:0;display:flex;align-items:center;gap:10px;font-weight:400;font-size:16px;letter-spacing:4px;color:#ffd04a}
 #fin .fc h3::after{content:"";flex:1;height:2px;background:linear-gradient(90deg,#ffd04a,transparent);box-shadow:0 2px 0 #000}
 #fin .fc .tabk{font-size:13px;letter-spacing:0}
 #fin .fc p{margin:0;font-size:16px;line-height:1.5}
-#fin .fc .fbig{font-size:32px;line-height:1.1;letter-spacing:2px}
+#fin .fc .fbig{font-size:32px;line-height:1.1;letter-spacing:2px;white-space:nowrap}
+#fin .fc .fdate{font-size:20px;letter-spacing:2px;color:#ffd04a;white-space:nowrap}
 #fin .fc .fbig small{font-size:16px}
-#fin .fc ul{margin:0;padding:0;list-style:none;display:flex;flex-direction:column;gap:6px}
+#fin .fc ul{margin:0;padding:0;list-style:none;display:flex;flex-direction:column;gap:6px;width:max-content;min-width:min(300px,100%);max-width:100%}
 #fin .fc li{display:grid;grid-template-columns:40px minmax(0,1fr) auto;align-items:baseline;gap:10px;font-size:16px}
 #fin .fc li b{font-weight:400;font-size:32px;line-height:1;text-shadow:3px 3px 0 #000}
-#fin .fc li i{font-style:normal;color:#ffd04a;white-space:nowrap}
+#fin .fc li span{display:flex;align-items:baseline;gap:8px;min-width:0}
+#fin .fc li span::after{content:"";flex:1 0 16px;height:2px;background:repeating-linear-gradient(90deg,rgba(255,208,74,.5) 0 2px,transparent 2px 6px)}
+#fin .fc li i{font-style:normal;color:#ffd04a;white-space:nowrap;text-align:right}
+#fin .fc li i:empty{display:none}
 #fin.cards .froll{position:relative;top:auto}#fin.cards .fc{position:absolute;left:0;right:0;top:30%;opacity:0;transition:opacity .5s steps(4)}#fin.cards .fc.on{opacity:1}
-#fin .fend{position:absolute;left:0;right:0;bottom:16vh;display:flex;flex-direction:column;align-items:center;gap:8px;opacity:0;transition:opacity .9s steps(6)}
+#fin .fend{position:absolute;left:50%;top:9vh;transform:translateX(-50%);padding:12px 28px 10px;background:rgba(7,6,12,.58);box-shadow:0 0 0 4px rgba(7,6,12,.38),0 0 0 8px rgba(7,6,12,.18);display:flex;flex-direction:column;align-items:center;gap:8px;opacity:0;transition:opacity .9s steps(6)}
 #fin .fend.on{opacity:1}
-#fin .fend b{font-weight:400;font-size:96px;line-height:1;color:#fff6ea;letter-spacing:6px;text-shadow:-4px 0 #000,4px 0 #000,0 -4px #000,0 4px #000,6px 6px 0 #c0203a,10px 10px 0 #000}
-#fin .fend span{font-size:16px;letter-spacing:6px;color:#ffd04a;text-shadow:2px 2px 0 #000}
+#fin .fend b{font-weight:400;font-size:clamp(48px,13vh,96px);line-height:1;color:#fff6ea;letter-spacing:6px;text-shadow:-4px 0 #000,4px 0 #000,0 -4px #000,0 4px #000,6px 6px 0 #c0203a,10px 10px 0 #000}
+#fin .fend span{font-size:16px;letter-spacing:6px;color:#ffd04a;text-shadow:2px 2px 0 #000;white-space:nowrap}
 #fin .fskip{position:absolute;right:16px;bottom:16px;font-size:13px;letter-spacing:2px;color:#b9adc4;text-shadow:2px 2px 0 #000;opacity:.8}
-@media (max-width:640px){ #fin .fcol{left:0;right:0;width:auto;padding-left:16px;top:auto;bottom:22vh;height:40vh;background:linear-gradient(rgba(7,6,12,.5),rgba(7,6,12,.5))} #fin .froll{left:16px;right:16px} #fin .fend b{font-size:64px} #fin .fend{bottom:12vh} #fin .fc li b{font-size:24px} #fin .fc li{grid-template-columns:30px minmax(0,1fr) auto} }
+@media (max-width:640px){ #fin .fcol{left:0;right:0;width:auto;top:auto;bottom:24vh;height:40vh;background:linear-gradient(90deg,rgba(7,6,12,.2) 0 8px,rgba(7,6,12,.42) 8px 16px,rgba(7,6,12,.66) 16px calc(100% - 16px),rgba(7,6,12,.42) calc(100% - 16px) calc(100% - 8px),rgba(7,6,12,.2) calc(100% - 8px))} #fin .froll{left:24px;right:24px} #fin .fend b{font-size:64px} #fin .fc li b{font-size:24px} #fin .fc li{grid-template-columns:30px minmax(0,1fr) auto} #fin .fc .fbig{font-size:28px} }
 .rm #fin *{animation:none!important}
 `;
 function injectCSS(){ if(document.getElementById('fin-css')) return; const st = document.createElement('style'); st.id = 'fin-css'; st.textContent = CSS; document.head.appendChild(st); }
@@ -132,7 +139,7 @@ F.play = (rec, done) => { if(on || !rec || typeof done !== 'function') return fa
   if(reduce){ const per = span / secs.length; secs.forEach((s, i) => { timers.push(setTimeout(() => s.classList.add('on'), (INTRO + i * per) * 1000)); timers.push(setTimeout(() => s.classList.remove('on'), (INTRO + (i + 1) * per - .45) * 1000)); }); }
   else { crawl = { from:col.clientHeight, to:-roll.scrollHeight, roll };
     const tick = () => { if(!on) return; const u = clamp((T() - INTRO) / span, 0, 1), y = Math.round(lerp(crawl.from, crawl.to, u) / 2) * 2; roll.style.transform = `translateY(${y}px)`; timers.push(setTimeout(tick, 50)); }; tick(); }
-  timers.push(setTimeout(() => { if(root) root.querySelector('.fend').classList.add('on'); }, (DUR - OUTRO) * 1000));
+  timers.push(setTimeout(() => { if(root){ root.querySelector('.fend').classList.add('on'); root.classList.add('out'); } }, (DUR - OUTRO) * 1000));   // the credits' panel steps away as 夜明け lands
   timers.push(setTimeout(end, DUR * 1000));
   // any press skips: keys (swallowed, so the press doesn't also act on the results), a tap or click, any pad button
   keyH = e => { if(!on || e.repeat) return; if(['ShiftLeft', 'ShiftRight', 'ControlLeft', 'ControlRight', 'AltLeft', 'AltRight', 'MetaLeft', 'MetaRight'].includes(e.code)) return; e.preventDefault(); e.stopImmediatePropagation(); end(); };
