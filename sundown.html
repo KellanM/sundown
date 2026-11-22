@@ -2204,7 +2204,7 @@ const PSTART = (() => {
   function lay(kind){ const [kw, kh] = P.K, [tw, th] = P.T;
     if(kind === 'tall') return { kind, kx:0, ky:0, tx:8, ty:kh - 5, W:Math.max(kw, 8 + tw + 3), H:kh - 5 + th + 2 };
     return { kind, kx:0, ky:0, tx:kw - 14, ty:kh - th, W:kw - 14 + tw + 3, H:kh + 2 }; }
-  // the slab: ink, slanted on the tape's lean, hot ordered dither gathering downward and diagonal bands, its left end dithering out to
+  // the slab: ink, slanted on the tape's lean, hot ordered dither gathering down its lower part, its left end dithering out to
   // nothing (no hard edge on the night), as the loader's panel and the cards' screentone panels
   function slab(L){ const x0 = -10, x1 = Math.round(P.K[0] * .62), y0 = L.ky - 5, y1 = L.kind === 'tall' ? L.ty + 8 : L.ky + P.K[1] - 2, h = y1 - y0, w = x1 - x0 + 4, c = mk(w, h), g = c.getContext('2d');
     for(let y = 0; y < h; y++){ const xr = w - 4 - Math.round(y * .3); for(let x = 0; x < xr; x++){ const q = BAY[(y & 3) * 4 + ((x + x0) & 3)], fade = Math.min(1, x / 16), v = y / h;
@@ -2908,7 +2908,7 @@ function frame(){ if(PSE.on){ pzPad(); if(PSE.dirty){ PSE.dirty = false; try{ dr
    A new version downloads in the background and waits. It is applied only on the title (never mid-ride): by itself once
    the title has sat untouched for a few seconds, or at once when the player taps "Update ready". Tap the version to check now. */
 (() => {
-  const VER = 'v23 · 548a9b', $id = (i) => document.getElementById(i);
+  const VER = 'v24 · 01201f', $id = (i) => document.getElementById(i);
   const SDU = window.SDUPDATE = { version: VER, waiting: null, applied: false, checks: 0 };
   let reg = null, applying = false, asked = false, needReload = false, note = '', noteT = 0, lastInput = performance.now();
   ['keydown', 'pointerdown', 'touchstart', 'wheel'].forEach((t) => addEventListener(t, () => { lastInput = performance.now(); }, { capture: true, passive: true }));
@@ -2970,5 +2970,5 @@ function frame(){ if(PSE.on){ pzPad(); if(PSE.dirty){ PSE.dirty = false; try{ dr
   }, 1000);
 })();
 </script>
-<!-- __sdbuild:23 548a9b8f9010 --></body>
+<!-- __sdbuild:24 01201f814fc9 --></body>
 </html>
