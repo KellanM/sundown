@@ -100,40 +100,42 @@
   function mask(ch, size){ const n = size + 4; SG.clearRect(0, 0, 80, 80); SG.font = size + 'px DotGothic16'; SG.textBaseline = 'top'; SG.fillStyle = '#fff'; SG.fillText(ch, 2, 2);
     const d = SG.getImageData(0, 0, n, n).data, m = new Uint8Array(n * n); for(let p = 0; p < n * n; p++) m[p] = d[p * 4 + 3] > 110 ? 1 : 0; return { m, n }; }
   function box(m, n){ let x0 = n, y0 = n, x1 = -1, y1 = -1; for(let y = 0; y < n; y++) for(let x = 0; x < n; x++) if(m[y * n + x]){ if(x < x0) x0 = x; if(x > x1) x1 = x; if(y < y0) y0 = y; if(y > y1) y1 = y; } return x1 < 0 ? null : [x0, y0, x1, y1]; }
-  function buildText(){ if(!ATL) return; FONT = fontOK(); const need = {}; for(const s of 'WRBY') need[s] = new Set();
-    for(const w of BW) for(const c of w) for(const s of 'WRBY') need[s].add(c); for(const w of PW) for(const c of w) for(const s of 'WRB') need[s].add(c); for(const c of GW) need.R.add(c), need.W.add(c);
+  let BTK = 0;   // the stepped build's ticket: a newer build (the font arriving) abandons an older one paused mid-way
+  function* buildTextG(){ if(!ATL) return; const bt = ++BTK;   /* (stepped: first 60 s, research/sundown-craft/first60.md) */ yield; if(bt !== BTK) return; FONT = fontOK(); yield; if(bt !== BTK) return; const need = {}; yield; if(bt !== BTK) return; for(const s of 'WRBY') need[s] = new Set(); yield; if(bt !== BTK) return;
+    for(const w of BW) for(const c of w) for(const s of 'WRBY') need[s].add(c); yield; if(bt !== BTK) return; for(const w of PW) for(const c of w) for(const s of 'WRB') need[s].add(c); yield; if(bt !== BTK) return; for(const c of GW) need.R.add(c), need.W.add(c); yield; if(bt !== BTK) return;
     // face masks: the 16 px glyph (its own grid), squared to its ink box, sampled to 12, 6 and 3 cells by coverage
     for(const ch of CHARS){ const { m, n } = mask(ch, 16), b = box(m, n) || [0, 0, n - 1, n - 1], bw = b[2] - b[0] + 1, bh = b[3] - b[1] + 1, S = Math.max(bw, bh), ox = b[0] - (S - bw) / 2, oy = b[1] - (S - bh) / 2;
       for(const N of [3, 6, 12]){ const o = new Uint8Array(N * N); for(let r = 0; r < N; r++) for(let c = 0; c < N; c++){ let k = 0, t = 0; const ya = oy + r * S / N, yb = oy + (r + 1) * S / N, xa = ox + c * S / N, xb = ox + (c + 1) * S / N;
           for(let y = Math.floor(ya); y < Math.ceil(yb); y++) for(let x = Math.floor(xa); x < Math.ceil(xb); x++){ t++; if(x >= 0 && y >= 0 && x < n && y < n && m[y * n + x]) k++; } o[r * N + c] = t && k / t >= (N === 3 ? .34 : .4) ? 1 : 0; }
         GM[N][ch] = o; }
-      const g = GM[12][ch], ol = new Uint8Array(144); for(let r = 0; r < 12; r++) for(let c = 0; c < 12; c++){ let v = 0; for(let dy = -1; dy <= 1 && !v; dy++) for(let dx = -1; dx <= 1 && !v; dx++){ const rr = r + dy, cc = c + dx; if(rr >= 0 && cc >= 0 && rr < 12 && cc < 12 && g[rr * 12 + cc]) v = 1; } ol[r * 12 + c] = v; } GM.o12[ch] = ol; }
+      const g = GM[12][ch], ol = new Uint8Array(144); for(let r = 0; r < 12; r++) for(let c = 0; c < 12; c++){ let v = 0; for(let dy = -1; dy <= 1 && !v; dy++) for(let dx = -1; dx <= 1 && !v; dx++){ const rr = r + dy, cc = c + dx; if(rr >= 0 && cc >= 0 && rr < 12 && cc < 12 && g[rr * 12 + cc]) v = 1; } ol[r * 12 + c] = v; } GM.o12[ch] = ol;  yield; if(bt !== BTK) return; } yield; if(bt !== BTK) return;
     /* The atlas (round 3: about half the memory, the same pixels on screen). The 48 and 64 px cells are built only for characters that can
        be drawn that big: the words on the faces, blades, boards and the bridge (BW, GW). A plate's word (PW) can't: a plate is .36 wide, and
        while any of it is on screen its cell is under about 38 canvas px, so a plate never picks past 32. The cells are packed in shelves by
        height (tallest first) into a 1024-wide atlas sized to fit. (DotGothic16 is not a pure dot grid above 16 px, e.g. 電 is 16x16 at 16
        but 30x30 at 32, so the big sizes can't be scaled from the small ones.) FULL (?akx=fullatl) builds every cell, for the diff. */
-    const FULL = AKX.includes('fullatl'), E = [], RAST = new Map(), BIG = new Set(); for(const w of BW.concat([GW])) for(const c of w) BIG.add(c);
-    const rast = (ch, z) => { const k = ch + '|' + z; let r = RAST.get(k); if(!r){ const q = mask(ch, z); r = { m:q.m, n:q.n, b:box(q.m, q.n) }; RAST.set(k, r); } return r; };
+    const FULL = AKX.includes('fullatl'), E = [], RAST = new Map(), BIG = new Set(); yield; if(bt !== BTK) return; for(const w of BW.concat([GW])) for(const c of w) BIG.add(c); yield; if(bt !== BTK) return;
+    const rast = (ch, z) => { const k = ch + '|' + z; let r = RAST.get(k); if(!r){ const q = mask(ch, z); r = { m:q.m, n:q.n, b:box(q.m, q.n) }; RAST.set(k, r); } return r; }; yield; if(bt !== BTK) return;
     for(const st of 'WRBY'){ const out = STY[st][1], O = GA[st] || (GA[st] = {});
       for(const ch of need[st]){ const T = O[ch] = [];
         for(let si = 0; si < SZ.length; si++){ const z = SZ[si];
           if(!FULL && z >= 48 && !BIG.has(ch)){ T[si] = null; continue; }
           const r = rast(ch, z); if(!r.b){ T[si] = null; continue; } const ow = out ? Math.max(1, Math.round(z / 16)) : 0, w = r.b[2] - r.b[0] + 1 + ow * 2, h = r.b[3] - r.b[1] + 1 + ow * 2;
-          const g = { ax:0, ay:0, w, h, sw:w, sh:h, k:st + z, r, ow, st }; T[si] = g; E.push(g); } } }
-    E.sort((a, b) => b.h - a.h || b.w - a.w); { let x = 0, y = 0, rh = 0; const AW = ATL.width; for(const g of E){ if(x + g.w > AW){ x = 0; y += rh + 1; rh = 0; } g.ax = x; g.ay = y; x += g.w + 1; if(g.h > rh) rh = g.h; } ATLY = y + rh; }
-    if(ATL.height !== ATLY + 1) ATL.height = ATLY + 1; AG.clearRect(0, 0, ATL.width, ATL.height);   // (a resize, never a new canvas)
+          const g = { ax:0, ay:0, w, h, sw:w, sh:h, k:st + z, r, ow, st }; T[si] = g; E.push(g); } yield; if(bt !== BTK) return; }  yield; if(bt !== BTK) return; } yield; if(bt !== BTK) return;
+    E.sort((a, b) => b.h - a.h || b.w - a.w); yield; if(bt !== BTK) return; { let x = 0, y = 0, rh = 0; yield; if(bt !== BTK) return; const AW = ATL.width; yield; if(bt !== BTK) return; for(const g of E){ if(x + g.w > AW){ x = 0; y += rh + 1; rh = 0; } g.ax = x; g.ay = y; x += g.w + 1; if(g.h > rh) rh = g.h;  yield; if(bt !== BTK) return; } yield; if(bt !== BTK) return; ATLY = y + rh; yield; if(bt !== BTK) return; } yield; if(bt !== BTK) return;
+    if(ATL.height !== ATLY + 1) ATL.height = ATLY + 1; yield; if(bt !== BTK) return; AG.clearRect(0, 0, ATL.width, ATL.height); yield; if(bt !== BTK) return;   // (a resize, never a new canvas)
     for(const g of E){ const { m, n, b } = g.r, ow = g.ow, [fill, out] = STY[g.st], x = g.ax, y = g.ay;
-      if(out){ AG.fillStyle = out; for(let yy = b[1]; yy <= b[3]; yy++) for(let xx = b[0]; xx <= b[2]; xx++) if(m[yy * n + xx]) AG.fillRect(x + xx - b[0], y + yy - b[1], ow * 2 + 1, ow * 2 + 1); }
+      if(out){ AG.fillStyle = out; let t0 = performance.now(); for(let yy = b[1]; yy <= b[3]; yy++){ for(let xx = b[0]; xx <= b[2]; xx++) if(m[yy * n + xx]) AG.fillRect(x + xx - b[0], y + yy - b[1], ow * 2 + 1, ow * 2 + 1); if(performance.now() - t0 > 3){ yield; if(bt !== BTK) return; AG.fillStyle = out; t0 = performance.now(); } } }
       AG.fillStyle = fill; for(let yy = b[1]; yy <= b[3]; yy++){ let xs = -1; for(let xx = b[0]; xx <= b[2] + 1; xx++){ const on = xx <= b[2] && m[yy * n + xx]; if(on && xs < 0) xs = xx; if(!on && xs >= 0){ AG.fillRect(x + ow + xs - b[0], y + ow + yy - b[1], xx - xs, 1); xs = -1; } } }
-      delete g.r; }
-    RAST.clear();
+      delete g.r;  yield; if(bt !== BTK) return; } yield; if(bt !== BTK) return;
+    RAST.clear(); yield; if(bt !== BTK) return;
     // the LED ticker: the message as amber dots at a pitch of 2 (a lit dot and a gap), the dead dots dim, 8 rows
-    if(TK){ const k = TK.getContext('2d'); k.fillStyle = '#1a0c06'; k.fillRect(0, 0, TK.width, TK.height); let tx = 0;
+    if(TK){ const k = TK.getContext('2d'); yield; if(bt !== BTK) return; k.fillStyle = '#1a0c06'; yield; if(bt !== BTK) return; k.fillRect(0, 0, TK.width, TK.height); yield; if(bt !== BTK) return; let tx = 0; yield; if(bt !== BTK) return;
       for(const ch of TKMSG){ if(ch === ' '){ tx += 6; continue; } const { m, n } = mask(ch, 8), b = box(m, n); if(!b) continue;
         for(let yy = 0; yy < 8; yy++) for(let xx = b[0]; xx <= b[2]; xx++){ const on = yy + 1 < n && m[(yy + 1) * n + xx]; k.fillStyle = on ? '#ffb02a' : '#3a1a0a'; k.fillRect((tx + xx - b[0]) * 2, yy * 2, 1, 1); }
-        tx += b[2] - b[0] + 2; }
-      TKW = Math.min(TK.width, tx * 2); } }
+        tx += b[2] - b[0] + 2;  yield; if(bt !== BTK) return; } yield; if(bt !== BTK) return;
+      TKW = Math.min(TK.width, tx * 2); yield; if(bt !== BTK) return; } yield; if(bt !== BTK) return; }
+  function buildText(){ for(const _ of buildTextG()); }   // (the same build at once; buildTextG is it stepped)
   // a glyph from the atlas, centred on (x, y), 1:1 (one atlas px per canvas px)
   const USED = {};   // ?akx=used: which (style, size) the frame actually puts on screen (to size the atlas)
   function gblit(g, x, y){ if(!g || !ATL) return; const w = g.w * PX, h = g.h * PX; if(AKU && x + w / 2 > 0 && x - w / 2 < W && y + h / 2 > 0 && y - h / 2 < H) USED[g.k] = (USED[g.k] || 0) + 1; cx.drawImage(ATL, g.ax, g.ay, g.sw, g.sh, snp(x - w / 2), snp(y - h / 2), w, h); }
@@ -629,8 +631,8 @@
   function* warmSteps(){ regDir(); if(!PANL.length) for(const p of PAN){ PANL.push(mixc(p[0], '#ffffff', .45)); PANS.push(mixc(p[1], p[0], .3)); }
     if(AKX.includes('cnt') && !warmSteps.cnt){ warmSteps.cnt = true; const f0 = cx.fillRect; cx.fillRect = function(){ AKC[CAT] = (AKC[CAT] || 0) + 1; return f0.apply(this, arguments); }; }
     if(!ATL){ ATL = mk(1024, 1); AG = ATL.getContext('2d'); SC = mk(80, 80); SG = SC.getContext('2d', { willReadFrequently:true }); TK = mk(2048, 16); } yield;
-    buildText(); if(!FONT){ try{ if(document.fonts && document.fonts.load) document.fonts.load('16px DotGothic16').then(() => { if(!FONT) buildText(); }, () => {}); }catch(e){} } yield;
-    buildStrips(); buildPeople(); yield;
+    yield* buildTextG(); if(!FONT){ try{ if(document.fonts && document.fonts.load) document.fonts.load('16px DotGothic16').then(() => { if(!FONT) buildText(); }, () => {}); }catch(e){} } yield;
+    buildStrips(); yield; buildPeople(); yield;
     try{ if(typeof MUSIC !== 'undefined' && MUSIC.ROAD_THEME && !MUSIC.ROAD_THEME[KEY]) MUSIC.ROAD_THEME[KEY] = 'neon'; }catch(e){}
     try{ cx.save(); cx.globalAlpha = .004; for(const c of [ATL, TK, FAR, MID, MIDD].concat(PEOPLE)) if(c) cx.drawImage(c, 0, 0, 1, 1); cx.fillStyle = ditherPat('#235250', .25); cx.fillRect(0, 0, PX, PX); cx.restore(); }catch(e){ try{ cx.restore(); }catch(e2){} }
     cx.clearRect(0, 0, W, H); }

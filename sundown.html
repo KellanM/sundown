@@ -1851,17 +1851,21 @@ function bikeSprite(name){ const C = window.COS, sig = C ? C.sig : '';
 // far cars fade toward the fog colour and stay opaque, like the scenery (alpha let the lane dashes show through them): CAR_FQ steps,
 // pre-tinted per sprite in ENV.cars.warm (fogTint keeps one canvas per sprite and step, re-tinted in place as the fog colour moves)
 const CAR_FQ = 6, CAR_FS = .6;
+const GLOW_CAP = 48;   // CSS px: the largest tail-lamp / signal glow disc a car draws
 function drawCar(x, y, w, c, fog, now){ const spr0 = carSprite(c, now), k = w * (MODELS[c.model].wf || 1) / spr0.width, a = 1 - fog * .6, q = MODELS[c.model].make ? Math.min(CAR_FQ, Math.round(fog * CAR_FQ)) : 0;
+  // a car beside or behind the bike (just passed) is drawn huge at the screen edge: past 4.5 screen px per sprite px it fades out by 6
+  // (kodawari audit: the cream smear in the Tunnels, the magenta block on the Coast). Cars still ahead are never faded.
+  const pas = typeof position === 'number' && c.z - (position + PZ) < 150, fk = pas && k > 4.5 ? Math.max(0, 1 - (k - 4.5) / 1.5) : 1; if(fk <= 0) return;
   const spr = q ? fogTint(spr0, 'car:' + c.model + ':' + c.ci, q, CAR_FQ, FOG_COL, CAR_FS) : spr0;
-  cx.globalAlpha = a; cx.fillStyle = 'rgba(0,0,0,.4)'; cx.beginPath(); cx.ellipse(x, y, w * .55, Math.max(1, w * .06), 0, 0, 6.283); cx.fill();
-  cx.globalAlpha = q || MODELS[c.model].make ? 1 : a; blit(spr, x, y, k); cx.globalAlpha = 1;
+  cx.globalAlpha = a * fk; cx.fillStyle = 'rgba(0,0,0,.4)'; cx.beginPath(); cx.ellipse(x, y, w * .55, Math.max(1, w * .06), 0, 0, 6.283); cx.fill();
+  cx.globalAlpha = (q || MODELS[c.model].make ? 1 : a) * fk; blit(spr, x, y, k); cx.globalAlpha = 1;
   // brake lights (trafficFlow sets c.brk while a car slows, stands still, or a driver ahead of you sees you closing): both lamps flare
-  const L = MODELS[c.model].lights, bk = c.brk > 0, ga = (bk ? .85 : .5) * (1 - fog * .3), gr = (bk ? w * .36 + 4 : w * .28 + 3);
+  const L = MODELS[c.model].lights, bk = c.brk > 0, ga = (bk ? .85 : .5) * (1 - fog * .3) * fk, gr = Math.min(GLOW_CAP, bk ? w * .36 + 4 : w * .28 + 3);   // (the disc is capped: a near car's lamp never floods the frame)
   for(let i = 0; i < L.length; i++){ const lx = L[i][0], ly = L[i][1]; glow(x - lx * k, y - ly * k, gr, '#ff2a3a', ga); glow(x + lx * k, y - ly * k, gr, '#ff2a3a', ga);
-    if(bk){ const s = Math.max(PX, snap(k * 2)); cx.fillStyle = '#ff5a4a'; for(const sd of [-1, 1]) pxRect(x + sd * lx * k - s / 2, y - ly * k - s / 2, s, s); } }
+    if(bk){ const s = Math.max(PX, snap(k * 2)); cx.globalAlpha = fk; cx.fillStyle = '#ff5a4a'; for(const sd of [-1, 1]) pxRect(x + sd * lx * k - s / 2, y - ly * k - s / 2, s, s); cx.globalAlpha = 1; } }
   // turn signal before a lane change (trafficFlow): the outer lamp on that side blinks amber at 90 a minute (steady with reduced motion / no flashing)
   if(c.sig && L.length && (reduce || Math.floor(now / 333) % 2 === 0)){ let lx = 0, ly = 0; for(let i = 0; i < L.length; i++) if(L[i][0] >= lx){ lx = L[i][0]; ly = L[i][1]; }
-    const bx = x + c.sig * lx * k, by = y - ly * k, s = Math.max(PX, snap(k * 2)); cx.globalAlpha = a; cx.fillStyle = '#ffb030'; pxRect(bx - s / 2, by - s / 2, s, s); cx.globalAlpha = 1; glow(bx, by, w * .22 + 3, '#ffa020', .65 * (1 - fog * .3)); } }
+    const bx = x + c.sig * lx * k, by = y - ly * k, s = Math.max(PX, snap(k * 2)); cx.globalAlpha = a * fk; cx.fillStyle = '#ffb030'; pxRect(bx - s / 2, by - s / 2, s, s); cx.globalAlpha = 1; glow(bx, by, Math.min(GLOW_CAP, w * .22 + 3), '#ffa020', .65 * (1 - fog * .3) * fk); } }
 // the rider: smooth lean, hanging off toward the inside of the bend
 function drawBike(x, y, s, lean, now){ if(ENV.bikes && ENV.bikes.frames) return ENV.bikes.draw('sport', x, y, s, lean, now);   // every bike, sport included, leans in drawn poses (env/bikes.js)
   const k = Math.max(PX, Math.round(s / 30 / PX) * PX), hang = clamp(lean / .5, -1, 1);
@@ -2604,7 +2608,7 @@ function frame(){ if(PSE.on){ pzPad(); if(PSE.dirty){ PSE.dirty = false; try{ dr
    A new version downloads in the background and waits. It is applied only on the title (never mid-ride): by itself once
    the title has sat untouched for a few seconds, or at once when the player taps "Update ready". Tap the version to check now. */
 (() => {
-  const VER = 'v9 · ac2a98', $id = (i) => document.getElementById(i);
+  const VER = 'v10 · c37c1d', $id = (i) => document.getElementById(i);
   const SDU = window.SDUPDATE = { version: VER, waiting: null, applied: false, checks: 0 };
   let reg = null, applying = false, asked = false, needReload = false, note = '', noteT = 0, lastInput = performance.now();
   ['keydown', 'pointerdown', 'touchstart', 'wheel'].forEach((t) => addEventListener(t, () => { lastInput = performance.now(); }, { capture: true, passive: true }));
@@ -2666,5 +2670,5 @@ function frame(){ if(PSE.on){ pzPad(); if(PSE.dirty){ PSE.dirty = false; try{ dr
   }, 1000);
 })();
 </script>
-<!-- __sdbuild:9 ac2a9859cf1b --></body>
+<!-- __sdbuild:10 c37c1db7ca6a --></body>
 </html>

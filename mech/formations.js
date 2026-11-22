@@ -29,6 +29,7 @@
 "use strict";
 (() => {
 const F = MECH.formations = {};
+const OFF = typeof location !== 'undefined' && /[?&]formations=0(&|$)/.test(location.search); F.off = OFF;   // ?formations=0: the old random traffic only (A/B tests)
 
 /* ---------------------------------------------------------------- the library
    Rows: [dz, members]. dz in thousands of world units (5 segments) from the formation's front, scaled by the road's spacing.
@@ -39,21 +40,21 @@ const F = MECH.formations = {};
    tun: tunnels only. */
 const L = -1, C = 0, R = 1;
 const LIB = [
-  { id:'gate',     name:'GATE',       kj:'門', d:1, bend:true,  on:{ x:1, s:1, m:2 }, rows:[[0, [L, R]]] },
-  { id:'split',    name:'SPLIT',      kj:'割', d:1, bend:true,  on:{ x:1, s:1, m:2 }, rows:[[0, [C]], [2.8, [L, R]]] },
-  { id:'chicane',  name:'CHICANE',    kj:'曲', d:1, bend:true,  on:{ x:1, s:2, m:1 }, rows:[[0, [L, C]], [3.6, [C, R]]] },
-  { id:'zipper',   name:'ZIPPER',     kj:'閂', d:2, bend:false, on:{ x:1, s:2, m:1 }, rows:[[0, [-.42]], [1.5, [.42]], [3, [-.42]], [4.5, [.42]], [6, [-.42]]] },
+  { id:'gate',     name:'DOORWAY',    kj:'門', d:1, bend:true,  on:{ x:1, s:1, m:2 }, rows:[[0, [L, R]]] },
+  { id:'split',    name:'SPLIT',      kj:'割', d:1, bend:true,  on:{ x:1, s:1, m:2 }, rows:[[0, [C]], [5, [L, R]]] },
+  { id:'chicane',  name:'CHICANE',    kj:'曲', d:1, bend:true,  on:{ x:1, s:2, m:1 }, rows:[[0, [L, C]], [5, [C, R]]] },
+  { id:'zipper',   name:'ZIPPER',     kj:'閂', d:2, bend:false, on:{ x:1, s:2, m:1 }, rows:[[0, [-.42]], [1.8, [.42]], [3.6, [-.42]], [5.4, [.42]], [7.2, [-.42]]] },
   { id:'slalom',   name:'SLALOM',     kj:'蛇', d:2, bend:false, on:{ x:1, s:2, m:1 }, rows:[[0, [C, R]], [4, [L, C]], [8, [C, R]], [12, [L, C]]] },
   { id:'stairs',   name:'STAIRS',     kj:'段', d:2, bend:true,  on:{ x:1, s:1, m:2 }, rows:[[0, [C, R]], [2.7, [L, R]], [5.4, [L, C]]] },
   { id:'echelon',  name:'ECHELON',    kj:'梯', d:2, bend:true,  on:{ x:1, s:2, m:1 }, rows:[[0, [L]], [1.2, [C]], [2.4, [R]], [3.6, [C]], [4.8, [L]]] },
   { id:'wall',     name:'WALL',       kj:'壁', d:2, bend:true,  on:{ x:2, s:1, m:1 }, rows:[[0, [[-.58, 't'], [-.08, 't']]], [3, [R]]] },
-  { id:'convoy',   name:'CONVOY',     kj:'列', d:3, bend:false, on:{ x:2, s:1, m:1 }, rows:[[0, [C]], [.7, [L]], [1.5, [[C, 't']]], [3, [C]], [3.7, [R]], [4.5, [C]]] },
+  { id:'convoy',   name:'CONVOY',     kj:'列', d:3, bend:false, str:true, on:{ x:2, s:1, m:1 }, rows:[[0, [C]], [.8, [L]], [1.8, [[C, 't']]], [6, [C]], [6.8, [R]], [7.8, [C]]] },   // (the gap after the truck is the crossing: 0.8 s at the formation's pace)
   { id:'twinwall', name:'TWIN WALL',  kj:'双', d:3, bend:false, on:{ x:2, s:1, m:1 }, rows:[[0, [[-.58, 't'], [-.08, 't']]], [3.2, [[.08, 't'], [.58, 't']]]] },
   { id:'pincer',   name:'PINCER',     kj:'挟', d:3, bend:true,  on:{ x:1, s:1, m:2 }, rows:[[0, [[L, 'c', { to:-.22 }], [R, 'c', { to:.22 }]]], [3, [C]]] },
   { id:'overtake', name:'OVERTAKE',   kj:'抜', d:3, bend:false, on:{ x:2, s:1, m:1 }, rows:[[-1.4, [[C, 'c', { v:.1 }]]], [0, [R]], [3.6, [L]]] },
   { id:'pocket',   name:'POCKET',     kj:'袋', d:3, bend:false, on:{ x:1, s:2, m:1 }, rows:[[0, [L, C]], [1.5, [L, C]], [3.6, [C, R]]] },
-  { id:'weave',    name:'WEAVE',      kj:'縫', d:3, bend:true,  tun:true, on:{ x:2, s:1, m:2 }, rows:[[0, [C, R]], [3, [L, C]], [6, [C, R]], [9, [L, C]], [12, [C, R]]] },
-  { id:'cascade',  name:'CASCADE',    kj:'滝', d:4, bend:false, on:{ x:1, s:2, m:1 }, rows:[[0, [L]], [1, [C]], [2, [R]], [3, [C]], [4, [L]], [5, [C]], [6, [R]]] },
+  { id:'weave',    name:'WEAVE',      kj:'縫', d:3, bend:true,  tnl:true, on:{ x:1, s:1, m:1 }, rows:[[0, [C, R]], [3, [L, C]], [6, [C, R]], [9, [L, C]], [12, [C, R]]] },
+  { id:'cascade',  name:'CASCADE',    kj:'滝', d:4, bend:false, on:{ x:1, s:2, m:1 }, rows:[[0, [L]], [1.25, [C]], [2.5, [R]], [3.75, [C]], [5, [L]], [6.25, [C]], [7.5, [R]]] },
   { id:'fakeout',  name:'FAKEOUT',    kj:'偽', d:4, bend:false, on:{ x:1, s:2, m:1 }, rows:[[0, [L, [C, 'c', { to:.66 }]]], [3.4, [R]]] },
   { id:'squeeze',  name:'SQUEEZE',    kj:'搾', d:4, bend:false, on:{ x:2, s:1, m:1 }, rows:[[0, [L, C]], [2.6, [[-.7, 'c'], [-.04, 'c'], [.62, 't']]]] },
   { id:'trap',     name:'SPEED TRAP', kj:'罠', d:4, bend:false, on:{ x:2, s:1, m:1 }, rows:[[-1.6, [[R, 'c', { v:-.08 }]]], [0, [[-.58, 't'], [-.08, 't']]], [2.9, [R]]] },
@@ -62,7 +63,7 @@ const LIB = [
   // the first night's opener (never picked at random): two slow cars on the lane lines, staggered. Whatever lane you hold, one of them
   // passes you inside Close range (.33 from a lane centre) and outside its hit box, with .1 to spare either side
   { id:'stagger',  name:'STAGGER',    kj:'初', d:1, fn:true, bend:true, on:{ x:1, s:1, m:1 }, rows:[[0, [[-.33, 'c']]], [1.8, [[.33, 'c']]]] },
-  { id:'gauntlet', name:'GAUNTLET',   kj:'関', d:5, bend:false, on:{ x:2, s:1, m:1 }, rows:[[0, [C, [R, 't']]], [2.4, [[L, 't'], C]], [4.8, [C, [R, 't']]], [6.9, [-.42]], [7.9, [.42]], [9, [[L, 't'], C]]] } ];
+  { id:'gauntlet', name:'GAUNTLET',   kj:'関', d:5, bend:false, on:{ x:2, s:1, m:1 }, rows:[[0, [C, [R, 't']]], [2.4, [[L, 't'], C]], [4.8, [C, [R, 't']]], [7.2, [-.42]], [8.6, [.42]], [10, [[L, 't'], C]]] } ];
 F.LIB = LIB;
 const BYID = {}; for(const d of LIB) BYID[d.id] = d;
 
@@ -76,10 +77,10 @@ const KP = { x:{ sp:1, dv:0, truck:'truck' }, s:{ sp:.92, dv:.04, truck:'box' },
 const BEND = 2.2, SHARP = 3.4;                         // |curve| where you meet it: past BEND spaced 1.25x; past SHARP only the bend-safe shapes
 // the ride's level 1..5 from checkpoints and time (the old traffic ramp reaches its cap at about checkpoint 9; this reaches 5 at 9)
 function level(){ const g = typeof gatesHit === 'number' ? gatesHit : 0, t = typeof playT === 'number' ? playT : 0;
-  let lv = 1 + Math.max(0, Math.min(4, Math.max((g - 1) * .5, (t - 25) / 30)));
+  let lv = 1 + Math.max(0, Math.min(4, Math.max((g - 3) * .2, (t - 60) / 70)));   // level 2 at about 2:10, 3 at 3:20, 4.4 at 5 min
   const as = (window.ASSIST && ASSIST.traffic) | 0; if(as) lv = Math.min(lv, as >= 2 ? 2 : 3);
   return lv; }
-const vfAt = lv => .56 - .03 * (lv - 1);               // formation speed (x MAXS): later formations are slower, so you close on them faster
+const vfAt = lv => .6 - .04 * (lv - 1);               // formation speed (x MAXS): later formations are slower, so you close on them faster
 const FIRST = 7;                                        // seconds of loose traffic before the first phrase
 
 /* ---------------------------------------------------------------- state */
@@ -157,33 +158,39 @@ F.visionOK = def => { for(const [dz, ms] of def.rows) for(const m of ms){ if(mem
 
 /* ---------------------------------------------------------------- choosing: phrases (jo-ha-kyu) */
 function pick(target, kind, tunnel, bend, avoid){ let best = [], bw = 0;
-  for(const d of LIB){ if(d.fn || (d.tun && !tunnel)) continue; if(bend && !d.bend) continue; if(avoid.includes(d.id)) continue;
-    const dd = Math.abs(d.d - target); if(dd > 1.01) continue; const w = (d.on[kind] || 1) * (dd < .5 ? 3 : 1) * (d.tun ? 3 : 1); best.push([d, w]); bw += w; }
+  for(const d of LIB){ if((d.fn && target > 1) || (d.tun && !tunnel)) continue; if(bend && !d.bend) continue; if(avoid.includes(d.id)) continue;   // (STAGGER, the first night's opener, also opens early phrases)
+    const dd = Math.abs(d.d - target); if(dd > 1.01) continue; const w = (d.on[kind] || 1) * (dd < .5 ? 3 : 1) * (d.tnl ? (tunnel ? 4 : .5) : 1); best.push([d, w]); bw += w; }   // WEAVE: mostly in tunnels (a bore is rarely long enough to hold it all)
   if(!best.length) return BYID.gate; let r = Math.random() * bw; for(const [d, w] of best){ r -= w; if(r <= 0) return d; } return best[best.length - 1][0]; }
-function buildPhrase(){ const lv = level(), n = lv < 2 ? 3 : lv < 4 ? 4 : 5;
+function buildPhrase(){ const lv = level(), n = lv < 2 ? 2 : lv < 3 ? 3 : lv < 4 ? 4 : 5;
   // jo (easy), ha (building), kyu (peak): targets rise through the phrase
-  const tg = []; for(let i = 0; i < n; i++){ const f = i / (n - 1); tg.push(Math.max(1, Math.min(5, Math.round(lv - 1.5 + f * 2)))); }
-  return { lv, vf:vfAt(lv), tg, i:0, wait:0, next:0, gap:lv < 3 ? 1.5 : 1.1, items:[] }; }
+  const tg = []; for(let i = 0; i < n; i++){ const f = i / (n - 1); tg.push(Math.max(1, Math.min(5, Math.round(lv - 1 + f * 1.2)))); }   // e.g. level 1: 1 1; level 3: 2 2 3 3; level 5: 4 4 5 5 5
+  return { lv, vf:vfAt(lv), tg, i:0, wait:0, next:0, gap:lv < 2 ? 2.4 : lv < 3 ? 1.8 : 1.2, items:[] }; }
 
 /* ---------------------------------------------------------------- placing one formation */
 function stretchOK(z0, z1, vf, needTun){   // the segments where the bike will meet it (it drives on while you close)
   // where you meet it depends on your speed: a boosting bike (1.3 x MAXS) meets it nearest, a cruising one (.9) farther on
   const pz = position + PZ, meet = (z, vp) => z + vf * Math.max(0, (z - pz) / (vp - vf)), vLo = Math.max(vf + .15, Math.min(.9, speed / MAXS)), mA = meet(z0, 1.3), mB = meet(z1, vLo);
-  const i0 = Math.floor(z0 / SEG), iA = Math.floor(mA / SEG) - 10, i1 = Math.min(segs.length - 1, Math.ceil(mB / SEG) + 10); let k = 0, tun = true;
+  const i0 = Math.floor(z0 / SEG), iA = Math.floor(mA / SEG) - 10, i1 = Math.min(segs.length - 1, Math.ceil(mB / SEG) + 10); let k = 0, nT = 0, nA = 0;
   if(i1 < iA) return null;
   for(let i = i0; i <= i1; i++){ const s = segs[i]; if(!s) return null;
     if(s.gore || s.forkZ || s.skRes || s.spjP) return null;   // a fork's gore, a kicker's stretch, a landmark jump's window
     if(typeof inSplitWin === 'function' && inSplitWin(i) >= 0) return null;
-    if(i >= iA){ k = Math.max(k, Math.abs(s.curve || 0)); if(!s.tunnel) tun = false; } }
+    if(i >= iA){ k = Math.max(k, Math.abs(s.curve || 0)); nA++; if(s.tunnel) nT++; } }
   for(let i = i1 + 1; i <= Math.min(segs.length - 1, i1 + 160); i++) if(segs[i] && segs[i].spjP) return null;   // a landmark jump clears the cars on the 150 segments before its bridge
+  if(typeof gates !== 'undefined') for(let g = 1; g < gates.length; g += 2){ const B = gates[g]; if(B >= iA - 200 && B <= i1 + 10) return null; }   // a road border: its arrival card is up for ~3 s after it
   if(typeof forkGateAhead === 'function'){ const G = forkGateAhead(); if(G >= 0 && i1 >= G - SPLIT_PRE - 80 && i0 < G + SPLIT_POST + 10) return null; }   // the fork's split moves its own traffic there
+  const tun = nA > 0 && nT >= nA * .85;   // (in a tunnel where you meet it: the bores have short gaps)
   if(needTun && !tun) return null;
   return { k, tun }; }
 function place(def, z0, vf, lv, kind, mir, S){ const kp = KP[kind], fid = nid++, members = [];
   const v0 = (vf + kp.dv) * MAXS;
   for(const [dz, ms] of def.rows) for(const m of ms){ const e = memE(m), v = v0 + (e && e.v || 0) * MAXS, c = mkCar(z0 + dz * 1000 * S, memX(m, mir), memK(m), v, fid, kp);
     if(e && e.to != null) c.fmE = { to:mir ? -e.to : e.to, on:false, t:0, done:false, dead:false }; members.push(c); }
-  const f = { id:fid, def, mir, members, crash0:crashes, scrape:0, t:0, void:false, done:false, lv, close0:closeCalls };
+  // no oil slick where you will thread it (the director's keep-clear does the same): the stretch from its tail to where a cruising
+  // bike meets its head is still beyond the draw distance's fade, so nothing visible changes
+  { let zl = -1e12, zf = 1e12; for(const c of members){ if(c.z > zl) zl = c.z; if(c.z < zf) zf = c.z; } const pz = position + PZ, vfr = v0 / MAXS, zm = zl + vfr * Math.max(0, (zl - pz) / Math.max(.05, .8 - vfr));
+    for(let i = Math.max(0, Math.floor(zf / SEG) - 30), i1 = Math.min(segs.length - 1, Math.ceil(zm / SEG) + 10); i <= i1; i++){ const q = segs[i]; if(q && q.hz && q.hz.type === 'oil') q.hz = null; } }
+  const f = { id:fid, d0:Math.max(...members.map(c => c.z)) - position - PZ, def, mir, members, crash0:crashes, scrape:0, t:0, void:false, done:false, lv, close0:closeCalls };
   live.push(f); ST.seen++; fmCars += members.length; return f; }
 // the spawn horizon: where random traffic is born, so nothing pops into view
 const horizon = () => position + PZ + SPAWN_Z + 800;
@@ -194,7 +201,7 @@ function tryNext(dt){ const P = phr; if(P.i >= P.tg.length) return false; if(P.w
   for(let tries = 0; tries < 4 && !def; tries++){ const cand = pick(P.tg[P.i], kind, tunnelAhead, false, recent.concat(tries ? ['weave'] : []));
     const len = cand.rows[cand.rows.length - 1][0] * 1000 * S, mn = Math.min(0, cand.rows[0][0] * 1000 * S);
     info = stretchOK(z0 + mn, z0 + len, P.vf, !!cand.tun); if(!info){ P.wait = .3; P.next += 3000; return true; }   // a fork, a kicker or a jump there: try a little further on
-    let S2 = S; if(info.k > BEND){ if(info.k > SHARP && !cand.bend) continue; S2 = S * 1.25; }   // a bend: spaced out; a sharp one: only the bend-safe shapes
+    let S2 = S; if(info.k > BEND){ if((info.k > SHARP && !cand.bend) || cand.str) continue; S2 = S * 1.25; }   // a bend: spaced out; a sharp one: only the bend-safe shapes
     if(!F.check(cand, { vf:P.vf + KP[kind].dv, sp2:S2, curve:info.k, sp:1.3 })) continue;
     def = cand; S = S2; }
   if(!def) def = BYID.gate;
@@ -237,22 +244,23 @@ function runScript(c, vp, dt){ const e = c.fmE; if(!e || e.done || e.dead) retur
   const d = e.to - c.x; c.x += Math.max(-LC_V * dt, Math.min(LC_V * dt, d)); if(Math.abs(e.to - c.x) < .004){ c.x = e.to; e.done = true; c.sig = 0; } }
 /* ---------------------------------------------------------------- the first night's opening (coordinator, 2026-11-21, from the
    first-60-seconds pass: in the after-runs nobody got a near miss inside a minute)
-   - jo: an empty road while you find the throttle, then the first cars at about 6-10 s: a wide gate, both cars in the outer lanes;
-   - ha: STAGGER, two slow cars on the lane lines, met on a straight at about 15-25 s: whatever lane you hold, a Close (and a thread);
+   - jo: an empty road while you find the throttle, then the first cars at about 6-8 s: STAGGER, two slow cars on the lane lines, met
+     at about 11-14 s: whatever lane you hold (centre or either side), one passes inside Close range and outside its hit box;
+   - ha: STAGGER again on the first straight that is clear of set pieces, met by about 15-25 s when the road allows (teach, then test);
    - ma: nothing else until 30 s. A passive rider (no steering: the centre, or the barrier a bend drifts you to) can't be hit by either. */
 // the first place at or beyond the horizon where a formation fits (no reserved road; straight enough), or -1
 function fitFrom(def, vf, S, kMax){ const z0 = horizon(), len = def.rows[def.rows.length - 1][0] * 1000 * S;
   for(let k = 0; k < 60; k++){ const z = z0 + k * 1500, info = stretchOK(z, z + len, vf, false); if(info && info.k <= kMax) return z; } return -1; }
 function firstNightStep(dt){ const t = typeof playT === 'number' ? playT : 0, kind = kindHere(position + PZ), S = KP[kind].sp;
   if(fnWait > 0){ fnWait -= dt; return; }
-  if(fnStep === 0 && t >= 3.5){ const z = fitFrom(BYID.gate, .25 - KP[kind].dv, S, 9); if(z < 0){ fnWait = .3; if(t < 8) return; fnStep = 1; return; }
-    const f = place(BYID.gate, z, .25 - KP[kind].dv, 1, kind, false, S); f.fn = true; fnStep = 1; }   // slow cars: you meet them soon, before any set piece's stretch
+  if(fnStep === 0 && t >= 3.5){ const z = fitFrom(BYID.stagger, .25 - KP[kind].dv, S, t < 7 ? 1.2 : 9); if(z < 0){ fnWait = .3; if(t < 9) return; fnStep = 1; return; }   // on a straight if one comes by 7 s
+    const f = place(BYID.stagger, z, .25 - KP[kind].dv, 1, kind, false, S); f.fn = true; fnStep = 1; }   // slow cars: you meet them soon (about 11-14 s), before any set piece's stretch
   else if(fnStep === 1 && t >= 8.5){ const z = fitFrom(BYID.stagger, .3 - KP[kind].dv, S, 1.2);
     if(z < 0){ fnWait = .3; if(t < 16) return; fnStep = 2; return; }   // nowhere straight and clear yet: keep looking until 16 s
     const f = place(BYID.stagger, z, .3 - KP[kind].dv, 1, kind, false, S); f.fn = true; fnStep = 2; }
   else if(fnStep === 2 && t >= 30 && !live.length){ phase = 'free'; phaseT = 0; freeFor = 2; fnStep = 3; } }
 F.update = dt => {
-  frame++;
+  frame++; if(OFF) return;
   if(state !== 'play'){ if(live.length){ for(const f of live) release(f); live.length = 0; } phase = fnRide ? 'fn' : 'free'; fnStep = 0; phr = null; phaseT = 0; freeFor = FIRST; return; }
   const pz = position + PZ, vp = Math.max(speed, MAXS * .3);
   // who is still here, and moved only by us (a set piece removing or throwing a car voids its formation)
@@ -268,7 +276,7 @@ F.update = dt => {
     if(zMin < pz + 9000 && typeof scrapeT === 'number' && scrapeT > 0) f.scrape += dt;
     if(!ahead){ f.done = true; const ok = !f.crashed && f.scrape < .3 && speed > MAXS * .5; if(ok) reward(f); else if(!f.crashed) ST.streak = 0;
       if(ST.log.length < 80) ST.log.push(f.def.id + (ok ? '' : f.crashed ? ':crash' : f.scrape >= .3 ? ':scrape' : ':slow')); release(f); live.splice(i, 1); continue; }
-    if(f.t > 45 || (f.members.length && f.members[0].z - pz > SPAWN_Z + 40000)){ voidF(f, 'lost'); live.splice(i, 1); } }   // you fell far behind it
+    if(f.t > 45 || (f.members.length && f.members[0].z - pz > f.d0 + 30000)){ voidF(f, 'lost'); live.splice(i, 1); } }   // you fell far behind it
   // the phrase clock
   phaseT += dt;
   if(phase === 'fn') firstNightStep(dt);
@@ -278,13 +286,13 @@ F.update = dt => {
     if(P.i < P.tg.length && phaseT < 50 && (P.i || phaseT < 12)) tryNext(dt);   // (a phrase that cannot start within 12 s gives way to loose traffic)
     else if(!live.length) endPhrase(); }
   else if(phase === 'ma'){ if(phaseT > maFor() && !live.length){ phase = 'free'; phaseT = 0; freeFor = freeAt(); } } };
-const maFor = () => 3.6 - .25 * (level() - 1);        // ma: empty road after a phrase, 3.6 s early to 2.6 s late
+const maFor = () => 4.5 - .45 * (level() - 1);        // ma: empty road after a phrase, 4.5 s early to 2.7 s late
 const freeAt = () => 6 - .7 * (level() - 1);           // then loose traffic: 6 s early to 3.2 s late, then the next phrase
 // the spawner's hook: how many cars to keep. While a phrase runs (and in its ma), no loose traffic is added
-F.want = n => state !== 'play' || phase === 'free' ? n + fmCars : 0;
+F.want = n => OFF || state !== 'play' || phase === 'free' ? n + fmCars : 0;
 F.reset = () => { for(const f of live) release(f); live = [];
   fnRide = typeof firstNight === 'function' && !!firstNight(); fnStep = 0; fnWait = 0;
-  if(fnRide && typeof cars !== 'undefined') cars.length = 0;   // (reset() just spawned three random cars; the first night opens on an empty road)
+  if(fnRide && !OFF && typeof cars !== 'undefined') cars.length = 0;   // (reset() just spawned three random cars; the first night opens on an empty road)
   phase = fnRide ? 'fn' : 'free'; phaseT = 0; freeFor = FIRST; phr = null; recent = []; fmCars = 0;
   ST.seen = 0; ST.threaded = 0; ST.voided = 0; ST.crashed = 0; ST.streak = 0; ST.bestStreak = 0; ST.by = {}; ST.log = []; };
 F.finish = rec => { rec.formations = ST.seen; rec.threaded = ST.threaded; rec.threadStreak = ST.bestStreak; };

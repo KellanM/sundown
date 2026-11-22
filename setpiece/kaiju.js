@@ -600,8 +600,9 @@
     // the head: the game's own, its neck root moved onto the end of the long neck, the snout held level, the jaw open
     const hd = sHead(.02, .85); p.P.push(...vMove(hd.p.P, 34 - 15 - 6, 84 - 111 + 2)); return p; }
   let CARD = null;
-  function cardTitan(){ if(CARD) return CARD; const run = g => { let r; while(!(r = g.next()).done); return r.value; }, T = TT.s; if(!T.mat) T.mat = T.mk();
-    const G = run(vGrid(sCardPose().P)), st = run(vBake('scard', G, T.mat, T.ht, 1, 0, 1)); st.G = null; st.L = [st.L[st.L.length - 1]]; return CARD = st; }   /* (only the whole view: the card draws nothing else) */
+  function cardTitan(){ if(!CARD) for(const _ of cardTitanSteps()); return CARD; }
+  function* cardTitanSteps(){ if(CARD) return; const T = TT.s; if(!T.mat) T.mat = T.mk(); const P = sCardPose().P; yield; YT = performance.now();   /* (stepped: the cut-in's late build, research/sundown-craft/first60.md) */
+    const G = yield* vGrid(P), st = yield* vBake('scard', G, T.mat, T.ht, 1, 0, 1); st.G = null; st.L = [st.L[st.L.length - 1]]; if(!CARD) CARD = st; }   /* (only the whole view: the card draws nothing else) */
   // ---------------------------------------------------------------- Kanigaru in voxels (faces -x, toward the road and the titan)
   const FMAT_ = () => ({ 1:VM('#06121a', '#102836', '#1c3e52', '#2e5e74', '#b8eef2', '#4e3634', '#cc7448', 1),   // shell: sea-steel
     2:VM('#0a0812', '#181226', '#2a2040', '#44385e', '#b0a2d4', '#542838', '#bc5e78'),   // wings: dusk violet
@@ -657,7 +658,7 @@
   // leg plants just beyond it), Zo world units beyond the pass segment
   const TT = { s:{ id:'s', X0:0, Zo:2400, parts:{}, order:['tail', 'body', 'hips', 'leg', 'head', 'arm'], sink:0, mat:null, mk:SMAT_, ht:S_HT },
     f:{ id:'f', X0:0, Zo:3000, parts:{}, order:['wings', 'shell', 'arch', 'claw'], sink:0, mat:null, mk:FMAT_, ht:F_HT } };
-  function* tsJob(j){ const [who, part, pose, fn, res = 1, fine = 0, kz = 1] = TJOBS[j], T = TT[who]; TSTEP = 'model'; const r = fn(); if(!T.mat) T.mat = T.mk(); const G = yield* vGrid(vRes(r.p.P, res, kz)), st = yield* vBake(who + part + pose + (fine ? 'f' : ''), G, T.mat, T.ht, res, fine, kz);
+  function* tsJob(j){ const [who, part, pose, fn, res = 1, fine = 0, kz = 1] = TJOBS[j], T = TT[who]; TSTEP = 'model'; const r = fn(); if(!T.mat) T.mat = T.mk(); yield; YT = performance.now(); const G = yield* vGrid(vRes(r.p.P, res, kz)), st = yield* vBake(who + part + pose + (fine ? 'f' : ''), G, T.mat, T.ht, res, fine, kz);
     st.anc = r; st.G = null; delete r.p; const PP = T.parts[part] = T.parts[part] || { name:part, poses:{}, fine:null, pose:pose, lv:null, c:1 }; if(fine){ (PP.fine = PP.fine || {})[pose] = st; return; } PP.poses[pose] = st;
     if(who === 's' && part === 'body'){   // the sail's charge glow: the ribs lit from the tail toward the head in four hard steps, front view
       st.glow = []; for(let lv = 1; lv <= 4; lv++){ const c = document.createElement('canvas'); c.width = G.w; c.height = G.h; const k = c.getContext('2d'), img = k.createImageData(G.w, G.h), U = new Uint32Array(img.data.buffer), on = 8 - Math.ceil(lv * 7 / 4), hot = pk32('#fff4c8'), mid = pk32('#ffc04a'), low = pk32('#ff7a2a');
@@ -692,6 +693,16 @@
     cx.save(); for(const id in TT) for(const k in TT[id].parts){ const P = TT[id].parts[k]; for(const st of [...Object.values(P.poses), ...Object.values(P.fine || {})]){ for(const L of st.L) cx.drawImage(L.cv, 0, 0, 1, 1); if(st.backL) cx.drawImage(st.back, 0, 0, 1, 1); if(st.glow) for(const g of st.glow) cx.drawImage(g, 0, 0, 1, 1); } } cx.drawImage(S.toeN, 0, 0, 1, 1); cx.drawImage(S.toeF, 0, 0, 1, 1); cx.restore();   // upload now, not mid-ride
     TS.built = true; }
   function tsBuild(){ if(TS.built) return; if(!TS.it) TS.it = tsSteps(); for(const _ of TS.it); }
+  /* first 60 s (research/sundown-craft/first60.md): the stacked titans and the card's titan are the night's heaviest build (about 1.2 s on a
+     desktop, 5 s on a 4x-throttled phone). START's warm gate builds them only when a fight can come in the first minute (titansNear());
+     otherwise they are MECH.sp_kaijuLate, built in steps while the title idles (and by the cut-in's late build, which needs them for its card),
+     and finished on demand, timed and logged, if a fight is about to rise before they are done (needTitans()). */
+  const fnFirst = i => typeof firstNight === 'function' && firstNight() && zoneOfSeg(i) === 0;   // the first night's first road: the quiet bridge, no fight
+  function titansNear(){ try{ if(typeof ROUTE === 'undefined' || typeof LANDS === 'undefined') return true; const bay = i => i !== undefined && LANDS[i] && LANDS[i].key === 'bay';
+      if(bay(ROUTE[0]) && !(typeof firstNight === 'function' && firstNight())) return true; if(bay(ROUTE[1]) || bay(ROUTE[2])) return true;
+      for(let z = 0; z <= 2; z++){ const f = typeof FORKS !== 'undefined' && FORKS[z]; if(Array.isArray(f) && f.some(bay)) return true; } return false; }catch(e){ return true; } }
+  function* titanSteps(){ build(); yield; if(!TS.built){ if(!TS.it) TS.it = tsSteps(); yield* TS.it; } yield* cardTitanSteps(); }   // TS.it is shared: whoever steps it, it is built once
+  function needTitans(){ if(TS.built) return; const a = performance.now(); tsBuild(); cardTitan(); const ms = Math.round(performance.now() - a); MECH.sp_kaiju.lateMs = ms; console.warn('sp_kaiju: titans built on demand', ms + 'ms'); }
 
   // ---------------------------------------------------------------- projecting the titans
   // proj(z): the road's centre-line screen point and the scale at world depth z (this frame's segment projection inside the drawn range,
@@ -1311,8 +1322,9 @@
     _ts(){ const q = TT.s.Z0 ? proj(TT.s.Z0) : null; return { far:FR.tsFar, built:TS.built, kj:FR.kj, sZ0:TT.s.Z0, sX0:TT.s.X0, fX0:TT.f.X0, rearToe:Math.round(TT.s.X0 + (TT.s.rearToe || 0)), hp:[HP.seg, HP.d0], pos:position, draws:TDRAWS, pr:q ? [Math.round(q.x), Math.round(q.y), +q.sc.toExponential(2)] : null, lv:Object.values(TT.s.parts).map(P => P.name + ':' + (P.lv ? P.lv.g : '-') + 'x' + P.c) }; },   // testing
     dbgBreak(t){ return addZone(t); },   // testing: a bridge break for a kaiju trigger at segment t
     dbgTy(t0){ for(let i = Math.max(0, t0); i <= t0 + TY_LEN && i < segs.length; i++) tyPlace(i, segs[i], i - t0); if(segs[t0]) segs[t0].tyStart = true; },   // testing: a typhoon stretch from segment t0
-    warm(){ build(); tsBuild(); },
-    *warmSteps(){ build(); yield; if(!TS.it) TS.it = tsSteps(); for(const _ of TS.it) yield; },   // the stacked titans one part and pose per step, for the staged warm-up
+    warm(){ build(); if(titansNear()) tsBuild(); },
+    *warmSteps(){ build(); yield; if(!titansNear()) return; if(!TS.it) TS.it = tsSteps(); for(const _ of TS.it) yield; },   // the stacked titans one part and pose per step, for the staged warm-up (only when a fight can come in the first minute)
+    titanSteps, lateMs:0,   /* titanSteps(): the titans, stepped (ui/cutin.js's late build drives it before the kaiju card) */
     drawSegBack(s, sx0, sy0, uw, fog, now){ const F = frame(now); if(F.kj < 0 || F.tsFar || !TS.built) return; tsDraw(s.index * SEG, (s.index + 1) * SEG, F.st.alpha); },
     hitCar(){ const z = FR.bz; return !!(z && z.own); },
     drawUnderBike(now){ },   // (sp_jump) the screen-space look-down band is removed: the chasm below is real geometry the camera sees
@@ -1321,7 +1333,7 @@
       if(K.pitchOwn && window.CAM) CAM.pitch = 0; K.pitchOwn = false; K.shove = 0; K.lp = undefined; K.dt = -1; K.tsP = K.tsP.filter(q => q.r === segs); },
     place(i, s, L){ const rel = i - (typeof landStart === 'number' ? landStart : 0);
       // the peak sits 440 segments in, but never within a fork gate's approach: then it comes 130 segments before the gate
-      if(L.key === 'bay' && rel === 300){ let pk = i + KJ_AT - 300; for(const g of gates) if(g > i - 40 && g > pk - 200 && g < pk + 140 - PASS){ pk = g + 210; K.hold[pk] = g + 6; break; } if(window.forkClear){ const d = forkClear(pk - 200, pk + 140 - PASS); if(d){ delete K.hold[pk]; pk += d; } }   /* (?split=1: clear of a fork's split window) */ /* the break zone (its approach to the far deck's end) must sit inside the bay: pushed past a fork's window it ran over the border into
+      if(L.key === 'bay' && rel === 300 && !fnFirst(i)){ let pk = i + KJ_AT - 300; for(const g of gates) if(g > i - 40 && g > pk - 200 && g < pk + 140 - PASS){ pk = g + 210; K.hold[pk] = g + 6; break; } if(window.forkClear){ const d = forkClear(pk - 200, pk + 140 - PASS); if(d){ delete K.hold[pk]; pk += d; } }   /* (?split=1: clear of a fork's split window) */ /* the break zone (its approach to the far deck's end) must sit inside the bay: pushed past a fork's window it ran over the border into
            the next road (the chasm and the KAIJU JUMP landing on a city street). Pull it back before the border; if it then overlaps the
            fork's window there is no room for the break this visit: the fight still plays in the sky, the bridge holds. */
         { const zEnd = gates[2 * zoneOfSeg(i) + 1], SPAN = Math.max(BRK + GAP + FAR + 30, 110 - PASS);
@@ -1339,6 +1351,7 @@
     update(dt){ const p = pSeg();
       // kaiju beats: sounds and shakes as the rider crosses each d
       const t = activeKj(p);
+      if(t >= 0 && !TS.built) needTitans();   // (the late build was not done: finish it now, timed and logged)
       if(t >= 0){ const d = t - p, a = K.trig === t && K.lastD !== null ? K.lastD : d, hd = K.hold[t], X = v => (hd === undefined || p > hd) && a > v && d <= v; if(K.trig !== t){ K.trig = t; K.ref = skyPar('far'); }
         if(X(580)) roar(.35); if(X(540)){ shriek(.5); } if(X(425)) roar(.55); if(X(400)){ shriek(.8); thud(.6); } for(const s2 of T_STRIKES) if(X(s2)){ thud(.7); bump(2); } if(X(330)) shriek(.6); if(X(286)) shriek(.5);
         if(X(228)){ roar(1); bump(3); } for(const c of [192, 162, 132, 102]) if(X(c) && ac()) M.tone(196 * Math.pow(2, (192 - c) / 60), .4, { type:'square', v:.02 });
@@ -1374,8 +1387,11 @@
         cx.globalAlpha = 1;
         if(A < 60){ const q = 1 - A / 60, f = Math.min(4, Math.floor(q * 5)), sp = S['sp' + f], kk = uw * 1.1 / sp.height; cx.globalAlpha = 1 - fog * .6; blit(sp, sx0 - 1.95 * uw, sy0, kk); cx.globalAlpha = 1; } } },
     overlay(now, sk){ const F = frame(now), p = F.p, t = F.kj;
-      // the white-hot flash of the blast: three held steps, never under reduced motion
-      if(F.bz && !reduce && F.g >= 0 && F.g < 9){ cx.fillStyle = '#fff6e0'; cx.globalAlpha = [.55, .3, .12][Math.min(2, Math.floor(F.g / 3))]; cx.fillRect(0, 0, W, H); cx.globalAlpha = 1; }
+      /* the white-hot flash of the blast: one rise and fall in three held steps, never under reduced motion or 'no flashing' (both set
+         reduce). Photosensitivity (WCAG 2.3.1 / Harding: no more than 3 flashes a second, no large bright area flashing): it was a .55 cream
+         wash over the whole screen (a cream frame on a phone, first60.md); now at most .12, so the screen's luminance moves by about a tenth,
+         and with the impact flash below (as dim, straight after it) the fight makes two flashes in about half a second, under the limit */
+      if(F.bz && !reduce && F.g >= 0 && F.g < 9){ cx.fillStyle = '#fff6e0'; cx.globalAlpha = [.12, .07, .03][Math.min(2, Math.floor(F.g / 3))]; cx.fillRect(0, 0, W, H); cx.globalAlpha = 1; }
       if(t >= 0){ const d = t - p, st = F.st || kjState(d, now), hz = H / 2 + 2; tsFx(now, st, d);
         // the beam lights the rain: short amber streaks around its line, added on top
         if(st.beam > 0 || st.impact >= 0 && st.impact < .4){ const k = st.k, i0 = Math.max(st.beam, st.impact >= 0 ? .6 - st.impact : 0), y0 = hz - 70 * k, y1 = hz - 30 * k; cx.globalCompositeOperation = 'lighter';
@@ -1383,7 +1399,7 @@
             if(near <= 0) continue; cx.fillStyle = i % 4 ? '#ff9a3a' : '#ffe0a0'; cx.globalAlpha = .55 * i0 * near; for(let j = 0; j < 3; j++) cx.fillRect(snap(x - j * PX * .5), snap(y + j * PX * 2), PX, PX * 2); }
           cx.globalAlpha = 1; cx.globalCompositeOperation = 'source-over'; }
         // the impact flash: three hard steps, never under reduced motion
-        if(!reduce){ const f = d <= 56 && d > 42 ? (56 - d) / 14 : -1; if(f >= 0){ cx.fillStyle = '#ffc070'; cx.globalAlpha = [.2, .12, .05][Math.min(2, Math.floor(f * 3))]; cx.globalCompositeOperation = 'lighter'; cx.fillRect(0, 0, W, H); cx.globalCompositeOperation = 'source-over'; cx.globalAlpha = 1; } }
+        if(!reduce){ const f = d <= 56 && d > 42 ? (56 - d) / 14 : -1; if(f >= 0){ cx.fillStyle = '#ffc070'; cx.globalAlpha = [.1, .06, .03][Math.min(2, Math.floor(f * 3))]; cx.globalCompositeOperation = 'lighter';   /* (dimmed with the blast's flash: photosensitivity) */ cx.fillRect(0, 0, W, H); cx.globalCompositeOperation = 'source-over'; cx.globalAlpha = 1; } }
         // spray thrown up when a crest hits the bridge, drifting across the left of the screen
         for(const d0 of WAVES){ const A = crestAhead(d0, d); if(A > 6 || A < -40) continue; const q = clamp((6 - A) / 46, 0, 1); cx.fillStyle = '#a8bcd6'; for(let i = 0; i < 24; i++){ const ph = (q + H1(i) * .5) % 1, x = H1(i * 3.3) * W * .3 + ph * W * .05, y = H * (.5 + H1(i * 7.1) * .35) + ph * ph * H * .2; cx.globalAlpha = .45 * (1 - q) * Math.min(1, ph * 6) * (1 - ph); cx.fillRect(snap(x), snap(y), PX, PX * 2); } cx.globalAlpha = 1; } }
       const ty = F.ty; if(ty >= 0){ const wd = wind(ty, p); if(wd.I > .02) tyOverlay(now, wd, ty); } },
@@ -1394,6 +1410,8 @@
       if(wd.tele > 0 || wd.push > .05){ const on = reduce || Math.floor(now / 500) % 2; if(on){ glow(x + 6 * kk, y - 24 * kk, 14 * kk, '#ffa02a', .5); const ar = S.arrow; blit(ar, x + 2 * kk, y + 6 * kk + ar.height * PX * 2, PX * 2); cx.textBaseline = 'alphabetic'; } }
       cx.globalAlpha = 1; }
   };
+
+  MECH.sp_kaijuLate = { warm(){ for(const _ of titanSteps()); }, *warmSteps(){ yield* titanSteps(); } };   // never waited for by START (sundown.html warmGate skips '...Late')
 
   // wind-driven rain: three depths of slanted streaks, slant and density rising with each gust; spray mist sheets sweep across in gusts
   // a rain streak at one of five wind slants, cached; a mist band in Bayer dither

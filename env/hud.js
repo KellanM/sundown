@@ -119,7 +119,8 @@ function layout(){
   const stripW = NCELL * 4 - 1, nX = iL + ((cw - iL - iR - stripW) >> 1), nY = narrow ? y0 + plH + 9 : Math.ceil(16 / sx) + iT;   // centred in the safe width
   // the style chain tab (mech/style.js): wide, beside the speed plate (heat.js's meter column is gone), bottoms aligned;
   // narrow, under the night strip on the left, where the sky is clear
-  const tW = 59, tH = 21, tX = narrow ? x0 : x0 + plW + 2, tY = narrow ? nY + 9 : y0 + plH - tH, tN = Math.floor((tW - 6 + 1) / 3);
+  // (kodawari #8: with the night strip hidden, a phone stacks the tab right under the speed plate, not under the strip's empty rows)
+  const tW = 59, tH = 21, tX = narrow ? x0 : x0 + plW + 2, tY = narrow ? (SHOW_NIGHT ? nY + 9 : y0 + plH + 2) : y0 + plH - tH, tN = Math.floor((tW - 6 + 1) / 3);
   Ly = { cw, ch, sx, narrow, m, iT, iR, iB, iL, bw, hMax, BW, dg, dW, drums, inner, plW, plH, nl, x0, y0, kW, kH, kX, kY, stripW, nX, nY, tW, tH, tX, tY, tN };
   const fs = narrow ? 13 : 16;
   const place = (el, x, y) => { el.style.left = Math.round(x) + 'px'; el.style.top = Math.round(y) + 'px'; el.style.fontSize = fs + 'px'; el.style.padding = narrow ? '2px 3px' : '3px 5px'; };
@@ -151,7 +152,7 @@ HUD.warm = function(){ const cols = [C.cyan, C.gold, C.cream, TCOL[1], TCOL[2], 
 // (multiply by sx), and the narrow-screen flag. null until the HUD has drawn once at this size.
 HUD.layout = () => { const L = Ly; if(!L) return null; const r = (x, y, w, h) => ({ x, y, w, h, css:{ x:x * L.sx, y:y * L.sx, w:w * L.sx, h:h * L.sx } });
   return { narrow:L.narrow, sx:L.sx, P, speed:r(L.x0, L.y0, L.plW, L.plH + (L.narrow ? 0 : 3)), night:r(L.nX - 2, L.nY - 2, L.stripW + 18, 9), check:r(L.kX, L.kY, L.kW, L.kH),
-    chain:r(L.tX, L.tY, L.tW, L.tH), freeY:Math.max(L.nY + 7, L.kY + L.kH, L.narrow ? L.tY + L.tH : 0) + 2 }; };   // freeY: the first canvas row clear of the HUD at the top of the screen
+    chain:r(L.tX, L.tY, L.tW, L.tH), freeY:Math.max(SHOW_NIGHT ? L.nY + 7 : 0, L.kY + L.kH, L.narrow ? L.tY + L.tH : 0) + 2 }; };   // freeY: the first canvas row clear of the HUD at the top of the screen
 /* ---------- the style chain tab: multiplier, the last act, the points at stake, the timer draining ----------
    One compact plate in the cluster's language (PGR's kudos counter, THPS's "points x tricks"), not a stream of floating text.
    It steps in on the first act and out after the bank or the loss beat. Reduced motion / no flashing: no blinks or flashes. */

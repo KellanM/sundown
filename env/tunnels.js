@@ -73,7 +73,12 @@
     const c = document.createElement('canvas'), k = c.getContext('2d'); k.font = px + 'px DotGothic16, monospace'; c.width = Math.ceil(k.measureText(str).width) + 2; c.height = px + 4;
     k.font = px + 'px DotGothic16, monospace'; k.textBaseline = 'middle'; k.fillStyle = col; k.fillText(str, 1, c.height / 2);
     const im = k.getImageData(0, 0, c.width, c.height), d = im.data; for(let n = 3; n < d.length; n += 4) d[n] = d[n] > 60 ? 255 : 0; k.putImageData(im, 0, 0); return SPR[key] = c; }
-  const blitW = (c, x, yMid, w) => { const sc = w / c.width; blit(c, x, yMid + c.height * sc / 2, sc); };
+  /* text on a plate, one sprite pixel per game pixel or a whole multiple of it (kodawari: the 16 px sprite scaled to the plate's width crawled
+     as the plate grew on the approach, strokes dropping in and out frame to frame): the largest of the 16, 12 and 8 px sprites that fits the
+     width, the 16 px one at a whole multiple once there is room; narrower than the 8 px line, one short lit bar per character */
+  const TZ = [16, 12, 8];
+  function blitW(str, col, x, yMid, w){ for(const z of TZ){ const c = textSprite(str, col, z); if(!c) return; const n = Math.floor(w / (c.width * PX)); if(n >= 1){ const k = (z === 16 ? n : 1) * PX; blit(c, x, yMid + c.height * k / 2, k); return; } }
+    const L = str.length, pt = w / L; cx.fillStyle = col; for(let i = 0; i < L; i++) if(str[i] !== ' ') pxRect(x - w / 2 + pt * (i + .2), yMid - PX / 2, Math.max(PX, pt * .6), PX); }
 
   // ---- near art (nearprops pass): beside the camera the 7-12 px sprites above were scaled to 4-6 canvas px per sprite pixel and read as
   // flat blocks. Past ~2 canvas px per sprite pixel each prop switches to a version drawn at canvas resolution (1 px outlines, lit top
@@ -294,7 +299,7 @@
     // name plate over the hood: a dark slab in a pale frame, warm lit characters
     const pw = 2.0 * u, ph = .36 * u, px = x - pw / 2, py = y - (CH + TH + .14) * u - ph;
     cx.fillStyle = M('#9aa0b4'); R(q(px - PX * 2), q(py - PX * 2), q(pw) + PX * 4, q(ph) + PX * 4); cx.fillStyle = M('#14121a'); R(q(px), q(py), q(pw), q(ph));
-    const ts = u > 6 && textSprite(NAMES[Math.floor(s.index / 320) % NAMES.length], '#ffe2a8', 16); if(ts){ cx.globalAlpha = 1 - fog * .6; blitW(ts, x, py + ph / 2, pw * .86); cx.globalAlpha = 1; }
+    if(u > 6 && textSprite(NAMES[0], '#ffe2a8', 16)){ cx.globalAlpha = 1 - fog * .6; blitW(NAMES[Math.floor(s.index / 320) % NAMES.length], '#ffe2a8', x, py + ph / 2, pw * .86); cx.globalAlpha = 1; }
     if(fog < .7) glow(x, py + ph / 2, Math.min(pw * .6, H * .25), '#ffb060', .16 * (1 - fog));
     // floodlights on the coping, aimed down at the mouth
     for(const sd of SX){ const lx = x + sd * (OW + .2) * u, ly = yT - u * .16; cx.fillStyle = M('#20222e'); R(q(lx - u * .1), q(ly), q(u * .2), Math.max(PX, q(u * .08)));
@@ -407,12 +412,46 @@
       if(fog < .3) Q(.19, .22, F('#f0ece0'), dt + .46 / n, dt + .54 / n);
       if(fog < .5){ const al = 1 - fog / .5, [px, py, u] = Q.pt(dt + .18 / n, .2); chochin(px, py, u, F, al); if(!ram){ const [qx, qy, v] = Q.pt(dt + .82 / n, .2); chochin(qx, qy, v, F, al); } } }
     if(mid) spill(x, y, uw, Q, side, .35, '255,170,90', .07 * (1 - fog / .25)); }
+  /* ---- blade lettering (kodawari audit #9: the blades drew three hashed crossbars as "glyphs", which read as barcodes beside Akihabara's
+     and Neon's real type). Now each blade carries a real word, set the way env/akiba.js sets its camera-facing signs: DotGothic16 at its
+     own sizes, thresholded into one atlas at warm-up (no canvas mid-ride), whole glyphs only, drawn 1:1 (one atlas pixel = one game pixel),
+     the nearest size that fits the blade's cell, never scaled and never cut. Generic shop words, one per colour pair, read top to bottom as
+     a Japanese blade does; small kana sit toward the top right of their cell (vertical-writing rule). Too small for the 8 px face: a short
+     ink slug per character, as akiba's far blades. */
+  const BWORD = ['スナック', 'くすり', '居酒屋', '喫茶', 'カラオケ'];   // snack bar, pharmacy (kusuri), izakaya, coffee shop, karaoke (BLADE[v] colours)
+  const GSZ = [8, 12, 16, 24, 32, 48], SMALLK = 'ッャュョァィゥェォ';
+  let GATL = null, GSC = null, GOK = false; const GG = [], GFIT = [];   // GG[v][c][si] = glyph cell; GFIT[v][si] = the word's widest and tallest cell
+  function buildGlyphs(){ if(!GATL) return; GOK = fontOK(); if(!GOK) return;
+    const ag = GATL.getContext('2d'), sg = GSC.getContext('2d', { willReadFrequently:true }); ag.clearRect(0, 0, GATL.width, GATL.height); let ay = 0;
+    for(let si = 0; si < GSZ.length; si++){ const z = GSZ[si], n = z + 6; let ax = 0, rh = 0;
+      for(let v = 0; v < BWORD.length; v++){ const word = BWORD[v], G = GG[v] || (GG[v] = []), FT = GFIT[v] || (GFIT[v] = []); FT[si] = [0, 0];
+        for(let c = 0; c < word.length; c++){ const T = G[c] || (G[c] = []);
+          sg.clearRect(0, 0, GSC.width, GSC.height); sg.font = z + 'px DotGothic16'; sg.textBaseline = 'top'; sg.fillStyle = '#fff'; sg.fillText(word[c], 3, 3);
+          const d = sg.getImageData(0, 0, n, n).data; let x0 = n, y0 = n, x1 = -1, y1 = -1;
+          for(let yy = 0; yy < n; yy++) for(let xx = 0; xx < n; xx++) if(d[(yy * n + xx) * 4 + 3] > 110){ if(xx < x0) x0 = xx; if(xx > x1) x1 = xx; if(yy < y0) y0 = yy; if(yy > y1) y1 = yy; }
+          if(x1 < 0){ T[si] = null; continue; } const w = x1 - x0 + 1, h = y1 - y0 + 1; ag.fillStyle = BLADE[v][1];
+          for(let yy = y0; yy <= y1; yy++){ let xs = -1; for(let xx = x0; xx <= x1 + 1; xx++){ const on = xx <= x1 && d[(yy * n + xx) * 4 + 3] > 110; if(on && xs < 0) xs = xx; if(!on && xs >= 0){ ag.fillRect(ax + xs - x0, ay + yy - y0, xx - xs, 1); xs = -1; } } }
+          T[si] = { ax, ay, w, h }; ax += w + 1; if(h > rh) rh = h; if(w > FT[si][0]) FT[si][0] = w; if(h > FT[si][1]) FT[si][1] = h; } }
+      ay += rh + 1; } }
+  // the largest size at which every character of word v fits a cell cw x chh (canvas px), or -1
+  const gFit = (v, cw, chh) => { const FT = GFIT[v]; if(!FT) return -1; for(let si = GSZ.length - 1; si >= 0; si--){ const f = FT[si]; if(f && f[0] * PX <= cw && f[1] * PX <= chh) return si; } return -1; };
   // a vertical sign blade on two brackets, sticking out from the wall over the pavement toward the road (a card that faces the camera)
   function drawBlade(sp, x, y, uw, fog, now){ if(fog > .6 || uw < 2) return; const F = fz(fog), [bg, ink] = BLADE[sp.v], o = -sp.side, x0 = x + o * uw * .04, x1 = x + o * uw * .24, top = y - uw * (sp.h + .3), bot = y - uw * .42;
     const l = Math.min(x0, x1), w = Math.abs(x1 - x0); cx.fillStyle = F('#16121c'); pxRect(Math.min(x, x0), top + uw * .06, Math.abs(x0 - x) + PX, uw * .02); pxRect(Math.min(x, x0), bot - uw * .08, Math.abs(x0 - x) + PX, uw * .02);
     cx.fillStyle = F('#07050c'); pxRect(l - PX, top - PX, w + PX * 2, bot - top + PX * 2); cx.fillStyle = F(bg); pxRect(l, top, w, bot - top);
-    if(fog < .35){ cx.fillStyle = F(mixc(bg, '#ffffff', .35)); pxRect(l + w * .38, top, w * .24, bot - top); cx.fillStyle = F(ink); const gh = (bot - top) / 4;
-      for(let m = 0; m < 3; m++){ const gy = top + gh * (m + .55), hm = hash(sp.v * 7 + m * 3.1 + sp.k); pxRect(l + w * .22, gy, w * .56, Math.max(PX, gh * .14)); pxRect(l + w * (hm > .5 ? .3 : .55), gy, Math.max(PX, w * .14), gh * .7); pxRect(l + w * .25, gy + gh * .45, w * .5, Math.max(PX, gh * .12)); } }
+    // the plate's edges: its top catching the street light, the side away from the road in shade (one game pixel each, once there is room)
+    if(w >= PX * 5){ cx.fillStyle = F(mixc(bg, '#ffffff', .45)); pxRect(l, top, w, PX); cx.fillStyle = F(mixc(bg, '#07050c', .3)); pxRect(o > 0 ? l : l + w - PX, top + PX, PX, bot - top - PX); }
+    if(fog < .35){ const word = BWORD[sp.v], m = word.length, iw = w - PX * 4, ih = bot - top - PX * 3, ch = ih / m, si = GOK ? gFit(sp.v, iw, ch - PX) : -1, xm = l + w / 2;
+      if(si >= 0){ const G = GG[sp.v], a0 = cx.globalAlpha; cx.globalAlpha = a0 * (1 - fog * 1.4); cx.imageSmoothingEnabled = false;
+        // the characters at a set pitch (a little under half a character of air between them), the column centred on the plate
+        const fh = GFIT[sp.v][si][1] * PX, pt = Math.min(ch, fh + Math.max(PX * 2, fh * .45)), y0 = top + PX * 2 + (ih - pt * m) / 2;
+        for(let c = 0; c < m; c++){ const g = G[c] && G[c][si]; if(!g) continue; const gw = g.w * PX, gh = g.h * PX, sm = SMALLK.includes(word[c]) ? fh * .18 : 0;
+          let gx = Math.round((xm - gw / 2 + sm) / PX) * PX, gy = Math.round((y0 + pt * (c + .5) - gh / 2 - sm) / PX) * PX;
+          // clipped to the plate (whole atlas pixels): the fit test keeps every glyph inside, this only guards the rounding
+          const cl = Math.max(0, Math.ceil((l + PX - gx) / PX)), cr = Math.max(0, Math.ceil((gx + gw - (l + w - PX)) / PX)), ct = Math.max(0, Math.ceil((top + PX - gy) / PX)), cb = Math.max(0, Math.ceil((gy + gh - (bot - PX)) / PX));
+          const sw = g.w - cl - cr, sh = g.h - ct - cb; if(sw <= 0 || sh <= 0) continue; cx.drawImage(GATL, g.ax + cl, g.ay + ct, sw, sh, gx + cl * PX, gy + ct * PX, sw * PX, sh * PX); }
+        cx.globalAlpha = a0; }
+      else if(ch > PX * 2.5 && w > PX * 3){ cx.fillStyle = F(mixc(bg, ink, .7)); for(let c = 0; c < m; c++) pxRect(xm - Math.min(w * .3, ch * .3), top + PX * 2 + ch * (c + .5) - Math.max(PX, ch * .14), Math.min(w * .6, ch * .6), Math.max(PX, ch * .28)); } }
     if(fog < .5) glow(l + w / 2, (top + bot) / 2, Math.min(uw * .45, H * .12), bg, .25 * (1 - fog / .5)); }
   // a lit vending machine against the wall: its front facing the road (a face quad one segment long) and its side toward us
   function drawVend(sp, x, y, uw, fog, now){ if(fog > .45 || uw < 2) return; const Q = faceQ(x, y, uw, sp.x, sp.k, 1); if(!Q) return; const F = fz(fog), body = ['#e8e4ec', '#c8203a', '#2050b0'][sp.v];
@@ -446,7 +485,7 @@
       // tunnel pictogram: a white arch over a road
       const ax = px + ph * .5, ay = py + ph * .5, ar = ph * .3; cx.fillStyle = '#ffffff'; pxRect(q(ax - ar), q(ay - ar * .4), q(ar * 2), q(ar * 1.3)); cx.fillStyle = '#17784a'; pxRect(q(ax - ar * .6), q(ay - ar * .1), q(ar * 1.2), q(ar));
       if(uw > 6){ const t1 = textSprite(NAMES[Math.floor(sp.k / 320 + 1) % NAMES.length], '#ffffff', 16), t2 = textSprite('全長 4 km', '#ffffff', 16), w1 = pw - ph * 1.2;
-        if(t1) blitW(t1, px + ph + w1 / 2, py + ph * .33, w1); if(t1 && t2){ const w2 = t2.width * w1 / t1.width * .75; blitW(t2, px + ph + w2 / 2, py + ph * .74, w2); } }
+        if(t1) blitW(NAMES[Math.floor(sp.k / 320 + 1) % NAMES.length], '#ffffff', px + ph + w1 / 2, py + ph * .33, w1); if(t1 && t2){ const w2 = t2.width * w1 / t1.width * .75; blitW('全長 4 km', '#ffffff', px + ph + w2 / 2, py + ph * .74, w2); } }
       cx.globalAlpha = 1; }
   }
   // the signal gantry just before the mouth (Enasan): two posts, a beam, a dark LED board in amber (トンネル情報 / 点灯), a green signal over
@@ -455,14 +494,14 @@
     cx.globalAlpha = a; cx.fillStyle = M('#2a2e3e'); R(q(xl), q(by), pw, q(y) - q(by)); R(q(xr) - pw, q(by), pw, q(y) - q(by));
     cx.fillStyle = M('#3a3f54'); R(q(xl), q(by), q(xr) - q(xl), Math.max(PX, q(uw * .07))); R(q(xl), q(by + uw * .14), q(xr) - q(xl), Math.max(PX, q(uw * .04)));
     const bw = uw * 1.25, bh = uw * .42, bx = x - bw / 2, bt = by - bh * .6; cx.fillStyle = M('#07070b'); R(q(bx - PX), q(bt - PX), q(bw) + PX * 2, q(bh) + PX * 2); cx.fillStyle = M('#121218'); R(q(bx), q(bt), q(bw), q(bh));
-    if(uw > 5){ const t1 = textSprite('トンネル情報', '#ffb030', 16), t2 = textSprite('点灯', '#ffb030', 16); if(t1) blitW(t1, x, bt + bh * .3, bw * .86); if(t2){ const w2 = t1 ? t2.width * bw * .86 / t1.width : bw * .3; blitW(t2, x, bt + bh * .74, w2); } }
+    if(uw > 5){ const t1 = textSprite('トンネル情報', '#ffb030', 16), t2 = textSprite('点灯', '#ffb030', 16); if(t1) blitW('トンネル情報', '#ffb030', x, bt + bh * .3, bw * .86); if(t2){ const w2 = t1 ? t2.width * bw * .86 / t1.width : bw * .3; blitW('点灯', '#ffb030', x, bt + bh * .74, w2); } }
     else { cx.fillStyle = '#c8801c'; R(q(bx + bw * .1), q(bt + bh * .4), q(bw * .8), PX); }
     if(fog < .7) glow(x, bt + bh / 2, Math.min(bw * .7, H * .12), '#ff9a20', .12 * (1 - fog));
     for(const sd of SX){ const hx = x + sd * 1.05 * uw, hw = uw * .3, hh = uw * .13, hy = by - hh * .2; cx.fillStyle = M('#0a0a10'); R(q(hx - hw / 2), q(hy), q(hw), Math.max(PX * 2, q(hh)));
       const lr = Math.max(PX, q(hh * .6)); for(let m = 0; m < 3; m++){ const lx = hx - hw / 2 + hw * (m + .5) / 3; cx.fillStyle = m === 0 ? '#3affc0' : M('#1c2a24'); R(q(lx - lr / 2), q(hy + hh * .2), lr, lr); }
       if(fog < .7) glow(hx - hw / 3, hy + hh * .5, Math.min(uw * .25, H * .08), '#3affc0', .3 * (1 - fog)); }
     const yw = uw * .3, yh = uw * .17, yx = xr - pw - PX, yy = y - uw * 1.05; cx.fillStyle = M('#1a1408'); R(q(yx - yw) - PX, q(yy) - PX, q(yw) + PX * 2, q(yh) + PX * 2); cx.fillStyle = M('#e8b820'); R(q(yx - yw), q(yy), q(yw), q(yh));
-    { const t3 = uw > 5 && textSprite('点灯', '#14100a', 16); if(t3) blitW(t3, yx - yw / 2, yy + yh / 2, yw * .7); }
+    { const t3 = uw > 5 && textSprite('点灯', '#14100a', 16); if(t3) blitW('点灯', '#14100a', yx - yw / 2, yy + yh / 2, yw * .7); }
     cx.globalAlpha = 1; }
   function lit(i){ const d = Math.min(i % 12, 12 - i % 12); return Math.max(0, 1 - d / 3); }
 
@@ -485,7 +524,8 @@
   function warm(){
     for(const P of [SOD, LED]){ fanSprite(P); for(const key of ['ceil', 'wall', 'panel', 'kerb', 'road', 'metal']) for(const c of P[key]){ fc(P, c, 0); for(let cs = 1; cs < 6; cs++) fcc(P, c, cs, 0); } for(const c of [P.line, P.lamp, P.lane, '#3aff7a', '#d8b070', '#d8dce0']) fc(P, c, 0); }
     exitSprite(); exitNear(); sosSprite(); arrowSprite(true); arrowSprite(false);
-    const txt = () => { for(const n of NAMES){ textSprite(n, '#ffe2a8', 16); textSprite(n, '#ffffff', 16); } textSprite('全長 4 km', '#ffffff', 16); textSprite('トンネル情報', '#ffb030', 16); textSprite('点灯', '#ffb030', 16); textSprite('点灯', '#14100a', 16); };
+    if(!GATL){ GATL = document.createElement('canvas'); GATL.width = 1024; GATL.height = 160; GSC = document.createElement('canvas'); GSC.width = GSC.height = 64; }   // the blade atlas (filled once the font is in)
+    const txt = () => { buildGlyphs(); for(const z of TZ){ for(const n of NAMES){ textSprite(n, '#ffe2a8', z); textSprite(n, '#ffffff', z); } textSprite('全長 4 km', '#ffffff', z); textSprite('トンネル情報', '#ffb030', z); textSprite('点灯', '#ffb030', z); textSprite('点灯', '#14100a', z); } };
     try{ document.fonts.load('16px DotGothic16').then(txt, txt); }catch(e){ txt(); }
   }
   // inside a bore the lane lines are solid no-overtaking lines (Japanese tunnels: no lane changes), amber under sodium, pale under LED: the

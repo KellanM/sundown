@@ -60,13 +60,15 @@
   // on the lower walls), Hakkogan (sodium on bare concrete arches: hot orange lit edges, red-brown shadow), a raw-rock tunnel (what lies
   // behind the lining: dark, jagged, layered). Hue shift: shadows toward red-purple brown, lit planes toward cream yellow.
   const PALS = {
-    s:{ conc:['#1a1416', '#36302e', '#5a524c', '#8a8072', '#bcb1a0'], fresh:['#201f20', '#43423f', '#6c6a64', '#9c998f', '#cfcabd'],
-      paint:['#4a4038', '#7e7262', '#b4a68c', '#e2d6ba'], tile:['#4a4038', '#807464', '#b8aa90', '#ece2c8'],
+    // (kodawari audit #10: the lit tops sat near white, so the slabs read as white boxes against the walls; every ramp now tops out at or
+    // under the bore's own lit panel tone and leans to its light: sodium toward amber, fluorescent toward the LED blue)
+    s:{ conc:['#1c1312', '#3a2c26', '#5e4a3c', '#8c7058', '#b89a74'], fresh:['#221a18', '#463a32', '#6e5e4e', '#9c866c', '#c8b08c'],
+      paint:['#4c3a2c', '#7e6446', '#b08e62', '#d8b886'], tile:['#4c3a2c', '#826848', '#b49266', '#e0c08c'],
       out:'#080506', gp:'#fff0cc', gd:'#141012', rl:'#e07a34', rd:'#6a2a12', grout:'#3a302a', soot:'#2a2220',
       dust:['#2a160c', '#5c3a20', '#b07a44'], rock:['#100806', '#20120c', '#342014', '#4c3020'], dark:'#0a0604', spark:['#fff4c8', '#ffcf6a', '#ff9a30'], sign:'#2aff6a' },
-    l:{ conc:['#14161c', '#2c3038', '#4c535e', '#7a828e', '#adb5be'], fresh:['#1e1f22', '#404247', '#6a6d72', '#9a9da2', '#cfd2d4'],
-      paint:['#4a5460', '#7e8a96', '#b2bec8', '#e6eef2'], tile:['#4a5460', '#7e8a96', '#b4c0ca', '#eef4f6'],
-      out:'#040508', gp:'#f0f6fa', gd:'#0a0c10', rl:'#c8703e', rd:'#5a2a16', grout:'#2a323c', soot:'#1c2028',
+    l:{ conc:['#10141c', '#242c3a', '#3c4a5c', '#607488', '#8ea4b8'], fresh:['#181c24', '#363e4a', '#58646f', '#8494a0', '#b2c2cc'],
+      paint:['#34404e', '#58687c', '#8296aa', '#b0c6d6'], tile:['#34404e', '#5c6e82', '#88a0b4', '#b8cedc'],
+      out:'#040508', gp:'#dceaf2', gd:'#0a0c10', rl:'#c8703e', rd:'#5a2a16', grout:'#2a323c', soot:'#1c2028',
       dust:['#14181e', '#3a4250', '#8a98aa'], rock:['#06070a', '#10131a', '#1c2028', '#2c323c'], dark:'#040508', spark:['#f4fcff', '#d8f0ff', '#9ad0ff'], sign:'#2aff6a' } };
   const palId = i => Math.floor(i / 320) % 2 ? 'l' : 's';
   // the raster palette: conc 0-4, fresh 5-9, paint 10-13, tile 14-17, out 18, grit pale 19, grit dark 20, rust lit 21, rust dark 22, grout 23, soot 24
@@ -400,7 +402,11 @@
       // one or two hairline fractures per piece: a plane (normal, offset) and the span along it where the crack runs (rockslide.js)
       for(const key in S.shp){ const sh = S.shp[key], R = rng(key.charCodeAt(0) * 7 + (key.charCodeAt(1) || 3)); sh.cr = [];
         for(let c = 0; c < (key[0] === 'c' ? 1 : 3); c++){ let a = [R() - .5, (R() - .5) * .3, R() - .5], l = Math.hypot(a[0], a[1], a[2]); a = a.map(v => v / l); let b = [R() - .5, R() - .5, R() - .5]; const dt = b[0] * a[0] + b[1] * a[1] + b[2] * a[2]; b = b.map((v, i) => v - dt * a[i]); l = Math.hypot(b[0], b[1], b[2]); b = b.map(v => v / l);
-          const m0 = -.5 + R() * .4; sh.cr.push([a[0], a[1], a[2], (R() - .5) * .3, b[0], b[1], b[2], m0, m0 + .4 + R() * .5]); } }
+          const m0 = -.5 + R() * .4; sh.cr.push([a[0], a[1], a[2], (R() - .5) * .3, b[0], b[1], b[2], m0, m0 + .4 + R() * .5]); }
+        // the sub-planes on the cast back and the breaks (kodawari audit #10, rockslide.js): NSD seeds through the piece's box; every pixel
+        // belongs to the nearest, and each chip is its facet's tone or a step either side, with a lit lip on top and a dark one under it
+        const V = sh.V, mn = [9, 9, 9], mx = [-9, -9, -9]; for(let v = 0; v < sh.nv; v++) for(let a2 = 0; a2 < 3; a2++){ const q = V[v * 3 + a2]; if(q < mn[a2]) mn[a2] = q; if(q > mx[a2]) mx[a2] = q; }
+        sh.sd = new Float32Array(NSD * 3); sh.so = new Int8Array(NSD); for(let c = 0; c < NSD; c++){ for(let a2 = 0; a2 < 3; a2++) sh.sd[c * 3 + a2] = mn[a2] + (mx[a2] - mn[a2]) * (.08 + .84 * R()); const r = R(); sh.so[c] = r < .26 ? -1 : r > .8 ? 1 : 0; } }
       for(const id of ['s', 'l']) for(const N of DS) for(let v = 0; v < 3; v++) for(let f = 0; f < 3; f++) S[id + N + '_' + v + '_' + f] = dustSpr(N, v, f, PALS[id]);
       if(!RC){ RC = can(RW, RW); RG = RC.getContext('2d', { willReadFrequently:true }); RI = RG.createImageData(RW, RW); }
       for(const id of ['s', 'l']) palRGB(PALS[id], 0);
@@ -513,7 +519,9 @@
   // wall a step more, faces turned down the bottom. Per class: rough cast back (pits and aggregate), fresh break (paler ramp, grit), the
   // painted lining face (pale, the joint groove, soot), tiles (cream, grout grid). Every border between planes is a dark crack broken by
   // lit chips; the top silhouette takes a lit rim; a 1 px outline; rebar stubs drawn into the buffer as rust lines with a lit tip.
-  const RW = 320, FID = new Uint8Array(RW * RW), OXb = new Float32Array(RW * RW), OYb = new Float32Array(RW * RW), OZb = new Float32Array(RW * RW);
+  // (448: the whole game canvas, so a slab beside the camera stays pixel art instead of falling back to flat facets; kodawari audit #10)
+  const NSD = 16, SID = new Uint8Array(448 * 448);
+  const RW = 448, FID = new Uint8Array(RW * RW), OXb = new Float32Array(RW * RW), OYb = new Float32Array(RW * RW), OZb = new Float32Array(RW * RW);
   const FB = new Uint8Array(64), FN = new Uint8Array(64), FT = new Uint8Array(64), FPI = new Uint16Array(64), FCL = new Uint8Array(64), FUP = new Float32Array(64);
   let RC = null, RG = null, RI = null;
   const RGBT = new Map(); let rgbK = '', IH = 0;
@@ -534,7 +542,7 @@
     const cw = cx.canvas.width, chh = cx.canvas.height, x0 = Math.max(0, Math.floor(mnx) - mg), y0 = Math.max(0, Math.floor(mny) - mg), x1 = Math.min(cw, Math.ceil(mxx) + mg), y1 = Math.min(chh, Math.ceil(mxy) + mg), w = x1 - x0, h = y1 - y0;
     const F = sh.F, fr = sh.fr; if(w <= 0 || h <= 0) return; if(w > RW || h > RW) return flat();
     for(let y = 0; y < h; y++) FID.fill(255, y * RW, y * RW + w);
-    const sdl = wx0 > 0 ? 1 : -1; let nv = 0;
+    const sdl = wx0 > 0 ? 1 : -1, SD = rp > 7 && sh.sd ? sh.sd : null; let nv = 0;
     for(let k = 0; k < F.length && nv < 64; k++){ const f = F[k], a = f[0], b = f[1], c = f[2], ax2 = VX[a] - x0, ay2 = VY[a] - y0, bx = VX[b] - x0, by = VY[b] - y0, cx2 = VX[c] - x0, cy2 = VY[c] - y0;
       const det = (bx - ax2) * (cy2 - ay2) - (by - ay2) * (cx2 - ax2); if(det <= 0) continue;
       const nx = r00 * f[3] + r01 * f[4] + r02 * f[5], ny = r10 * f[3] + r11 * f[4] + r12 * f[5], nz = r20 * f[3] + r21 * f[4] + r22 * f[5];
@@ -542,13 +550,14 @@
       FCL[id] = cl; FPI[id] = f[6] || k + 100; FUP[id] = f[4];
       if(cl === 1){ FB[id] = 5; FN[id] = 5; FT[id] = Math.max(1, t); } else if(cl === 2){ FB[id] = 10; FN[id] = 4; FT[id] = Math.min(3, Math.max(0, t - 1)); } else if(cl === 3){ FB[id] = 14; FN[id] = 4; FT[id] = Math.min(3, Math.max(0, t - 1)); } else { FB[id] = 0; FN[id] = 5; FT[id] = t; }
       const px0 = Math.max(0, Math.floor(Math.min(ax2, bx, cx2))), px1 = Math.min(w - 1, Math.ceil(Math.max(ax2, bx, cx2))), py0 = Math.max(0, Math.floor(Math.min(ay2, by, cy2))), py1 = Math.min(h - 1, Math.ceil(Math.max(ay2, by, cy2)));
-      const id2 = 1 / det, Va = a * 3, Vb = b * 3, Vc = c * 3;
+      const id2 = 1 / det, Va = a * 3, Vb = b * 3, Vc = c * 3, sub = SD && cl < 2;
       for(let py = py0; py <= py1; py++){ const yc = py + .5; for(let px = px0; px <= px1; px++){ const xc = px + .5;
         const l2 = ((xc - ax2) * (cy2 - ay2) - (yc - ay2) * (cx2 - ax2)) * id2, l3 = ((bx - ax2) * (yc - ay2) - (by - ay2) * (xc - ax2)) * id2, l1 = 1 - l2 - l3;
         if(l1 < -1e-4 || l2 < -1e-4 || l3 < -1e-4) continue;
         const i = py * RW + px; FID[i] = id;
-        OXb[i] = l1 * V[Va] + l2 * V[Vb] + l3 * V[Vc]; OYb[i] = l1 * V[Va + 1] + l2 * V[Vb + 1] + l3 * V[Vc + 1]; OZb[i] = l1 * V[Va + 2] + l2 * V[Vb + 2] + l3 * V[Vc + 2]; } } }
-    const T = palRGB(P, fog, lit), d = RI.data, det = rp > 8;
+        const ox = l1 * V[Va] + l2 * V[Vb] + l3 * V[Vc], oy = l1 * V[Va + 1] + l2 * V[Vb + 1] + l3 * V[Vc + 1], oz = l1 * V[Va + 2] + l2 * V[Vb + 2] + l3 * V[Vc + 2]; OXb[i] = ox; OYb[i] = oy; OZb[i] = oz;
+        if(sub){ let bs = 0, bd = 1e9; for(let c = 0, o3 = 0; c < NSD; c++, o3 += 3){ const dx = ox - SD[o3], dy = oy - SD[o3 + 1], dz = oz - SD[o3 + 2], dd = dx * dx + dy * dy + dz * dz; if(dd < bd){ bd = dd; bs = c; } } SID[py * 448 + px] = bs; } } } }
+    const T = palRGB(P, fog, lit), d = RI.data, det = rp > 8, SO = sh.so;
     for(let y = 0; y < h; y++) for(let x = 0; x < w; x++){ const i = y * RW + x, o = i * 4, k = FID[i]; let ci = -1;
       if(k === 255){ if((x > 0 && FID[i - 1] !== 255) || (x + 1 < w && FID[i + 1] !== 255) || (y > 0 && FID[i - RW] !== 255) || (y + 1 < h && FID[i + RW] !== 255)) ci = 18; }
       else { const b = FB[k], nT = FN[k], t = FT[k], cl = FCL[k], ox = OXb[i], oy = OYb[i], oz = OZb[i]; ci = b + t;
@@ -562,6 +571,9 @@
           if(cl !== 3 && sh.cr) for(let c = 0; c < sh.cr.length && !done; c++){   // hairline fracture lines across the planes, a lit lip on one side
             const q = sh.cr[c], vv = ox * q[0] + oy * q[1] + oz * q[2] - q[3], along = ox * q[4] + oy * q[5] + oz * q[6]; if(along < q[7] || along > q[8]) continue;
             if(vv >= 0 && vv < 1.05 / rp){ ci = b + Math.max(0, t - 2); done = true; } else if(vv >= -1.05 / rp && vv < 0 && t + 1 < nT && h3(ox * 13, oy * 13, oz * 13) < .55){ ci = b + t + 1; done = true; } }
+          if(!done && SD && cl < 2){   // the chip it sits on: a lit lip under another chip, a dark one over it, else the chip's own step of the tone
+            const sc = SID[y * 448 + x], su = y > 0 && FID[i - RW] === k ? SID[(y - 1) * 448 + x] : sc, sdn = y + 1 < h && FID[i + RW] === k ? SID[(y + 1) * 448 + x] : sc;
+            if(su !== sc && t + 1 < nT){ ci = b + t + 1; done = true; } else if(sdn !== sc && t > 0){ ci = b + t - 1; done = true; } else if(SO[sc]) ci = b + clamp(t + SO[sc], 0, nT - 1); }
           if(done){}
           else if(cl === 1){ const g = grain(ox, oy, oz, rp, .06, .34); if(g === 1) ci = h3(ox * 7, oy * 7, oz * 7) > .5 ? 19 : b + Math.max(0, t - 2); else if(g === 2) ci = b + Math.max(0, t - 1); }   // grit on the break: a pale grain, its shadow under it
           else if(cl === 2){   // the painted lining: the joint groove across it, soot streaks along it (whole bands, no speckle)

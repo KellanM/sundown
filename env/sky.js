@@ -7,7 +7,7 @@
      soft bloom, only a slightly paler sky around it.
    - Super Hang-On / OutRun: the sky is stacked horizontal raster bands, and the bands get thinner toward the horizon.
    Rules taken: banded sky with dithered seams, indigo ink band at the top; a gibbous moon drawn per pixel (lit limb, terminator, maria in
-   three tones read as the rabbit pounding mochi), a stepped halo and a faint 22-degree 'kasa' ring before rain; thin flat-bottomed cloud
+   three tones read as the rabbit pounding mochi), a soft stepped glow (dithered seams, no ring) and, in wet or frozen air only, a faint 22-degree 'kasa' ring; thin flat-bottomed cloud
    streaks lit by the moon on top and by the city or the dawn underneath; dawn rises as hard indigo, violet, rose and gold bands.
    Everything is cached; per frame the sky is a dozen drawImage calls. */
 "use strict";
@@ -131,14 +131,24 @@
   // the dark part, lit only by the earth: a dim disc so stars do not shine through it
   function earthSprite(R){ C.earth = C.earth || {}; if(C.earth[R]) return C.earth[R]; const Sz = 2 * R + 3, c0 = Sz / 2, rr2 = (R + .25) * (R + .25), rim = (R - .9) * (R - .9);
     return C.earth[R] = paint(Sz, Sz, (x, y) => { const dx = x + .5 - c0, dy = y + .5 - c0, d2 = dx * dx + dy * dy; return d2 > rr2 ? null : d2 > rim ? [70, 72, 118] : [34, 36, 70]; }); }
-  // a stepped halo: four hard rings dithered at their seams (drawn additive)
+  // the moon's glow (kodawari audit #3): the old halo was four hard additive rings out to 2.5 R, and the outermost drew a crisp circle about
+  // half the screen wide that read as a lens artefact or a compass line. Now the glow is the aureole a real moon has in damp air: brightest at
+  // the limb and falling off fast (exponential, ~0.27 R e-folding), gone by 2.1 R. It is still stepped (seven flat tones, pixel art, not
+  // a blur), but every seam between two tones is ordered-dithered across the band where the falloff crosses it, so there is no edge to
+  // see; the outermost tone is a sparse dither of near-black pixels, so the glow simply ends.
+  const GL = [0, .018, .04, .075, .13, .21, .32, .42];
   function haloSprite(R, wq){ const key = R + ':' + wq; C.halo = C.halo || {}; if(C.halo[key]) return C.halo[key];
-    const col = mixv([240, 230, 205], [255, 170, 96], wq / 8).map(Math.round), HR = Math.ceil(R * 2.55), Sz = 2 * HR + 1, ED = [1.12, 1.36, 1.78, 2.5], AL = [.42, .2, .1, .045];
-    return C.halo[key] = paint(Sz, Sz, (x, y) => { const r = Math.hypot(x - HR, y - HR) / R; if(r < .9) return null; const rq = r + (bay(x, y) - .5) * .14;
-      for(let i = 0; i < 4; i++) if(rq < ED[i]) return col.concat(AL[i]); return null; }); }
-  // kasa: the faint 22-degree ice halo, reddish inside and bluish outside; the old sign that rain is coming
-  function kasaSprite(R){ C.kasa = C.kasa || {}; if(C.kasa[R]) return C.kasa[R]; const KR = Math.round(R * 3.3), Sz = 2 * KR + 5, c0 = Sz / 2;
-    return C.kasa[R] = paint(Sz, Sz, (x, y) => { const r = Math.hypot(x + .5 - c0, y + .5 - c0) - KR; return r > -1.5 && r <= -.5 ? [255, 168, 150, .55] : r > -.5 && r <= .5 ? [236, 232, 220, .8] : r > .5 && r <= 1.5 ? [150, 180, 255, .45] : null; }); }
+    const col = mixv([240, 230, 205], [255, 170, 96], wq / 8).map(Math.round), HR = Math.ceil(R * 2.15), Sz = 2 * HR + 1;
+    return C.halo[key] = paint(Sz, Sz, (x, y) => { const r = Math.hypot(x - HR, y - HR) / R; if(r < .9 || r > 2.1) return null;
+      const g = .42 * Math.min(1, Math.exp(-(r - 1.08) / .27)) * cl((2.1 - r) / .45, 0, 1);
+      let i = 0; while(i < GL.length - 2 && g >= GL[i + 1]) i++; const t = (g - GL[i]) / (GL[i + 1] - GL[i]), a = bay(x, y) < t ? GL[i + 1] : GL[i];
+      return a > 0 ? col.concat(a) : null; }); }
+  // kasa: the 22-degree ice halo, reddish inside and bluish outside; the old sign that rain is coming. Only where the air is wet or frozen
+  // (the roads whose kasa weight is over .5: the bay under rain cloud, the snow valley); elsewhere none. It is a soft ring: each of its three
+  // tones is a dithered fraction of its pixels, so it reads as a faint frosting round the moon, never a drawn 1-px circle.
+  function kasaSprite(R){ C.kasa = C.kasa || {}; if(C.kasa[R]) return C.kasa[R]; const KR = Math.round(R * 3.3), Sz = 2 * KR + 9, c0 = Sz / 2;
+    return C.kasa[R] = paint(Sz, Sz, (x, y) => { const r = Math.hypot(x + .5 - c0, y + .5 - c0) - KR, cov = Math.exp(-(r * r) / 4), th = bay(x, y);
+      if(th >= cov * .6) return null; return r < -1 ? [255, 168, 150, .5] : r > 1 ? [150, 180, 255, .45] : [236, 232, 220, .6]; }); }
 
   // (the boost's poster rings round the moon were removed, Kellan 2026-11-19: too distracting. Speed shows in the road's lights: mech/speedfx.js)
 
@@ -212,8 +222,9 @@
       const warmT = cl((t - .6) * 2.5, 0, 1), wq = Math.round(warmT * 8), ms = C.moon && C.moon[R + ':' + wq] || moonSprite(R, wq), mx = moonX - ms.width * PX / 2, my = moonY - ms.height * PX / 2;
       if(reduce){ const cw = clamp((flow - 2) / 6, 0, 1) * .7 + (boostT > 0 ? .3 : 0); S.calm += (cw - S.calm) * (1 - Math.exp(-dt / 1500)); }
       cx.globalCompositeOperation = 'lighter';
+      // the kasa only in wet or frozen air (bay, snow: kasa weight over .5), crossfading out at their borders
       const hs = haloSprite(R, wq); put(hs, moonX - hs.width * PX / 2, moonY - hs.height * PX / 2, .85 + S.calm * .9);
-      const ka = P('kasa') * (.25 + .75 * night) * .5; if(ka > .02){ const ks = kasaSprite(R); put(ks, moonX - ks.width * PX / 2, moonY - ks.height * PX / 2, ka); }
+      const ka = cl((P('kasa') - .5) * 2, 0, 1) * (.25 + .75 * night) * .35; if(ka > .02){ const ks = kasaSprite(R); put(ks, moonX - ks.width * PX / 2, moonY - ks.height * PX / 2, ka); }
       cx.globalCompositeOperation = 'source-over';
       put(earthSprite(R), mx, my, .85 * (1 - dawn));
       put(ms, mx, my, 1);

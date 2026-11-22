@@ -319,13 +319,15 @@
       // the translucent grain body: hashed specks inside an organic outline (radius varying with angle), thinning toward the edge
       const gd = b < .14 ? b / .14 * .55 : .55 * Math.pow(1 - (b - .14) / .86, 1.2), gy = base - Lm * .5 * Math.min(1, rise * 1.15) - b * 5 * R, gr = Lm * .55 * Math.min(1, rise * 1.15) + 6 * R + b * 9 * R;
       if(gd > .005) for(let y = Math.max(0, Math.floor(gy - gr * 1.1)); y <= base; y++) for(let x = Math.max(0, Math.floor(cxb - gr)); x <= Math.min(w - 1, cxb + gr + 14 * R * W2); x++){ const dx = x + .5 - cxb - (base - y) * .25 * W2 - b * 6 * R * W2, dy = y + .5 - gy, an = Math.atan2(dy, dx), rr = gr * (.72 + .28 * Math.sin(an * 3 + 1 + b * 1.4) * Math.sin(an * 5 + 1.7)), d = Math.hypot(dx * .8, dy) / rr; if(d > 1) continue;
-        if(hh(x, y, 3) < gd * (1 - d * d) * 1.1) set(x, y, d < .45 ? 2 : 3, true); }
+        const dg = gd * (1 - d * d) * 1.1; if(dg > .19 && (BY4[(y & 3) * 4 + (x & 3)] + .5) / 16 < dg) set(x, y, d < .45 ? 2 : 3, true); }   // ordered dither (kodawari #13: hashed specks read as static), feathered by the density falling off to the rim; fixed per pixel, so it thins and never boils; under 3/16 it stops (a sparser lattice read as a screen door)
       // streak columns fanned from the impact, curving downwind; dense and white low, breaking into dashes that ride with the tips, ending in
       // droplet clusters; after the hang each column drains from below while its tip falls back
       for(let c = 0; c < n; c++){ const u = (c + .5) / n * 2 - 1, ang = u * .62 + W2 * .12, len = L * (.55 + .45 * Math.cos(u * 1.3)) * (.75 + hh(c, 0, 4) * .45), x0 = cxb + u * 9 * R, curl = (wind ? 22 : 8) * R * (.35 + .65 * Math.min(1, b / .45));
-        if(len > R) for(let tt = 0; tt <= 1; tt += .5 / Math.max(8, len)){ if(tt < fall) continue; const yy = base - 2 * R - tt * len, xx = x0 + Math.sin(ang) * tt * len + curl * tt * tt * (u + 1.2) * .5, pm = 5 + 3 * (1 - tt);
-          const gp = (((tt * len - len) / R + hh(c, 1, 4) * 9) % pm + pm) % pm; if(tt > .45 && gp > 3.2 + tt * 1.5) continue;
-          const tn = tt < .35 ? 1 : tt < .7 ? (hh(c, Math.round(tt * len / R), 5) > .3 ? 1 : 2) : 2; set(xx, yy, tn, tt > .3); if(tt < .3 && R > 1) set(xx + 1, yy, 1, true); if(tt < .2) set(xx - 1, yy, 2, true); }
+        // (kodawari #13: the upper columns were broken into hashed dashes, which at mid range read as white static; now each column feathers out
+        // toward its tip through an ordered dither fixed to the pixel grid, stepping white -> pale cyan -> blue-grey as it thins)
+        if(len > R) for(let tt = 0; tt <= 1; tt += .5 / Math.max(8, len)){ if(tt < fall) continue; const yy = base - 2 * R - tt * len, xx = x0 + Math.sin(ang) * tt * len + curl * tt * tt * (u + 1.2) * .5;
+          const dn = tt < .5 ? 1 : 1 - (tt - .5) / .5 * .8, bx = Math.round(xx), by = Math.round(yy); if(dn < 1 && (BY4[(by & 3) * 4 + (bx & 3)] + .5) / 16 > dn) continue;
+          const tn = tt < .38 ? 1 : tt < .72 ? 2 : 3; set(xx, yy, tn, tt > .3); if(tt < .3 && R > 1) set(xx + 1, yy, 1, true); if(tt < .2) set(xx - 1, yy, 2, true); }
         if(b > .04 && b < .92){ const te = 1 - fall * .5, ex = x0 + Math.sin(ang) * len * te + curl * te * te * (u + 1.2) * .5, ey = base - 2 * R - len * te;   // droplet cluster at the tip
           for(let d = 0; d < 4; d++){ if(hh(c, d, 8) < b * 1.15 - .12) continue; const sp = 1 + b * 1.6, dx = ex + (hh(c, d, 6) - .4) * 5 * R * sp + b * 9 * R * W2, dy = ey + (hh(c, d, 7) - .5) * 4 * R * sp + b * b * 12 * R;
             set(dx, dy, hh(c, d, 8) > .35 + b * .3 ? 1 : 2, true); if(b < .45 && hh(c, d, 9) > .5) set(dx + 1, dy, 2, true); } } }

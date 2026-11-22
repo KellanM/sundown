@@ -102,7 +102,7 @@
      characters, brighter in the middle like the tubes inside), colour lightbox, and bare neon (white-hot core, coloured tube, dark board).
      Frames: 0 on, 1 off, 2 half-broken (for flicker). */
   function blade(v, fr){ const fk = fontReady() ? 1 : 0; const ck = 'bl' + v + ':' + fr + ':' + fk; return C[ck] || cache(ck, () => {
-    const word = WORDS[v % WORDS.length], n = word.length, style = v % 3, col = NEON[(v * 3 + 1) % 5], w = 22, h = n * 15 + 9, [c, k] = canvas(w, h), R = (x, y, ww, hh, cc) => { k.fillStyle = cc; k.fillRect(x, y, ww, hh); };
+    const word = WORDS[v % WORDS.length], n = word.length, style = v % 3, col = NEON[(v * 3 + 1) % 5], w = 22, h = n * 15 + 9, k = bladeScratch(w, h), R = (x, y, ww, hh, cc) => { k.fillStyle = cc; k.fillRect(x, y, ww, hh); };
     R(0, 0, w, h, OUT); R(1, 1, w - 2, 2, '#4a4458'); R(1, h - 3, w - 2, 2, '#3a3448'); R(2, 1, w - 4, 1, '#7a7490');
     const y0 = 3, bh = h - 6;
     if(style === 1){ const on = fr === 0, half = fr === 2, mid = on || half ? col : darken(col, .65), core = on || half ? lighten(col, .75) : darken(col, .5);
@@ -112,7 +112,11 @@
       const bb = on ? body : darken(body, .55); R(1, y0, w - 2, bh, bb); R(1, y0, 1, bh, darken(col, .2)); R(w - 2, y0, 1, bh, darken(col, .2)); R(2, y0, 2, bh, mixc(bb, col, .3)); R(w - 4, y0, 2, bh, mixc(bb, col, .3));
       if(on) R(8, y0, 6, bh, lighten(bb, .35));
       for(let i = 0; i < n; i++) stamp(k, word[i], 3, y0 + 3 + i * 15, 16, on ? ink : darken(ink, .4), null); }
+    const [c, kc] = canvas(w, h); kc.drawImage(k.canvas, 0, 0); c._px = { w, h, d:new Uint32Array(k.getImageData(0, 0, w, h).data.buffer) };   // the same pixels; its copy for the 2x/4x atlas, read without a GPU read-back
     return c; }); }
+  // a sign is drawn on a CPU-side scratch canvas (whole-pixel rects only: the same pixels as on a GPU canvas), then copied to its own canvas,
+  // so bladeAtlasSteps can Scale2x it without reading a GPU canvas back: each read-back waited ~8-10 ms on the GPU (first 60 s)
+  let BSC = null; function bladeScratch(w, h){ if(!BSC) BSC = document.createElement('canvas').getContext('2d', { willReadFrequently:true }); BSC.canvas.width = w; BSC.canvas.height = h; return BSC; }   // (setting the size clears it and resets its state)
   const bladeCol = v => (v % 3 === 0 ? '#ffe8f0' : NEON[(v * 3 + 1) % 5]);
 
   /* ---------------------------------------------------------------- small sprites */
@@ -385,7 +389,7 @@
     return c; }); }
   const NT_PAT = new Map(), PM = new DOMMatrix();
   function ntPat(tile){ let p = NT_PAT.get(tile); if(!p){ p = cx.createPattern(tile, 'repeat'); NT_PAT.set(tile, p); } return p; }
-  function warmTiles(){ for(let pal = 0; pal < 4; pal++) for(const kind of NT_KIND) for(let vr = 0; vr < NT_V; vr++) for(let sz = 0; sz < 3; sz++) ntPat(nbTile(pal, kind, vr, sz)); }
+  function* warmTilesSteps(){ for(let pal = 0; pal < 4; pal++) for(const kind of NT_KIND) for(let vr = 0; vr < NT_V; vr++){ for(let sz = 0; sz < 3; sz++) ntPat(nbTile(pal, kind, vr, sz)); yield; } }   // (stepped: first 60 s, research/sundown-craft/first60.md)
   // the smallest art size whose texels stay within ~1.5 canvas pixels for a floor hpx tall and a segment wpx wide (else the largest)
   const ntSize = (hpx, wpx) => { for(let sz = 0; sz < 3; sz++) if(hpx / NT_H[sz] <= 1.5 && wpx / NT_W[sz] <= 1.5) return sz; return 2; };
   /* A quad with vertical sides (every face here is one: a wall parallel to the road), filled column by column on the pixel grid: each canvas
@@ -503,10 +507,10 @@
      that many textures thrashed the GPU cache and stalled frames. Rebuilt in place when the pixel font arrives (no new canvas then). */
   let BA2 = null, BA4 = null; const BA_H2 = 2 * (4 * 15 + 9), BA_H4 = 4 * (4 * 15 + 9);
   function bladeAtlas(){ for(const _ of bladeAtlasSteps()); }
-  function* bladeAtlasSteps(){ if(!BA2){ BA2 = canvas(60 * 44, 3 * BA_H2)[0]; BA4 = canvas(60 * 88, BA_H4)[0]; } const k2 = BA2.getContext('2d'), k4 = BA4.getContext('2d'); k2.clearRect(0, 0, BA2.width, BA2.height); k4.clearRect(0, 0, BA4.width, BA4.height);
+  function* bladeAtlasSteps(){ if(!BA2){ BA2 = canvas(60 * 44, 3 * BA_H2)[0]; BA4 = canvas(60 * 88, BA_H4)[0]; } yield; const k2 = BA2.getContext('2d'), k4 = BA4.getContext('2d'); yield; k2.clearRect(0, 0, BA2.width, BA2.height); yield; k4.clearRect(0, 0, BA4.width, BA4.height); yield; const px0 = k2.createImageData(1, 1); k2.putImageData(px0, 0, 0); yield; k4.putImageData(px0, 0, 0); yield;   // (stepped: one sign frame a step)
     const put = (k, S, x, y) => { const img = k.createImageData(S.w, S.h); new Uint32Array(img.data.buffer).set(S.d); k.putImageData(img, x, y); };
-    for(let v = 0; v < 60; v++) for(let f = 0; f < 3; f++){ const c = blade(v, f), S2 = sx2d(pixOf(c)); put(k2, S2, v * 44, f * BA_H2); c._a2 = [v * 44, f * BA_H2, S2.w, S2.h];
-      if(f === 0){ const S4 = sx2d(S2); put(k4, S4, v * 88, 0); c._a4 = [v * 88, 0, S4.w, S4.h]; } if(f === 2) yield; } }
+    for(let v = 0; v < 60; v++) for(let f = 0; f < 3; f++){ const c = blade(v, f), P0 = c._px || pixOf(c); c._px = null; const S2 = sx2d(P0); put(k2, S2, v * 44, f * BA_H2); c._a2 = [v * 44, f * BA_H2, S2.w, S2.h]; yield;
+      if(f === 0){ const S4 = sx2d(S2); put(k4, S4, v * 88, 0); c._a4 = [v * 88, 0, S4.w, S4.h]; yield; } } }
   function blitT(c, x, yB, k){ const s2 = k / PX;
     if(s2 > 1.5 && (c._a2 || c._x2)){ const four = s2 > 3 && (c._a4 || c._x4), t = four ? 4 : 2, a = four ? c._a4 : c._a2;
       if(!a) return blitF(four ? c._x4 : c._x2, x, yB, k / t, false);
@@ -517,49 +521,70 @@
   const P = 480, PLZ_X = 3.3, CAT_X = 3.8, CAT_NX = 2.4;   // (the plaza's far side; the cat's back row and the cat, whose plinth reaches 1.1 either side of it)   // one district block: gate, lantern strings, a bridge, the crossing plaza with its giant screen, the lucky cat
   const refl = (s, x, w, h, a, col) => { (s.nr || (s.nr = [])).push({ x, w, h, a, col }); };
   /* Wet-road reflections, drawn per light source from its own segment's ground point. Anchored to the light: positions and sizes snap
-     to whole canvas pixels, edges snap independently, nothing switches on or off per frame, and every cut-off is a fade. Far or small:
-     a steady stepped column. Near and large: one ripple dash per nearer road segment, with breaks chosen by segment index and changing
-     slowly (one step every 480 ms), crossfaded in by size. */
+     to whole canvas pixels, edges snap independently, nothing switches on or off per frame, and every cut-off is a fade.
+     Kodawari audit #4 (2026-11-21): every sign threw a full-height streak (its height plus .9 road widths, down to the bike), far lights
+     reflected as strongly as near ones, and the near dashes jumped by hashed gaps and offsets, so the lower road became a barcode of
+     pinks and greys that hid the lane lines and the slicks. Now a streak reads as wet asphalt under a sign:
+     - short: ~45% of the old length (and never more than a fifth of the screen), its alpha about half, stepped down along its length;
+     - near and mid lights only: a light fades out of the water from fog .5 to .7 (far signs no longer stack at the vanishing point), and a
+       coarse per-column budget (REFL_CAP) stops overlapping streaks from filling a column;
+     - one coherent column per light that ripples gently: near streaks are laid per nearer road segment (so the ripple rides with the
+       asphalt), each row shifted by at most one pixel and narrowed a little on a slow sine, never a random gap;
+     - broken by the lane lines: on a dash segment the streak leaves a dark gap one pixel either side of the painted line.
+     Far or small: a steady stepped column (one drawImage); near and large: the per-segment column, crossfaded in by size. */
   const sn = v => Math.round(v / PX) * PX, ramp = (v, a0, a1) => v <= a0 ? 0 : v >= a1 ? 1 : (v - a0) / (a1 - a0);
-  function reflect(s, a, bandH, fog, now, base){ fog = fogPx(fog); if(fog > .86 || a.y > H) return;   // (fogPx: the reach these streaks were tuned at; past it they only stack into white specks)
-      const fa = (1 - fog * .8) * (.45 + .55 * Math.min(1, fog * 5)) * ramp(.86 - fog, 0, .16) * ramp(W * .8 - a.w, 0, W * .2);
+  const RF_LEN = .45, RF_MAXH = .2, RF_A = .55, RF_F0 = .5, RF_F1 = .7;
+  // one row of a near streak, with the lane lines cut out of it on a dash segment (lc: the lines' centres, lw: half their width plus the gap)
+  function rfRow(x0, x1, y, h, col, core, cA, cB, lc0, lc1, lw){
+    const spans = [[x0, x1]]; if(lw > 0) for(const lc of [lc0, lc1]){ const a = sn(lc - lw), b = sn(lc + lw); for(let n = spans.length - 1; n >= 0; n--){ const [p, q] = spans[n]; if(b <= p || a >= q) continue; spans.splice(n, 1); if(a > p) spans.push([p, a]); if(b < q) spans.push([b, q]); } }
+    for(const [p, q] of spans){ cx.fillStyle = col; cx.fillRect(p, y, q - p, h); if(core && cB > cA){ const c0 = Math.max(p, cA), c1 = Math.min(q, cB); if(c1 > c0){ cx.fillStyle = core; cx.fillRect(c0, y, c1 - c0, h); } } } }
+  function reflect(s, a, bandH, fog, now, base){ fog = fogPx(fog); if(fog > RF_F1 || a.y > H) return;   // (fogPx: the reach these streaks were tuned at)
+      const fa = (1 - fog * .8) * (.45 + .55 * Math.min(1, fog * 5)) * ramp(RF_F1 - fog, 0, RF_F1 - RF_F0) * ramp(W * .8 - a.w, 0, W * .2) * RF_A;
       for(const r of s.nr){ const wide = r.w > .6, nf = wide ? 1 : ramp(.8 - fog, 0, .16) * (r.h < .6 ? ramp(.6 - fog, 0, .14) : 1), al = r.a * fa * nf; if(al < .01) continue;
         // each edge is snapped on its own, so as the light approaches its streak only ever grows: no edge steps back and forth a pixel
-        const hw = Math.min(W * (wide ? .25 : .02), a.w * r.w / 2), cxs = a.x + r.x * a.w, xl = sn(cxs - hw), xr = Math.max(xl + PX, sn(cxs + hw)), ww = xr - xl, sx = (xl + xr) / 2, y0 = sn(a.y), len = sn(a.y + Math.min(a.w * r.h, H * .45)) - y0;
+        const hw = Math.min(W * (wide ? .25 : .02), a.w * r.w / 2), cxs = a.x + r.x * a.w, xl = sn(cxs - hw), xr = Math.max(xl + PX, sn(cxs + hw)), ww = xr - xl, sx = (xl + xr) / 2, y0 = sn(a.y), len = sn(a.y + Math.min(a.w * r.h * RF_LEN, H * RF_MAXH)) - y0;
         if(sx + ww < 0 || sx - ww > W || len < PX) continue;
         const core = r.core || (r.core = lighten(r.col, .6)), rip = wide ? 0 : ramp(ww / PX, 5, 9) * ramp(bandH / PX, 3, 6), steady = 1 - rip;
+        const am = rbTake(xl, y0, ww, len, al * (wide ? .9 : (.5 + .5 * (1 - fog)) * Math.min(1, 1.25 - fog * 1.25)));
+        if(am < .005) continue;
         if(steady > 0){ // far streaks: colour only (hot cores stacked toward the vanishing point turn white); the core fades in as the streak widens
-          const cw2 = wide ? 0 : ramp(ww / PX, 2, 4), am = rbTake(xl, y0, ww, len, al * steady * (wide ? .9 : (.5 + .5 * (1 - fog)) * Math.min(1, 1.25 - fog * 1.25)));
-          if(cw2 < 1){ cx.globalAlpha = Math.min(1, am * (1 - cw2)); cx.drawImage(stripS(r.col, true), xl, y0, ww, len); }
-          if(cw2 > 0){ cx.globalAlpha = Math.min(1, am * cw2); cx.drawImage(stripS(r.col, false), xl, y0, ww, len); } }
-        if(rip > 0){ // one dash per nearer road segment, so the dashes ride with the asphalt; each dash's gap and offset come from its own segment index
-          // each dash eases between two hashed states (it used to jump every 480 ms) and its gap fades in and out instead of switching
-          const pt = reduce ? 0 : now / 480 + hash(s.index * .37 + r.x) * 5, p0 = Math.floor(pt), pf = pt - p0, pe = pf * pf * (3 - 2 * pf), seed = s.index * 3.1 + r.x * 7.3;
+          const cw2 = wide ? 0 : ramp(ww / PX, 2, 4);
+          if(cw2 < 1){ cx.globalAlpha = Math.min(1, am * steady * (1 - cw2)); cx.drawImage(stripS(r.col, true), xl, y0, ww, len); }
+          if(cw2 > 0){ cx.globalAlpha = Math.min(1, am * steady * cw2); cx.drawImage(stripS(r.col, false), xl, y0, ww, len); } }
+        if(rip > 0){ // one row per nearer road segment, so the ripple rides with the asphalt: a slow sine per light shifts each row by at most a
+          // pixel and narrows it a little; the lane lines are cut out of it on dash segments; three steps of alpha down its length
+          const ph = reduce ? 0 : now / 900, seed = hash(s.index * .37 + r.x) * 6.283, amp = ramp(ww / PX, 6, 10) * PX, LX = typeof LANE_X !== 'undefined' ? LANE_X : null;
           for(let j = 1; j < 40; j++){ const q = segs[s.index - j]; if(!q || q.index <= base) break; const qy0 = sn(q.p2.screen.y), qy1 = sn(q.p1.screen.y); if(qy0 - y0 >= len) break; if(qy1 <= qy0) continue;
-            const hv = lerp(hash(seed + q.index * 1.7 + p0 * 13.1), hash(seed + q.index * 1.7 + (p0 + 1) * 13.1), pe), gap = clamp((hv - .16) / .12, 0, 1); if(gap <= 0) continue; const fade = 1 - (qy0 - y0) / len, wd = Math.max(PX, sn(ww * (.55 + hv * .45))), jx = sn((hv - .5) * ww * .4), hh = Math.min(qy1, y0 + len) - qy0; if(hh <= 0) continue;
-            cx.globalAlpha = Math.min(1, al * rip * (.35 + .65 * fade) * 1.5 * gap); cx.fillStyle = r.col; cx.fillRect(sx - wd / 2 + jx, qy0, wd, hh); cx.fillStyle = core; cx.fillRect(sx - PX + jx, qy0, PX * 2, hh); } } }
+            const hh = Math.min(qy1, y0 + len) - qy0; if(hh <= 0) continue; const t = (qy0 - y0) / len, st = t < .34 ? 1 : t < .67 ? .55 : .28;
+            const u = q.index * .55 + seed, jx = amp ? Math.round(Math.sin(u + ph) * 1.2) * PX : 0, wd = Math.max(PX, sn(ww * (.85 + .15 * Math.sin(u * 1.7 - ph * .8)))), x0 = sx - wd / 2 + jx;
+            let lc0 = 0, lc1 = 0, lw = 0; if(q.stripe && LX){ const m = q.p1.screen, mx = (m.x + q.p2.screen.x) / 2, mw = (m.w + q.p2.screen.w) / 2; lc0 = mx + mw * LX[0] * 2; lc1 = mx + mw * LX[1] * 2; lw = mw / 40 + PX; }
+            cx.globalAlpha = Math.min(1, am * rip * st * 1.5); rfRow(sn(x0), sn(x0) + wd, qy0, hh, r.col, ww >= 4 * PX ? core : null, sn(sx + jx) - PX, sn(sx + jx) + PX, lc0, lc1, lw); } } }
   }
   const stripS = (col, wide) => C['sp' + col + (wide ? 'w' : 'n')] || cache('sp' + col + (wide ? 'w' : 'n'), () => { const [c, k] = canvas(6, 20), core = lighten(col, .65);
     for(let y = 0; y < 20; y++){ const st = y < 11 ? 1 : y < 16 ? .55 : .28; k.globalAlpha = st; k.fillStyle = col; k.fillRect(0, y, 6, 1); if(!wide){ k.fillStyle = core; k.fillRect(2, y, 2, 1); } } return c; });
   const RS = { last:-1, lastB:0, now:-1 };
   // additive budget: far streaks stack toward the vanishing point and burn out to white. Each frame keeps a coarse grid (4x6 canvas px cells) of the
   // additive alpha already laid down; a new streak only gets what is left under REFL_CAP in the cells it covers, so the colour survives the stacking.
-  const REFL_CAP = 1.4; let RB = null, RBw = 0, RBh = 0;
+  const REFL_CAP = .7; let RB = null, RBw = 0, RBh = 0;
   function rbReset(){ const w = Math.ceil(W / PX / 4) + 1, h = Math.ceil(H / PX / 6) + 1; if(!RB || w !== RBw || h !== RBh){ RBw = w; RBh = h; RB = new Float32Array(w * h); } else RB.fill(0); }
   function rbTake(xl, y0, ww, len, am){ if(!RB) return am; const c0 = Math.max(0, Math.floor(xl / PX / 4)), c1 = Math.min(RBw - 1, Math.floor((xl + ww - 1) / PX / 4)), r0 = Math.max(0, Math.floor(y0 / PX / 6)), r1 = Math.min(RBh - 1, Math.floor((y0 + len - 1) / PX / 6));
     if(c1 < c0 || r1 < r0) return am; let used = 0; for(let r = r0; r <= r1; r++) for(let c = c0; c <= c1; c++){ const u = RB[r * RBw + c]; if(u > used) used = u; }
     const got = Math.max(0, Math.min(am, REFL_CAP - used)); if(got > 0) for(let r = r0; r <= r1; r++) for(let c = c0; c <= c1; c++) RB[r * RBw + c] += got; return got; }
   // warmAll() builds everything at once; warmAllSteps() is the same build with safe stopping points, for the staged warm-up (about 4 ms a frame)
   function warmAll(){ for(const _ of warmAllSteps()); }
-  function* warmAllSteps(){ warmTiles(); yield;
-    for(let v = 0; v < 12; v++){ mirror(facade(v)); yield; } for(let v = 0; v < 60; v++){ for(let f = 0; f < 3; f++) blade(v, f); yield; } yield* bladeAtlasSteps();
-    mirror(lampS()); mirror(yatai()); for(let v = 0; v < 3; v++){ vend(v); vendHi(v, 2); vendHi(v, 4); vendHi(v, 8); } lantern(0); lantern(1); walker(0); walker(1); for(let f = 0; f < 2; f++) mirror(crowd(f)); yield;
-    for(let f = 0; f < 3; f++) gate(f); bridgeS(); yield; for(let f = 0; f <= 32; f++){ screenFrame(f); if(f % 4 === 3) yield; } jumbo(); jumboWin(); tickS(); yield; artSizes(neko(), true); yield; artSizes(paw(), true); yield; artSizes(plinth(), true); yield; for(let v = 0; v < 5; v++){ trainCar(v); yield; }
+  // (stepped finely, the same build in the same order: first 60 s, research/sundown-craft/first60.md)
+  function* warmAllSteps(){ yield* warmTilesSteps(); yield;
+    for(let v = 0; v < 12; v++){ facade(v); yield; mirror(facade(v)); yield; } for(let v = 0; v < 60; v++){ for(let f = 0; f < 3; f++){ blade(v, f); yield; } } yield* bladeAtlasSteps();
+    lampS(); yield; mirror(lampS()); yield; yatai(); yield; mirror(yatai()); yield; for(let v = 0; v < 3; v++){ vend(v); yield; vendHi(v, 2); yield; vendHi(v, 4); yield; vendHi(v, 8); yield; } lantern(0); yield; lantern(1); yield; walker(0); yield; walker(1); yield; for(let f = 0; f < 2; f++){ crowd(f); yield; mirror(crowd(f)); yield; }
+    for(const ch of EXTRA){ glyph(ch); yield; } for(let f = 0; f < 3; f++){ gate(f); yield; } bridgeS(); yield; for(let f = 0; f <= 32; f++){ screenFrame(f); yield; } jumbo(); yield; jumboWin(); yield; tickS(); yield;
+    for(const art of [neko, paw, plinth]){ const c = art(); yield; artSizes(c, false); yield; artSizes(c, true); yield; } for(let v = 0; v < 5; v++){ trainCar(v); yield; }
     const cols = new Set(['#ffc070', '#ffe6b0', '#fff4c0', '#ffb070', '#ff3a4a', '#ff8a4a', '#e8f0ff', '#ffd04a', '#3a7aff', '#ffd890', '#ff6aa8', '#ffe8f0', ...NEON]);
-    for(const c of [...cols, '#ffb060']){ stripS(c, true); stripS(c, false); } yield;
-    for(const c of [...cols, '#ffd8a0', '#fff0c0', '#fff4d0', '#ff6a4a', '#ffcf80', '#fff0e8', '#fff0d0', '#ff7a4a', '#c8d8ff', '#ff2a4a', '#2a6aff', '#ff8ab8', '#b8f0ff', '#3aff9a', '#ff3a3a', '#ff4a5a']){ haloS(c); poolS(c); } }
+    for(const c of [...cols, '#ffb060']){ stripS(c, true); stripS(c, false); yield; }
+    for(const c of [...cols, '#ffd8a0', '#fff0c0', '#fff4d0', '#ff6a4a', '#ffcf80', '#fff0e8', '#fff0d0', '#ff7a4a', '#c8d8ff', '#ff2a4a', '#2a6aff', '#ff8ab8', '#b8f0ff', '#3aff9a', '#ff3a3a', '#ff4a5a']){ haloS(c); yield; poolS(c); yield; } }
   // draw every cached canvas once so the browser uploads it now, not on the frame it first appears
-  function prime(){ cx.save(); cx.setTransform(1, 0, 0, 1, 0, 0); cx.globalAlpha = 1; for(const key in C){ const c = C[key]; if(!c || !c.getContext) continue; cx.drawImage(c, 0, 0, 1, 1); if(c._m) cx.drawImage(c._m, 0, 0, 1, 1); for(const z of [c._x2, c._x4]) if(z){ cx.drawImage(z, 0, 0, 1, 1); if(z._m) cx.drawImage(z._m, 0, 0, 1, 1); } } if(BA2){ cx.drawImage(BA2, 0, 0, 1, 1); cx.drawImage(BA4, 0, 0, 1, 1); } cx.restore(); }
+  function prime(){ for(const _ of primeSteps()); }
+  function* primeSteps(){ const pr = c => { cx.save(); cx.setTransform(1, 0, 0, 1, 0, 0); cx.globalAlpha = 1; cx.drawImage(c, 0, 0, 1, 1); cx.restore(); };   // (stepped: one canvas a step, each its own save/restore)
+    for(const key of Object.keys(C)){ const c = C[key]; if(!c || !c.getContext) continue; pr(c); yield; if(c._m){ pr(c._m); yield; } for(const z of [c._x2, c._x4]) if(z){ pr(z); yield; if(z._m){ pr(z._m); yield; } } } if(BA2){ pr(BA2); yield; pr(BA4); yield; } }
   const HAZE_B = [.0, .14, .05, .14, .26, .032, .26, .36, .016];   // the overlay's magenta haze bands: top, bottom (screen fraction), alpha
   /* The yatai as a projected stall (buildings3d r5). It was a 32 x 28 card at x 1.4 that faded out from 6x to 10x, so it ghosted as you
      passed and never showed its long side. Now it is a 6-segment run (0.62 half-road widths, the card's own width) drawn with ENV.bkit:
@@ -607,7 +632,7 @@
     warm(){ for(const _ of ENV.neon.warmSteps()); },
     // if the signs' glyphs are already loaded the first build uses them and no second build is needed (it was always built twice)
     *warmSteps(){ let had = false; try{ had = !!document.fonts && document.fonts.check('16px "DotGothic16"', WORDS.join('') + EXTRA); }catch(e){} if(had){ fontOK = true; fontAsked = true; }
-      yield* warmAllSteps(); prime(); yield; try{ cx.save(); ENV.neon.backdrop({ hz:H / 2 + 2, now:0 }); cx.restore(); }catch(e){} if(document.fonts && !had){ const go = () => { fontOK = true; fontAsked = true; if(!(window.warmLater && window.warmLater('env.neon.font', function*(){ yield* warmAllSteps(); prime(); }))){ warmAll(); prime(); } try{ cx.save(); ENV.neon.backdrop({ hz:H / 2 + 2, now:0 }); cx.restore(); }catch(e){} };
+      yield* warmAllSteps(); yield* primeSteps(); yield; try{ cx.save(); ENV.neon.backdrop({ hz:H / 2 + 2, now:0 }); cx.restore(); }catch(e){} if(document.fonts && !had){ const go = () => { fontOK = true; fontAsked = true; if(!(window.warmLater && window.warmLater('env.neon.font', function*(){ yield* warmAllSteps(); yield* primeSteps(); }))){ warmAll(); prime(); } try{ cx.save(); ENV.neon.backdrop({ hz:H / 2 + 2, now:0 }); cx.restore(); }catch(e){} };
         // the stylesheet may not have registered the face yet: ask for it until it loads, then rebuild every sign with real characters
         const tryLoad = (n) => document.fonts.load('16px "DotGothic16"', WORDS.join('') + EXTRA).then(fs => { if(fs && fs.length) go(); else if(n > 0) setTimeout(() => tryLoad(n - 1), 300); else go(); }, () => go());
         tryLoad(20); } },
@@ -661,16 +686,16 @@
       const fr3 = reduce ? 0 : Math.floor(now / 140) % 3;
       if(t === 'fac'){ const farT = clamp((fog - .062) / .016, 0, 1); if(farT <= 0) return; const spr = facade(sp.k), k = uw * 1.3 / FW; cx.globalAlpha = a * farT; blitF(spr, x - (flip ? -1 : 1) * SW * k * .5, y, k, flip); cx.globalAlpha = 1;
         if(fog < .36) pool(x + (flip ? -1 : 1) * uw * .45, y, uw * .5, '#ffc070', .5 * a * Math.min(1, (.36 - fog) / .1)); }
-      else if(t === 'blade'){ const k = uw * .3 / 22; let fr = 0;
+      else if(t === 'blade'){ const k = uw * .3 / 22, sf = scaleFade(k, 5, 8); if(sf <= 0) return; let fr = 0;   // near the camera the sign dissolves before its 2x / 4x art turns to blocks (kodawari audit #22)
         if(sp.fl && !reduce){ const q = hash(sp.k * 3.7 + Math.floor(now / 340)); fr = Math.floor(now / 1700 + sp.k) % 3 === 0 ? (q < .3 ? 2 : q < .4 ? 1 : 0) : 0; }   // a failing tube: one character drops out, now and then the whole sign; never faster than ~3 changes a second
         const spr = blade(sp.k, fr), h = spr.height * k, yb = y - uw * sp.h, col = bladeCol(sp.k), on = fr !== 1;
-        if(uw > 24){ cx.fillStyle = '#16121c'; cx.fillRect(x + (flip ? 1 : -1) * uw * .16 - (flip ? uw * .1 : 0), yb - h * .85, uw * .1 + 1, Math.max(1, uw * .02)); cx.fillRect(x + (flip ? 1 : -1) * uw * .16 - (flip ? uw * .1 : 0), yb - h * .15, uw * .1 + 1, Math.max(1, uw * .02)); }
-        if(on && fog < .5){ glow(x, yb - h / 2, Math.max(h * .9, uw * .4), col, (fr === 2 ? .2 : .32) * a * Math.min(1, (.5 - fog) / .12)); }
-        cx.globalAlpha = a; blitT(spr, x, yb, k); cx.globalAlpha = 1; }
+        if(uw > 24){ cx.globalAlpha = sf; cx.fillStyle = '#16121c'; cx.fillRect(x + (flip ? 1 : -1) * uw * .16 - (flip ? uw * .1 : 0), yb - h * .85, uw * .1 + 1, Math.max(1, uw * .02)); cx.fillRect(x + (flip ? 1 : -1) * uw * .16 - (flip ? uw * .1 : 0), yb - h * .15, uw * .1 + 1, Math.max(1, uw * .02)); cx.globalAlpha = 1; }
+        if(on && fog < .5){ glow(x, yb - h / 2, Math.max(h * .9, uw * .4), col, (fr === 2 ? .2 : .32) * a * sf * Math.min(1, (.5 - fog) / .12)); }
+        cx.globalAlpha = a * sf; blitT(spr, x, yb, k); cx.globalAlpha = 1; }
       else if(t === 'lamp'){ const spr = lampS(), k = uw * 1.0 / 50, sf = scaleFade(k, 6, 10); if(sf <= 0) return; cx.globalAlpha = a * sf; blitF(spr, x, y, k, flip); cx.globalAlpha = 1;
         const gx = x + (flip ? -1 : 1) * 3.5 * k, gy = y - 41.5 * k; glow(gx, gy, uw * .3, '#ffd8a0', .55 * a); if(fog < .6) pool(gx, y, uw * .35, '#ffd8a0', .6 * a * Math.min(1, (.6 - fog) / .12)); }
-      else if(t === 'vend'){ const k = uw * .24 / 12, R = k >= PX * 8 ? 8 : k >= PX * 4 ? 4 : k >= PX * 2 ? 2 : 1;   // (near by: the 2x / 4x / 8x art, a fine pixel never under one canvas pixel; it no longer fades)
-      pool(x, y, uw * .3, '#fff0c0', .8 * a); cx.globalAlpha = a; blitF(R > 1 ? vendHi(sp.k, R) : vend(sp.k), x, y, k / R, false); cx.globalAlpha = 1; glow(x, y - 12 * k, uw * .32, '#fff4d0', .3 * a); }
+      else if(t === 'vend'){ const k = uw * .24 / 12, R = k >= PX * 8 ? 8 : k >= PX * 4 ? 4 : k >= PX * 2 ? 2 : 1, sf = scaleFade(k, 14, 20);   // (near by: the 2x / 4x / 8x art, a fine pixel never under one canvas pixel; past the 8x art's reach, 1.75-2.5 canvas px a pixel, it dissolves: kodawari audit #22)
+      pool(x, y, uw * .3, '#fff0c0', .8 * a); if(sf <= 0) return; cx.globalAlpha = a * sf; blitF(R > 1 ? vendHi(sp.k, R) : vend(sp.k), x, y, k / R, false); cx.globalAlpha = 1; glow(x, y - 12 * k, uw * .32, '#fff4d0', .3 * a * sf); }
       else if(t === 'yatai3') return drawYatai3(sp, x, y, uw, fog, now);
       else if(t === 'yatai'){ const k = uw * .62 / 32, sf = scaleFade(k, 6, 10); pool(x, y, uw * .5, '#ffb070', .8 * a); if(sf <= 0) return; cx.globalAlpha = a * sf; blitF(yatai(), x, y, k, flip); cx.globalAlpha = 1;
         glow(x + (flip ? 1 : -1) * 14.5 * k, y - 16 * k, uw * .22, '#ff6a4a', .45 * a); glow(x, y - 14 * k, uw * .4, '#ffcf80', .3 * a);

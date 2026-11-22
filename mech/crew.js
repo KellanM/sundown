@@ -26,7 +26,7 @@
 (() => {
 const C = MECH.crew = {};
 // off by default (Kellan, 2026-11-19: no crew riding with you, even in rival duels); ?crew=1 brings it back
-C.on = /[?&]crew=1/.test(location.search);
+C.on = /[?&]crew=1\b/.test(location.search);
 
 /* ------------------------------------------------------------------ randomness: our own stream */
 let seed = 1;

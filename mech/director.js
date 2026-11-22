@@ -353,7 +353,7 @@ function drawCard(c, t, tOut, tEnd, rEnd){ const o = cardArt(c.card), cw = cx.ca
   // the kanji slams down from big to its size, white on impact
   if(reduce || t >= .1){ const sc = reduce ? 1 : t < .14 ? 1.5 : t < T_HIT ? 1.2 : 1, white = !reduce && (t < .14 || (t >= T_HIT && t < T_HIT + .05)), img = white ? o.white : o.kj;
     const w = Math.round(o.kj.width * sc), h = Math.round(o.kj.height * sc), jx = !reduce && t >= T_HIT && t < T_HIT + .1 ? (Math.floor(t * 60) % 2 ? 1 : -1) : 0;
-    if(t < .14 && !reduce) cx.globalAlpha = alpha * .45; cx.drawImage(img, Math.round(o.kx + o.kj.width / 2 - w / 2) + jx, Math.round(o.ky + o.kj.height / 2 - h / 2), w, h); cx.globalAlpha = alpha; }
+    cx.drawImage(img, Math.round(o.kx + o.kj.width / 2 - w / 2) + jx, Math.round(o.ky + o.kj.height / 2 - h / 2), w, h); cx.globalAlpha = alpha; }
   if(reduce || t >= T_TXT){ const tt = reduce ? 9 : t - T_TXT; let y = o.ty; cx.drawImage(o.tag, o.tx, y); y += 10 + o.gap;
     const slide = reduce ? 0 : tt < .12 ? Math.round((1 - stepq(tt / .12, 4)) * 60) : tt < .16 ? -3 : 0; cx.drawImage(o.name, o.tx + slide, y); y += o.name.height + o.gap;
     if(o.sub){ let left = reduce ? 1e9 : Math.max(0, Math.floor((tt - .12) / .014)) * 4;   // typed out, line by line
@@ -362,54 +362,71 @@ function drawCard(c, t, tOut, tEnd, rEnd){ const o = cardArt(c.card), cw = cx.ca
 
 /* the hazard band (kodawari audit #2): a hazard set piece's card must never hide the hazard it announces. The stage card covered the top
    third for seconds, its kanji arrived as a grey ghost, and its focus lines crossed the road just as the first rocks, bombs or gates
-   were telegraphed. The band is a slim strip at the very top of the frame (the letterbox's own sky strip, ~10% of the height): a 1x
-   pixel kanji in the moment's colour, the name and a typed subtitle. It drops in in three whole-pixel steps with everything at full
-   opacity (the kanji is crisp from its first frame: one white impact frame, never a translucent ghost), holds, and retracts upward;
-   gone 2.0 s after it appears (+ the card's hold), before any set piece's first hazard. No focus lines, no speed lines, nothing below the
-   band. Reduced motion: four-step fade in and out. Which cards: a card cine with letterbox:false and no guard (the set pieces' own card
+   were telegraphed. The band is a slim slab at the very top of the frame (the letterbox's own sky strip, ~11% of the height, between the
+   HUD's corner plates; on a narrow screen a full-width strip just under the plates): a 1x pixel kanji in the moment's colour, the name
+   and a typed subtitle. It wipes open left to right in three whole steps with everything at full opacity (the kanji is crisp from its
+   first frame: one white impact frame, never a translucent ghost), holds, and wipes shut the same way; gone 2.0 s after it appears
+   (+ the card's hold), before any set piece's first hazard. No focus lines, no speed lines, nothing over the road. It waits (<= 0.8 s,
+   so a late band can never reach a first hazard) for a cut-in already on screen. Reduced motion: four-step fade in and out. Which cards: a card cine with letterbox:false and no guard (the set pieces' own card
    beat: rockslide, cavein, flood, lava, naruto, screenfall, teiden, yoiyama, kanpo) and the runaway wheel's card. */
-const B_IN = .1, B_HIT = .1, B_TXT = .12, B_OUT = 1.85, B_END = 2.0, B_REND = 2.2, B_WAIT = 2.5, BAND_K = { '観覧車':1 };
+const B_IN = .1, B_HIT = .1, B_TXT = .12, B_OUT = 1.85, B_END = 2.0, B_REND = 2.2, B_WAIT = .8, BAND_K = { '観覧車':1 };
 const isBand = (o, card) => !!card && ((o.letterbox === false && !o.guard) || !!BAND_K[card.kanji]);
 const bandLive = c => !!c.band && !c.cardExt && (!c.cardShown || T - c.cardT0 <= (reduce ? B_REND : B_END) + (c.card.hold || 0));   // its cine lives until the band has retracted (a 1.5 s card cine must not cut a 2 s band, nor drop one still waiting for a cut-in)
 const bandOn = () => CINES.some(c => c.band && c.cardShown && !c.cardExt && T - c.cardT0 <= (reduce ? B_REND : B_END) + (c.card.hold || 0));
 const BANDC = {};
-function bandArt(card){ const cw = cx.canvas.width, chh = cx.canvas.height, key = card.kanji + '|' + card.name + '|' + (card.sub || '') + '|' + (card.col || '') + '|' + cw + 'x' + chh; if(BANDC[key]) return BANDC[key];
-  const col = card.col || GOLD, narrow = cw < 260;
+const hudFreeY = () => { try{ const L = ENV.hud && ENV.hud.layout ? ENV.hud.layout() : null; return L ? L.freeY : 0; }catch(e){ return 0; } };   /* first canvas row clear of the HUD (phone: under the chain tab); 0 until the HUD has drawn */
+// where the band may sit without touching the HUD (env/hud.js layout(): the DOM buttons take the top 52 CSS px plus the safe-area inset; on a
+// wide screen the CHECK plate stands in the top-right corner below them, on a narrow one the speed and CHECK plates fill the top row)
+function bandBox(cw, chh){ const sx = (typeof W === 'number' && W > 0 ? W : cw * (typeof PX === 'number' ? PX : 3)) / cw, narrow = W < 640;
+  let iT = 0, iR = 0; try{ const sa = document.getElementById('hudSA'); if(sa){ const st = getComputedStyle(sa); iT = Math.ceil((parseFloat(st.paddingTop) || 0) / sx); iR = Math.ceil((parseFloat(st.paddingRight) || 0) / sx); } }catch(e){}
+  const below = Math.ceil(52 / sx) + iT;
+  if(narrow){ const fy = hudFreeY(); return { narrow:true, y:fy ? fy + 1 : below + 32, x0:0, x1:cw }; }   // under the plates (the speed plate is 28 rows), full width
+  const kX = cw - 5 - 71 - iR, x1 = Math.min(cw - 6, kX - 5), x0 = cw - x1;   // centred, clear of the CHECK plate on the right (and so of the road tag on the left)
+  return { narrow:false, y:0, x0, x1 }; }
+function bandArt(card){ const cw = cx.canvas.width, chh = cx.canvas.height, key = card.kanji + '|' + card.name + '|' + (card.sub || '') + '|' + (card.col || '') + '|' + cw + 'x' + chh + '|' + (typeof W === 'number' ? W : 0) + '|' + (W < 640 ? hudFreeY() : 0); if(BANDC[key]) return BANDC[key];
+  const col = card.col || GOLD, box = bandBox(cw, chh), narrow = box.narrow;
   const m = typeof pixText === 'function' ? pixText(card.kanji || '', 16, false) : txt3(card.kanji || '', '#fff', null, 2);
   const kj = mk(m.width + 1, m.height + 1), kk = kj.getContext('2d');   // 1 px dark drop, the moment's colour, a lit top row
   kk.drawImage(recolor(m, mixc(col, INK, .6)), 1, 1); kk.drawImage(recolor(m, col), 0, 0);
-  { const lit = recolor(m, mixc(col, '#ffffff', .55)); let top = 0; const d = m.getContext('2d').getImageData(0, 0, m.width, m.height).data;
-    outer: for(let y = 0; y < m.height; y++) for(let x = 0; x < m.width; x++) if(d[(y * m.width + x) * 4 + 3] > 0){ top = y; break outer; }
-    kk.drawImage(lit, 0, top, m.width, 1, 0, top, m.width, 1); }
-  const white = recolor(kj, '#ffffff');
-  // the glyph's inked rows (pixText pads its canvas), so the kanji is centred in the band by its ink, not its box
+  // the glyph's inked rows (pixText pads its canvas): the lit row goes on the top inked row, and the kanji is centred by its ink, not its box
   let y0 = 0, y1 = kj.height - 1; { const d = kk.getImageData(0, 0, kj.width, kj.height).data, row = y => { for(let x = 0; x < kj.width; x++) if(d[(y * kj.width + x) * 4 + 3] > 0) return true; return false; };
     while(y0 < y1 && !row(y0)) y0++; while(y1 > y0 && !row(y1)) y1--; }
-  const kh = y1 - y0 + 1, kr = kj.width + (narrow ? 4 : 7), avail = Math.max(30, (narrow ? cw - 6 : Math.round(cw * .72)) - kr);
+  kk.drawImage(recolor(m, mixc(col, '#ffffff', .55)), 0, y0, m.width, 1, 0, y0, m.width, 1);
+  const white = recolor(kj, '#ffffff');
+  const pad = narrow ? 3 : 5, kh = y1 - y0 + 1, kr = kj.width + (narrow ? 4 : 7), avail = Math.max(30, box.x1 - box.x0 - 2 * pad - 6 - kr);
   const nm = String(card.name || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '');   // KANPŌ -> KANPO: the 3x5 face has no macrons (a blank cell read as a missing letter)
   let ns = narrow ? 1 : 2; if(nm.length * 4 * ns + ns > avail) ns = 1;
   const name = txt3(nm, CREAM, INK, ns), tag = narrow ? null : boxLabel(card.tag || 'MOMENT', CREAM, col);
-  const subs = card.sub ? wrap3(card.sub, Math.max(6, Math.floor((avail - 1) / 4))).slice(0, narrow ? 2 : 1).map(l => txt3(l, mixc(CREAM, col, .25), INK, 1)) : [];
-  const lineW = name.width + (tag ? 5 + tag.width : 0), textW = Math.max(lineW, ...subs.map(s => s.width)), textH = Math.max(name.height, tag ? 10 : 0) + (subs.length ? 2 + subs.length * 7 - 1 : 0);
-  const pad = narrow ? 3 : 4, bh = Math.max(Math.round(chh * .095), Math.max(kh, textH) + pad * 2), gw = kr + textW, gx = narrow ? 3 : Math.round((cw - gw) / 2);
-  const o = { col, kj, white, name, tag, subs, bh, kx:gx, ky:Math.round(bh / 2 - kh / 2) - y0, tx:gx + kr, ty:Math.round((bh - textH) / 2), nh:Math.max(name.height, tag ? 10 : 0) };
+  // the subtitle on one line (two when narrow); a long one keeps its instruction: 'the strait wakes · read the sea, take the gap' -> the part after the dot
+  const per = Math.max(6, Math.floor((avail - 1) / 4)), lines = narrow ? 2 : 1; let sub = String(card.sub || '');
+  if(sub && wrap3(sub, per).length > lines && sub.includes('·')) sub = sub.split('·').pop().trim();
+  const subs = sub ? wrap3(sub.replace(/·/g, '-'), per).slice(0, lines).map(l => txt3(l, mixc(CREAM, col, .25), INK, 1)) : [];
+  const nh = Math.max(name.height, tag ? 10 : 0), textW = Math.max(name.width + (tag ? 5 + tag.width : 0), ...subs.map(s => s.width)), textH = nh + (subs.length ? 2 + subs.length * 7 - 1 : 0);
+  const bh = Math.max(kh, textH) + pad * 2, gw = kr + textW, gx = narrow ? box.x0 + 3 : Math.round((box.x0 + box.x1 - gw) / 2);
+  const o = { col, kj, white, name, tag, subs, nh, bh, y:box.y, x0:box.x0, x1:box.x1, narrow, kx:gx, ky:box.y + Math.round(bh / 2 - kh / 2) - y0, tx:gx + kr, ty:box.y + Math.round((bh - textH) / 2) };
   return BANDC[key] = o; }
-function drawBand(c, t, hold){ const o = bandArt(c.card), cw = cx.canvas.width, out = B_OUT + hold, end = B_END + hold, rEnd = B_REND + hold;
+// a slab with slanted ends (the stage card's tokko cut) from x0 to x1, rows y..y+h-1; narrow: square ends, full width
+function bandSlab(o, y, h, inset){ const x0 = o.x0 + inset, x1 = o.x1 - inset; if(o.narrow){ cx.fillRect(x0, y, x1 - x0, h); return; }
+  for(let r = 0; r < h; r++){ const yy = y + r - o.y, sl = Math.floor((o.bh - 1 - yy) / 2); cx.fillRect(x0 + sl, y + r, x1 - x0 - Math.floor((o.bh + 1) / 2), 1); } }
+function drawBand(c, t, hold){ const o = bandArt(c.card), out = B_OUT + hold, end = B_END + hold, rEnd = B_REND + hold;
   cx.save(); cx.setTransform(1, 0, 0, 1, 0, 0); cx.imageSmoothingEnabled = false;
-  let dy = 0, alpha = 1;
-  if(reduce){ alpha = t < .3 ? stepq(t / .3, 4) : t > rEnd - .4 ? 1 - stepq((t - (rEnd - .4)) / .4, 4) : 1; if(alpha <= 0){ cx.restore(); return; } cx.globalAlpha = alpha; }
-  else { const bt = o.bh + 2; if(t < B_IN) dy = -Math.round(bt * (1 - (Math.floor(t / B_IN * 3) + 1) / 3));   // three whole steps down: 2/3 up, 1/3 up, home (its first frame is already a third in)
-    if(t > out) dy = -Math.round(bt * stepq((t - out) / (end - out - .02), 3));
+  let a = 0, b = 1;   // the visible part of the band, as fractions of its width: it wipes open left to right in three whole steps and closes the same way
+  if(reduce){ const al = t < .3 ? stepq(t / .3, 4) : t > rEnd - .4 ? 1 - stepq((t - (rEnd - .4)) / .4, 4) : 1; if(al <= 0){ cx.restore(); return; } cx.globalAlpha = al; }
+  else { if(t < B_IN) b = (Math.floor(t / B_IN * 3) + 1) / 3;   // its first frame is already a third open, at full opacity
+    if(t > out) a = Math.min(1, (Math.floor((t - out) / (end - out) * 3) + 1) / 3);
+    if(a >= 1){ cx.restore(); return; }
     if(!c.cardShook && t >= B_HIT){ c.cardShook = true; shake = Math.max(shake || 0, 3); } }
-  const bh = o.bh;
-  cx.fillStyle = 'rgba(7,6,12,.9)'; cx.fillRect(0, dy, cw, bh);
-  cx.fillStyle = o.col; cx.fillRect(0, dy + bh, cw, 1); cx.fillStyle = mixc(o.col, INK, .6); cx.fillRect(0, dy + bh + 1, cw, 1);   // the tokko stripe under it, quiet
-  const img = !reduce && t >= B_HIT && t < B_HIT + .05 ? o.white : o.kj;   // one white impact frame, always at full opacity
-  cx.drawImage(img, o.kx, o.ky + dy);
-  if(reduce || t >= B_TXT){ const tt = reduce ? 9 : t - B_TXT, slide = reduce ? 0 : tt < .1 ? Math.round((1 - stepq(tt / .1, 3)) * 24) : 0;
-    let y = o.ty + dy; cx.drawImage(o.name, o.tx + slide, y + Math.round((o.nh - o.name.height) / 2)); if(o.tag) cx.drawImage(o.tag, o.tx + slide + o.name.width + 5, y + Math.round((o.nh - 10) / 2)); y += o.nh + 2;
-    let left = reduce ? 1e9 : Math.max(0, Math.floor((tt - .08) / .012)) * 4;   // the subtitle types out
-    for(const ln of o.subs){ const n = Math.min(ln.width, left); left -= ln.width; if(n > 0) cx.drawImage(ln, 0, 0, n, ln.height, o.tx, y, n, ln.height); y += 7; } }
+  const w = o.x1 - o.x0 + 2, cxL = o.x0 - 1 + Math.round(w * a), cxR = o.x0 - 1 + Math.round(w * b);
+  cx.beginPath(); cx.rect(cxL - 2, o.y - 1, cxR - cxL + 2, o.bh + 4); cx.clip();
+  const y = o.y, bh = o.bh;
+  cx.fillStyle = 'rgba(7,6,12,.9)'; bandSlab(o, y, bh, 0);
+  cx.fillStyle = o.col; bandSlab(o, y + bh, 1, 0); cx.fillStyle = mixc(o.col, INK, .6); bandSlab(o, y + bh + 1, 1, 0);   // the tokko stripe under it, quiet
+  if(o.narrow && y > 0){ cx.fillStyle = mixc(o.col, INK, .6); cx.fillRect(o.x0, y - 1, o.x1 - o.x0, 1); }   // a hairline on top too, when it floats under the plates
+  cx.drawImage(!reduce && t >= B_HIT && t < B_HIT + .05 ? o.white : o.kj, o.kx, o.ky);   // one white impact frame, always at full opacity: never a ghost
+  if(reduce || t >= B_TXT){ const tt = reduce ? 9 : t - B_TXT;
+    let ty = o.ty; cx.drawImage(o.name, o.tx, ty + Math.round((o.nh - o.name.height) / 2)); if(o.tag) cx.drawImage(o.tag, o.tx + o.name.width + 5, ty + Math.round((o.nh - 10) / 2)); ty += o.nh + 2;
+    let left = reduce ? 1e9 : Math.max(0, Math.floor((tt - .06) / .012)) * 4;   // the subtitle types out
+    for(const ln of o.subs){ const n = Math.min(ln.width, left); left -= ln.width; if(n > 0) cx.drawImage(ln, 0, 0, n, ln.height, o.tx, ty, n, ln.height); ty += 7; } }
   cx.restore(); }
 
 let devC = null, devKey = '';

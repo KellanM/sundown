@@ -548,10 +548,13 @@ T.results = { name:'Morning', kanji:'朝', bpm:120, key:'E', mode:'major', gain:
    ev: [beat, inst, semitones (a number or a chord array), length in beats, velocity]; kit: [beat, hit, vel]. Taiko, chant shouts and
    impacts; power and sus chords so they sit in any road's key over a ducked song. */
 const ST = {};
-ST.count = { bpm:126, gain:0.839, note:'三二一: an o-daiko hit and a chant call on each count (every 1.5 beats at 126), the response half a count later, a reverse cymbal into GO; GO is the song\'s first downbeat',
-  ev:[
-      [0, 'spad', [0, 7, 12], 4.4, .6], [0, 'b808', -12, 1.4, .9], [1.5, 'b808', -12, 1.4, .9], [3, 'b808', -12, 1.4, .9]],
-  kit:[[0, 'J', 1], [1.5, 'J', 1], [3, 'J', 1], [.75, 'j', .8], [2.25, 'j', .8], [3.75, 'j', .9], [3.5, 'V', .9]] };
+/* the count's pre-roll (first 60 s, research/sundown-craft/first60.md): it sits UNDER the count, the arrival's beeps and the bike's call carry
+   三 二 一. A soft sub pulse and a shime tick on each count (every 1.5 beats at 126, mech/arrival.js CD_B), a hat on the off-count, a pad that
+   swells from nothing, and a reverse cymbal that ends exactly on 走れ (beat 4.5), where the song's full kit lands. No o-daiko, no 808 hit:
+   the first big hit of the night is GO. */
+ST.count = { bpm:126, gain:0.8, note:'三二一 pre-roll: quiet sub pulse and shime tick on each count, hats between, a pad swelling from nothing, a reverse cymbal into GO; GO is the song\'s first downbeat',
+  ev:[[0, 'spad', [0, 7, 12], 4.5, .5], [0, 'subB', -12, .5, .55], [1.5, 'subB', -12, .5, .6], [3, 'subB', -12, .5, .65]],
+  kit:[[0, 'j', .55], [1.5, 'j', .6], [3, 'j', .7], [.75, 'h', .35], [2.25, 'h', .4], [3.75, 'h', .45], [4.125, 'h', .3], [3.5, 'V', .75]] };
 ST.wave = { bpm:120, gain:0.668, note:'大波: an o-daiko roll swells under the curl, chants rise, then the whole wall breaks: impact, supersaw and gamelan',
   ev:[[0, 'spad', [0, 7, 12], 4, .8], [4, 'stab', [0, 7, 12, 19], 3, 1], [4, 'b808', -12, 3, 1], [4, 'gamelan', [24, 31, 36], 2, .8]],
   kit:[[0, 'J', .45], [.5, 'J', .5], [1, 'J', .55], [1.5, 'J', .6], [2, 'J', .65], [2.5, 'J', .7], [3, 'J', .8], [3.25, 'J', .85], [3.5, 'J', .9], [3.75, 'J', .95], [3, 'V', .9], [4, 'I', 1]] };
@@ -944,6 +947,26 @@ function bindGame(){ if(GA) return GA; const has = n => g(n) !== undefined;
     'cop:() => (typeof copT === "number" ? copT : 0), land0:() => (typeof landIdx === "function" && typeof LANDS !== "undefined" ? LANDS[landIdx(0)] : null), pseg:() => (typeof position === "number" && typeof PZ === "number" && typeof SEG === "number" ? (position + PZ) / SEG : 0),' +
     'cs:() => (typeof position === "number" && typeof SEG === "number" ? position / SEG : 0) }')();
   return GA; }
+/* the night bed (first 60 s): on the title and through START's wait only the city and the wind (Shadow of the Colossus, Akira's opening:
+   silence is scored, and the music arrives with the event). Distant traffic hum (brown noise under 160 Hz, a slow swell), wind (two
+   decorrelated noise bands around 500-900 Hz with slow, uneven gusts). It stays under the count and goes as the song lands on 走れ; in the
+   ride the bike's own wind (audio/sfx.js) takes over. Through M.out, so the master volume and the director's duck apply. */
+const AMB_LV = .5;
+function ambBed(E, dest){ if(E.amb) return E.amb; const ac = E.ac, A = E.amb = { g:ac.createGain() }; A.g.gain.value = 0; A.g.connect(dest); A.dest = dest;
+  const n = ac.sampleRate * 4, brown = ac.createBuffer(2, n, ac.sampleRate); let seed = 777;
+  for(let c = 0; c < 2; c++){ const d = brown.getChannelData(c); let l = 0; for(let i = 0; i < n; i++){ seed = (seed * 1103515245 + 12345) >>> 0; l = (l + .02 * ((seed / 4294967296) * 2 - 1)) / 1.02; d[i] = l * 3.5; } }
+  const src = (buf, off) => { const s = ac.createBufferSource(); s.buffer = buf; s.loop = true; s.start(ac.currentTime + .01, off); return s; };
+  // the city: low hum with a slow swell (two LFOs a prime ratio apart, so it never repeats audibly)
+  const hum = src(brown, 0), hlp = ac.createBiquadFilter(), hg = ac.createGain(); hlp.type = 'lowpass'; hlp.frequency.value = 160; hlp.Q.value = .5; hg.gain.value = .55;
+  hum.connect(hlp).connect(hg).connect(A.g);
+  // the wind: two noise bands, left and right decorrelated, each gusting on its own slow LFO pair
+  for(const [f, q, pan, r1, r2, off] of [[520, .7, -.5, .071, .19, .3], [880, .9, .5, .053, .23, 1.1]]){ const w = src(E.noise, off), bp = ac.createBiquadFilter(), wg = ac.createGain(), p = ac.createStereoPanner ? ac.createStereoPanner() : null;
+    bp.type = 'bandpass'; bp.frequency.value = f; bp.Q.value = q; wg.gain.value = .07;
+    for(const [rate, depth] of [[r1, .042], [r2, .021]]){ const o = ac.createOscillator(), od = ac.createGain(); o.frequency.value = rate; od.gain.value = depth; o.connect(od).connect(wg.gain); o.start(); }
+    if(p){ p.pan.value = pan; w.connect(bp).connect(wg).connect(p).connect(A.g); } else w.connect(bp).connect(wg).connect(A.g); }
+  return A; }
+function amb(on, now, tau){ const E = S.E; if(!E || !S.M) return; const A = ambBed(E, S.M.out); const v = on ? AMB_LV * (typeof on === 'number' ? on : 1) : 0; if(A.v === v) return; A.v = v;
+  A.g.gain.cancelScheduledValues(now); A.g.gain.setValueAtTime(A.g.gain.value, now); A.g.gain.setTargetAtTime(v, now, tau || (on ? .6 : .35)); }
 function themeForLand(L){ return L && ROAD_THEME[L.key] ? ROAD_THEME[L.key] : 'harbour'; }
 function energyNow(A){ const sp = A.sp(), fl = A.flow(); let e = sp < .4 ? 0 : sp < .75 ? 1 : 2; if(fl >= 3) e++; if(fl >= 6) e++; if(A.boost() > 0) e = Math.max(e, A.btier() >= 2 ? 4 : 3); return Math.min(4, e); }
 function setCur(D){ const bar = curBar(D); if(!bar || !S.M) return; S.M.cur = D.st < 8 ? bar.cm[0] : bar.cm[1]; }
@@ -982,23 +1005,29 @@ function publishClock(now){ const D = S.deck, M = S.M; if(!D || !M) return; cons
 function enterMode(mode, prev, A, now){ const E = S.E;
   if(mode === 'count' || mode === 'wait' || mode === 'title') S.sp = null;   // a new ride: the set pieces' memory starts clean
   if(mode === 'title'){ E.route(S.M.out); const og = S.M.out.gain; if(og.value < .5){ og.cancelScheduledValues(now); og.setTargetAtTime(.85, now, .3); }   // home from the results: M.resolve faded M.out (as the Again button does)
-    startSong('title', now + .15, { energy:3, crash:false }); S.deck.lp.frequency.value = 20000; return; }
+    if(S.deck && S.deck.alive) killDeck(S.deck, now, .6); S.deck = null; amb(true, now, 1.2); return; }   // first 60 s: the title is the city and the wind only; the music waits for 走れ
   if(mode === 'count'){ E.route(S.M.out); if(S.deck && S.deck.alive) killDeck(S.deck, now, .15); S.deck = null;
     const L = A.land0() || A.land(), key = themeForLand(L), root = 48 + comp(key).keyPc - (comp(key).keyPc > 6 ? 12 : 0);
-    S.countT = now; S.countBus = E.ac.createGain(); S.countBus.connect(E.bus); playSting(E, ST.count, now + CD_0, root, S.countBus);
-    startSong(key, now + CD_GO, { energy:1 }); S.deck.lpF = 1700; S.deck.lp.frequency.value = 1700; return; }
+    S.countT = now; S.countBus = E.ac.createGain(); S.countBus.connect(E.bus); playSting(E, ST.count, now + CD_0, root, S.countBus); amb(.8, now, .4);
+    S.goKey = key; S.goAt = 0; return; }   // the song itself starts on go() (onGo), not on a guess of when the count will end
   if(mode === 'ride'){ E.route(S.M.out);
-    if(prev === 'count' && S.deck){ if(S.deck.t > now + .06){ // skipped: GO came early, so the song starts now
-        const key = S.deck.key; killDeck(S.deck, now, .02); startSong(key, now + .04, { energy:1 }); S.deck.lpF = 1700; S.deck.lp.frequency.value = 1700; }
-      if(S.countBus){ const cb = S.countBus; cb.gain.setTargetAtTime(0, now, .06); setTimeout(() => { try{ cb.disconnect(); }catch(e){} }, 2000); S.countBus = null; }
-      return; }
+    if(prev === 'count' && S.deck){ onGo(now); return; }   // (go() normally got here first, on the frame of 走れ)
+    amb(false, now, .6);
     if(!S.deck || !S.deck.alive){ const key = themeForLand(A.land()); startSong(key, now + .1, { energy:1 }); }
     return; }
-  if(mode === 'pulled'){ if(S.deck) killDeck(S.deck, now, .35); S.deck = null; S.caught = true; cue('pulled', now + .9); return; }
-  if(mode === 'over'){ const caught = S.caught || prev === 'pulled'; S.caught = false; if(S.deck) killDeck(S.deck, now, .5); S.deck = null;
+  if(mode === 'pulled'){ amb(false, now, .3); if(S.deck) killDeck(S.deck, now, .35); S.deck = null; S.caught = true; cue('pulled', now + .9); return; }
+  if(mode === 'over'){ const caught = S.caught || prev === 'pulled'; S.caught = false; if(S.deck) killDeck(S.deck, now, .5); S.deck = null; amb(false, now, .4);
     const bus = HAS_WIN && window.MECH && MECH.director && MECH.director.bus ? MECH.director.bus() : null; if(bus) E.route(bus);   // past M.out, which M.resolve fades away
     if(!caught) cue('dawn', now + .4); S.resultsAt = now + (caught ? 3.5 : 6.5); return; }
-  if(mode === 'wait'){ if(S.deck) killDeck(S.deck, now, .25); S.deck = null; S.resultsAt = 0; } }
+  if(mode === 'wait'){ if(S.deck) killDeck(S.deck, now, .25); S.deck = null; S.resultsAt = 0; amb(true, now, .8); } }   // START's warm-up: the bed carries on
+/* 走れ: the song's full kit lands on go() itself (mech/arrival.js calls it on the frame the GO card strikes, state becomes 'play'). The song
+   starts 30 ms after go() and its first bars are scheduled at once (not on the next 50 ms tick), so a slow device's late GO frame never
+   leaves the kit early or late against the picture. The pre-roll and the night bed go under it. Runs once per count. */
+function onGo(now){ const E = S.E; if(!E || !S.goKey || S.goDone === S.countT) return; S.goDone = S.countT; now = now != null ? now : E.ac.currentTime;
+  if(S.deck && S.deck.alive) killDeck(S.deck, now, .02); const at = now + .03; startSong(S.goKey, at, { energy:1 }); S.deck.lpF = 1700; S.deck.lp.frequency.value = 1700;
+  stepDeck(S.deck, now + LOOK, onBar); S.goAt = at; S.goLag = Math.round((at - (S.countT + CD_GO)) * 1000);   // goLag: ms after the audio clock's own count end (the frame clock's drift)
+  if(S.countBus){ const cb = S.countBus; cb.gain.setTargetAtTime(0, at, .06); setTimeout(() => { try{ cb.disconnect(); }catch(e){} }, 2000); S.countBus = null; }
+  amb(false, now, .5); }
 // cinematic moments the music can see without touching the set pieces: kaiju zones and firework shows by distance; cine() calls (wrapped)
 function setPieces(A, now){ if(!HAS_WIN || !window.MECH) return; if((S.spT = (S.spT || 0) + 1) % 10) return;   // every half second
   const p = A.pseg(), L = A.land(); if(!L) return;
@@ -1023,7 +1052,9 @@ function wrapDirector(){ const D = HAS_WIN && window.MECH && MECH.director; if(!
       const name = k === '大波' ? 'wave' : k === '爆発' ? 'inferno' : k === '雪崩' ? 'avalanche' : key === 'coast' ? 'wave' : key === 'refinery' ? 'inferno' : key === 'snow' ? 'avalanche' : null;
       if(name) cue(name); }catch(e){} return h; }; }
 function wrapCountdown(){ const A = HAS_WIN && window.MECH && MECH.arrival; if(!A || !A.countdown || A.__music) return; A.__music = true; const orig = A.countdown;
-  A.countdown = function(go){ const fresh = !(A.countdownOn && A.countdownOn()), r = orig.apply(this, arguments);
+  A.countdown = function(go){ const fresh = !(A.countdownOn && A.countdownOn());
+    if(fresh && typeof go === 'function'){ const g0 = go; go = function(){ const r = g0.apply(this, arguments); try{ if(S.E && S.E.ac.state === 'running') onGo(S.E.ac.currentTime); }catch(e){} return r; }; }
+    const r = orig.call(this, go);
     if(fresh && r){ try{ if(!S.M && typeof M !== 'undefined') S.M = M; if(S.M && S.M.ac && !S.E) attach(S.M); tick(); }catch(e){} } return r; }; }   // in step with the count's first frame
 function cue(name, at){ const E = S.E; if(!E || !ST[name]) return false; const now = E.ac.currentTime; if(S.cues[name] && now - S.cues[name] < 4) return false; S.cues[name] = now;
   const sting = ST[name], key = sting.key || (S.deck ? S.deck.th.key : 'E'), pc = pcOf(key), root = 48 + pc - (pc > 6 ? 12 : 0);
@@ -1038,9 +1069,10 @@ function boost(tier){ if(!S.deck || !S.deck.alive || !S.E) return; const now = S
 
 /* ================================================================== offline render (measurement) */
 function render(name, o){ o = o || {}; const OAC = window.OfflineAudioContext || window.webkitOfflineAudioContext, sr = o.sr || 48000;
-  const isSting = !T[name] && ST[name], C = isSting ? null : comp(name), secs = o.seconds || (isSting ? 8 : C.introSec + C.loopSec + 6);
+  const isSting = !T[name] && ST[name], C = isSting || name === 'ambience' ? null : comp(name), secs = o.seconds || (isSting || name === 'ambience' ? 8 : C.introSec + C.loopSec + 6);
   const ac = new OAC(2, Math.ceil(secs * sr), sr), out = ac.createGain(); out.gain.value = o.outGain != null ? o.outGain : .85; out.connect(ac.destination);
   const E = makeEngine(ac, out); if(o.noGuard){ E.bus.disconnect(); E.bus.connect(E.out); }
+  if(name === 'ambience'){ const A = ambBed(E, out); A.g.gain.value = AMB_LV * (o.level != null ? o.level : 1); return ac.startRendering().then(buf => [buf.getChannelData(0), buf.getChannelData(1)]); }
   if(isSting){ const pc = pcOf(ST[name].key || o.key || 'E'); playSting(E, ST[name], .1, 48 + pc - (pc > 6 ? 12 : 0), E.sting); E.routeSting(out); }
   else { const D = makeDeck(E, C, .05, { energy:o.energy != null ? o.energy : 3, solo:o.solo, crash:false, leads:o.leads }); if(o.lp) D.lp.frequency.value = o.lp;
     // schedule the way the live owner does, a little ahead of the clock (suspend/resume), so only sounding notes are in the graph
@@ -1069,7 +1101,7 @@ const MUSIC = { THEMES:T, STINGS:ST, INST, MOTIF, compile, render, ROAD_THEME,
   road(i){ /* optional: the game may call this at a road border; the owner also polls the road itself */ if(typeof LANDS !== 'undefined' && LANDS[i] && S.deck && S.mode === 'ride'){ const k = themeForLand(LANDS[i]); if(k !== S.deck.key){ S.want = k; S.deck.fillReq = S.deck.st <= 12; } } },
   end(caught){ S.caught = !!caught; },
   clock(){ const D = S.deck; if(!D) return null; const bar = curBar(D); return { key:D.key, bpm:D.th.bpm, bar:D.bi, step:D.st, beat:D.gs / 4, chord:bar ? (D.st < 8 ? bar.ch[0] : bar.ch[1]).name : null, energy:D.e, xs:D.xs ? D.xs.name : null }; },
-  get debug(){ return { mode:S.mode, song:S.deck && S.deck.key, energy:S.deck && S.deck.e, build:S.deck && S.deck.x ? Object.assign({}, S.deck.x) : null, thinK:S.thinK, want:S.want, decks:S.E ? S.E.decks.length : 0, avgTickMs:S.ticks ? S.tickMs / S.ticks : 0, ticks:S.ticks, cues:Object.assign({}, S.cues), countT:S.countT }; } };
+  get debug(){ return { amb:S.E && S.E.amb ? S.E.amb.v : 0, goAt:S.goAt, goLag:S.goLag, mode:S.mode, song:S.deck && S.deck.key, energy:S.deck && S.deck.e, build:S.deck && S.deck.x ? Object.assign({}, S.deck.x) : null, thinK:S.thinK, want:S.want, decks:S.E ? S.E.decks.length : 0, avgTickMs:S.ticks ? S.tickMs / S.ticks : 0, ticks:S.ticks, cues:Object.assign({}, S.cues), countT:S.countT }; } };
 if(HAS_WIN){ window.MUSIC = MUSIC; if(window.MECH) MECH.music = MUSIC; try{ wrapDirector(); wrapCountdown(); }catch(e){ console.warn('music wrap', e); }
   S.iv = setInterval(() => { try{ if(!S.M && typeof M !== 'undefined') S.M = M; tick(); }catch(e){ if(!S.err){ S.err = e; console.warn('music tick', e); } } }, TICK_MS);
   // the title theme needs a running AudioContext, which needs a gesture: the first press on the attract screen opens it

@@ -215,12 +215,15 @@ const flipRows = rows => rows.map(r => r.split('').reverse().join(''));
 // the slide's poses: 0 side-on upright, 1-2 leaning, 3 the low pose (58 degrees, hung off, knee and boot at the road), 4-5 swinging round from behind
 const POSE_O = [{ lean:0 }, { lean:20 }, { lean:40, dim:1, hang:3, knee:4 }, { lean:58, dim:1, hang:7, knee:14 }, { yaw:28, lean:12 }, { yaw:55, lean:8 }];
 const THROWN_K = ['spread', 'ball', 'twist', 'back1', 'back2'], THROWN_ROLL = [0, 125, 245, 0, 0];
+// kodawari #6: the thrown rider at 1.35x the bike's art scale. The model's rider is built for the tuck (a 1.1 m figure on a 2 m bike); laid out
+// beside the cartwheeling bike in the crash cam he read as a third of its size. At 1.35x he is about 0.85 of its length, as a person is.
+const THROWN_S = 1.35;
 const GRIDS = {};   // size -> { pose:[{rows, ax, rx}], tumble:[rows], thrown:[rows] }
 function gridJobs(si){ const s = SIZES[si], G = GRIDS[si] || (GRIDS[si] = { pose:[], tumble:[], thrown:[] }), jobs = [];
   POSE_O.forEach((o, i) => jobs.push(() => { const r = ART3D.render([...ART3D.bike(), ...ART3D.rider(ART3D.TUCK, { hang:o.hang || 0, knee:o.knee || 0 })], Object.assign({ s, pts:[[22, 0, 4]] }, o));
     G.pose[i] = { rows:r.rows, ax:r.ax, rx:r.pts[0][0] }; }));
   for(let i = 0; i < 8; i++) jobs.push(() => { G.tumble[i] = ART3D.render(ART3D.bike(), { s, roll:i * 45, px:50, py:22 }).rows; });
-  THROWN_K.forEach((k, i) => jobs.push(() => { G.thrown[i] = ART3D.render(ART3D.rider(ART3D.THROWN[k]), { s, roll:THROWN_ROLL[i], px:45, py:30 }).rows; }));
+  THROWN_K.forEach((k, i) => jobs.push(() => { G.thrown[i] = ART3D.render(ART3D.rider(ART3D.THROWN[k]), { s:s * THROWN_S, roll:THROWN_ROLL[i], px:45, py:30 }).rows; }));   // (only the crash cam's side shot draws these)
   jobs.push(() => { G.debris = ART3D.SHARDS.map(sh => [0, 1, 2, 3].map(q => ART3D.render(sh, { s:s * 1.6, roll:q * 90, lean:25, px:4, py:3 }).rows)); });
   return jobs; }
 const gridDone = si => { const G = GRIDS[si]; return !!G && G.pose.length === POSE_O.length && G.pose.every(Boolean) && G.tumble.filter(Boolean).length === 8 && G.thrown.filter(Boolean).length === 5 && !!G.debris; };
@@ -271,7 +274,7 @@ function domHud(on){ const b = document.body; if(!b) return;
     st.textContent = 'body.stk-cam .top,body.stk-cam #next,body.stk-cam .float,body.stk-cam #banner{opacity:0!important}body.stk-back .top,body.stk-back #next,body.stk-back #banner{transition:opacity .4s steps(4)}'; document.head.appendChild(st); }
   if(on){ b.classList.add('stk-back', 'stk-cam'); } else { b.classList.remove('stk-cam'); clearTimeout(domHud.t); domHud.t = setTimeout(() => b.classList.remove('stk-back'), 600); } }
 function warmAll(sync){ try{ wrapHud(); if(cx){ const cv = cx.canvas; if(!BUF2) BUF2 = document.createElement('canvas'); BUF2.width = cv.width; BUF2.height = cv.height; } if(!sync){ idleQ = [...gridJobs(sizeFor(1)), ...gridJobs(sizeFor(1.5))]; idleWarm(); }
-    else { playerSet(); for(let i = 0; i < 3; i++) gangSet(i); } if(!STARC) STARC = canvasOf(STAR, Object.assign({}, COMMON, { K:'#1a0c04', Y:'#ffd04a', O:'#fff8e0' }));
+    else { playerSet(); for(let i = 0; i < 3; i++) gangSet(i); } 
     label('クラッシュ', 'CRASH'); label('撃墜', 'TAKEDOWN'); label('逮捕', 'BUSTED', '#ff2a3a', '#f4ecdf'); if(cx) bufFit();
     const A = MECH.arrival; if(A && A.prebuild){ A.prebuild('スライド SLIDE', { kanji:'滑', col:'#ffb35a' }); A.prebuild('Slid past', { col:'#ffd04a' }); } }catch(e){ console.warn('stunts warm', e); } }
 
@@ -323,7 +326,11 @@ function camDraw(now, rdt){ const c = cam, cv = cx.canvas, cw = cv.width, ch = c
       try{ if(ENV.bikes && ENV.bikes.draw && BIKE.id !== 'sport') ENV.bikes.draw(BIKE.id, W / 2, H - 8, bs, c.lean || 0, now); else drawBike(W / 2, H - 8, bs, c.lean || 0, now); }catch(e){}
       cx.setTransform(1, 0, 0, 1, 0, 0); }
     cx.fillStyle = 'rgba(10,6,24,.28)'; cx.fillRect(0, 0, cw, ch);
-    if(!c.rm){ const sk = Math.max(1, Math.round(k / P)) * (c.t < .08 ? 2 : 1); cx.drawImage(STARC, Math.round((ix - sx) * z - STARC.width * sk / 2), Math.round((iy - sy) * z - STARC.height * sk / 2), STARC.width * sk, STARC.height * sk);
+    // the impact: a burst of sparks thrown out from the contact, its middle left open, gone in .16 s (kodawari #6: the old 9x9 star stayed
+    // on the rider's chest for the whole beat and read as a yellow '+' marker on him)
+    if(!c.rm){ if(c.t < .16){ const sk = Math.max(1, Math.round(k / P)), bx = (ix - sx) * z, by = (iy - sy) * z, q = c.t / .16;
+        for(let i = 0; i < 12; i++){ const a = (i + hash(i * 3.7) * .6) / 12 * 6.283, ca = Math.cos(a), sa = Math.sin(a), r0 = (5 + q * 10) * sk, r1 = r0 + (3 + hash(i * 1.9) * 6) * sk * (1 - q * .5);
+          for(let d = r0; d < r1; d += sk){ const f = (d - r0) / Math.max(1, r1 - r0); cx.fillStyle = f < .34 ? '#fff4c0' : SPK[1 + ((f * 3) | 0) % 3]; cx.fillRect(Math.round(bx + ca * d), Math.round(by + sa * d * .8), sk, sk); } } }
       if(c.t < .05 && !(window.ASSIST && ASSIST.noFlash)){ cx.globalCompositeOperation = 'lighter'; cx.fillStyle = 'rgba(255,236,200,.35)'; cx.fillRect(0, 0, cw, ch); cx.globalCompositeOperation = 'source-over'; } }
   } else {
     // beat 2: the side angle. The skyline from the frozen frame, dimmed, over a strip of road seen side-on

@@ -229,8 +229,9 @@
     if(!ATL) ATL = can(AW, y + rh + 1); else { if(ATL.height < y + rh + 1) ATL.height = y + rh + 1; }
     const k = ATL.getContext('2d'); k.clearRect(0, 0, ATL.width, ATL.height); for(const c of L) k.drawImage(c, c.ax, c.ay); }
   function blitA(c, x, yb){ if(!ATL) return; const w = c.width * PX, h = c.height * PX; cx.imageSmoothingEnabled = false; cx.drawImage(ATL, c.ax, c.ay, c.width, c.height, snap(x - w / 2), snap(yb) - h, w, h); }
-  function buildKB(){ for(let w = 0; w < KBW.length; w++){ const T = KBT[w] || (KBT[w] = []); for(let si = 0; si < KBS.length; si++){ const z = KBS[si]; T[si] = textSpr(T[si] || can(KBW[w][0].length * z + 4, z + 3), KBW[w][0], z, KBW[w][2]); } }
-    for(let v = 0; v < KBV.length; v++){ const C = KBC[v] || (KBC[v] = []); for(let c = 0; c < KBV[v][0].length; c++){ const T = C[c] || (C[c] = []); for(let si = 0; si < KBS.length; si++){ const z = KBS[si]; T[si] = textSpr(T[si] || can(z + 4, z + 3), KBV[v][0][c], z, KBV[v][2]); } } } packKB(); }
+  function* buildKBG(){ for(let w = 0; w < KBW.length; w++){ const T = KBT[w] || (KBT[w] = []); for(let si = 0; si < KBS.length; si++){ const z = KBS[si]; T[si] = textSpr(T[si] || can(KBW[w][0].length * z + 4, z + 3), KBW[w][0], z, KBW[w][2]); }  yield; } yield;
+    for(let v = 0; v < KBV.length; v++){ const C = KBC[v] || (KBC[v] = []); for(let c = 0; c < KBV[v][0].length; c++){ const T = C[c] || (C[c] = []); for(let si = 0; si < KBS.length; si++){ const z = KBS[si]; T[si] = textSpr(T[si] || can(z + 4, z + 3), KBV[v][0][c], z, KBV[v][2]); } }  yield; } yield; packKB(); yield; }
+  function buildKB(){ for(const _ of buildKBG()); }   // (the same build at once; buildKBG is it stepped)
   // gantry panels: { kj, ro, rt (route badge), ar (arrow: 0 up, -1 up-left, 1 up-right, 2 down) }
   const PANELS = [ { kj:'銀座', ro:'GINZA', rt:'C1', ar:0 }, { kj:'新宿', ro:'SHINJUKU', rt:'4', ar:1 }, { kj:'霞が関', ro:'KASUMIGASEKI', rt:'C1', ar:0 }, { kj:'羽田', ro:'HANEDA', rt:'1', ar:-1 },
     { kj:'江戸橋', ro:'EDOBASHI JCT', rt:'C1', ar:0 }, { kj:'箱崎', ro:'HAKOZAKI', rt:'6', ar:1 }, { kj:'京橋', ro:'KYOBASHI', rt:'C1', ar:2 }, { kj:'渋谷', ro:'SHIBUYA', rt:'3', ar:-1 },
@@ -816,39 +817,40 @@
     const lc = f('#c8c6d0'); poly(a.x - a.w * .965, a.y, a.x - a.w * .935, a.y, b.x - b.w * .935, b.y, b.x - b.w * .965, b.y, lc); poly(a.x + a.w * .935, a.y, a.x + a.w * .965, a.y, b.x + b.w * .965, b.y, b.x + b.w * .935, b.y, lc); }
 
   // ---------------------------------------------------------------- the far skyline (built in warm at native resolution)
-  function buildSky(){ const hgt = 120, c0 = can(SW, hgt), c1 = can(SW, hgt), k0 = c0.getContext('2d'), k1 = c1.getContext('2d'); let sd = 1234567;
-    const rnd = () => (sd = (sd * 16807) % 2147483647) / 2147483647, av = [];
+  function* buildSkyG(){ const hgt = 120, c0 = can(SW, hgt), c1 = can(SW, hgt), k0 = c0.getContext('2d'), k1 = c1.getContext('2d'); yield; let sd = 1234567; yield;
+    const rnd = () => (sd = (sd * 16807) % 2147483647) / 2147483647, av = []; yield;
     // the far layer: a carpet of lights at the horizon, then hazy towers
-    for(let x = 0; x < SW; x++){ for(let y = hgt - 6; y < hgt; y++){ const r = rnd(); k0.fillStyle = r < .1 ? '#c8a878' : r < .16 ? '#8a9ac0' : '#151428'; k0.fillRect(x, y, 1, 1); } }
+    for(let x = 0; x < SW; x++){ for(let y = hgt - 6; y < hgt; y++){ const r = rnd(); k0.fillStyle = r < .1 ? '#c8a878' : r < .16 ? '#8a9ac0' : '#151428'; k0.fillRect(x, y, 1, 1); }  yield; } yield;
     for(let t = 0; t < 120; t++){ const w = 4 + Math.floor(rnd() * 12), h = 6 + Math.floor(rnd() * rnd() * 40), x0 = Math.floor(rnd() * SW); for(let x = x0; x < x0 + w; x++) for(let y = hgt - 6 - h; y < hgt - 5; y++){ const xx = x % SW;
         k0.fillStyle = (x - x0) % 2 === 1 && (y % 2 === 0) && rnd() < .22 ? (rnd() < .7 ? '#7a86a8' : '#a08a6a') : x === x0 ? '#1e1e36' : '#18182c'; k0.fillRect(xx, y, 1, 1); }
-      if(h > 26) av.push([ (x0 + (w >> 1)) % SW, hgt - 7 - h, 0 ]); }
+      if(h > 26) av.push([ (x0 + (w >> 1)) % SW, hgt - 7 - h, 0 ]);  yield; } yield;
     // the near layer: towers with lit windows, Shinjuku's cluster and Tokyo Tower
     const tower = (x0, w, h, face, lit, edge) => { for(let x = x0; x < x0 + w; x++) for(let y = hgt - h; y < hgt; y++){ const xx = ((x % SW) + SW) % SW; let col = face;
         if(x === x0) col = edge; else if((x - x0) % 2 === 0 && (y - (hgt - h)) % 2 === 1 && y < hgt - 2 && rnd() < lit) col = rnd() < .75 ? '#dce8ff' : '#ffd890'; k1.fillStyle = col; k1.fillRect(xx, y, 1, 1); }
-      av.push([((x0 + 1) % SW + SW) % SW, hgt - h - 1, 1]); if(w > 6) av.push([((x0 + w - 2) % SW + SW) % SW, hgt - h - 1, 1]); };
-    for(let t = 0; t < 46; t++){ const w = 5 + Math.floor(rnd() * 10), h = 10 + Math.floor(rnd() * rnd() * 46), x0 = Math.floor(rnd() * SW); if((x0 > 250 && x0 < 400) || (x0 > 720 && x0 < 800)) continue; tower(x0, w, h, '#101020', .26, '#262640'); }
+      av.push([((x0 + 1) % SW + SW) % SW, hgt - h - 1, 1]); if(w > 6) av.push([((x0 + w - 2) % SW + SW) % SW, hgt - h - 1, 1]); }; yield;
+    for(let t = 0; t < 46; t++){ const w = 5 + Math.floor(rnd() * 10), h = 10 + Math.floor(rnd() * rnd() * 46), x0 = Math.floor(rnd() * SW); if((x0 > 250 && x0 < 400) || (x0 > 720 && x0 < 800)) continue; tower(x0, w, h, '#101020', .26, '#262640');  yield; } yield;
     // Shinjuku (west): Keio Plaza, Sumitomo's prism, Mitsui, NS, and Tocho's twin crowned towers
-    tower(262, 12, 52, '#1e2236', .5, '#5a6280'); tower(276, 6, 46, '#1e2236', .45, '#5a6280');   // Keio Plaza's two slabs
-    { const x0 = 300, h = 74; for(let x = 0; x < 16; x++) for(let y = hgt - h; y < hgt; y++){ const top = hgt - h + (x < 6 ? 6 - x : 0); if(y < top) continue; const lf = x < 8;
-        let col = lf ? '#2a3048' : '#1c2034'; if(x % 2 === 1 && y % 2 === 0 && y > top + 1 && rnd() < .36) col = '#dfe9ff'; if(x === 0 || y === top) col = '#56607e'; k1.fillStyle = col; k1.fillRect(x0 + x, y, 1, 1); } av.push([x0 + 10, hgt - h - 1, 1]); }   // Sumitomo
-    { const x0 = 322, h = 70; for(let x = 0; x < 13; x++) for(let y = hgt - h; y < hgt; y++){ let col = '#0e0e18'; if(y % 3 === 0 && x > 0 && x < 12 && rnd() < .6) col = '#a0b4d8'; if(x === 0) col = '#2a2a3c'; k1.fillStyle = col; k1.fillRect(x0 + x, y, 1, 1); } av.push([x0 + 1, hgt - h - 1, 1]); av.push([x0 + 11, hgt - h - 1, 1]); }   // Mitsui, dark with lit bands
-    { const x0 = 340, h = 62; for(let x = 0; x < 14; x++) for(let y = hgt - h; y < hgt; y++){ let col = x < 3 ? '#3a3e56' : '#24283c'; if(x > 3 && x % 2 === 0 && y % 2 === 0 && rnd() < .42) col = '#e6eeff'; if(x === 3) col = '#4a4e66'; k1.fillStyle = col; k1.fillRect(x0 + x, y, 1, 1); } av.push([x0 + 7, hgt - h - 1, 1]); }   // NS
+    tower(262, 12, 52, '#1e2236', .5, '#5a6280'); yield; tower(276, 6, 46, '#1e2236', .45, '#5a6280'); yield;   // Keio Plaza's two slabs
+    { const x0 = 300, h = 74; yield; for(let x = 0; x < 16; x++) for(let y = hgt - h; y < hgt; y++){ const top = hgt - h + (x < 6 ? 6 - x : 0); if(y < top) continue; const lf = x < 8;
+        let col = lf ? '#2a3048' : '#1c2034'; if(x % 2 === 1 && y % 2 === 0 && y > top + 1 && rnd() < .36) col = '#dfe9ff'; if(x === 0 || y === top) col = '#56607e'; k1.fillStyle = col; k1.fillRect(x0 + x, y, 1, 1); } yield; av.push([x0 + 10, hgt - h - 1, 1]); yield; } yield;   // Sumitomo
+    { const x0 = 322, h = 70; yield; for(let x = 0; x < 13; x++) for(let y = hgt - h; y < hgt; y++){ let col = '#0e0e18'; if(y % 3 === 0 && x > 0 && x < 12 && rnd() < .6) col = '#a0b4d8'; if(x === 0) col = '#2a2a3c'; k1.fillStyle = col; k1.fillRect(x0 + x, y, 1, 1); } yield; av.push([x0 + 1, hgt - h - 1, 1]); yield; av.push([x0 + 11, hgt - h - 1, 1]); yield; } yield;   // Mitsui, dark with lit bands
+    { const x0 = 340, h = 62; yield; for(let x = 0; x < 14; x++) for(let y = hgt - h; y < hgt; y++){ let col = x < 3 ? '#3a3e56' : '#24283c'; if(x > 3 && x % 2 === 0 && y % 2 === 0 && rnd() < .42) col = '#e6eeff'; if(x === 3) col = '#4a4e66'; k1.fillStyle = col; k1.fillRect(x0 + x, y, 1, 1); } yield; av.push([x0 + 7, hgt - h - 1, 1]); yield; } yield;   // NS
     // Tocho: a wide base to two thirds of its height, then two towers stepping in to their crowns; pale granite floodlit, a dense grid of windows
-    { const x0 = 362, h = 92, base = 58; const px = (x, y, col) => { k1.fillStyle = col; k1.fillRect(x0 + x, hgt - 1 - y, 1, 1); };
-      for(let y = 0; y < base; y++) for(let x = 0; x < 30; x++){ let col = x < 15 ? '#6a7088' : '#4a4e66'; if(x % 2 === 1 && y % 2 === 0 && y > 2) col = rnd() < .5 ? '#f0f4ff' : (x < 15 ? '#4a5068' : '#363a50'); if(x === 0) col = '#9aa0b8'; px(x, y, col); }
+    { const x0 = 362, h = 92, base = 58; yield; const px = (x, y, col) => { k1.fillStyle = col; k1.fillRect(x0 + x, hgt - 1 - y, 1, 1); }; yield;
+      for(let y = 0; y < base; y++) for(let x = 0; x < 30; x++){ let col = x < 15 ? '#6a7088' : '#4a4e66'; if(x % 2 === 1 && y % 2 === 0 && y > 2) col = rnd() < .5 ? '#f0f4ff' : (x < 15 ? '#4a5068' : '#363a50'); if(x === 0) col = '#9aa0b8'; px(x, y, col); } yield;
       for(const tx of [1, 17]) for(let y = base; y < h; y++){ const st = y > h - 6 ? 3 : y > h - 14 ? 2 : y > h - 22 ? 1 : 0, wdt = 12 - st * 2, xs = tx + st; for(let x = xs; x < xs + wdt; x++){ let col = x < xs + wdt / 2 ? '#727892' : '#50546c';
-          if((x - xs) % 2 === 1 && y % 2 === 0 && y < h - 2) col = rnd() < .55 ? '#f4f6ff' : '#454a62'; if(x === xs) col = '#a0a6be'; if(y === h - 1 || y === h - 6 || y === h - 14 || y === h - 22) col = '#a8aec6'; px(x, y, col); } av.push([x0 + tx + 5, hgt - 1 - h - 1, 1]); } }
+          if((x - xs) % 2 === 1 && y % 2 === 0 && y < h - 2) col = rnd() < .55 ? '#f4f6ff' : '#454a62'; if(x === xs) col = '#a0a6be'; if(y === h - 1 || y === h - 6 || y === h - 14 || y === h - 22) col = '#a8aec6'; px(x, y, col); } av.push([x0 + tx + 5, hgt - 1 - h - 1, 1]); } yield; } yield;
     // Tokyo Tower (south-east): an orange lattice tapering to the main deck, a white-lit deck, the upper deck, the antenna
-    { const x0 = 760, h = 96, px = (x, y, col) => { k1.fillStyle = col; k1.fillRect(x0 + x, hgt - 1 - y, 1, 1); }, md = 40, ud = 68;
+    { const x0 = 760, h = 96, px = (x, y, col) => { k1.fillStyle = col; k1.fillRect(x0 + x, hgt - 1 - y, 1, 1); }, md = 40, ud = 68; yield;
       for(let y = 0; y < h; y++){ const hw = y < md ? 13 - y * 9 / md : y < ud ? 4 - (y - md) * 2.5 / (ud - md) : y < 80 ? 1.5 : .5;
         for(let x = -Math.ceil(hw); x <= Math.ceil(hw); x++){ const ax = Math.abs(x), edge = ax >= Math.floor(hw) - (y < md ? 1 : 0); let col = null;
           if(y < md){ if(edge || (x + y) % 4 === 0 || (y % 6 === 0) || (y < 8 && ax < 3 && (y + x) % 2)) col = edge ? '#ffb070' : '#ff7a24'; }
           else if(y < 80){ if(ax <= hw) col = (y + ax) % 3 === 0 ? '#ffd090' : '#ff8a30'; }
           else col = '#ffe8c8'; if(y >= md && y < md + 4 && ax <= 6) col = y === md + 1 || y === md + 2 ? (ax % 2 ? '#fff4d8' : '#ffd890') : '#c86020';
-          if(y >= ud && y < ud + 2 && ax <= 3) col = '#fff0d0'; if(col) px(x, y, col); } }
-      av.push([x0, hgt - 1 - h - 1, 2]); }
-    SKY = { c0, c1, av, hgt }; }
+          if(y >= ud && y < ud + 2 && ax <= 3) col = '#fff0d0'; if(col) px(x, y, col); }  yield; } yield;
+      av.push([x0, hgt - 1 - h - 1, 2]); yield; } yield;
+    SKY = { c0, c1, av, hgt }; yield; }
+  function buildSky(){ for(const _ of buildSkyG()); }   // (the same build at once; buildSkyG is it stepped)
   function backdrop(o){ const { hz, sk, now } = o; setLow(sk.low); if(!SKY) return; const a0 = cx.globalAlpha, sc = PX, hgt = SKY.hgt;
     // the far layer then the near layer, each at its own parallax; drawn in whole canvas pixels
     for(const [c, par, yo, al] of [[SKY.c0, 'far', 2, .9], [SKY.c1, 'mid', 0, 1]]){ const off = ((Math.round(skyPar(par) / sc) % SW) + SW) % SW, y = snp(hz - hgt * sc + yo * sc), wpx = Math.ceil(W / sc);
@@ -872,10 +874,11 @@
     cx.globalAlpha = 1; }
 
   // ---------------------------------------------------------------- warm-up
-  function* warmSteps(){ if(!TXT) TXT = can(256, 48); if(!BWS && typeof cv !== 'undefined' && cv.width){ BWS = can(cv.width, cv.height); BWSX = BWS.getContext('2d'); }   // the view-down's frame snapshot, made here, not on the first ride (a resize still remakes it) if(!DRZ.length) for(let i = 0; i < 90; i++) DRZ.push([hash(i * 1.3), hash(i * 2.7), hash(i * 4.1)]);
+  function* warmSteps(){ if(!TXT) TXT = can(256, 48); if(!BWS && typeof cv !== 'undefined' && cv.width){ BWS = can(cv.width, cv.height); BWSX = BWS.getContext('2d'); } yield;   // the view-down's frame snapshot, made here, not on the first ride (a resize still remakes it)
+    if(!DRZ.length) for(let i = 0; i < 90; i++) DRZ.push([hash(i * 1.3), hash(i * 2.7), hash(i * 4.1)]);   // the drizzle's streaks (hash() exists by now)
     for(let p = 0; p < PANELS.length; p++){ if(!SIGN[p]) SIGN[p] = [can(PW / 2, PHh / 2), can(PW, PHh)]; paintPanel(SIGN[p][1], PANELS[p], true); paintPanel(SIGN[p][0], PANELS[p], false); yield; }
-    for(let b = 0; b < BILLS.length; b++){ const n = BILLS[b][0].length; if(!BILL[b]) BILL[b] = [can(n * 16 + 8, 22), can(n * 32 + 12, 40)]; paintBill(BILL[b][0], BILLS[b], 16); paintBill(BILL[b][1], BILLS[b], 32); }
-    yield; buildKB(); yield; if(!SKY) buildSky(); yield;
+    for(let b = 0; b < BILLS.length; b++){ const n = BILLS[b][0].length; if(!BILL[b]) BILL[b] = [can(n * 16 + 8, 22), can(n * 32 + 12, 40)]; paintBill(BILL[b][0], BILLS[b], 16); paintBill(BILL[b][1], BILLS[b], 32); yield; }
+    yield; yield* buildKBG(); yield; if(!SKY) yield* buildSkyG(); yield;   // (stepped: first 60 s, research/sundown-craft/first60.md)
     if(document.fonts && document.fonts.ready && !warmSteps.fontHook){ warmSteps.fontHook = true; document.fonts.load('16px DotGothic16', '銀座新宿霞が関羽田江戸橋箱崎京橋渋谷神田上野電機カメラ時計洋酒真珠化粧品写真ホテル' + KBW.map(w => w[0]).join('') + KBV.map(w => w[0]).join('')).then(() => {
         try{ for(let p = 0; p < PANELS.length; p++){ paintPanel(SIGN[p][1], PANELS[p], true); paintPanel(SIGN[p][0], PANELS[p], false); } for(let b = 0; b < BILLS.length; b++){ paintBill(BILL[b][0], BILLS[b], 16); paintBill(BILL[b][1], BILLS[b], 32); } buildKB(); }catch(e){} }).catch(() => {}); }
     // upload every canvas once, and prime the patterns this road uses

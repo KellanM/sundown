@@ -199,7 +199,7 @@ P.parked = false;   // set by mech/arrival.js while it draws the parked patrol c
 P.copSprite = ph => P.parked ? ghost || (ghost = (() => { const c = document.createElement('canvas'); c.width = 40; c.height = 4000; return c; })()) : copFront(ph);
 P.copFront = copFront;
 function warm(){ sawSpr(0); sawSpr(1); for(const f of [0, 1]) for(const d of [1, -1]) offSpr(f, d); signSpr(); stripSpr(); copFront(0); copFront(1); copFront(2);
-  for(const c of ['#ff3b5c', '#ffd04a']) kanji(c); for(const s of ['ROADBLOCK', 'CHECKPOINT', 'SPIKES']) for(const c of ['#f4ecdf']) txt(s, c); for(const ch of '0123456789M') txt(ch, '#ffd04a'); try{ warmChase(); }catch(err){ console.warn('chase warm', err); } }
+  for(const c of ['#ff3b5c', '#ffd04a']) kanji(c); for(const s of ['ROADBLOCK', 'CHECKPOINT', 'SPIKES']) for(const c of ['#f4ecdf']) txt(s, c); for(const ch of '0123456789M') txt(ch, '#ffd04a'); try{ warmChase(); }catch(err){ console.warn('chase warm', err); } try{ rimWarm(); }catch(err){ console.warn('rim warm', err); } }
 P.warm = warm;
 
 /* ---------------- state ---------------- */
@@ -1139,7 +1139,13 @@ function chaseFront(now){ if(!FR.n || !CL.subway) return; const bs = Math.min(W 
    back is lit warm in three flat bands up from the tyre (the lamps sit low; no dither: on a sprite it reads as noise), and a one-pixel rim
    runs down each outer edge below the helmet (each lamp lights the flank on its own side). Per frame it is one drawImage, 'screen', with
    the core's own transform for the bike (the same x, y, pixel size, pose and lean residual as render()). */
-const RIM = { m:new Map(), s:null, g:null };
+const RIM = { m:new Map(), s:null, g:null, pool:[] };
+// kodawari #6: the scratch canvas and a fixed pool of light-map canvases are made in warm() (rimWarm), never mid-ride (the first chase made
+// 4 canvases in the ride). A light map takes a pooled canvas and putImageData fills all of it, so its pixels are exactly as before; when the
+// cache is cleared its canvases go back to the pool. (A canvas is only made here if warm() never ran.)
+const RIM_N = 82;   // the cache holds at most 81 maps (cleared past 80), plus one spare
+function rimWarm(){ if(!RIM.s){ RIM.s = document.createElement('canvas'); RIM.s.width = RIM.s.height = RIMS; RIM.g = RIM.s.getContext('2d', { willReadFrequently:true }); }
+  while(RIM.pool.length + RIM.m.size < RIM_N){ const c = document.createElement('canvas'); c.width = c.height = RIMS; c.getContext('2d'); RIM.pool.push(c); } }
 const RG = { imageSmoothingEnabled:false, fillStyle:'', globalCompositeOperation:'source-over', save(){ RIM.g.save(); }, restore(){ RIM.g.restore(); }, translate(x, y){ RIM.g.translate(x, y); }, rotate(r){ RIM.g.rotate(r); },
   drawImage(i, a, b, c, d, e, f, g, h){ RIM.g.drawImage(i, a, b, c, d, e, f, g, h); }, beginPath(){}, ellipse(){}, arc(){}, fill(){}, fillRect(){} };
 const RIMS = 64, RIMY = 52;   // the light map's size and the tyre's row in it (sprite pixels)
@@ -1151,7 +1157,8 @@ function rimMap(id, f, q){ const key = id + '|' + f + '|' + q; let m = RIM.m.get
   for(let y = 0; y < RIMS; y++) for(let x = 0; x < RIMS; x++){ if(!on(x, y)) continue; const up = RIMY - y, o = (y * RIMS + x) * 4;
     const band = up < 9 ? .26 : up < 18 ? .17 : up < 27 ? .085 : 0, rim = up < 21 && (!on(x - 1, y) || !on(x + 1, y));
     const c = rim ? [216, 196, 148] : [184, 164, 120], al = rim ? .55 : band; if(al <= 0) continue; D[o] = c[0]; D[o + 1] = c[1]; D[o + 2] = c[2]; D[o + 3] = Math.round(al * 255); }
-  m = document.createElement('canvas'); m.width = m.height = RIMS; m.getContext('2d').putImageData(out, 0, 0); if(RIM.m.size > 80) RIM.m.clear(); RIM.m.set(key, m); return m; }
+  if(RIM.m.size > 80){ for(const c of RIM.m.values()) RIM.pool.push(c); RIM.m.clear(); }
+  m = RIM.pool.pop(); if(!m){ m = document.createElement('canvas'); m.width = m.height = RIMS; } m.getContext('2d').putImageData(out, 0, 0); RIM.m.set(key, m); return m; }
 function rimLight(e, bs, now){ const B = ENV.bikes, c = e.c; if(!B || !B.render || !B._cur || !B.poseLean || BIKE.hidden || POSE.pitch > .01) return;
   const gh = recov > 0 && state === 'play' ? (reduce ? .55 : (Math.floor(recov * 8) % 2 ? .4 : .9)) : 1;   // the core's recovery blink (the bike is drawn at this alpha)
   const lf = (c.subUp || 0) * e.k * FR.g * gh * (e.flash ? 1.4 : 1) * (reduce ? .75 : 1); if(lf <= .05) return;

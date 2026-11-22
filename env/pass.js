@@ -544,14 +544,17 @@
     // build every sprite (both moon sides) up front so crossing into the pass never stalls on cache building
     warm(){ for(const _ of ENV.pass.warmSteps()); },
     // the same build, resumable for the staged warm-up: the sprites first, a few per step (they are cached, so the upload pass below just finds them);
-    // the game-canvas part (uploads, the backdrop sweep, the clear) stays one step, so the game never draws between our save and restore
+    // the game-canvas part (uploads, the backdrop sweep) is cut into steps that each restore the canvas state before yielding (a slice runs just
+    // after a frame is shown, and the next frame paints over whatever it drew)
     *warmSteps(){ for(const d of [-1, 1]){ for(let v = 0; v < 3; v++){ sugi(v, d); yield; } kusu(0, d); kusu(1, d); yield; toro(d); jizo(d); torii(d); yield; sakura(d); chevron(d); yield; }
       for(let v = 0; v < 6; v++) rockSpr(v); for(let v = 0; v < 3; v++) tuftSpr(v); yield; for(let v = 0; v < 6; v++){ rockHi(v, 2); rockHi(v, 4); } yield; signSpr(-1); signSpr(1); mirrorSpr(); yield; mirrorHi(2); mirrorHi(4); yield; for(const d of [-1, 1]) for(const R of [2, 4]){ toriiHi(d, R); yield; sakuraHi(d, R); signHi(d, R); yield; }
       const up = c => { cx.drawImage(c, 0, 0, PX, PX); cx.drawImage(c, 0, 0, c.width * PX, c.height * PX); }; if(document.fonts && document.fonts.load) document.fonts.load('16px DotGothic16').then(() => { try{ plate(); plateTexts(); }catch(e){} }, () => {});   // the road-name plate needs the pixel font: build it as soon as the font is in, not when first seen   // draw each once so the GPU texture upload happens now, not mid-ride
-      cx.save(); for(const d of [-1, 1]){ for(let v = 0; v < 3; v++) up(sugi(v, d)); up(kusu(0, d)); up(kusu(1, d)); up(toro(d)); up(jizo(d)); up(torii(d)); up(sakura(d)); up(chevron(d)); }
-      { const pl = plate(); if(pl) up(pl); }
-      for(let v = 0; v < 6; v++){ up(rockSpr(v)); up(rockHi(v, 2)); up(rockHi(v, 4)); } for(let v = 0; v < 3; v++) up(tuftSpr(v)); up(signSpr(-1)); up(signSpr(1)); up(mirrorSpr()); up(mirrorHi(2)); up(mirrorHi(4)); for(const d of [-1, 1]) for(const R of [2, 4]){ up(toriiHi(d, R)); up(sakuraHi(d, R)); up(signHi(d, R)); }
-      for(const c of ['#ffe0a0', '#2a4660', '#1a3044', '#0e1c28']) for(const dn of [.125, .25, .5, .75]){ cx.fillStyle = pat(c, dn); cx.fillRect(0, 0, PX * 8, PX * 8); }
+      // (first 60 s, research/sundown-craft/first60.md: the upload pass in four steps, each its own save/restore, so the ride can take it)
+      for(const d of [-1, 1]){ cx.save(); for(let v = 0; v < 3; v++) up(sugi(v, d)); up(kusu(0, d)); up(kusu(1, d)); up(toro(d)); up(jizo(d)); up(torii(d)); up(sakura(d)); up(chevron(d)); cx.restore(); yield; }
+      cx.save(); { const pl = plate(); if(pl) up(pl); }
+      for(let v = 0; v < 6; v++){ up(rockSpr(v)); up(rockHi(v, 2)); up(rockHi(v, 4)); } for(let v = 0; v < 3; v++) up(tuftSpr(v)); up(signSpr(-1)); up(signSpr(1)); up(mirrorSpr()); up(mirrorHi(2)); up(mirrorHi(4)); cx.restore(); yield;
+      cx.save(); for(const d of [-1, 1]) for(const R of [2, 4]){ up(toriiHi(d, R)); up(sakuraHi(d, R)); up(signHi(d, R)); } cx.restore(); yield;
+      cx.save(); for(const c of ['#ffe0a0', '#2a4660', '#1a3044', '#0e1c28']) for(const dn of [.125, .25, .5, .75]){ cx.fillStyle = pat(c, dn); cx.fillRect(0, 0, PX * 8, PX * 8); }
       cx.globalCompositeOperation = 'lighter'; glow(PX * 4, PX * 4, PX * 4, '#ffb060', .01); pool(PX * 4, PX * 4, PX * 4, PX * 2, '#ffa850', .01); cx.restore();
       // run the backdrop once across the night so its mist and rim patterns exist before the ride reaches them
       if(typeof skyAt === 'function' && W > 0) for(let t = 0; t <= 1.001; t += .05){ const sk = skyAt(t * .97), tint = LANDS[4] ? LANDS[4].sky : sk.mid; sk.mid = mixc(sk.mid, tint, .4 * (1 - t)); sk.low = mixc(sk.low, tint, .3 * (1 - t)); this.backdrop({ hz:H / 2 + 2, sk, now:0, moonX:W / 2, moonY:H * .2, t, far:sk.mid, near:sk.mid, L:LANDS[4] }); yield; }

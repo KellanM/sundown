@@ -97,11 +97,15 @@ function glyphMask0(ch, s){ const fs = 16 * s, cw0 = fs * ch.length + 8, ch0 = f
     b[(y - y0) * w + x - x0] = 1; }
   return { b, w, h }; }
 // a sumi brush stroke: pressed down hard on the left, dragged right, splitting into dry-brush hairs at the tail
-function swashMask(w, h, seed){ const b = new Uint8Array(w * h);
-  for(let x = 0; x < w; x++){ const p = x / w, start = Math.min(1, Math.sqrt(p / .07)), wob = (HS(Math.floor(x / 3) + seed) - .5) * 2;
-    const top = h * (.1 + .08 * Math.sin(p * 2.6 + seed) + (1 - start) * .38) + wob, bot = h * (.93 - .3 * Math.pow(p, 1.6) - (1 - start) * .38) + wob * .6;
-    for(let y = Math.max(0, Math.round(top)); y <= Math.min(h - 1, Math.round(bot)); y++){ const r = HS(y * 3.1 + seed * 7), hair = r > .5 && p > .42 + HS(y * 1.7 + seed) * .35;
-      if(hair && HS(x * .37 + y * 9.1) > .25) continue; if(p > .88 && (x + y) % 2) continue; b[y * w + x] = 1; } }
+// kodawari #30: its head is cut on a slant (the brush lands from the upper left), not rounded: the round head read as a pink disc, a blob
+// beside the kanji. Bristle grooves (b = 2) run along the body so it reads as a dragged stroke.
+function swashMask(w, h, seed){ const b = new Uint8Array(w * h), cut = h * .35;
+  for(let x = 0; x < w; x++){ const p = x / w, wob = (HS(Math.floor(x / 3) + seed) - .5) * 2;
+    const top = h * (.1 + .08 * Math.sin(p * 2.6 + seed)) + wob, bot = h * (.93 - .3 * Math.pow(p, 1.6)) + wob * .6;
+    for(let y = Math.max(0, Math.round(top)); y <= Math.min(h - 1, Math.round(bot)); y++){ if(x < (y - top) / Math.max(1, bot - top) * cut) continue;   // the slanted entry
+      const r = HS(y * 3.1 + seed * 7), hair = r > .5 && p > .42 + HS(y * 1.7 + seed) * .35;
+      if(hair && HS(x * .37 + y * 9.1) > .25) continue; if(p > .88 && (x + y) % 2) continue;
+      b[y * w + x] = r > .7 && y > top + 1 && y < bot - 1 && p > .12 + HS(y * 2.3 + seed) * .2 ? 2 : 1; } }
   for(let n = 0; n < 9; n++){ const x = Math.floor(w * (.7 + HS(n * 3.3 + seed) * .29)), y = Math.floor(h * (.15 + HS(n * 7.9 + seed) * .7)); b[y * w + x] = 1; if(n % 3 === 0 && x + 1 < w) b[y * w + x + 1] = 1; }   // spatter off the tail
   return b; }
 function stackMask(str, s){ const gs = [...str].map(ch => glyphMask(ch, s)), gap = s * 2, w = Math.max(...gs.map(g => g.w)), h = gs.reduce((a, g) => a + g.h + gap, -gap), b = new Uint8Array(w * h); let y0 = 0;   // vertical, like a tokko-fuku sleeve
@@ -109,7 +113,9 @@ function stackMask(str, s){ const gs = [...str].map(ch => glyphMask(ch, s)), gap
 function kanjiStamp(L, s, i, vertical){ const g = vertical ? stackMask(L.kanji, s) : glyphMask(L.kanji, s), m = bitsCanvas(g.b, g.w, g.h, '#ffffff'), col = roadCol(L), dep = s >= 4 ? 3 : 2;
   const padL = Math.round(g.w * .45), sw = padL + g.w + 8, sh = Math.round(g.h * .62), W2 = sw + dep + 4, H2 = g.h + dep + 4;   // the brush lands left of the kanji and drags right under it, its tail ending where the type begins
   const sm = bitsCanvas(swashMask(sw, sh, i * 13.7 + 3), sw, sh, '#ffffff'), sy = Math.round(g.h * .3);
-  const sw2 = mk(W2, H2), ks = sw2.getContext('2d'); ks.drawImage(bandMask(sm, [mixc(col, '#ffffff', .3), col, col, col, dark(col, .25), dark(col, .45)]), 0, sy);
+  const sw2 = mk(W2, H2), ks = sw2.getContext('2d'), smb = swashMask(sw, sh, i * 13.7 + 3), gr = bitsCanvas(smb.map(v => v === 2 ? 1 : 0), sw, sh, dark(col, .4)), ol = tintMask(sm, INK);
+  for(const [dx, dy] of [[-1, 0], [1, 0], [0, -1], [0, 1]]) ks.drawImage(ol, dx, sy + dy);   // a one-pixel ink edge: it reads as a mark on the slab, not a soft blob
+  ks.drawImage(bandMask(sm, [mixc(col, '#ffffff', .3), col, col, col, dark(col, .25), dark(col, .45)]), 0, sy); ks.drawImage(gr, 0, sy);
   const c = mk(W2, H2), k = c.getContext('2d'); stampMask(k, m, padL, 1, 1, bandMask(m, ['#ffffff', '#ffffff', '#f4ecdf', '#e6dccb']), INK, '#1a0a1c', dep);
   const wh = mk(W2, H2); stampMask(wh.getContext('2d'), m, padL, 1, 1, tintMask(m, '#ffffff'), '#ffffff', '#ffffff', 0);
   return { c, swash:sw2, white:wh, w:W2, h:H2, gx:padL, gw:g.w }; }
@@ -119,7 +125,8 @@ const KN = ['〇', '一', '二', '三', '四', '五', '六', '七', '八', '九'
 const kNum = n => n <= 0 ? KN[0] : n < 10 ? KN[n] : n === 10 ? '十' : n < 20 ? '十' + KN[n - 10] : KN[Math.floor(n / 10) % 10] + '十' + (n % 10 ? KN[n % 10] : '');
 function seal(n){ return sealStr(kNum(n), n); }
 function sealStr(str, n){ const key = 'seal' + str; if(C[key]) return C[key]; const t = pixText(str, 16), w = t.width + 3, h = 21, c = mk(w, h), k = c.getContext('2d');
-  k.fillStyle = '#c8102a'; k.fillRect(1, 0, w - 2, h); k.fillRect(0, 1, w, h - 2);
+  k.fillStyle = INK; k.fillRect(0, 0, w, h);   // kodawari #30: an ink rim, so the red seal never melts into a red or pink brush stroke under it
+  k.fillStyle = '#c8102a'; k.fillRect(1, 1, w - 2, h - 2);
   k.fillStyle = '#ff3b4a'; k.fillRect(2, 1, w - 4, 1);
   k.drawImage(tintMask(t, CREAM), 2, 1);
   k.fillStyle = 'rgba(0,0,0,0)'; k.globalCompositeOperation = 'destination-out'; for(let q = 0; q < 9; q++){ k.fillStyle = '#000'; k.fillRect(Math.floor(HS(n * 7 + q) * w), Math.floor(HS(n * 11 + q * 3) * h), 1, 1); }   // worn ink
@@ -136,24 +143,26 @@ function wrap(str, max){ const out = []; let line = ''; for(const w of str.split
 function card(i){ return cardFor(LANDS[i], i); }
 const extLabel = () => boxLabel((cx.canvas.width < 260 ? 'EXT +' : 'EXTENDED +') + GATE_BONUS, INK, GOLD, GOLD);
 function cardFor(L, i){ const cw = cx.canvas.width, chh = cx.canvas.height, key = L.key + ':' + cw + 'x' + chh; if(C[key]) return C[key];
-  const col = roadCol(L), narrow = cw < 260, nk = [...L.kanji].length, two = nk > 1, vertical = two && narrow;
-  const ks = L.ks ? (narrow ? L.nks : L.ks) : narrow ? (nk > 2 ? 1 : 2) : nk > 2 ? (nk * 34 <= cw * .42 ? 2 : 1) : two ? 3 : chh >= 230 ? 4 : 3, kj = kanjiStamp(L, ks, i, vertical);   // longer titles (moment cards: 首都高越え) step the kanji down so they fit
+  const col = roadCol(L), narrow = cw < 260, nk = [...L.kanji].length, two = nk > 1, vertical = two && narrow, short = !narrow && chh < 210 && !L.ks;   // short: a phone on its side (kodawari #8): a smaller card at the very top, so the road stays clear
+  const ks = L.ks ? (narrow ? L.nks : L.ks) : narrow || short ? (nk > 2 ? 1 : 2) : nk > 2 ? (nk * 34 <= cw * .42 ? 2 : 1) : two ? 3 : chh >= 230 ? 4 : 3, kj = kanjiStamp(L, ks, i, vertical);   // longer titles (moment cards: 首都高越え) step the kanji down so they fit
   // one layout for every width: the kanji on the left, the type in a column beside it (phones get a smaller kanji and the 1x name face)
   const kr = kj.gx + kj.gw + (narrow ? 9 : 10), avail = narrow ? cw - 9 - kr : Math.min(Math.round(cw * .62), cw - 20 - kr), nameW = (s, str) => blockMask(str, s).width + 6;
-  let lines = [L.name], ns = narrow ? (L.nns || 1) : (L.ns || 2);
+  let lines = [L.name], ns = narrow || short ? (L.nns || 1) : (L.ns || 2);
   if(nameW(ns, L.name) > avail){ lines = L.name.split(' '); if(lines.some(w => nameW(ns, w) > avail)) ns = 1; }
   const names = lines.map(s => nameLine(s, ns, col)), nw = Math.max(...names.map(n => n.c.width)), lineH = names[0].c.height - 1;
-  const note = L.note || 'Ride till sunrise', noteLines = wrap(note, narrow ? Math.floor(avail / 4) : Math.min(46, Math.floor(avail / 4))).map(s => txt3(s, CREAM, INK)), noteW = Math.max(...noteLines.map(c => c.width));
+  const note = L.note || 'Ride till sunrise', noteLines = narrow && i < 90 ? [] : wrap(note, narrow ? Math.floor(avail / 4) : Math.min(46, Math.floor(avail / 4))).map(s => txt3(s, CREAM, INK)), noteW = Math.max(...noteLines.map(c => c.width));
   const o = { i, L, col, narrow, kj, names, noteLines, cw, ch:chh };
   const tagH = 10, gap = narrow ? 2 : 3, textH = tagH + gap + lineH * names.length + gap + noteLines.length * 7;
+  // (a phone's road card drops its one-line note: the card then ends above 40% of the screen, kodawari #8; moment cards keep their instruction)
   const textW = Math.max(nw, noteW, narrow ? 40 : 60), gw = kr + textW; o.gx = narrow ? 3 : Math.round((cw - gw) / 2);
-  o.by = Math.round(chh * (narrow ? L.nby || .27 : L.by || .2)); o.bh = Math.max(textH + 10, kj.h + (L.fullbh ? 6 : -10)); o.kx = o.gx; o.ky = Math.round(o.by + o.bh / 2 - kj.h / 2 + 2);
+  o.by = Math.round(chh * (narrow ? L.nby || .27 : short && !L.lb ? .05 : L.by || .2)); o.bh = Math.max(textH + 10, kj.h + (L.fullbh ? 6 : -10)); o.kx = o.gx; o.ky = Math.round(o.by + o.bh / 2 - kj.h / 2 + 2);
   if(L.lb){ const top = Math.ceil(chh * .11) + 3, lift = Math.max(top - o.ky, top - (o.by - 4)); if(lift > 0){ o.by += lift; o.ky += lift; } }   // moment cards stay clear of the director's letterbox
   o.tx = o.gx + kr; o.ty = o.by + Math.round((o.bh - textH) / 2); o.bx = narrow ? -6 : o.gx - 14; o.align = 'left';
   o.tagH = tagH; o.lineH = lineH; o.gap = gap;
   // focus lines converging on the kanji, two frames, thresholded to hard pixels
   o.kcx = o.kx + kj.gx + kj.gw / 2; o.kcy = o.ky + kj.h / 2;
-  o.focus = [0, 1].map(f => { const c = mk(cw, chh), k = c.getContext('2d'), R = Math.hypot(cw, chh), r0 = kj.h * (f ? .95 : .75); k.fillStyle = '#fff';
+  // (the countdown's GO card only: road and moment cards draw no lines over the road, kodawari #11)
+  o.focus = !/^cd/.test(L.key) ? null : [0, 1].map(f => { const c = mk(cw, chh), k = c.getContext('2d'), R = Math.hypot(cw, chh), r0 = kj.h * (f ? .95 : .75); k.fillStyle = '#fff';
     for(let n = 0; n < 34; n++){ const a = (n + HS(n * 3.3 + f * 7) * .7) / 34 * 6.283, wd = .006 + HS(n * 5.7 + f) * .012, rr0 = r0 * (1 + HS(n * 2.1 + f * 3) * .8);
       k.beginPath(); k.moveTo(o.kcx + Math.cos(a) * rr0, o.kcy + Math.sin(a) * rr0); k.lineTo(o.kcx + Math.cos(a - wd) * R, o.kcy + Math.sin(a - wd) * R); k.lineTo(o.kcx + Math.cos(a + wd) * R, o.kcy + Math.sin(a + wd) * R); k.fill(); }
     const d = k.getImageData(0, 0, cw, chh); for(let q = 3; q < d.data.length; q += 4) d.data[q] = d.data[q] > 100 ? 255 : 0; k.putImageData(d, 0, 0); return c; });
@@ -212,7 +221,7 @@ A.arrive = (L, z) => {
     for(let n = CO.length - 1; n >= 0; n--) if(CO[n].text === '+' + GATE_BONUS + 's'){ CO.splice(n, 1); chip = true; } }   // the checkpoint's +15s rides on the card as EXTENDED (DOM float or callout)
   try{ card(i); }catch(e){ console.warn('arrival', e); A.err = e.message + ' ' + e.stack; return false; }
   if(z > 0 && Q.quietOn()) return true;   // the quiet stretch: no card (the HUD's road tag names the road)
-  cur = { i, L, z, t0:mom || cd || (Q.enabled && (Q.busy() || Q.breathOn())) ? null : performance.now(), w0:Q.t, chip, shook:false, tag:boxLabel('ROAD ' + (z + 1), CREAM, roadCol(L), null, LBL.road), seal:seal(z + 1), ext:extLabel() };
+  cur = { i, L, z, t0:mom || cd || dirBand() || (Q.enabled && (Q.busy() || Q.breathOn())) ? null : performance.now(), w0:Q.t, chip, shook:false, tag:boxLabel('ROAD ' + (z + 1), CREAM, roadCol(L), null, LBL.road), seal:seal(z + 1), ext:extLabel() };
   cur.go = () => { if(!reduce) sting(L); else if(M.ac) M.tone(midi(L.prog[0][0] + 12), 1.2, { type:'triangle', v:.03 }); };
   if(cur.t0 != null) cur.go();
   return true; };
@@ -386,7 +395,7 @@ const at = (p, a, b) => clamp((p - a) / (b - a), 0, 1);
 const CF = 2.2, UPT = 2.35, MV = 2.5, DOOR = 2.88, KICK = 3.02, INCAR = 3.2, FZ = 3.32, ST = .3;   // cuffed, hauled up, walked, at the door, the kick, in, the door slams (the freeze), the seal (after FZ)
 const k0 = p => p < 1.2 ? 0 : p < 2.3 ? 1 : p < 2.95 ? 2 : 3;   // reduced motion's key poses (car stopped / down and cuffed / at the door / in the car), then the end card
 function blitF(c, x, gy, K, alpha){ if(!c || alpha <= 0) return; cx.globalAlpha = alpha; cx.drawImage(c, Math.round(x - c.width * K / 2), Math.round(gy - c.height * K), c.width * K, c.height * K); cx.globalAlpha = 1; }
-function stage(){ const cw = cx.canvas.width, ckc = Math.max(PX, Math.round(Math.min(W * .34, H * .5) / 40 / PX) * PX), S = ckc / PX, K = Math.max(1, Math.round(Math.min(W * .2, H * .27) / 30 / PX));
+function stage(){ const cw = cx.canvas.width, K = Math.max(1, Math.round(Math.min(W * .2, H * .27) / 30 / PX)), S = K;   // kodawari #6: the car at the figures' own pixel size (it was drawn ~1.5x larger, so the officers stood at 40% of its height; now they reach its roof line)
   const PC = parkCar(0), bcx = Math.round(cw / 2), gy = Math.round((H - 8) / PX), carW = (PC ? PC.w : 40) * S, carH = (PC ? PC.h : 24) * S, parkX = Math.round(bcx - 13 * K - 30 * K - carW / 2) + (cw < 260 ? 6 : 0), carB = Math.round((H + carH * PX * .05) / PX);
   const xA = bcx - 14 * K, xHeap = Math.min(cw - 16 * K, bcx + 18 * K), xB = Math.min(cw - 9 * K, xHeap + 18 * K);   // little figures: everything stands closer   // officer B works the far side, clear of the car's rear door
   return { cw, S, K, bcx, gy, carW, carH, parkX, carB, xA, xHeap, xB, chaseX:Math.round((W / 2 + W * .27) / PX) }; }
@@ -964,7 +973,7 @@ const coWhiteish = col => { const [r, g, b] = hx(col); return r > 200 && g > 200
 // the second colour (offset shadows, the kanji stamp, the exit wipe): warm accents get ink-blue, cool and white ones get a hot red-pink
 function coSecond(col){ const [r, g, b] = hx(col); return coWhiteish(col) ? '#ff2a3a' : r > b + 30 ? '#1c2a6a' : '#ff3b6a'; }
 const CO_SH = 14;   // the lean: the baseline rises one pixel every CO_SH pixels to the right
-const coKey = (text, o) => 'co:' + text + '|' + (o.kanji || '') + '|' + (o.sub || '') + '|' + (o.col || CREAM) + '|' + (o.size || 's') + '|' + cx.canvas.width;
+const coKey = (text, o) => 'co:' + text + '|' + (o.kanji || '') + '|' + (o.sub || '') + '|' + (o.col || CREAM) + '|' + (o.size || 's') + '|' + cx.canvas.width + (cx.canvas.height < 170 ? 's' : '');
 // the slots (the card's four layers) and the scratch canvas (an unsheared layer at the top, a tint area under it)
 // WK: the unsheared layer being built; WT: the tint area; WA: the three layers stacked (unsheared), sheared once into the slot's 'all' row.
 // Three canvases so no canvas is ever drawn onto itself (a self-draw snapshots the whole canvas). WK.w: the width this card uses.
@@ -980,7 +989,7 @@ function coLayout(text, o){ const cw = cx.canvas.width, col = o.col || CREAM;
   let str = String(text), kj = o.kanji; if(kj === undefined){ kj = CO_KJ[str.toUpperCase()] || (/^\+\d+S$/i.test(str) ? '延長' : null); const r = coRuns(str); if(!kj && r.length > 1 && r[0].cjk){ kj = r[0].s; str = str.slice(r[0].s.length).replace(/^[\s·]+/, ''); } }
   const kjAll = kj || '';   // the stamp's kanji even while it is left off (coRedo re-composes the card when the glyph arrives)
   if(kj && [...kj].some(ch => { if(!isCJK(ch)) return false; const g = cjkGlyph(ch); return !g || g.blank; })) kj = null;   // never a blank stamp block
-  const sec = coSecond(col), max = cw - 8, runs = coRuns(str), z0 = o.size === 'm' ? 3 : o.size === 'xs' ? 1 : 2, cfgs = [];
+  const sec = coSecond(col), max = cw - 8, runs = coRuns(str), z0 = o.size === 'm' ? (cx.canvas.height < 170 ? 2 : 3) : o.size === 'xs' ? 1 : 2, cfgs = [];
   // shrink to 2x, then drop the kanji, then wrap at 2x (two lines with the stamp, three without), and only then (last resort) 1x letters
   for(const c of [[z0, true], [2, true], [z0, false], [2, false], [2, true, 1], [2, false, 1], [1, false]]) if(c[0] <= z0 && !cfgs.some(d => d[0] === c[0] && d[1] === c[1] && d[2] === c[2])) cfgs.push(c);
   const stW = kj ? cjkWidth(kj) + 4 : 0, stH = CJK_H + 3; let lay = null;
@@ -1057,7 +1066,7 @@ function coRank(text, o){ if(o.rank != null) return o.rank; const u = String(tex
   if(typeof TIER_NAME !== 'undefined' && TIER_NAME.some((n, i) => i && n && String(n).toUpperCase() === u)) return 4;
   if(o.sub === 'LANDMARK JUMP' || (o.kanji && o.size === 'm')) return 3; if(/CLEAN LANDING/.test(u)) return 2; return 1; }
 A.callout = (text, o) => { if(!cx || text == null || text === '') return false;
-  { const SY = MECH.style; let fold = false; try{ fold = !!(SY && SY.hear && SY.hear(String(text), o)); }catch(e){ console.warn('style hear', e); } if(fold && Q.enabled) return true; }   // small acts (Close, Boost, Slipstream...) show in the style chain on the HUD instead
+  { const SY = MECH.style; let fold = false; try{ fold = !!(SY && SY.hear && SY.hear(String(text), o)); }catch(e){ console.warn('style hear', e); } if(fold && (Q.enabled || narrowW())) return true; }   // a phone (kodawari #8): the chain tab already names the act, so no second chip says it again   // small acts (Close, Boost, Slipstream...) show in the style chain on the HUD instead
   { const tw = TICK[String(text).toUpperCase()]; if(tw){ try{ tickPush(tw, o); return true; }catch(e){ console.warn('ticker', e); } } }   // small frequent acts: the ticker under the HUD, not a card at the rider
   o = Object.assign({ size:'s' }, o || {});
   // the arbiter (MECH.quiet, below): the arrest shows nothing else; the quiet stretch announces only danger; a breath drops information
@@ -1084,18 +1093,20 @@ const TICK = { 'CLOSE':'NEAR MISS', 'BUMP':'SCRAPE', 'SCRAPE':'SCRAPE', 'BOOST':
   'CLEAN LANDING':'CLEAN LANDING', 'DODGED':'DODGE', 'SLID PAST':'SLID PAST', 'WOBBLE':'WOBBLE', 'KICKED':'KICKED', 'COUNTER!':'COUNTER', '+15S':'+15 SEC',
   'SPIKES!':'SPIKES', 'BIG AIR':'BIG AIR', 'SHORTCUT':'SHORTCUT', 'BIG AIR · SHORTCUT':'BIG AIR + SHORTCUT', 'COVERED':'COVERED', '← SLICK':'← SLICK',
   'SLICK →':'SLICK →', 'MATSURI!':'MATSURI', 'SCORCHED':'SCORCHED', 'SLIPPED THROUGH':'SLIPPED THROUGH' };
-const TSL = [], TK = [], TK_LIFE = .9, TK_OUT = .2, TK_N = 3;
+const TSL = [], TK = [], TK_LIFE = .9, TK_OUT = .2, TK_N = 3, narrowW = () => typeof W === 'number' && W < 640;   // narrowW: the HUD's phone layout (env/hud.js)
 function tickPush(word, o){ slotsInit(); const col = (o && o.col) || CREAM, oo = { size:'xs', col, kanji:'' };
   if(TK.length >= TK_N) TK.pop();   // the oldest goes (its slot is free again)
   const key = coKey(word, oo), busy = new Set(TK.map(e => e.slot)), S = TSL.find(x => !busy.has(x) && x.key === key) || TSL.find(x => !busy.has(x));
   const b = coCompose(word, oo, S); TK.unshift({ word, b, slot:S, t0:null }); }
 function drawTicker(now){ if(!TK.length) return; const cw = cx.canvas.width, ch = cx.canvas.height; skyY(cw, ch); const L = SKY.L; if(!L) return;
-  const x0 = L.narrow ? L.chain.x : L.speed.x + Math.ceil(64 / L.sx); let y = L.freeY + 1;
+  // a phone (kodawari #8): beside the chain tab, two lines at most, so the chips never stack down toward the road; wide: the top-left sky
+  const x0 = L.narrow ? L.chain.x + L.chain.w + 2 : L.speed.x + Math.ceil(64 / L.sx); let y = L.narrow ? L.chain.y : L.freeY + 1;
   cx.save(); cx.setTransform(1, 0, 0, 1, 0, 0); cx.imageSmoothingEnabled = false;
   for(let i = 0; i < TK.length; i++){ const e = TK[i], b = e.b; if(e.t0 == null) e.t0 = now; const t = (now - e.t0) / 1000;
     if(t > TK_LIFE){ TK.splice(i--, 1); continue; }
     const a = t > TK_LIFE - TK_OUT ? (t > TK_LIFE - TK_OUT / 2 ? 1 / 3 : 2 / 3) : 1, ox = !reduce && t < .034 ? -2 : 0;
-    cx.globalAlpha = a; cx.drawImage(b.c, 0, b.yOut, b.w + 2, b.h + 2, x0 - 1 + ox, y - 1, b.w + 2, b.h + 2); y += b.h + 1; }
+    if(L.narrow && i >= 2) continue; const xx = L.narrow ? Math.min(x0, cw - b.w - 3) : x0;
+    cx.globalAlpha = a; cx.drawImage(b.c, 0, b.yOut, b.w + 2, b.h + 2, xx - 1 + ox, y - 1, b.w + 2, b.h + 2); y += b.h + 1; }
   cx.globalAlpha = 1; cx.restore(); }
 A._tk = () => TK;
 
@@ -1134,6 +1145,7 @@ const QTTL = [0, .8, 1.2, 2.5];   // seconds a waiting message may wait, by clas
 const Q_DANGER = /^(POLICE|STOP|PULL OVER|BACKUP|SPIKES|SLOW DOWN|SCORCHED|BUMP|SCRAPE|WOBBLE|KICKED|MATSURI!)|SLICK|強風/, Q_INFO = /^\+\d+S$|^負 |^REJOINED|^COVERED|^新幹線|^RACE IT|^富士|^←|→$/;   // mech/crew.js: COVERED is information, the crew's arrival and takedowns celebrate
 Q.classOf = (text, o) => { if(o && o.prio) return o.prio; const u = String(text).toUpperCase(); if(o && /PATROL CAR|HELI PA/.test(o.sub || '')) return 3; return Q_DANGER.test(u) ? 3 : Q_INFO.test(u) ? 1 : 2; };
 const cutinOn = () => !!(MECH.cutin && MECH.cutin.on && MECH.cutin.on());
+const dirBand = () => { try{ return !!(MECH.director && MECH.director.cardOn && MECH.director.cardOn()); }catch(e){ return false; } };   // mech/director.js's hazard band is up (kodawari #11)
 const extOn = () => !!Q.ext && Q.t < Q.ext.until;
 const coCur = () => { for(const c of CO) if(c.st === 'cur') return c; return null; };
 Q.quietOn = () => Q.enabled && !!(MECH.director && MECH.director.quietOn && MECH.director.quietOn());
@@ -1188,26 +1200,28 @@ const CO_POS = { x:null, y:null, last:0 }; A._coPos = CO_POS; A._coHead = () => 
 function drawCallouts(now){ if(!CO.length) return; now = coClock(now); const cw = cx.canvas.width, ch = cx.canvas.height;
   let cu = CO.find(c => c.st === 'cur'), ou = CO.find(c => c.st === 'out'), nx = CO.find(c => c.st === 'next');
   // the arbiter: a cut-in, a big card, a set piece's own card or the arrest holds the screen; a danger callout may stay over a card
-  const cut = cutinOn(), hold = Q.enabled ? (state === 'pulled' || cut || extOn() || A.cardOn()) : cut;   // quiet off: only a cut-in holds a callout (it draws over callouts, so one would sit under its title); it shows the moment the card ends
+  const cut = cutinOn(), hold = Q.enabled ? (state === 'pulled' || cut || extOn() || A.cardOn() || dirBand()) : (cut || A.cardOn() || dirBand());   // one message at a time: a cut-in, a big card or the director's hazard band holds a callout (quiet off: it shows the moment the card ends, or is dropped once stale)
   if(nx && Q.enabled && Q.t - nx.tq > QTTL[nx.prio]){ CO.splice(CO.indexOf(nx), 1); nx = null; Q.dropped++; }   // waited too long for the screen: dropped
   if(cu && (now - cu.t0) / 1000 > cu.life){ cu.st = 'out'; cu.tOut = now; if(ou) CO.splice(CO.indexOf(ou), 1); ou = cu; cu = null; }
-  if(cu && hold && !(cu.prio >= 3 && !cut && state !== 'pulled' && !extOn())){ cu.st = 'out'; cu.tOut = now; if(ou) CO.splice(CO.indexOf(ou), 1); ou = cu; cu = null; }
+  if(cu && hold && !(cu.prio >= 3 && !cut && state !== 'pulled' && !extOn() && !dirBand())){ cu.st = 'out'; cu.tOut = now; if(ou) CO.splice(CO.indexOf(ou), 1); ou = cu; cu = null; }
   if(nx && cu && (Q.enabled ? (nx.prio > cu.prio || (nx.prio === cu.prio && nx.prio < 3 && !(cu.rank > nx.rank && (now - cu.t0) / 1000 < .4))) : !(cu.rank > nx.rank && (now - cu.t0) / 1000 < .4))){ cu.st = 'out'; cu.tOut = now; cu.by = true; if(ou) CO.splice(CO.indexOf(ou), 1); ou = cu; cu = null; }   // the new one's bar wipes the current one out
-  if(ou && ((now - ou.tOut) / 1000 > (reduce ? .15 : CO_OUT) || (reduce && ou.by))){ CO.splice(CO.indexOf(ou), 1); ou = null; }   // reduced motion: a replaced callout goes at once (no two messages crossfading)
+  if(ou && ((now - ou.tOut) / 1000 > (reduce ? .15 : CO_OUT) || ou.by)){ CO.splice(CO.indexOf(ou), 1); ou = null; }   // a replaced callout goes at once: the new one stamps in on its spot (never two messages crossfading)
+  if(nx && hold && !Q.enabled && Q.t - nx.tq > QTTL[nx.prio]){ CO.splice(CO.indexOf(nx), 1); nx = null; }   // held behind a card too long: stale (it would name a moment already past)
   if(nx && !cu && !hold && CO.includes(nx)){ if(reduce && ou){ CO.splice(CO.indexOf(ou), 1); ou = null; } nx.st = 'cur'; nx.t0 = now; cu = nx; }   // reduced motion: the old one goes as the new one comes (never two at once)   // in the same spot, at once: its bar wipe is what takes the old one away
   if(!ou && !cu) return;
   // near the rider: centred on the rider's head across (a little lag), sitting just above the road's top row, so it reads with the action
   // but never covers the road ahead; never up into the HUD. (It rode over the helmet, on the road; then sat far up under the HUD.)
   const hd = coHead(), dtp = CO_POS.last ? clamp((now - CO_POS.last) / 1000, 0, .1) : 1; CO_POS.last = now;
   if(CO_POS.x === null || dtp >= .1 || CO_POS.cw !== cw){ CO_POS.cw = cw; CO_POS.x = hd.x; } else CO_POS.x += (hd.x - CO_POS.x) * (1 - Math.exp(-10 * dtp));
-  const rt = Math.min(Q.roadTop(), Math.round(hd.y)) - 4, sy = skyY(cw, ch);
+  const sy = skyY(cw, ch);
   cx.save(); cx.setTransform(1, 0, 0, 1, 0, 0); cx.imageSmoothingEnabled = false;
   for(const c of [ou, cu]){ if(!c) continue; const b = c.b, W2 = b.w + 2, H2 = b.h + 2;
-    const x = Math.round(clamp(CO_POS.x - b.w / 2, 3, cw - b.w - 3)), y = Math.max(sy, rt - b.h);
+    const x = Math.round(clamp(CO_POS.x - b.w / 2, 3, cw - b.w - 3)), y = sy;   // kodawari #1: the sky band under the HUD, never over the road ahead (it sat just above the road's top row: centre screen, on the riding line)
     if(c.st === 'out'){ const p = Math.min(1, (now - c.tOut) / 1000 / (reduce ? .15 : CO_OUT));
-      if(reduce){ cx.globalAlpha = 1 - step(p, 3); cx.drawImage(b.c, 0, b.yOut, W2, H2, x - 1, y - 1, W2, H2); cx.globalAlpha = 1; continue; }
-      const wx = Math.round(step(p, 4) * W2); if(wx < W2) cx.drawImage(b.c, wx, b.yOut, W2 - wx, H2, x - 1 + wx, y - 1, W2 - wx, H2);   // the bar wipe eats it left to right
-      if(!c.by){ cx.fillStyle = b.sec; const bw = Math.max(4, Math.round(b.w * .18)); cx.fillRect(x + Math.min(wx, b.w - bw), y + b.rise - Math.floor(wx / CO_SH) + b.barY, bw, b.barH); }   // its own wipe bar (a replacement uses the new card's bar)
+      // the exit (kodawari #1): the whole composed card steps out in two whole-card fades and a one-pixel rise along its slant, so no frame
+      // ever shows a clipped word or a stamp block without its glyph (the old left-to-right bar wipe was caught as AXIWAY JUMP! in 1 still in 5)
+      const q = Math.min(2, Math.floor(p * 3)); if(q >= 2 && !reduce) continue;
+      cx.globalAlpha = reduce ? 1 - step(p, 3) : q ? 1 / 3 : 2 / 3; cx.drawImage(b.c, 0, b.yOut, W2, H2, x - 1 + (reduce ? 0 : q), y - 1 - (reduce ? 0 : q), W2, H2); cx.globalAlpha = 1;
       continue; }
     const t = (now - c.t0) / 1000;
     // the stamp-in, whole from frame 1: it lands along its slant (+5, -2), overshoots a pixel back, settles; the first frame flashes light
@@ -1229,12 +1243,13 @@ A.drawScreen = now => { qTick(now);
 function cardOut(c, now, hold){ const tOut = reduce ? R_END + hold - .4 : T_OUT + hold; if((now - c.t0) / 1000 < tOut) c.t0 = now - tOut * 1000; }
 function cardsScreen(now){
   if(cd){ drawCountdown(now); return; }
-  const on = Q.enabled, cut = on && cutinOn(), danger = on && (CO.some(c => c.prio >= 3 && c.st !== 'out') || (extOn() && Q.ext.prio >= 3)), coUp = on && !!coCur();
+  const on = Q.enabled, cut = on && cutinOn(), danger = CO.some(c => c.prio >= 3 && c.st !== 'out') || (on && extOn() && Q.ext.prio >= 3), coUp = on && !!coCur(), band = dirBand();   // a danger callout retracts a card either way (one message at a time)
   if(mom && cut){ mom = null; }   // the cut-in is the moment's card: never both
   if(mom){ const t = (now - mom.t0) / 1000; if(danger && t >= 0) cardOut(mom, now, mom.hold); if(t > momLen(mom)) mom = null; else { drawCard(mom, (now - mom.t0) / 1000, T_OUT + mom.hold, T_END + mom.hold, R_END + mom.hold); return; } }
   if(cur && cur.t0 != null && cut){ if((now - cur.t0) / 1000 < T_TXT) cur.t0 = null; else cur = null; }   // a cut-in took the screen: a card just starting waits, one under way is dropped
   // an arrival waits for the screen: a beat after a moment card, a callout or a cut-in, and not in a breath after a hero moment; it is
   // dropped in the quiet stretch, or after waiting 8 s (the road tag on the HUD already names the road)
+  if(cur && band){ if(cur.t0 == null || (now - cur.t0) / 1000 < T_TXT) cur = null; else cardOut(cur, now, 0); }   // kodawari #11: a hazard band is up. A card not yet begun is skipped (after the band come the hazards it announces; the HUD's road tag names the road); one under way retracts
   if(cur && cur.t0 == null){ if(Q.quietOn() || (Q.enabled && Q.t - (cur.w0 || 0) > 8)){ cur = null; Q.dropped++; } else if(!cut && !coUp && !danger && !extOn() && !Q.breathOn()){ cur.t0 = now + 100; cur.go(); } }
   if(cur && cur.t0 != null){ const t = (now - cur.t0) / 1000; if(danger && t >= 0) cardOut(cur, now, 0); if(t > (reduce ? R_END : T_END)) cur = null; else { drawCard(cur, (now - cur.t0) / 1000, T_OUT, T_END, R_END); return; } }
   if(momQ.length && !pol && !cut && !danger){ mom = momQ.shift(); mom.t0 = now + 100; } };
@@ -1247,8 +1262,7 @@ function drawCard(c, t, T_OUT, T_END, R_END){ const cur = c; if(t < 0) return;
   let alpha = 1, bx = o.bx;
   if(reduce){ alpha = t < .3 ? step(t / .3, 4) : t > R_END - .4 ? 1 - step((t - (R_END - .4)) / .4, 4) : 1; if(alpha <= 0 || t > R_END){ cx.restore(); return; } cx.globalAlpha = alpha; }
   else {
-    if(t < .1){ cx.fillStyle = pol ? SIREN_R : col; cx.globalAlpha = t < .05 ? .2 : .09; cx.fillRect(0, 0, cw, o.ch); cx.globalAlpha = 1; }   // the road's colour, two frames
-    if(t >= T_HIT && t < T_HIT + .2){ cx.globalAlpha = t < T_HIT + .07 ? .45 : .22; cx.drawImage(o.focus[t < T_HIT + .07 ? 0 : 1], 0, 0); cx.globalAlpha = 1; }
+    // (kodawari #11, matching mech/director.js's band: no full-screen colour flash and no focus lines over the road; the slab carries the hit)
     if(t < T_IN) bx = Math.round(lerp(cw + 8, o.bx, step(t / T_IN, 5)));
     if(t > T_OUT) bx = Math.round(lerp(o.bx, cw + 40, step((t - T_OUT) / (T_END - T_OUT - .03), 6))); if(t > T_END){ cx.restore(); return; }
     if(!cur.shook && t >= T_HIT){ cur.shook = true; shake = Math.max(shake || 0, 7); } }
@@ -1268,10 +1282,11 @@ function drawCard(c, t, T_OUT, T_END, R_END){ const cur = c; if(t < 0) return;
   const kx = o.kx, ky = o.ky;
   if(reduce || t >= T_HIT - .02){ const p = reduce ? 1 : step((t - T_HIT + .02) / .1, 5), sw = Math.round(kj.w * p);   // the swash is painted left to right
     if(sw > 0) cx.drawImage(kj.swash, 0, 0, sw, kj.h, kx, ky, sw, kj.h); }
-  if(reduce || t >= .1){ const sc = reduce ? 1 : t < .14 ? 1.6 : t < T_HIT ? 1.2 : 1, white = !reduce && (t < .14 || (t >= T_HIT && t < T_HIT + .05)), img = white ? kj.white : kj.c, w = kj.w * sc, h = kj.h * sc;
-    const jx = !reduce && t >= T_HIT && t < T_HIT + .1 ? (Math.floor(t * 60) % 2 ? 1 : -1) : 0;
-    if(t < .14 && !reduce) cx.globalAlpha = alpha * .45;
-    cx.drawImage(img, Math.round(o.kcx - (kj.gx + kj.gw / 2) * sc) + jx, Math.round(o.kcy - h / 2), Math.round(w), Math.round(h)); cx.globalAlpha = alpha; }
+  // crisp from its first frame (kodawari #11): always 1x and full opacity (the 1.6x translucent ghost read as a grey smudge), one white
+  // impact frame as it lands, then a one-pixel jolt
+  if(reduce || t >= T_HIT - .02){ const white = !reduce && t < T_HIT + .04, img = white ? kj.white : kj.c;
+    const jx = !reduce && t >= T_HIT + .04 && t < T_HIT + .12 ? (Math.floor(t * 60) % 2 ? 1 : -1) : 0;
+    cx.drawImage(img, Math.round(o.kcx - (kj.gx + kj.gw / 2)) + jx, Math.round(o.kcy - kj.h / 2)); }
   if(!reduce && t >= T_HIT && t < T_HIT + .5) ink(t - T_HIT, o);
   // the seal, stamped at the kanji's foot
   const sl = cur.seal; if(sl && !o.narrow && (reduce || t >= T_TXT)){ const sx = o.narrow ? kx + kj.gx + kj.gw - sl.width + 5 : kx + kj.gx - sl.width + 4, sy = o.narrow ? ky + kj.h - sl.height + 6 : ky + 2; cx.drawImage(sl, sx, sy); }

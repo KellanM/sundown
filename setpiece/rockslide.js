@@ -65,7 +65,7 @@
   // falls toward a warm purple-brown (the hue shift Sea of Stars and Hyper Light Drifter use for stone); the headlight warms only the faces
   // turned to the bike, toward a warm grey (never beige). A split's fresh break is paler, with grit. Lichen and moss in deliberate clusters.
   const COOL = ['#1c1824', '#2a2f3e', '#3f4e60', '#5d7387', '#97adbf'];    // underside (warm purple), shadow, mid, moonlit plane, moonlit top
-  const WARM = ['#28222a', '#403a3e', '#5e5856', '#82786e'];               // faces in the headlight
+  const WARM = ['#2a1e26', '#483838', '#6e5c52', '#9c8470'];               // faces in the headlight (hue-shifted: plum shadow to warm sand; was four greys)
   const FRESH = ['#28282e', '#46484e', '#6c7074', '#979a9c', '#c2c4c2'];   // a fresh break
   const LICH = ['#2c3a2c', '#4c5e44', '#7e9270'];                          // moss in shade, lichen, lichen in moonlight
   const OUT = '#0a0910';
@@ -304,7 +304,12 @@
       // two fracture lines per rock: a plane (normal, offset) and the span along it where the crack runs
       for(const key of [0, 1, 2, 3, 4, 5, 'P', 'A', 'B']){ const sh = S.shp[key]; let sd = (typeof key === 'number' ? key * 13 : key.charCodeAt(0)) + 5; const R = () => (sd = (sd * 16807) % 2147483647) / 2147483647; sh.cr = [];
         for(let c = 0; c < 2; c++){ let a = [R() - .5, R() - .5, R() - .5], l = Math.hypot(a[0], a[1], a[2]); a = a.map(v => v / l); let b = [R() - .5, R() - .5, R() - .5]; const dt = b[0] * a[0] + b[1] * a[1] + b[2] * a[2]; b = b.map((v, i) => v - dt * a[i]); l = Math.hypot(b[0], b[1], b[2]); b = b.map(v => v / l);
-          const m0 = -.6 + R() * .5; sh.cr.push([a[0], a[1], a[2], (R() - .5) * .5, b[0], b[1], b[2], m0, m0 + .5 + R() * .5]); } }
+          const m0 = -.6 + R() * .5; sh.cr.push([a[0], a[1], a[2], (R() - .5) * .5, b[0], b[1], b[2], m0, m0 + .5 + R() * .5]); }
+        // the sub-planes (kodawari audit #10): NSD seed points spread through the rock; every pixel belongs to the nearest one (a Voronoi in
+        // rock space, so the chips turn with the rock), and each chip is its facet's tone or a step either side, as env/pass.js's rocks
+        sh.sd = new Float32Array(NSD * 3); sh.so = new Int8Array(NSD);
+        for(let c = 0; c < NSD; c++){ let x, y, z; do { x = R() * 2 - 1; y = R() * 2 - 1; z = R() * 2 - 1; } while(x * x + y * y + z * z > 1); const l = .55 + .45 * Math.cbrt(R());
+          const q = Math.hypot(x, y, z) || 1; sh.sd[c * 3] = x / q * l * 1.1; sh.sd[c * 3 + 1] = y / q * l * .8 - .1; sh.sd[c * 3 + 2] = z / q * l * 1.1; const r = R(); sh.so[c] = r < .26 ? -1 : r > .8 ? 1 : 0; } }
       S.signL = signSprite(-1); S.signR = signSprite(1);
       try{ cx.save(); for(const k in S) if(S[k] && S[k].width) cx.drawImage(S[k], 0, 0, 1, 1); cx.restore(); cx.clearRect(0, 0, PX * 2, PX * 2); }catch(e){} },
     reset(){ for(const p of plans){ if(p.cut){ p.cut.end(); p.cut = null; } p.on = false; p.lastPs = null; p.hits = 0; p.burstT = -1; for(const r of p.rocks) r.hit = false; } for(const q of DP) q.on = false; for(const q of CP) q.on = false; cur = null; },
@@ -397,7 +402,9 @@
   //   facet tones from the hue-shifted ramp; a dark crack along every border between planes, broken by lit chips; two fracture lines per
   //   rock that run across facets; lichen and moss in small clusters (with a few satellite pixels) on the faces that were up in the rest
   //   pose, moss low down; grit on fresh breaks; a moonlit rim along the top silhouette; a 1 px dark outline round it all.
-  const RW = 256, FID = new Uint8Array(RW * RW), OXb = new Float32Array(RW * RW), OYb = new Float32Array(RW * RW), OZb = new Float32Array(RW * RW);
+  // (448: the whole game canvas, so a boulder beside the camera stays pixel art instead of falling back to flat facets; kodawari audit #10)
+  const NSD = 18, SID = new Uint8Array(448 * 448);
+  const RW = 448, FID = new Uint8Array(RW * RW), OXb = new Float32Array(RW * RW), OYb = new Float32Array(RW * RW), OZb = new Float32Array(RW * RW);
   const FB = new Uint8Array(64), FN = new Uint8Array(64), FT = new Uint8Array(64), FPI = new Uint16Array(64), FUP = new Float32Array(64), FFR = new Uint8Array(64);
   let RC = null, RG = null, RI = null, rgbK = '';
   const RGB = new Map();
@@ -415,7 +422,7 @@
     if(w <= 0 || h <= 0) return true;
     if(w > RW || h > RW) return false;
     for(let y = 0; y < h; y++) FID.fill(255, y * RW, y * RW + w);
-    const sdm = MOON.x > X0 ? 1 : -1, F = sh.F, fr = sh.fr; let nv = 0;
+    const sdm = MOON.x > X0 ? 1 : -1, F = sh.F, fr = sh.fr, SD = Rpx * ip > 7 && sh.sd ? sh.sd : null; let nv = 0;
     for(let k = 0; k < F.length && nv < 64; k++){ const f = F[k], a = f[0], b = f[1], c = f[2], ax2 = VX[a] - x0, ay2 = VY[a] - y0, bx = VX[b] - x0, by = VY[b] - y0, cx2 = VX[c] - x0, cy2 = VY[c] - y0;
       const det = (bx - ax2) * (cy2 - ay2) - (by - ay2) * (cx2 - ax2); if(det <= 0) continue;
       const nx = r00 * f[3] + r01 * f[4] + r02 * f[5], ny = r10 * f[3] + r11 * f[4] + r12 * f[5], nz = r20 * f[3] + r21 * f[4] + r22 * f[5];
@@ -430,8 +437,9 @@
         const l2 = ((xc - ax2) * (cy2 - ay2) - (yc - ay2) * (cx2 - ax2)) * id2, l3 = ((bx - ax2) * (yc - ay2) - (by - ay2) * (xc - ax2)) * id2, l1 = 1 - l2 - l3;
         if(l1 < -1e-4 || l2 < -1e-4 || l3 < -1e-4) continue;
         const i = py * RW + px; FID[i] = id;
-        OXb[i] = l1 * V[Va] + l2 * V[Vb] + l3 * V[Vc]; OYb[i] = l1 * V[Va + 1] + l2 * V[Vb + 1] + l3 * V[Vc + 1]; OZb[i] = l1 * V[Va + 2] + l2 * V[Vb + 2] + l3 * V[Vc + 2]; } } }
-    const T = palRGB(fog), d = RI.data, rp = Rpx * ip, thr = 1.05 / Math.max(1, rp), det = rp > 9, CR = sh.cr;
+        const ox = l1 * V[Va] + l2 * V[Vb] + l3 * V[Vc], oy = l1 * V[Va + 1] + l2 * V[Vb + 1] + l3 * V[Vc + 1], oz = l1 * V[Va + 2] + l2 * V[Vb + 2] + l3 * V[Vc + 2]; OXb[i] = ox; OYb[i] = oy; OZb[i] = oz;
+        if(SD){ let bs = 0, bd = 1e9; for(let c = 0, o3 = 0; c < NSD; c++, o3 += 3){ const dx = ox - SD[o3], dy = oy - SD[o3 + 1], dz = oz - SD[o3 + 2], dd = dx * dx + dy * dy + dz * dz; if(dd < bd){ bd = dd; bs = c; } } SID[py * 448 + px] = bs; } } } }
+    const T = palRGB(fog), d = RI.data, rp = Rpx * ip, thr = 1.05 / Math.max(1, rp), det = rp > 9, CR = sh.cr, SO = sh.so;
     for(let y = 0; y < h; y++) for(let x = 0; x < w; x++){ const i = y * RW + x, o = i * 4, k = FID[i]; let ci = -1;
       if(k === 255){ if((x > 0 && FID[i - 1] !== 255) || (x + 1 < w && FID[i + 1] !== 255) || (y > 0 && FID[i - RW] !== 255) || (y + 1 < h && FID[i + RW] !== 255)) ci = 17; }
       else { const b = FB[k], nT = FN[k], t = FT[k], ox = OXb[i], oy = OYb[i], oz = OZb[i]; ci = b + t;
@@ -450,6 +458,12 @@
             if(along < q[7] || along > q[8]) continue;
             if(vv >= 0 && vv < thr){ ci = b + Math.max(0, t - 2); done = true; }
             else if(vv >= -thr && vv < 0 && t + 1 < nT && h3(ox * 13, oy * 13, oz * 13) < .5){ ci = b + t + 1; done = true; } }
+          if(!done && SD){
+            // the chip it sits on: a lit lip where the chip above is another one (its top edge catching the moon), a dark one under it; else the
+            // chip's own step of the facet's tone (one either side, never past the ramp)
+            const sc = SID[y * 448 + x], su = y > 0 && FID[i - RW] === k ? SID[(y - 1) * 448 + x] : sc, sdn = y + 1 < h && FID[i + RW] === k ? SID[(y + 1) * 448 + x] : sc;
+            if(su !== sc && t + 1 < nT){ ci = b + t + 1; done = true; } else if(sdn !== sc && t > 0){ ci = b + t - 1; done = true; }
+            else if(SO[sc]){ ci = b + clamp(t + SO[sc], 0, nT - 1); } }
           if(!done && FFR[k]){
             // grit on a fresh break
             const gq = Math.max(15, rp * .8), g = h3(ox * gq, oy * gq, oz * gq); if(g > .975) ci = b + Math.min(nT - 1, t + 1); else if(g > .9) ci = b + Math.max(0, t - 1); }

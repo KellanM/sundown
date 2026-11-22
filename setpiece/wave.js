@@ -77,10 +77,16 @@
       rows.push([y, x0, len]); }
     const at = new Map(); for(const [y, x0, len] of rows) for(let x = x0; x < x0 + len; x++){ const u = (x - x0) / len; at.set(x + ',' + y, u > .6 ? '#f4fafd' : u > .25 ? '#cfe6f2' : '#8fb6d2'); if(len > w * .35 && !at.has(x + ',' + (y + 1))) at.set(x + ',' + (y + 1), 'L'); }
     return pixCanvas(w, h, (x, y) => { const c = at.get(x + ',' + y); return c === 'L' ? '#4a6f96' : c || null; }); }
-  // a mist bank for the exit: lumpy, two tones, its edge broken by a checker dither two pixels deep (soft without a gradient)
-  function mistSpr(seed){ const w = 200, h = 84, lobes = []; for(let j = 0; j < 10; j++){ const t = j / 9; lobes.push({ x:w * (.1 + .8 * t) + (hash(seed + j) - .5) * 20, y:h * (.52 + (hash(seed * 3 + j) - .5) * .3), r:h * (.24 + .2 * hash(seed * 7 + j)) * (1 - Math.abs(t - .45) * .6) }); }
+  // a mist bank for the exit: lumpy, two tones, its edge broken by a checker dither two pixels deep (soft without a gradient).
+  // (kodawari audit #20: it was drawn whole and faded with globalAlpha, a smooth translucent wash over the frame. Now it is pixel art all the
+  // way: every pixel opaque, the body an ordered (Bayer) dither at a fixed density per level, the lit tone up-left, the shade down-right, the
+  // rim thinner still; it thins by stepping down three levels, 10/16 -> 5/16 -> 2/16, never by alpha. The pattern is fixed to the sprite, so it
+  // drifts with the bank and never boils.)
+  const BAY4 = [0, 8, 2, 10, 12, 4, 14, 6, 3, 11, 1, 9, 15, 7, 13, 5], MLV = [10, 5, 2];
+  function mistSpr(seed, lv){ const w = 200, h = 84, lobes = [], dn = MLV[lv]; for(let j = 0; j < 10; j++){ const t = j / 9; lobes.push({ x:w * (.1 + .8 * t) + (hash(seed + j) - .5) * 20, y:h * (.52 + (hash(seed * 3 + j) - .5) * .3), r:h * (.24 + .2 * hash(seed * 7 + j)) * (1 - Math.abs(t - .45) * .6) }); }
     const dep = (x, y) => { let m = -9; for(const L2 of lobes) m = Math.max(m, L2.r - Math.hypot(x - L2.x, (y - L2.y) * 1.25)); return m; };
-    return pixCanvas(w, h, (x, y) => { const e = dep(x, y); if(e < 0) return null; if(e < 3 && (x + y) % 2) return null; if(e < 1.5 && (x % 2 || y % 2)) return null;   // a dithered rim, no hard edge
+    return pixCanvas(w, h, (x, y) => { const e = dep(x, y); if(e < 0) return null; const b = BAY4[(y & 3) * 4 + (x & 3)];
+      if(b >= (e < 3 ? dn / 2 : e < 8 ? dn * .75 : dn)) return null;   // the body at its level's density, feathered thinner over the last few pixels
       return dep(x + 3, y + 4) < 0 ? '#9cc2dc' : dep(x - 4, y - 4) < 0 ? '#eef6fb' : '#cfe4f0'; }); }
   const DROPS = [['WC', 'CP'], ['.WC.', 'WCCP', '.CP.'], ['..WW..', '.WWCC.', 'WWCCCP', '.CCCP.', '..PP..']], DPAL = { W:'#f2fafe', C:'#a8d0e6', P:'#4a6f96' };
   // ---- L5 the collapse: billows (cauliflower whitewater). Lobes stack back to front; each lobe lit from the upper left, with a shade line where
@@ -116,7 +122,7 @@
     for(let lv = 0; lv < MIDH.length; lv++){ const h = MIDH[lv]; for(let sd = 0; sd < 4; sd++) if(!S['wv_mid' + lv + '_' + sd]) S['wv_mid' + lv + '_' + sd] = midSpr(h, sd); yield; }
     for(let j = 0; j < 3; j++) if(!S['wv_sheet' + j]) S['wv_sheet' + j] = sheetSpr(j * 5 + 1);
     for(let j = 0; j < 2; j++) if(!S['wv_bsheet' + j]) S['wv_bsheet' + j] = sheetSpr(j * 9 + 4, 170, 30);
-    yield; for(let j = 0; j < 3; j++) if(!S['wv_mist' + j]){ S['wv_mist' + j] = mistSpr(j * 11 + 2); S['wv_mist' + j + 'f'] = flipC(S['wv_mist' + j]); yield; }
+    yield; for(let j = 0; j < 3; j++) for(let lv = 0; lv < MLV.length; lv++) if(!S['wv_mist' + j + '_' + lv]){ const k = 'wv_mist' + j + '_' + lv; S[k] = mistSpr(j * 11 + 2, lv); S[k + 'f'] = flipC(S[k]); yield; }
     DROPS.forEach((g, j) => { if(!S['wv_drop' + j]) S['wv_drop' + j] = makeSprite(g, DPAL, false); }); yield;
     for(let r = 0; r < BROWS.length; r++){ const R = BROWS[r]; for(let j = 0; j < 3; j++){ const k = 'wv_bil' + r + '_' + j; if(!S[k]){ S[k] = billowSpr(R, r * 7 + j * 3 + 1); S[k + 'f'] = flipC(S[k]); yield; } } } }
 
@@ -315,18 +321,20 @@
           if(Math.abs(x - W / 2) < gap + sw * .5) continue; const y = H + hgt * (1 - rise) + j * PX * 4 + bob * (j % 2 ? 1 : -1); cx.globalAlpha = 1; blit(spr, x, y, PX); } }); cx.globalAlpha = 1; } }
     // the exit burst: specks and droplets flung outward from the opening at two depths; a pale mist band (thinner under reduced motion / no flash)
     const ex = w.exitT; if(ex >= 0 && ex < 2.2 && ON('near')){ const u = ex / 2.2;
-      for(let j = 0; j < (rm ? 16 : 30); j++){ const an = hash(j * 5.3) * 6.283, r = (.22 + u * (.7 + hash(j) * .7)) * W * .55, x = W / 2 + Math.cos(an) * r, y = H * .45 + Math.sin(an) * r * .55;
-        if(j % 6 === 0 && !rm){ drop(S['wv_drop' + (j % 12 ? 1 : 2)], x, y, (1 - u) * .9); continue; }
-        cx.fillStyle = j % 4 ? '#eef6fb' : '#bfe2ee'; cx.globalAlpha = (1 - u) * (j % 2 ? .9 : .5); const sz = PX * (j % 2 ? 2 : 1); cx.fillRect(snap(x), snap(y), sz, sz); }
+      // (all opaque pixels: a speck or droplet goes out whole, at its own moment, instead of every one fading together through alpha)
+      for(let j = 0; j < (rm ? 16 : 30); j++){ if(hash(j * 7.7 + 3) < u * 1.15 - .05) continue; const an = hash(j * 5.3) * 6.283, r = (.22 + u * (.7 + hash(j) * .7)) * W * .55, x = W / 2 + Math.cos(an) * r, y = H * .45 + Math.sin(an) * r * .55;
+        if(j % 6 === 0 && !rm){ drop(S['wv_drop' + (j % 12 ? 1 : 2)], x, y, 1); continue; }
+        cx.fillStyle = j % 2 ? (j % 4 === 1 ? '#bfe2ee' : '#eef6fb') : '#7fa6c4'; cx.globalAlpha = 1; const sz = PX * (j % 2 ? 2 : 1); cx.fillRect(snap(x), snap(y), sz, sz); }
       // behind: fine droplets drifting down and out, slow
-      for(let j = 0; j < (rm ? 10 : 28); j++){ const sx = hash(j * 9.1), side = sx < .5 ? -1 : 1, x = side < 0 ? sx * 2 * W * .3 : W - (sx - .5) * 2 * W * .3, y = H * hash(j * 4.3) * .8 + u * H * .15;
-        cx.globalAlpha = (1 - u) * .55; cx.fillStyle = j % 3 ? '#cfe6f2' : '#8fb8d4'; cx.fillRect(snap(x + side * u * W * .05), snap(y), PX, PX * (j % 2 + 1)); }
-      // mid: mist banks hanging at the sides, drifting outward as they thin
-      const ma = (1 - u) * (cm ? .45 : .68); [[.05, .22, 0], [.2, .48, 1], [-.05, .66, 2]].forEach(([ox3, oy3, j]) => { for(const side of [-1, 1]){ const spr = S['wv_mist' + ((j + (side > 0 ? 1 : 0)) % 3) + (side > 0 ? 'f' : '')], sw = spr.width * PX;
-        const off = (ox3 + (side > 0 ? .06 : 0)) * W - u * W * .14, x = side < 0 ? off + sw * .25 : W - off - sw * .25, y = H * (oy3 + (side > 0 ? .04 : 0)) + spr.height * PX * .5; cx.globalAlpha = ma; blit(spr, x, y, PX); } });
-      // front: big billows at the lower corners, sinking away
-      BROWS[2] && [0, 1].forEach(j => { for(const side of [-1, 1]){ const spr = S['wv_bil2_' + ((j + 1) % 3) + (side > 0 ? 'f' : '')], sw = spr.width * PX * 1.5, x = side < 0 ? sw * (.35 + .55 * j) - u * W * .1 : W - sw * (.35 + .55 * j) + u * W * .1;
-        if(Math.abs(x - W / 2) < Math.min(W * .2, H * .27) * .5 + sw * .5) continue; cx.globalAlpha = 1 - u * u; blit(spr, x, H + u * spr.height * PX * 1.2 + j * PX * 6, PX * 1.5); } });
+      for(let j = 0; j < (rm ? 10 : 28); j++){ if(hash(j * 3.9 + 1) < u * 1.15 - .05) continue; const sx = hash(j * 9.1), side = sx < .5 ? -1 : 1, x = side < 0 ? sx * 2 * W * .3 : W - (sx - .5) * 2 * W * .3, y = H * hash(j * 4.3) * .8 + u * H * .15;
+        cx.globalAlpha = 1; cx.fillStyle = j % 3 ? '#8fb8d4' : '#5f86b0'; cx.fillRect(snap(x + side * u * W * .05), snap(y), PX, PX * (j % 2 + 1)); }
+      // mid: mist banks hanging at the sides, drifting outward as they thin a dither level at a time; the low banks keep their inner edge off
+      // the road's centre (the lane ahead stays readable)
+      const lv = (cm ? 1 : 0) + (u < .3 ? 0 : u < .6 ? 1 : 2); if(lv < MLV.length && u < .88) [[.05, .22, 0], [.2, .48, 1], [-.05, .66, 2]].forEach(([ox3, oy3, j]) => { for(const side of [-1, 1]){ const spr = S['wv_mist' + ((j + (side > 0 ? 1 : 0)) % 3) + '_' + lv + (side > 0 ? 'f' : '')], sw = spr.width * PX;
+        const off = (ox3 + (side > 0 ? .06 : 0)) * W - u * W * .14, lim = j ? W * .38 - sw * .5 : W, x0 = Math.min(off + sw * .25, lim), x = side < 0 ? x0 : W - x0, y = H * (oy3 + (side > 0 ? .04 : 0)) + spr.height * PX * .5; cx.globalAlpha = 1; blit(spr, x, y, PX); } });
+      // front: big billows at the lower corners, sinking away (one sprite pixel per game pixel, as the collapse rows; opaque)
+      BROWS[2] && [0, 1].forEach(j => { for(const side of [-1, 1]){ const spr = S['wv_bil2_' + ((j + 1) % 3) + (side > 0 ? 'f' : '')], sw = spr.width * PX, x = side < 0 ? sw * (.35 + .75 * j) - u * W * .1 : W - sw * (.35 + .75 * j) + u * W * .1;
+        if(Math.abs(x - W / 2) < Math.min(W * .2, H * .27) * .5 + sw * .5) continue; cx.globalAlpha = 1; blit(spr, x, H + u * spr.height * PX * 1.3 + j * PX * 6, PX); } });
       cx.globalAlpha = 1; } }
   function drawGantry(s, sx0, sy0, uw, fog, now, p, w){ const on = calm() || (now / 520 | 0) % 2 === 0, spr = gantry(on), k = uw * 2.9 / spr.width;
     cx.globalAlpha = 1 - fog * .6; blit(spr, sx0, sy0, k); cx.globalAlpha = 1; if(on && fog < .9) glow(sx0, sy0 - spr.height * k * .62, uw * .7, '#ffa030', .35 * (1 - fog)); }

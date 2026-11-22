@@ -434,7 +434,7 @@
       // the face: one plane, one tone; up close it is cut into three stacked bands (the warm-violet shadow at its foot, the face, the upper
       // face catching the moon a tone up), each band's edge hashed per world boundary so it is ragged, never a ruled stripe
       const th = (CA[5] - CA[1]), tb = (CB[5] - CB[1]);
-      if(ua > W * .022 && !KBX.includes('cB')){
+      if(ua > W * .028 && !KBX.includes('cB')){
         const fa = .12 + .14 * (H1(j0 * 2.9 + t) + (H1((j0 + CC4) * 2.9 + t) - H1(j0 * 2.9 + t)) * pf), fb = .12 + .14 * H1(j1 * 2.9 + t);
         const la = tn < 4 ? .2 + .2 * (H1(j0 * 1.7 + t * 4) + (H1((j0 + CC4) * 1.7 + t * 4) - H1(j0 * 1.7 + t * 4)) * pf) : 0, lb = tn < 4 ? .2 + .2 * H1(j1 * 1.7 + t * 4) : 0;
         const PA = q => SX(CA[0] + (CA[4] - CA[0]) * q, 0), QA = q => SY(CA[1] + th * q, 0), PB = q => SX(CB[0] + (CB[4] - CB[0]) * q, 1), QB = q => SY(CB[1] + tb * q, 1);
@@ -450,7 +450,7 @@
         // the sheet joint along the jittered middle row
         if(near && H1(j0 * .9 + t * 3.1) > .3){ const ma = SY(CA[3], 0), mb = SY(CB[3], 1); poly(xa0, ma, xb0, mb, xb0, mb + PX, xa0, ma + PX, F(RKC[0])); if(near) poly(xa0, ma + PX, xb0, mb + PX, xb0, mb + 2 * PX, xa0, ma + 2 * PX, F(RKC[Math.min(5, tn + 1)])); }
         if(sub) for(let d = 1; d <= m; d++){ const k = i + d, major = k % CC4 === 0;
-          if(!major && (!near || H1(k * 2.3 + t * 5.3) < .55)) continue; if(major && !near && H1(k * .37 + t * 1.9) < .5) continue;   // calmer at mid range: half the joints, in the shadow tone, not black
+          if(!major && (!near || H1(k * 2.3 + t * 5.3) < .75)) continue; if(major && !near && H1(k * .37 + t * 1.9) < .5) continue;   // calmer at mid range: half the joints, in the shadow tone, not black
           const xb_ = KX(V(0, d), d), yb_ = KY(V(1, d), d), xt_ = KX(V(4, d), d), yt_ = KY(V(5, d), d), ln = major ? 1 : .35 + .5 * H1(k * 3.7 + t);
           // snow lying in a high gully at a major joint, instead of the crack
           if(major && t >= 1 && H1(k * .53 + t * 1.7) > .78){ const w2 = .1 * BWs[d], yl = yt_ + (yb_ - yt_) * (.35 + .3 * H1(k * 1.3)); poly(xt_ - w2, yt_, xt_ + w2, yt_, xt_ + PX, yl, xt_, yl, F('#9eabc8')); if(near) poly(xt_ - w2, yt_, xt_ - w2 + PX, yt_, xt_, yl, xt_ - PX, yl, F('#d4def0')); continue; }
@@ -470,7 +470,7 @@
       if(t < 2 && H1(Math.floor(j0 / 4) * 2.9 + t * 5) > .45){ const ba = .12 + H1(i * 1.1 + t) * .14, bb = .12 + H1(j1 * 1.1 + t) * .14; poly(xa, ya, xb, yb, xb, yb - bb * ub, xa, ya - ba * ua, F(FOR[1]));
         if(sub && ua > W * .045) pines(m, t, 1, 1, .6, F); }
       if(close && t === 1 && j0 % 44 === 20){ const h0 = Math.max(lo, CA[1]), wx = xa + (xb - xa) * .5; R(wx, ya, PX, Math.max(PX, (CA[5] - h0) * ua), F(i % 22 === 5 ? '#7c8cae' : RKC[0])); }
-      if(t === 0 && !sp.g && ua > W * .01 && !KBX.includes('cT')){ // talus heaped at the foot: fresh broken granite, paler than the wall, with a moonlit top edge and pebbles up close
+      if(t === 0 && !sp.g && ua > W * .018 && !KBX.includes('cT')){ // talus heaped at the foot: fresh broken granite, paler than the wall, with a moonlit top edge and pebbles up close
         const sa = .06 + .22 * (H1(j0 * .37 + 3) + (H1((j0 + CC4) * .37 + 3) - H1(j0 * .37 + 3)) * pf), sb = .06 + .22 * H1(j1 * .37 + 3), Xa = Math.min(X0, CA[0] + .3), Xb = Math.min(X0, CB[0] + .3);
         const qa = SX(Xa, 0), qb = SX(Xb, 1), ga = SY(lo + sa, 0), gb = SY(lo + sb, 1); poly(xa0, ga, xb0, gb, qb, SY(lo, 1), qa, SY(lo, 0), F(RKC[3]));
         poly(xa0, ga, xb0, gb, xb0, gb + PX, xa0, ga + PX, F(RKC[4]));
@@ -610,11 +610,8 @@
       // the crest of the spur: a moonlit lip and forest on top
       if(ta > 0 && tb > 0){ poly(xa, y - ta * u, xb, y - tb * u, xb, y - tb * u + Math.max(PX, u * .05), xa, y - ta * u + Math.max(PX, u * .05), F(GR[5])); const fa = .25 + H1(k * 3.1 + id) * .45, fb = .25 + H1(k2 * 3.1 + id) * .45;
         poly(xa, y - ta * u, xb, y - tb * u, xb, y - (tb + fb) * u, xa, y - (ta + fa) * u, F(FOR[1])); poly(xa, y - (ta + fa) * u, xb, y - (tb + fb) * u, xb, y - (tb + fb) * u + PX, xa, y - (ta + fa) * u + PX, F(FOR[3])); } }
-    // a rockfall net draped over the slope above the hood, and snow lying in a hollow high on the spur
-    if(u > W * .012){ const nx0 = x - (OW + .7) * u, nx1 = x + (OW + .7) * u, ny0 = y - (CH + .7) * u, ny1 = y - (CH + 1.6) * u, hh = ny0 - ny1, c1 = F('#2e3346');
-      // round 13: a coarse screen-sized lattice read as a chain-link fence; the net is now its pale top cable and a few dim hanging cables
-      for(let a = .2; a < 2 * OW + 1.4; a += .7) poly(nx0 + a * u, ny1, nx0 + a * u + PX, ny1, nx0 + a * u + PX + .1 * u, ny0, nx0 + a * u + .1 * u, ny0, c1);
-      R(nx0, ny1, nx1 - nx0, PX, F('#565f76')); }
+    // snow lying in a hollow high on the spur
+    // round 13: the rockfall net is gone (as a screen hatch it read as a chain-link fence, as cables as wires floating over the rock)
     { const sx = x - 3.5 * u, sy = y - (top[Math.round(-3.5 / .25) + n] - .5) * u; if(top[Math.round(-3.5 / .25) + n] > 1) { R(sx - .9 * u, sy, 1.8 * u, Math.max(PX, .18 * u), F('#b4c0d8')); R(sx - .5 * u, sy - Math.max(PX, .1 * u), u, Math.max(PX, .1 * u), F('#d4dcea')); } }
     // the hood: pale concrete round the opening, its top edge catching the floodlights
     ringFill(x, y, u, OW + .36, CH + .34, F(CO[4]), F(CO[4]), F(CO[4]), F(CO[3]));
