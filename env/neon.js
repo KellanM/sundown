@@ -638,8 +638,8 @@
      - wetSrc records each light once: blade signs, lamp heads, vending machines, the 月光一番街 gate (the bulb tube's uprights and lower
        bar, the lightbox), the lantern strings (one column per lantern), the bridge's adverts, the train, the koi screen (its water, the koi
        swimming across it, the ticker, the pylons' shops), the lucky cat, the yatai, every street-row building as one smeared band of its lit
-       shopfronts and one of its tenants' floors (one band per front, at its middle segment: no per-sign draws), its corner tube and its wall
-       lightboxes; and a longer, hotter copy of each car's tail lights. Kept as columns, not slabs: near widths are capped in screen terms, a
+       shopfronts and, near by, one of its tenants' floors (one band per front, at its middle segment: no per-sign draws) and its wall
+       lightboxes; and a longer, hotter copy of each car's tail lights. Kept as columns, not slabs: near widths are capped at 7 canvas px (under the pool code's 10 px fringe: half the rects), a
        white lightbox reflects in its characters' colour, a high light's image is pulled in, and the minor lights stay dim, because the pools
        add ('lighter') and pink + cyan + gold summed to a white-out wherever more than three columns crossed (round 1 of this pass).
      - wetFX lays the cool sky sheen on the near road (roadmat's own sheen is a Fresnel term that dies out near the camera), stepped by the
@@ -658,16 +658,16 @@
     return (B.wu = { col:best ? GLASS[best][1] : '#2a2440', fr:n / Math.max(1, B.nF), top:B.gh + B.nF * B.flh }); }
   // (far lights fade out of the water sooner than roadmat's own fade: far columns only stacked into a glare at the vanishing point; a high light's
   // image is pulled in, or every sign up the canyon ran its column to the bottom of the screen and nine of them summed to white there)
-  function wetSrc(s, n, a, P0){ if(n > 88) return; const fd = n < 40 ? 1 : 1 - (n - 40) / 50, P = (x, y, u, h0, h1, w, c, al) => P0(x, y, u, h0, h1 > 2.4 ? Math.max(h0 + .3, 2.4 + (h1 - 2.4) * .4) : h1, w, c, al * fd); const uw = a.w; if(!(uw > .6)) return; const i = s.index, ax = a.x, by = a.y, now = performance.now(), near = uw > 110;
+  function wetSrc(s, n, a, P0){ if(n > 58) return; const fd = n < 30 ? 1 : 1 - (n - 30) / 30, P = (x, y, u, h0, h1, w, c, al) => P0(x, y, u, h0, h1 > 2.4 ? Math.max(h0 + .3, 2.4 + (h1 - 2.4) * .4) : h1, w, c, al * fd); const uw = a.w; if(!(uw > .6)) return; const i = s.index, ax = a.x, by = a.y, now = performance.now(), near = uw > 110;
     for(let q = 0; q < s.sprites.length; q++){ const sp = s.sprites[q], t = sp.type; if(sp.env !== 'neon' || (NWX && NWX.includes(t))) continue; const X = wx(s, sp), x = ax + X * uw;
-      if(t === 'blade'){ const hh = (WORDS[sp.k % WORDS.length].length * 15 + 9) * .3 / 22, col = bladeW(sp.k), w = Math.min(.24 * uw, W * .024);   // (a white lightbox's image takes its characters' colour: a third of the signs are white, and white columns summed to a white-out)
+      if(t === 'blade'){ const hh = (WORDS[sp.k % WORDS.length].length * 15 + 9) * .3 / 22, col = bladeW(sp.k), w = Math.min(.24 * uw, PX * 7);   // (a white lightbox's image takes its characters' colour: a third of the signs are white, and white columns summed to a white-out)
         const up = sp.h > 1.8; if(up && n > 22) continue; P(x, by, uw, sp.h, sp.h + hh, w, col, up ? .5 : 1.25);   // (an upper sign's image lies under the lower one's: dimmer, or the two summed to white)
         if(near) P(x, by, uw, sp.h + hh * .2, sp.h + hh, w * .34, wcore(col), .5); }
       else if(t === 'lamp'){ const gx = x + (sp.x > 0 ? -1 : 1) * .07 * uw; P(gx, by, uw, .78, 1.5, Math.min(.12 * uw, W * .03), '#ffc870', 1.5); if(near) P(gx, by, uw, .8, 1.3, Math.min(.05 * uw, W * .012), '#fff4d8', .6);
         }
       else if(t === 'vend'){ P(x, by, uw, .04, .6, Math.min(.24 * uw, W * .03), ['#ffd890', '#ff4a5a', '#4a7aff'][sp.k] || '#ffd890', 1.1); }
       else if(t === 'gate'){ for(const sd of [-1, 1]) P(x + sd * 1.42 * uw, by, uw, 1.43, 2.6, .1 * uw, '#ff4a5a', 1.1); P(x, by, uw, 1.43, 1.52, 2.9 * uw, '#ff3a4a', .45); P(x, by, uw, 1.58, 2.3, 1.5 * uw, '#ffd0d8', .55); }   // (the bulb tube's two uprights, its lower bar, the lightbox)
-      else if(t === 'lstr'){ if(n > 40) continue; for(let j = 0; j < 9; j += n > 18 ? 2 : 1){ const tt = (j + .5) / 9, hb = 1.95 - .38 * 4 * tt * (1 - tt) - .2375; P(ax + (-1.55 + 3.1 * tt) * uw, by, uw, hb, hb + .4, .13 * uw, j % 3 === 1 ? '#fff0d0' : '#ff7a4a', 1.1); } }
+      else if(t === 'lstr'){ if(n > 32) continue; for(let j = 0; j < 9; j += n > 12 ? 2 : 1){ const tt = (j + .5) / 9, hb = 1.95 - .38 * 4 * tt * (1 - tt) - .2375; P(ax + (-1.55 + 3.1 * tt) * uw, by, uw, hb, hb + .4, .13 * uw, j % 3 === 1 ? '#fff0d0' : '#ff7a4a', 1.1); } }
       else if(t === 'bridge'){ P(x, by, uw, 1.47, 2.2, 2.86 * uw, '#ffd04a', 1); P(x, by, uw, 1.38, 1.45, 4.4 * uw, '#e8f0ff', .5);
         for(const sd of [-1, 1]) P(x + sd * 1.85 * uw, by, uw, 1.47, 2.2, .44 * uw, '#ff3b8a', 1.05); }
       else if(t === 'train'){ const tx = x + ((reduce ? .4 : now / 1000 * .3 + sp.k) % 2 - 1) * 9 * uw * 1.4; for(let c = 0; c < 5; c++) P(tx + c * 1.3 * uw, by, uw, 2.35, 3.1, 1.1 * uw, '#e8f0ff', .7); }
@@ -678,13 +678,12 @@
       else if(t === 'neko'){ P(x, by, uw, 1.1, 3.2, Math.min(1.1 * uw, W * .06), '#ff6aa8', .7); }
       else if(t === 'yatai3'){ if(i === sp.b0 + 2) P(ax + X * uw, by, uw, .08, .6, Math.min(.5 * uw, W * .045), '#ff9a50', .8); }
       else if(t === 'nb'){ const B = sp.B, mid = B.b0 + (B.len >> 1); if(sp.k !== i || (i !== mid && i !== B.b0 && i !== B.b0 + 1)) continue;
-        if(B.tube && i === B.b0 && n < 50) P(x + B.side * .03 * uw, by, uw, B.gh + .04, B.h - .12, Math.max(PX, Math.min(.07 * uw, W * .01)), B.c.tube, .8);
         if(i === B.b0 + 1 && n < 24) for(let f = 0; f < B.nF; f++){ const sc = B.c.sg[f]; if(sc){ const fy = B.gh + f * B.flh; P(x, by, uw, fy + .05, fy + .4, Math.min(.26 * uw, W * .02), sc[0] === '#f4ecf0' ? '#ff9ac0' : sc[0], .5); } }
         if(i !== mid) continue; const tq = segs[B.b0 + B.len], t0 = segs[B.b0]; if(!tq || !t0 || !tq.p1.screen.scale || !t0.p1.screen.scale) continue;   // one smeared band per front, at its middle
-        const qa = tq.p1.screen, q0 = t0.p1.screen, xa = q0.x + X * q0.w, xb = qa.x + X * qa.w, xc = (xa + xb) / 2, w0 = Math.max(PX, Math.min(W * .036, Math.abs(xb - xa) * .24));
+        const qa = tq.p1.screen, q0 = t0.p1.screen, xa = q0.x + X * q0.w, xb = qa.x + X * qa.w, xc = (xa + xb) / 2, w0 = Math.max(PX, Math.min(PX * 7, Math.abs(xb - xa) * .24));
         let lit = 0; for(let k = 0; k < B.len; k++) if(B.shop[k]) lit++; const fr = lit / B.len;
         if(B.bar) P(xc, by, uw, .04, B.gh - .14, w0, '#ff8a40', .7); else if(lit){ P(xc, by, uw, .02, B.gh, w0, '#ffa040', .8 + .6 * fr); if(near) P(xc, by, uw, .08, B.gh - .1, w0 * .3, '#ffd890', .3 + .3 * fr); }
-        const U = nbWet(B); if(U.fr > 0 && n < 26) P(xc, by, uw, B.gh + B.flh, U.top, w0 * .5, U.col, .1 + .15 * U.fr); } }
+        const U = nbWet(B); if(U.fr > 0 && n < 16) P(xc, by, uw, B.gh + B.flh, U.top, w0 * .5, U.col, .1 + .15 * U.fr); } }
     // the cars' tail lights: a longer, hotter copy of roadmat's own (same place), with a white-hot core near by
     if(!NWX.includes('tails')) for(let k = 0; k < cars.length; k++){ const c = cars[k]; if(c.oth || Math.floor(c.z / SEG) !== i) continue; const pct = (c.z % SEG) / SEG, b2 = s.p2.screen, w = uw + (b2.w - uw) * pct, cxp = ax + (b2.x - ax) * pct + c.x * w, cyp = by + (b2.y - by) * pct, cw = w * .36;
       for(let sd = -1; sd <= 1; sd += 2){ const lx = cxp + sd * cw * .36; P(lx, cyp, w, .06, .5, cw * .14, '#ff2a3c', 1.3); if(cw > 30) P(lx, cyp, w, .08, .3, cw * .05, '#ffb0a0', .8); } } }
@@ -695,7 +694,7 @@
     for(let p = 0; p < w * h; p++){ const m = M[p] / 255, o = p * 4, L = m > .78 ? [96, 136, 220, 200] : m > .5 ? [52, 84, 170, 170] : m > .24 ? [38, 60, 136, 130] : [28, 40, 100, 90]; d[o] = L[0]; d[o + 1] = L[1]; d[o + 2] = L[2]; d[o + 3] = L[3]; }
     k.putImageData(img, 0, 0); WSH.c = c; WSH.w = w; WSH.h = h; return c; }
   function wetFX(s, n, r0, r1, RV, wet, T){ if(n >= WCAR.last) carMirrors(); WCAR.last = n; if(n > 200 || r1 < r0) return; const g = cx, a0 = g.globalAlpha;
-    const S = NWX.includes('sheen') ? null : sheenStrip(T); if(S){ g.globalCompositeOperation = NWX.includes('shl') ? 'lighter' : 'lighten';   // (the brighter of the sky and what is there already: a mirror shows the sky or a light, so a column keeps its hue on the blue)
+    const S = NWX.includes('sheen') ? null : sheenStrip(T); if(S){ g.globalCompositeOperation = 'lighten';   // (the brighter of the sky and what is there already: a mirror shows the sky or a light, so a column keeps its hue on the blue)
      
       for(let r = r0; r <= r1; r += 4){ const f = RV.f[r], al = wet * .8 * (1 - Math.min(1, Math.max(0, (f - .02) / .36))); if(al < .03) continue; const xm = RV.x[r], ww = RV.w[r], X0 = Math.round((xm - ww) / PX) * PX, X1 = Math.round((xm + ww) / PX) * PX, ax = Math.max(0, X0), bx = Math.min(W, X1); if(bx <= ax) continue;
         const u0 = (ax - X0) / (X1 - X0) * WSH.w, u1 = (bx - X0) / (X1 - X0) * WSH.w; if(u1 - u0 <= 0) continue; g.globalAlpha = Math.min(1, al); g.drawImage(S, u0, ((RV.v[r] / 4) | 0) % WSH.h, u1 - u0, 1, ax, r * PX, bx - ax, PX * Math.min(4, r1 - r + 1)); }

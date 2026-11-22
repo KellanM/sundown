@@ -1461,27 +1461,48 @@
         g.fillRect(xx - rx, y - ry, rx * 2, PX); g.fillRect(xx - rx, y + ry, rx * 2, PX); if(ry > PX){ g.fillRect(xx - rx - PX, y - ry + PX, PX, ry * 2 - PX); g.fillRect(xx + rx, y - ry + PX, PX, ry * 2 - PX); } } }
     g.globalAlpha = a0; g.globalCompositeOperation = 'source-over'; }
   // the rain sheets: three depths x four slants, tileable, white with the alpha baked (built in warm-up)
-  const RTS = 96, RLAY = [{ n:320, len:[2, 3, 4, 5], a:.34 }, { n:110, len:[5, 8, 11, 14], a:.55 }, { n:26, len:[11, 17, 24, 32], a:.8 }], RSL = [.05, .13, .24, .36], RVEL = [.5, .95, 1.6];
+  /* (rain polish, Kellan: "the rain in the neon ward is reactive to how fast you are going and how you turn ... it currently seems to be going one
+     direction regardless") Nine signed slants per layer (positive: the streak runs down to the left), each a short streak; speed lengthens the
+     streaks by stretching the sheet down the screen (far 2.2x, mid 2.6x, near 2.8x at full speed), so no sheet per length. The lean each frame:
+     a little wind, plus the turn (the road's curve at speed and the bike's sideways speed: the world swings the other way, so the drops do too),
+     strongest on the near layer; and with speed the two outer thirds of the screen lean outward, the drops rushing past the camera, the middle
+     third falling straight. A slant is the nearest sheet; each drop moves along its own drawn streak (offsets integrated per zone and layer). */
+  const RTS = 96, RLAY = [{ n:400, len:[2], a:.34 }, { n:160, len:[5], a:.55 }, { n:38, len:[11], a:.8 }], RVEL = [.5, .95, 1.6];
+  const RSLS = [-1.1, -.7, -.42, -.2, 0, .2, .42, .7, 1.1], RKX = [2.2, 2.6, 2.8], RPL = [.35, .65, 1], RLX = [.05, .14, .3], RST = { t:-1, px:0, st:0, ox:new Float64Array(9), oy:new Float64Array(3) };
+  const rslI = d => { let b = 0, e = 9; for(let q = 0; q < RSLS.length; q++){ const f = Math.abs(RSLS[q] - d); if(f < e){ e = f; b = q; } } return b; };
   let RSH = null, RSHT = null;
   /* (perf pass, Kellan: the rain reads too dense at top speed on the phone) A portrait screen takes the mid and near sheets from a sparser set:
      the same streaks, the first 60 % of them (no streak moves), and the near layer fades a little more with speed there. Landscape is unchanged. */
-  function buildRain(){ RSH = []; RSHT = []; for(let L = 0; L < 3; L++){ const row = [], rowT = []; for(let v = 0; v < 4; v++){ row.push(rainSheet(L, v, RLAY[L].n)); rowT.push(L ? rainSheet(L, v, Math.round(RLAY[L].n * .6)) : row[v]); } RSH.push(row); RSHT.push(rowT); } }
+  function buildRain(){ RSH = []; RSHT = []; for(let L = 0; L < 3; L++){ const row = [], rowT = []; for(let v = 0; v < RSLS.length; v++){ row.push(rainSheet(L, v, RLAY[L].n)); rowT.push(L ? rainSheet(L, v, Math.round(RLAY[L].n * .6)) : row[v]); } RSH.push(row); RSHT.push(rowT); } }
   function rainSheet(L, v, nq){ const c = mk(RTS, RTS), g = c.getContext('2d'), id = g.createImageData(RTS, RTS), D = id.data, Ld = RLAY[L];
-        for(let q = 0; q < nq; q++){ const x0 = H1(q * 1.37 + L * 11.1) * RTS, y0 = H1(q * 2.71 + L * 5.3) * RTS, len = Math.max(2, Math.round(Ld.len[v] * (.7 + .6 * H1(q * 4.1 + L)))), sl = RSL[v];
-          for(let k = 0; k < len; k++){ const xx = ((Math.round(x0 - sl * k) % RTS) + RTS) % RTS, yy = Math.round(y0 + k) % RTS, j = (yy * RTS + xx) * 4, t = k / len, al = Ld.a * (t < .3 ? .45 : 1);
-            D[j] = D[j + 1] = D[j + 2] = 255; D[j + 3] = Math.max(D[j + 3], Math.round(al * 255)); } }
+        for(let q = 0; q < nq; q++){ const x0 = H1(q * 1.37 + L * 11.1) * RTS, y0 = H1(q * 2.71 + L * 5.3) * RTS, len = Math.max(2, Math.round(Ld.len[0] * (.7 + .6 * H1(q * 4.1 + L)))), sl = RSLS[v];
+          for(let k = 0; k < len; k++){ const xa = Math.round(x0 - sl * k), xn = Math.round(x0 - sl * (k + 1)), yy = Math.round(y0 + k) % RTS, t = k / len, al = Ld.a * (t < .3 ? .45 : 1);
+            const dq = Math.sign(xn - xa), xz = dq ? xn - dq : xa; for(let xq = Math.min(xa, xz), xe = Math.max(xa, xz); xq <= xe; xq++){ const xx = ((xq % RTS) + RTS) % RTS, j = (yy * RTS + xx) * 4;   // (a steep streak: the row's run filled, so it stays one line)
+              D[j] = D[j + 1] = D[j + 2] = 255; D[j + 3] = Math.max(D[j + 3], Math.round(al * 255)); } } }
         g.putImageData(id, 0, 0); const c2 = mk(RTS * 2, RTS * 2), g2 = c2.getContext('2d'); for(let k = 0; k < 4; k++) g2.drawImage(c, (k & 1) * RTS, (k >> 1) * RTS); return c2; }   // (perf pass: the tile laid 2 x 2, a quarter of the drawImages per sheet; the same pixels)
-  function sheet(c, ox, oy){ const P = RTS * 2 * PX, x0 = snp(-(((ox % P) + P) % P)), y0 = snp((((oy % P) + P) % P) - P); for(let y = y0; y < H; y += P) for(let x = x0; x < W; x += P) cx.drawImage(c, x, y, P, P); }
-  function rainOverlay(al, now){ if(!RSH || !RAINON || al < .02 || AKX.includes('nrov')) return; const g = cx, a0 = g.globalAlpha, t = now / 1000, sp = clamp(speed / MAXS, 0, 1), v = Math.min(3, Math.round(sp * 3.4)), cs = Math.floor(position / SEG);
-    AKDK += ((onAt(cs + 12) ? 0 : 1) - AKDK) * .08; const dk = AKDK; try{ const rp = MECH.roadmat && MECH.roadmat.RP[KEY]; if(rp) rp.sheen = .8 + 1.1 * dk; }catch(e){}   // (in the dark the puddles hold only the sky: colder and stronger, the moon's glitter with them) g.imageSmoothingEnabled = false;
-    const rs = reduce ? .3 : 1, par = skyPar('mid'), por = H > W * 1.2, thin = por ? 1 - .3 * sp : 1;
-    for(let L = 0; L < 3; L++){ if(reduce && L === 2) break; const vel = RVEL[L] * H * rs * (1 + sp * .35), oy = t * vel, ox = oy * RSL[v] - par * (.4 + L * .3), c = (por ? RSHT : RSH)[L][v], th = L === 2 ? thin : 1;
-      if(L === 0){ g.globalCompositeOperation = 'source-over'; g.globalAlpha = a0 * al * (.18 + .3 * dk); sheet(c, ox, oy); continue; }
-      g.globalCompositeOperation = 'overlay'; g.globalAlpha = a0 * al * (L === 1 ? .85 : 1) * (1 - .7 * dk) * th; sheet(c, ox, oy);
-      g.globalCompositeOperation = 'lighter'; g.globalAlpha = a0 * al * ((L === 1 ? .04 : .055) + (L === 1 ? .2 : .32) * dk) * th; sheet(c, ox, oy); }
-    // the blackout: the streaks catch the moon (a band of them brighter under it)
-    if(dk > .05 && !reduce){ const mx = MOON.x || W / 2, vy = t * RVEL[2] * H * (1 + sp * .35); g.save(); g.beginPath(); g.rect(snp(mx - W * .2), 0, snp(W * .4), H); g.clip(); g.globalCompositeOperation = 'lighter'; g.globalAlpha = a0 * al * .28 * dk;
-      sheet((por ? RSHT : RSH)[2][v], vy * RSL[v] - par, vy); g.restore(); }
+  // a sheet tiled over [xa, xb) of the screen, its tile stretched ky times down the screen (whole pixels)
+  function sheet(c, ox, oy, xa, xb, ky){ const P = RTS * 2 * PX, Q = Math.max(PX, snp(P * (ky || 1))), a = xa === undefined ? 0 : xa, b = xb === undefined ? W : xb, x0 = snp(-(((ox % P) + P) % P)), y0 = snp((((oy % Q) + Q) % Q) - Q);
+    for(let x = x0; x < b; x += P){ if(x + P <= a) continue; for(let y = y0; y < H; y += Q) cx.drawImage(c, x, y, P, Q); } }
+  function rainOverlay(al, now){ if(!RSH || !RAINON || al < .02 || AKX.includes('nrov')) return; const g = cx, a0 = g.globalAlpha, sp = clamp(speed / MAXS, 0, 1), cs = Math.floor(position / SEG);
+    AKDK += ((onAt(cs + 12) ? 0 : 1) - AKDK) * .08; const dk = AKDK; try{ const rp = MECH.roadmat && MECH.roadmat.RP[KEY]; if(rp) rp.sheen = .8 + 1.1 * dk; }catch(e){}   // (in the dark the puddles hold only the sky: colder and stronger, the moon's glitter with them)
+    g.imageSmoothingEnabled = false;
+    const rs = reduce ? .3 : 1, par = skyPar('mid'), por = H > W * 1.2, thin = por ? 1 - .3 * sp : 1, S = por ? RSHT : RSH;
+    // this frame's motion: dt, the turn (curve at speed, the bike's sideways speed), eased so a flick of the bars swings the rain, not snaps it
+    const dt = RST.t < 0 ? 0 : clamp((now - RST.t) / 1000, 0, .05); RST.t = now; const sg = segAt(position + PZ), lat = dt > 0 ? clamp((playerX - RST.px) / dt, -3, 3) : 0; RST.px = playerX;
+    RST.st += (clamp(.06 * (sg ? sg.curve : 0) * sp + .3 * lat, -.42, .42) - RST.st) * Math.min(1, dt * 5); const steer = RST.st, rad = .3 * sp;
+    const zb = [0, snp(W * .36), snp(W * .64), W];
+    for(let z = 0; z < 3; z++){ g.save(); g.beginPath(); g.rect(zb[z], 0, zb[z + 1] - zb[z], H); g.clip();
+      for(let L = 0; L < 3; L++){ if(reduce && L === 2) break; const k = 1 + (RKX[L] - 1) * sp * rs, vel = RVEL[L] * H * rs * (1 + sp * .35);
+        const d = .04 + steer * RPL[L] + (z === 0 ? rad : z === 2 ? -rad : 0) * (.55 + .225 * L), v = rslI(d * k), zi = L * 3 + z;
+        if(z === 0) RST.oy[L] += vel * dt; RST.ox[zi] += vel * dt * RSLS[v] / k; const oy = RST.oy[L], ox = RST.ox[zi] - par * (.4 + L * .3) - playerX * W * RLX[L], c = S[L][v], th = L === 2 ? thin : 1;
+        if(L === 0){ g.globalCompositeOperation = 'source-over'; g.globalAlpha = a0 * al * (.18 + .3 * dk); sheet(c, ox, oy, zb[z], zb[z + 1], k); continue; }
+        g.globalCompositeOperation = 'overlay'; g.globalAlpha = a0 * al * (L === 1 ? .85 : 1) * (1 - .7 * dk) * th; sheet(c, ox, oy, zb[z], zb[z + 1], k);
+        if(L === 2 && sp > .5 && !reduce){ g.globalAlpha = a0 * al * (1 - .7 * dk) * th * (sp - .5) * 1.6; sheet(c, ox + RTS * PX * .9, oy + RTS * PX * .63, zb[z], zb[z + 1], k); }   // full speed: a second near sheet, the drops thicker
+        g.globalCompositeOperation = 'lighter'; g.globalAlpha = a0 * al * ((L === 1 ? .04 : .055) + (L === 1 ? .2 : .32) * dk) * th; sheet(c, ox, oy, zb[z], zb[z + 1], k); }
+      g.restore(); }
+    // the blackout: the streaks catch the moon (a band of them brighter under it), at the middle third's slant
+    if(dk > .05 && !reduce){ const mx = MOON.x || W / 2, k = 1 + (RKX[2] - 1) * sp, v = rslI((.04 + steer) * k); g.save(); g.beginPath(); g.rect(snp(mx - W * .2), 0, snp(W * .4), H); g.clip(); g.globalCompositeOperation = 'lighter'; g.globalAlpha = a0 * al * .28 * dk;
+      sheet(S[2][v], RST.ox[7] - par, RST.oy[2], snp(mx - W * .2), snp(mx + W * .2), k); g.restore(); }
     g.globalCompositeOperation = 'source-over'; g.globalAlpha = a0; }
   // the hiss: a looped noise bed (a high hiss and a low body) on the SFX bus, only while riding this road; unwired elsewhere (it then costs nothing)
   const AR = { src:null, g:null, wired:false, t:0, off:0 };
