@@ -712,7 +712,7 @@
     for(let v = 0; v < BRANDS.length; v++){ T.band[v] = band(v); yield; }
     for(let v = 0; v < 2; v++){ T.wrap[v] = wrap(v); yield; } for(let v = 0; v < BRANDS.length; v++){ T.wrap[2 + v] = wrapBrand(BRANDS[v]); yield; }
     for(let ic = 0; ic < ICON.length; ic++) for(let p = 0; p < PAN.length; p++){ T.plate[ic * PAN.length + p] = plateArt(ic, p); yield; }
-    T.shopv = []; T.int = []; for(let v = 0; v < SHOPN; v++){ T.shopv[v] = []; T.int[v] = []; for(let r = 0; r < 2; r++){ const S = shopLayers(v, r); T.shopv[v][r] = acomp(S.C); yield; T.int[v][r] = S.flat ? null : []; if(!S.flat) for(const Lq of S.Ls){ T.int[v][r].push(acomp(Lq)); yield; } } T.shop[v] = T.shopv[v][0]; }
+    T.shopv = []; T.int = []; T.rfh = []; for(let v = 0; v < SHOPN; v++){ T.shopv[v] = []; T.int[v] = []; T.rfh[v] = []; for(let r = 0; r < 2; r++){ const S = shopLayers(v, r); T.shopv[v][r] = acomp(S.C); T.rfh[v][r] = reflH(S.C); yield; T.int[v][r] = S.flat ? null : []; if(!S.flat) for(const Lq of S.Ls){ T.int[v][r].push(acomp(Lq)); yield; } } T.shop[v] = T.shopv[v][0]; }
     for(let f = 0; f < 40; f++){ T.crane[f] = fobj(craneFrame(f)); yield; } for(let f = 0; f < 40; f++){ T.fox[f] = fobj(foxFrame(f)); yield; } for(let f = 0; f < 16; f++){ T.att[f] = fobj(attractFrame(f)); yield; }
     const all = []; for(const k of ['ban', 'bb', 'po', 'band', 'wrap', 'plate', 'shop']) for(const A of T[k]) all.push(...A.L); for(let v = 0; v < SHOPN; v++){ all.push(...T.shopv[v][1].L); for(const Q of T.int[v]) if(Q) for(const A of Q) all.push(...A.L); } for(const k of ['crane', 'fox', 'att']) all.push(...T[k]);
     all.sort((a, b) => b.h - a.h || b.w - a.w); let x = 0, y = 0, rh = 0; for(const o of all){ if(x + o.w > 1024){ x = 0; y += rh + 1; rh = 0; } o.x = x; o.y = y; x += o.w + 1; if(o.h > rh) rh = o.h; } yield;
@@ -1382,27 +1382,61 @@
      - a dithered haze over the far canyon; dithered rain-haze blooms around the signs (halo, signBand); umbrellas; drips off the awnings;
      - the hiss (MECH.ak_rain): a looped noise bed on the SFX bus, under the music, only on this road. ?akrain=0 turns all of it off. */
   const RAINON = QA.get('akrain') !== '0', WB = [.02, .22, .55, .95];
-  function wetCols(B, pc){ const c = SHOPL[B.sv] || '#ffc070'; return [mixc(pc, c, .24), mixc(pc, c, .14), mixc(pc, c, .07)]; }
+  function wetCols(B, pc){ const c = SHOPL[B.sv] || '#ffc070'; return [mixc(pc, c, .32), mixc(pc, c, .2), mixc(pc, c, .1)]; }
   // the pools: per segment in view (roadmat calls this with 'lighter' set); far segments merge 2 or 4 at a time, anchored to the world
+  /* (refl pass: Kellan, "the reflections should look much better ... we are missing a lot of elements in the reflections like the convenience
+     store entrances"; the bar: a palette-knife painting of a rainy street, where every light's image is nearly as bright as the light, white-hot
+     at its core, coloured at its edges, running in chunky dashes to the foot of the frame over a cool sky sheen.) A shop front's reflection
+     strip, built once per kind and variant at warm-up from its own picture: 8 chunks along the front, each its lit colour (brightness-weighted,
+     brought to full value: it is a light) and its strength (a white konbini aisle ~1, a shutter between vending machines ~.1, the machines
+     themselves bright). The street then lays one column per few segments of each front, coloured by the chunk it faces: the konbini's door
+     and fridges, the arcade's crane cabinets, the vending machines read as their own columns. */
+  function reflH(C){ const o = { c:[], i:new Float32Array(8) };
+    for(let q = 0; q < 8; q++){ let r = 0, g = 0, b = 0, wt = 0, sl = 0, sw = 0, nn = 0;
+      for(let y = 2; y < 30; y++) for(let x = q * 16; x < q * 16 + 16; x++){ const col = C.c[y * C.w + x]; if(!col) continue; const v = hx(col), l = .3 * v[0] + .59 * v[1] + .11 * v[2], w = (l / 255) * (l / 255) * (l / 255) + .001; r += v[0] * w; g += v[1] * w; b += v[2] * w; wt += w; sl += l * w; sw += l; nn++; }
+      if(!nn || !wt){ o.c.push('#ffc070'); o.i[q] = .1; continue; } const m = Math.max(r, g, b) / wt || 1, k = 255 / m;
+      o.c.push('#' + [r, g, b].map(v => Math.min(255, Math.round(v / wt * k)).toString(16).padStart(2, '0')).join(''));
+      o.i[q] = Math.min(1, Math.max(.1, .35 * (sw / nn - 40) / 160 + .65 * (sl / wt - 90) / 140)); }
+    return o; }
+  // which chunk of its front a street position faces (as faceArt lays the picture: copies of ~7.4 segments, mirrored on the right)
+  function chunkAt(B, z){ const z0b = B.b0 + .6, Lz = B.len - 1.2; if(Lz < 1) return 3; const tl = Lz / Math.max(1, Math.round(Lz / 7.4)); let u = (z - z0b) / tl; u = Math.min(.999, Math.max(0, u - Math.floor(u))); if(B.side > 0) u = .999 - u; return Math.min(7, Math.floor(u * 8)); }
+  // the facade's profile, bottom up: the shop floor (its colour per column: the strip), the tube line under the awning, the fascia (a konbini's
+  // three livery stripes), the lowest sign band; mirrored, they run down the column in that order. tb: the band whose colour the long tail keeps.
+  function reflProf(B){ if(B.rp) return B.rp; const L = [[.04, .53, null, -1], [.53, .56, '#fffaf0', 1]];
+    if(B.sv === SH_KONB){ const K = KONB[B.kb | 0]; L.push([.56, .62, K[2], .9], [.62, .68, K[1], .9], [.68, G, K[0], .9]); }
+    else L.push([.56, G, B.gr === 'crane' ? '#ff3a7a' : B.aw[0], .62]);
+    const rs = signSrc(B); for(const q of rs) L.push([q[0], q[1], q[2], .85]);
+    const lit = B.sv === SH_KONB || B.sv === SH_GLASS || B.sv === SH_GACHA || B.sv === SH_ARC;
+    return (B.rp = { n:L.length, h0:Float32Array.from(L, q => q[0]), h1:Float32Array.from(L, q => q[1]), c:L.map(q => q[2]), i:Float32Array.from(L, q => q[3]), top:L[L.length - 1][1], tb:lit || !rs.length ? 0 : L.length - 1 }); }
   function signSrc(B){ if(B.rs) return B.rs; const o = []; for(let f = 0; f < B.nF0 && o.length < 1; f++){ const t = B.fl[f], fy = G + f * FH;
       if(t === 'S') o.push([fy + .05, fy + FH - .03, BRANDS[B.br].f]); else if(t === 'K') o.push([fy + .06, fy + FH * 2 - .04, ART.wrap[B.wv] ? ART.wrap[B.wv].avg : '#3a2a8a']);
       else if(t === 'N') o.push([fy + .2, fy + .42, f & 1 ? '#c050ff' : '#ff4aa0']); else if(t === 'T') o.push([fy + .2, fy + .4, '#ffa020']); }
     return (B.rs = o); }
   function wetSrc(s, n, a, P){ if(!RAINON || AKX.includes('nrpool')) return; const V = s.akV !== undefined ? s.akV : (s.akV = visitOf(s.index) || null); if(!V) return; const i = s.index, uw = a.w; if(!(uw > .5)) return;
     if(n > 100) return; const st = n < 10 ? 2 : n < 30 ? 4 : 8, fa = 1 - Math.pow(n / DRAW, 1.6) * .9, lx = 0;   // (bug fix: the gantry and the train stand over the road, which a side lane does not push)
-    if(s.akG && onAt(i)){ const x = a.x + lx * uw; P(x, a.y, uw, 1.66, 2.91, 2 * uw, '#4a5cc8', .75 * fa); P(x + .25 * uw, a.y, uw, 2.1, 2.7, .55 * uw, '#f0e4c8', .5 * fa); P(x, a.y, uw, 1.58, 1.66, 1.9 * uw, '#ffb02a', .45 * fa); }
+    if(s.akG && onAt(i)){ const x = a.x + lx * uw; P(x, a.y, uw, 1.66, 2.91, 2 * uw, '#4a5cc8', .85 * fa); P(x + .25 * uw, a.y, uw, 2.1, 2.7, .55 * uw, '#f0e4c8', 1 * fa); P(x, a.y, uw, 1.58, 1.66, 1.9 * uw, '#ffb02a', .9 * fa); }   // (refl: the moon's cream core runs the length of the road)
     // the blackout's lights: the train standing lit across the bridge, the signals on backup power (their pools are all the street has)
-    if(i === V.BR && SPA.on && SPA.L === V && !SPA.rel2) P(a.x + lx * uw, a.y, uw, HT + .3, HT + .6, 3.2 * uw, '#ffd23a', .55 * fa);
-    if(s.akX === -3) for(let side = -1; side <= 1; side += 2) P(a.x + (side * 1.14 + laneS(i, side, 1.14)) * uw, a.y, uw, 1.28, 1.42, .14 * uw, '#3aff9a', .7 * fa);
-    if(s.akLit > .55 && onAt(i)) for(let side = -1; side <= 1; side += 2) P(a.x + (side * .86 + laneS(i, side, .86)) * uw, a.y, uw, 1.5, 1.62, Math.min(.12 * uw, W * .02), '#c8d8ff', .55 * fa);   // the mercury lamps
+    if(i === V.BR && SPA.on && SPA.L === V && !SPA.rel2) P(a.x + lx * uw, a.y, uw, HT + .3, HT + .6, 3.2 * uw, '#ffd23a', .75 * fa);
+    // the signals (drawSig): the green lamp in the head over the road, the pedestrians' red box on the pole
+    if(s.akX === -3) for(let side = -1; side <= 1; side += 2){ const xs = side * 1.14 + laneS(i, side, 1.14); P(a.x + (xs - side * .62 - .1) * uw, a.y, uw, 1.05, 1.13, .1 * uw, '#3affb0', .95 * fa); P(a.x + (xs + side * .06) * uw, a.y, uw, .7, .77, .06 * uw, '#ff3a2a', .8 * fa); }
+    // dark breaks (near only): the poles, lamps, signals, pedestrians and pavement boards mirror dark across the columns behind them
+    if(P.dark && n < 36){ const sps = s.sprites; for(let q = 0; q < sps.length; q++){ const o = sps[q]; if(o.env !== KEY) continue; const ty = o.type, h = ty === 'ped' ? .5 : ty === 'pole' ? 2.05 : ty === 'lamp' ? 1.62 : ty === 'sig' ? 1.12 : ty === 'pv' ? .3 : 0; if(!h) continue;
+        const sd = o.x < 0 ? -1 : 1, sm = ty === 'ped' || ty === 'pv'; P.dark(a.x + (o.x + laneS(i, sd, Math.abs(o.x))) * uw, a.y, uw, h, sm ? (ty === 'ped' ? .09 : .12) * uw : Math.max(PX, uw * .035), sm ? .55 : .42); } }
+    if(s.akLit > .55 && onAt(i)) for(let side = -1; side <= 1; side += 2) P(a.x + (side * .86 + laneS(i, side, .86)) * uw, a.y, uw, 1.5, 1.62, Math.min(.12 * uw, W * .02), '#c8d8ff', .85 * fa);   // the mercury lamps
     for(let side = -1; side <= 1; side += 2){ const B = bAt(V, side, i); if(!B || !onAt(B.b0)) continue; const lx = laneS(i, side, B.x0);
-      if(B.hero >= 0 && i === B.b0){ const x = a.x + (side * (B.x0 + .1) + lx) * uw, ad = B.ad && B.ad !== 'fox' ? ADS[B.ad] : null; P(x, a.y, uw, .88, 2.03, 1.84 * uw, ad ? '#1a1c3a' : '#3a3c8a', .5 * fa); P(x, a.y, uw, 1.1, 1.8, .6 * uw, ad ? ad.col : '#ff8a2a', .6 * fa); }
-      if(B.ew && B.ew.ad && i === B.b0){ const x = a.x + (side * (B.x0 + B.depth * .5) + lx) * uw; P(x, a.y, uw, (B.ph || 1.5) + .2, (B.ph || 1.5) + 1.3, .5 * uw, ADS[B.ew.ad].col, .55 * fa); }
+      if(B.hero >= 0 && i === B.b0){ const x = a.x + (side * (B.x0 + .1) + lx) * uw, ad = B.ad && B.ad !== 'fox' ? ADS[B.ad] : null; P(x, a.y, uw, .88, 2.03, 1.84 * uw, ad ? '#1a1c3a' : '#3a3c8a', .7 * fa); P(x, a.y, uw, 1.1, 1.8, .6 * uw, ad ? ad.col : '#ff8a2a', 1 * fa); }
+      if(B.ew && B.ew.ad && i === B.b0){ const x = a.x + (side * (B.x0 + B.depth * .5) + lx) * uw; P(x, a.y, uw, (B.ph || 1.5) + .2, (B.ph || 1.5) + 1.3, .5 * uw, ADS[B.ew.ad].col, .8 * fa); }
       for(const b of B.bl){ if(b.plate) continue; const z = B.b0 + b.z; if(Math.floor(z / st) * st !== i) continue; const X = side * (B.x0 - b.off - b.pr / 2) + lx;
         P(a.x + X * uw, a.y, uw, G + b.f0 * FH, G + b.f1 * FH, b.pr * uw, b.ban !== undefined ? BAN[b.ban].s : PAN[b.p][0], .85 * fa); }
-      if(i % st) continue; const t = segs[i + st]; if(!t || !t.p1.screen.scale) continue; const q = t.p1.screen, X = side * B.x0, xa = a.x + (X + lx) * uw, xb = q.x + (X + laneS(i + st, side, B.x0)) * q.w, w0 = Math.abs(xb - xa) * .55, xc = (xa + xb) / 2;   // (a column, not the whole span: the stripes of the references, not a slab)
-      P(xc, a.y, uw, .04, G, w0, SHOPL[B.sv] || '#ffc070', .34 * fa);
-      const rs = signSrc(B); for(let k = 0; k < rs.length; k++) P(xc, a.y, uw, rs[k][0], rs[k][1], w0, rs[k][2], .78 * fa); } }
+      if(i % st) continue; const t = segs[i + st]; if(!t || !t.p1.screen.scale) continue; const q = t.p1.screen, X = side * B.x0, xa = a.x + (X + lx) * uw, xb = q.x + (X + laneS(i + st, side, B.x0)) * q.w, w0 = Math.abs(xb - xa) * (AKX.includes('nostrip') ? .55 : .32), xc = (xa + xb) / 2;   // (a column, not the whole span: the stripes of the references, not a slab)
+      if(AKX.includes('nostrip') || !ART.rfh){ P(xc, a.y, uw, .04, G, w0, SHOPL[B.sv] || '#ffc070', .34 * fa); const rs = signSrc(B); for(let k = 0; k < rs.length; k++) P(xc, a.y, uw, rs[k][0], rs[k][1], w0, rs[k][2], .78 * fa); }
+      else { const RH = ART.rfh[B.sv][B.svv | 0], ch = chunkAt(B, i + st * .5), kb = B.sv === SH_KONB ? 1.25 : 1;   // one column: the whole facade's profile, its shop floor in the colour of the chunk it faces
+        P(xc, (a.y + q.y) * .5, (uw + q.w) * .5, .04, 0, w0 * kb, RH.c[ch], .85 * fa, reflProf(B), Math.min(1, RH.i[ch] * kb)); }
+      // the konbini's door: its white-lit entrance, the brightest and widest image on the street, its own column to the foot of the frame
+      if(B.sv === SH_KONB && n < 70 && !AKX.includes('nostrip')){ const z0b = B.b0 + .6, Lz = B.len - 1.2; if(Lz >= 1){ const cp = Math.max(1, Math.round(Lz / 7.4)), tl = Lz / cp;
+          for(let c = 0; c < cp; c++){ const zd = z0b + tl * (c + .5), i0 = Math.floor(zd); if(i0 < i || i0 >= i + st) continue; const s0 = segs[i0], s1 = segs[i0 + 1]; if(!s0 || !s1 || !(s0.p1.screen.scale > 0) || !(s1.p1.screen.scale > 0)) continue;
+            const p0 = s0.p1.screen, p1 = s1.p1.screen, f = zd - i0, x0 = p0.x + (X + laneS(i0, side, B.x0)) * p0.w, x1 = p1.x + (X + laneS(i0 + 1, side, B.x0)) * p1.w, ud = p0.w + (p1.w - p0.w) * f;
+            P(x0 + (x1 - x0) * f, p0.y + (p1.y - p0.y) * f, ud, .04, .53, Math.max(Math.abs(x1 - x0) * tl * .14, ud * .14), '#f4f8ff', 1.1 * fa); } } } } }
   // on the road, under the cars: splash crowns, rain rings where the water stands, the glint on the lane paint (per segment, near only)
   let AKDK = 0;
   function wetFX(s, n, r0, r1, RV, wet, T){ if(!RAINON || n > 40 || AKX.includes('nrfx')) return; const i = s.index, a = s.p1.screen, uw = a.w; if(!(uw > 4)) return; const g = cx, a0 = g.globalAlpha, now = performance.now(), dk = AKDK;
@@ -1413,6 +1447,10 @@
         g.globalAlpha = a0 * .5 * lt; g.fillRect(Math.round((xb - wd / 2) / PX) * PX, r0 * PX, wd, PX);
         const m = n < 6 ? 2 : 1; for(let k = 0; k < m; k++){ const f0 = k / m, f1 = (k + 1) / m, ra = r0 + Math.floor((r1 - r0 + 1) * f0), rb = r0 + Math.floor((r1 - r0 + 1) * f1); if(rb <= ra) continue;
           const xm = xb + (xa - xb) * (f0 + f1) / 2; g.globalAlpha = a0 * .2 * lt; g.fillRect(Math.round(xm / PX) * PX, ra * PX, PX, (rb - ra) * PX); } } }
+    // the traffic's headlights: each car ahead throws a pale warm wash on the wet road over the next few segments in front of it
+    if(!AKX.includes('nobeam')){ const xm = (RV.x[r0] + RV.x[r1]) * .5, wm = (RV.w[r0] + RV.w[r1]) * .5;
+      for(let k = 0; k < cars.length; k++){ const c = cars[k]; if(c.oth) continue; const d = i + .5 - c.z / SEG; if(d < .4 || d > 4.5) continue; const bw = Math.round(wm * (.22 + .08 * d) / PX) * PX; if(bw < PX) continue;
+        g.fillStyle = '#fff0d4'; g.globalAlpha = a0 * .2 * Math.min(1, (d - .4) * 2) * (1 - (d - .4) / 4.1); g.fillRect(Math.round((xm + c.x * wm - bw / 2) / PX) * PX, r0 * PX, bw, (r1 - r0 + 1) * PX); } }
     // the rain landing: world-anchored drops, each on its own cycle (a crown for its first fifth, then a ring spreading where the water is deep)
     const N = n < 4 ? 5 : n < 12 ? 3 : n < 24 ? 2 : 1, rc = r1 - r0 + 1, rcol = dk > .5 ? '#a8b8e8' : '#cdd4f4';
     for(let q = 0; q < N; q++){ const h0 = H1(i * 7.13 + q * 3.7), per = 520 + 380 * H1(i * 3.1 + q), ph = now / per + h0 * 9, cyc = Math.floor(ph), f = ph - cyc;

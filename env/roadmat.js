@@ -59,7 +59,7 @@ const SCHEMA = {
     dust:[0, 1, .01], drift:[0, 1, .01], ripples:[0, 1, .01], side:[-1, 1, 2] },
   render:{ str:[0, 1.6, .01], wet:[0, 1, .01], sheen:[0, 1, .01], refl:[0, 1, .01], lampX:[.3, 1.2, .01], lampH:[.2, 2, .01], wear:[0, 1, .01], paint:[0, 1, .01] } };
 const R0 = { mat:'asphalt', str:1, wet:0, sheen:.5, refl:.6, lamps:false, tails:false, lampX:.8, lampH:.9, sheenCol:'', reflCol:'#ffb45c', road:null, lampCol:null,
-  marks:'none', speed:50, wear:.45, paint:.62, tunnel:false, pools:0 };   // pools: how far out (half-road widths) an env's own light pools may lie (ENV[key].wetSrc; 0 = none)   // (paint at night is a step under the lane dashes: the road is the stage)
+  marks:'none', speed:50, wear:.45, paint:.62, tunnel:false, pools:0, hot:0, sheenN:0 };   // hot: pools painted as the references' columns (hotPool); sheenN: the sky sheen's floor near by (0: the Fresnel ramp alone)   // pools: how far out (half-road widths) an env's own light pools may lie (ENV[key].wetSrc; 0 = none)   // (paint at night is a step under the lane dashes: the road is the stage)
 // per road. Roads that already draw their own reflections (Neon's signs and lamps, Bay's lamps and tails, Aqua, Haneda, Harbour, Shuto's
 // wet visits) keep them: lamps / tails here are only for roads without.
 const ROADS = {
@@ -79,7 +79,7 @@ const ROADS = {
   minato:{ mat:'asphalt', str:.9, marks:'city', speed:50 },
   shuto:{ mat:'wet', str:.95, wet:1, sheen:.5, refl:.6, tails:true, sheenCol:'#6a4a5a', marks:'expressway', speed:50 },
   kurobe:{ mat:'asphalt', str:.95, marks:'none' },
-  akiba:{ mat:'wet', str:.9, wet:1, sheen:.8, refl:1, lamps:false, tails:true, sheenCol:'#3a4690', marks:'none', pools:2.2 },   // (the downpour: its signs' own pools come from ENV.akiba.wetSrc)
+  akiba:{ mat:'wet', str:.9, wet:1, sheen:.8, refl:1, lamps:false, tails:true, sheenCol:'#3a66c4', marks:'none', pools:2.4, hot:1, sheenN:.55 },   // (the downpour: its signs' own pools come from ENV.akiba.wetSrc)
   gion:{ mat:'cobble', str:.7, marks:'none' } };
 const FIELD_D = JSON.parse(JSON.stringify(FIELD)), ROADS_D = JSON.parse(JSON.stringify(ROADS));
 const RP = {};   // resolved render presets per road (R0 + ROADS + saved), with derived strings
@@ -329,7 +329,7 @@ function prep(){ FR.f = DRAWN; const base = segAt(position).index; FR.base = bas
   for(let k = 0; k < cars.length; k++){ const c = cars[k]; if(c.oth) continue; const n = Math.floor(c.z / SEG) - base; if(n < 0 || n >= nd) continue; CARN[k] = CARH[n]; CARH[n] = k; }
   // this frame's state per road (Shuto's drizzle comes and goes by visit)
   WETK.shuto = ENV.shuto && ENV.shuto.wetVisit && segs[base] && segs[base].shB !== undefined ? (ENV.shuto.wetVisit(segs[base].shB) ? 1 : .12) : 1;
-  PLN = 0;   // this frame's deferred pools
+  PLN = 0; DKN = 0; PLHOT = 0;   // this frame's deferred pools (and dark breaks)
   PK.ph = reduce ? 0 : Math.floor(performance.now() / 85);   // the ripples' time step (pools shiver on it; none under reduced motion)
   const st = RM.stats; st.frames++; st.ms = st.ms * .95 + FR.ms * .05; if(FR.ms > st.peak) st.peak = FR.ms; st.last = FR.ms; FR.ms = 0; }
 const WETK = { shuto:1 };
@@ -364,7 +364,7 @@ function paint(s, n, key, wt){ if(wt < .03) return; const p = RP[key]; if(!p || 
   const wet = p.wet * (WETK[key] !== undefined ? WETK[key] : 1) * wt; if(wet <= .02) return; const Q = TINT[key];
   g.globalCompositeOperation = 'lighter';
   if(r1 >= r0 && Q){ const sh = wet * p.sheen, h2 = p.pools > 0;   // (perf pass: roads with pools (Akihabara) lay the sky sheen on even rows, each two rows deep)
-    for(let r = r0; r <= r1; r++){ if(h2 && (r & 1) && r > r0) continue; const f = ROWF[r], fr = ss(.004, .4, f) * (1 - ss(.72, .98, f)), lod = ROWL[r], a = sh * fr * Math.min(1, Math.max(0, (4.8 - lod) / 1.2)); if(a < .02) continue;
+    for(let r = r0; r <= r1; r++){ if(h2 && (r & 1) && r > r0) continue; const f = ROWF[r], fr = Math.max(ss(.004, .4, f), p.sheenN) * (1 - ss(.72, .98, f)), lod = ROWL[r], a = sh * fr * Math.min(1, Math.max(0, (4.8 - lod) / 1.2)); if(a < .02) continue;
       const lv = Math.min(NL - 1, Math.max(0, Math.ceil(lod - .3))), vr = Math.floor(ROWV[r] / (1 << (2 * lv))) % LH[lv]; SA(Math.min(1, a)); blitRow(Q.c[lv], ROWX[r] - ROWW[r], ROWX[r] + ROWW[r], r, vr, h2 && r < r1 ? 2 : 1); }
     const mx = MOON.x, ma = sh * .5 * (1 - ss(.85, 1, MOON.t || 0)); if(ma > .02){ g.fillStyle = MOONC;
       for(let r = r0; r <= r1; r++){ const x = ROWX[r], w = ROWW[r]; if(mx < x - w || mx > x + w) continue; const f = ROWF[r], fr = (.25 + .75 * ss(0, .5, f)) * (1 - ss(.7, .95, f)), m = maskAt(T, (mx - x) / w, ROWV[r]);
@@ -372,8 +372,9 @@ function paint(s, n, key, wt){ if(wt < .03) return; const p = RP[key]; if(!p || 
   if(p.refl > 0 && Math.pow(n / DRAW, 1.6) < .62){ const a = s.p1.screen, uw = a.w, rf = wet * p.refl * (1 - Math.pow(n / DRAW, 1.6) / .62);
     if(p.lamps && s.lit > .15){ const pv = segs[s.index - 1], nx = segs[s.index + 1]; if((!pv || pv.lit < s.lit) && (!nx || nx.lit <= s.lit)){ g.fillStyle = p.reflCol; for(let sd = -1; sd <= 1; sd += 2) streak(T, a.x + sd * p.lampX * uw, a.y, p.lampH * uw, uw * .06, rf); } }
     if(p.tails){ g.fillStyle = TAILC; for(let k = CARH[n]; k >= 0; k = CARN[k]){ const c = cars[k], pct = (c.z % SEG) / SEG, w = a.w + (s.p2.screen.w - a.w) * pct, cxp = a.x + (s.p2.screen.x - a.x) * pct + c.x * w, cyp = a.y + (s.p2.screen.y - a.y) * pct, cw = w * .36;
-        for(let sd = -1; sd <= 1; sd += 2){ if(p.pools > 0){ PK.T = T; PK.rf = rf; PK.lim = p.pools; POOL(cxp + sd * cw * .36, cyp, w, .06, .16, cw * .11, TAILC, .8); } else streak(T, cxp + sd * cw * .36, cyp, cw * .3, cw * .1, rf * .8); } } }
-    const E = ENV[key]; if(E && E.wetSrc && p.pools > 0){ PK.T = T; PK.rf = rf; PK.lim = p.pools; E.wetSrc(s, n, a, POOL); } }
+        if(p.hot && p.pools > 0){ PK.T = T; PK.rf = rf; PK.hot = 1; DARK(cxp, cyp, w, .34, cw * .62, .5); PK.late = 1; }   // (hot: the car's own dark image breaks the columns behind it; its tail lights' come after)
+        for(let sd = -1; sd <= 1; sd += 2){ if(p.pools > 0){ PK.T = T; PK.rf = rf; PK.lim = p.pools; PK.hot = p.hot; POOL(cxp + sd * cw * .36, cyp, w, .06, .16, cw * .11, TAILC, .8); } else streak(T, cxp + sd * cw * .36, cyp, cw * .3, cw * .1, rf * .8); } } }
+    const E = ENV[key]; if(E && E.wetSrc && p.pools > 0){ PK.T = T; PK.rf = rf; PK.lim = p.pools; PK.hot = p.hot; PK.late = 0; E.wetSrc(s, n, a, POOL); } }
   if(PLN && r1 >= r0) drawPools(r0, r1);
   SA(1); g.globalCompositeOperation = 'source-over';
   const E2 = ENV[key]; if(E2 && E2.wetFX && r1 >= r0) E2.wetFX(s, n, r0, r1, RV, wet, T); }
@@ -400,9 +401,18 @@ const RV = { x:null, w:null, p:null, v:null, f:null, n:null, mask:(T, u, v) => m
    its own rows (drawPools), after its material, so the water's image sits on the surface and every nearer prop and car still covers it. */
 const PLM = 1024, PLX = new Float32Array(PLM), PLB = new Float32Array(PLM), PLU = new Float32Array(PLM), PLH0 = new Float32Array(PLM), PLH1 = new Float32Array(PLM), PLW = new Float32Array(PLM), PLA = new Float32Array(PLM), PLL = new Float32Array(PLM), PLYA = new Int16Array(PLM), PLYB = new Int16Array(PLM), PLC = new Array(PLM).fill(''), PLT = new Array(PLM).fill(null);
 let PLN = 0;
-function POOL(lx, by, uw, h0, h1, w0, col, al){ al *= PK.rf; if(PLN >= PLM || al < .02 || !(w0 >= PX * .6) || !(uw > 0) || !(lx === lx) || !(by === by)) return;
+const PLF = new Uint8Array(PLM), PLG = new Float32Array(PLM), PLP = new Array(PLM).fill(null); let PLHOT = 0;   // hot roads: flags (1 hot, 2 late, 4 long), the ground band's strength, a facade's profile
+function POOL(lx, by, uw, h0, h1, w0, col, al, prof, gi){ al *= PK.rf; if(PLN >= PLM || al < .02 || !(w0 >= PX * .6) || !(uw > 0) || !(lx === lx) || !(by === by)) return;
+  if(PK.hot){ if(!(by < H)) return; w0 = Math.min(w0, W * .16); const top = prof ? prof.top : h1, lg = !prof && al >= HOT_LONG && w0 <= uw * .95 && w0 < W * .1 ? 4 : 0, ya = Math.max(0, Math.ceil((by + h0 * HOT_S * uw) / PX)), yb = lg ? RN - 1 : Math.min(RN - 1, Math.floor((by + (top * HOT_S + .25) * uw) / PX)); if(yb < ya) return; const k = PLN++;
+    PLX[k] = lx; PLB[k] = by; PLU[k] = uw; PLH0[k] = h0; PLH1[k] = h1; PLW[k] = w0; PLA[k] = al; PLL[k] = PK.lim; PLYA[k] = ya; PLYB[k] = yb; PLC[k] = col; PLT[k] = PK.T; PLF[k] = 1 | (PK.late ? 2 : 0) | lg; PLP[k] = prof || null; PLG[k] = gi === undefined ? 1 : gi; PLHOT = 1; return; }
   w0 = Math.min(w0, W * .12); const ya = Math.max(0, Math.ceil((by + h0 * uw * .9) / PX)), yb = Math.min(RN - 1, Math.floor((by + (h1 * 1.9 + .25) * uw) / PX)); if(yb < ya) return; const k = PLN++;
-  PLX[k] = lx; PLB[k] = by; PLU[k] = uw; PLH0[k] = h0; PLH1[k] = h1; PLW[k] = w0; PLA[k] = al; PLL[k] = PK.lim; PLYA[k] = ya; PLYB[k] = yb; PLC[k] = col; PLT[k] = PK.T; }
+  PLX[k] = lx; PLB[k] = by; PLU[k] = uw; PLH0[k] = h0; PLH1[k] = h1; PLW[k] = w0; PLA[k] = al; PLL[k] = PK.lim; PLYA[k] = ya; PLYB[k] = yb; PLC[k] = col; PLT[k] = PK.T; PLF[k] = 0; }
+/* Dark breaks (hot roads): what stands between a light and the water (a car, a pole, a pedestrian) mirrors as a dark upright that cuts the
+   columns behind it. DARK records one (base at screen (lx, by), h half-road widths tall, w px wide); drawPools lays it after the columns. */
+const DKM = 256, DKX = new Float32Array(DKM), DKB = new Float32Array(DKM), DKW = new Float32Array(DKM), DKA = new Float32Array(DKM), DKYA = new Int16Array(DKM), DKYB = new Int16Array(DKM); let DKN = 0;
+function DARK(lx, by, uw, h, w, al){ if(!PK.hot || DKN >= DKM || !(uw > 0) || !(lx === lx) || !(by === by) || by >= H) return; const ya = Math.max(0, Math.ceil(by / PX)), yb = Math.min(RN - 1, Math.floor((by + h * HOT_S * uw) / PX)); if(yb < ya) return;
+  const k = DKN++; DKX[k] = lx; DKB[k] = by; DKW[k] = Math.max(PX, Math.round(Math.min(w, W * .1) / PX) * PX); DKA[k] = al; DKYA[k] = ya; DKYB[k] = yb; PLHOT = 1; }
+POOL.dark = DARK;
 let PL_rs = -1, PL_I = 0, PL_W = 0, PL_X = 0, PL_lx = 0, PL_a = 0;
 function poolFlush(re){ if(PL_rs >= 0 && PL_I > 0){ const x = PL_lx + PL_X; SA(Math.min(1, PL_a * PL_I)); cx.fillRect(Math.round((x - PL_W / 2) / PX) * PX, PL_rs * PX, PL_W, (re - PL_rs) * PX);
     if(PL_W >= PX * 10){ const w2 = Math.round(PL_W * 1.8 / PX) * PX; SA(Math.min(1, PL_a * PL_I * .28)); cx.fillRect(Math.round((x - w2 / 2) / PX) * PX, PL_rs * PX, w2, (re - PL_rs) * PX); } } }
@@ -413,7 +423,11 @@ function poolFlush(re){ if(PL_rs >= 0 && PL_I > 0){ const x = PL_lx + PL_X; SA(M
    a row is already finer than the mask, and the same whole-pixel grid. The colour is set only when it changes (pools come in runs of one light). */
 const PL_HALF = 48;
 function drawPools(r0, r1){ const c0 = cx.fillStyle; let cc = '';
-  for(let k = 0; k < PLN; k++){ if(PLYB[k] < r0 || PLYA[k] > r1) continue; const lx = PLX[k], by = PLB[k], uw = PLU[k], h0 = PLH0[k], h1 = PLH1[k], w0 = PLW[k], lim = PLL[k], T = PLT[k];
+  if(PLHOT){ hotPools(r0, r1); cx.fillStyle = c0; return; }
+  for(let k = 0; k < PLN; k++){ if(PLYB[k] < r0 || PLYA[k] > r1) continue; cc = plainPool(k, r0, r1, cc); }
+  cx.fillStyle = c0; }
+function plainPool(k, r0, r1, cc){ {
+    const lx = PLX[k], by = PLB[k], uw = PLU[k], h0 = PLH0[k], h1 = PLH1[k], w0 = PLW[k], lim = PLL[k], T = PLT[k];
     const yt = by + h0 * uw * .9, ym = by + (h0 + h1) * .5 * uw, ye = by + (h1 * 1.9 + .25) * uw, dm = Math.max(1, ym - yt), de = Math.max(1, ye - ym), ra = Math.max(r0, PLYA[k]), rb = Math.min(r1, PLYB[k]), half = uw < PL_HALF;
     if(PLC[k] !== cc){ cc = PLC[k]; cx.fillStyle = cc; } PL_rs = -1; PL_I = 0; PL_W = 0; PL_X = 0; PL_lx = lx; PL_a = PLA[k];
     for(let r = ra; r <= rb; r++){ if(half && (r & 1) && r > ra) continue; let I = 0, ww = 0, ox = 0;
@@ -422,7 +436,39 @@ function drawPools(r0, r1){ const c0 = cx.fillStyle; let cc = '';
           I = pr * (.3 + .7 * m) > .62 ? 1 : pr * (.3 + .7 * m) > .28 ? .5 : 0; if(I > 0){ ww = Math.round(Math.max(PX, w0 * (.7 + .5 * m)) / PX) * PX; if(m < .8) ox = Math.round((ih((ROWV[r] / 4) | 0, PK.ph, 5) - .5) * w0 * .3 / PX) * PX; } } }
       if(I !== PL_I || ww !== PL_W || ox !== PL_X){ poolFlush(r); PL_rs = r; PL_I = I; PL_W = ww; PL_X = ox; } }
     poolFlush(rb + 1); }
-  cx.fillStyle = c0; }
+  return cc; }
+/* Hot roads (Akihabara; Kellan's palette-knife reference): a light's image is as bright as the light, white-hot where the water stands deep
+   and its own colour at the edges; it runs from the light's base to the foot of the frame, widening as it nears, broken into chunky dashes
+   where the film thins (world-anchored, so the dashes ride with the road); a facade's profile (prof) paints its bands in order down the
+   column (the shop floor nearest the base, then the fascia, then the signs), so a konbini reads as its white glass and its livery stripes.
+   Each pool's runs are buffered, then drawn as two passes (a wide fringe in the colour, a narrow core, whitened where deep): two colour
+   changes per band, not per run. Dark breaks go between the lights' columns and the tail lights'. */
+const HOT_S = 1.7, HOT_LONG = .6, HOT_G = 1.3, HRM = 1024, HRS = new Int16Array(HRM), HRE = new Int16Array(HRM), HRX = new Float32Array(HRM), HRW = new Float32Array(HRM), HRA = new Float32Array(HRM), HRI = new Float32Array(HRM), HRB = new Int8Array(HRM);
+const HOTC = new Map(); let PLCC = '';
+const hotCol = c => { let h = HOTC.get(c); if(h === undefined){ if(HOTC.size > 400) HOTC.clear(); h = mixHex(c, '#ffffff', .45); HOTC.set(c, h); } return h; };
+const fillC = c => { if(c !== PLCC){ PLCC = c; cx.fillStyle = c; } };
+function hotPools(r0, r1){ PLCC = ''; let cc = '';
+  for(let k = 0; k < PLN; k++){ if(PLYB[k] < r0 || PLYA[k] > r1 || (PLF[k] & 2)) continue; if(PLF[k] & 1) hotPool(k, r0, r1); else { cc = plainPool(k, r0, r1, PLCC); PLCC = cc; } }
+  if(DKN){ cx.globalCompositeOperation = 'source-over'; fillC('#05060c');
+    for(let k = 0; k < DKN; k++){ const ra = Math.max(r0, DKYA[k]), rb = Math.min(r1, DKYB[k]); if(rb < ra) continue; SA(DKA[k]); cx.fillRect(Math.round((DKX[k] - DKW[k] / 2) / PX) * PX, ra * PX, DKW[k], (rb - ra + 1) * PX); }
+    cx.globalCompositeOperation = 'lighter'; }
+  for(let k = 0; k < PLN; k++){ if(PLYB[k] < r0 || PLYA[k] > r1 || !(PLF[k] & 2)) continue; hotPool(k, r0, r1); } }
+function hotPool(k, r0, r1){ const lx = PLX[k], by = PLB[k], uw = PLU[k], h0 = PLH0[k], h1 = PLH1[k], w0 = PLW[k], lim = PLL[k], T = PLT[k], pf = PLP[k], al = PLA[k], lg = PLF[k] & 4;
+  const ra = Math.max(r0, PLYA[k]), rb = Math.min(r1, PLYB[k]), half = uw < PL_HALF, su = HOT_S * uw, top = pf ? pf.top : h1, yTop = by + top * su, yEnd = RN * PX, span = Math.max(PX, yEnd - by), dTail = Math.max(PX, yEnd - yTop);
+  let n = 0, rs = -1, cI = 0, cW = 0, cX = 0, cB = -1;
+  for(let r = ra; r <= rb + 1; r++){ if(r <= rb && half && (r & 1) && r > ra) continue; let I = 0, ww = 0, ox = 0, bd = -1;
+    if(r <= rb && ROWN[r] >= 0){ const u = (lx - ROWX[r]) / ROWW[r], au = u < 0 ? -u : u;
+      if(au < lim){ const yc = (r + .5) * PX, hm = (yc - by) / su; let bI = 0;
+        if(hm >= h0 && hm <= top){ if(pf){ for(let q = 0; q < pf.n; q++) if(hm >= pf.h0[q] && hm < pf.h1[q]){ bd = q; break; } bI = bd < 0 ? 0 : pf.i[bd] < 0 ? PLG[k] : pf.i[bd]; } else bI = 1; }
+        else if(hm > top && lg){ bd = pf ? pf.tb : -1; bI = (pf ? (pf.i[bd] < 0 ? PLG[k] : pf.i[bd]) : 1) * 1.15 * (1 - .65 * (yc - yTop) / dTail); }
+        if(bI > 0){ const m = maskAt(T, au <= 1 ? u : (u > 0 ? 2 - au : au - 2), ROWV[r]), vr = (ROWV[r] / 4) | 0; let wf = m >= .7 ? 1 : m >= .38 ? .85 : .7;
+          if(m < .7 && ih(vr >> 1, ((u + 3) * 6) | 0, 7) < (m < .38 ? (hm > top ? .4 : .25) : .12)) wf = 0;   // the dashes: the film breaks where no water stands
+          const v = bI * wf; I = v > .8 ? 1 : v > .56 ? .72 : v > .34 ? .48 : v > .15 ? .26 : 0;
+          if(I > 0){ const t = (yc - by) / span; ww = Math.round(Math.max(PX, w0 * (.75 + .4 * m) * (1 + .7 * t)) / PX) * PX; if(m < .8) ox = Math.round((ih(vr, PK.ph, 5) - .5) * ww * .3 / PX) * PX; } } } }
+    if(I !== cI || ww !== cW || ox !== cX || bd !== cB || r > rb){ if(rs >= 0 && cI > 0 && n < HRM){ HRS[n] = rs; HRE[n] = r; HRX[n] = lx + cX; HRW[n] = cW; HRA[n] = al * cI; HRI[n] = cI; HRB[n] = cB; n++; } rs = r; cI = I; cW = ww; cX = ox; cB = bd; } }
+  if(!n) return;
+  for(let q = 0; q < n; q++){ const w = HRW[q]; if(w < PX * 3 || HRI[q] < .72) continue; const w2 = Math.round(w * 1.6 / PX) * PX; fillC(HRB[q] < 0 || !pf.c[HRB[q]] ? PLC[k] : pf.c[HRB[q]]); SA(Math.min(1, HRA[q] * .38)); cx.fillRect(Math.round((HRX[q] - w2 / 2) / PX) * PX, HRS[q] * PX, w2, (HRE[q] - HRS[q]) * PX); }
+  for(let q = 0; q < n; q++){ const c = HRB[q] < 0 || !pf.c[HRB[q]] ? PLC[k] : pf.c[HRB[q]], w = HRW[q]; fillC(HRI[q] === 1 && w >= PX * 2 && HRA[q] >= .7 ? hotCol(c) : c); SA(Math.min(1, HRA[q] * HOT_G)); cx.fillRect(Math.round((HRX[q] - w / 2) / PX) * PX, HRS[q] * PX, w, (HRE[q] - HRS[q]) * PX); } }
 
 // ---------------------------------------------------------------- the lab (roadlab.html): postMessage, same origin only
 if(LAB){ const C = RM.lab = { freeze:false, pos:-1, x:null, speed:-1, pitch:null, night:null, traffic:true };
