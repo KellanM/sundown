@@ -395,7 +395,8 @@
   /* ================================================================ hooks */
   MECH.sp_festival = {
     sprites:() => C,
-    anchors:() => ({ stat:STAT, shows:shows.map(S => ({ key:S.key, start:S.start, peak:S.peak })), parades:parades.map(P => ({ z:P.z, dir:P.dir })) }),
+    anchors:() => ({ stat:STAT, shows:shows.map(S => ({ key:S.key, start:S.start, peak:S.peak })), parades:parades.map(P => ({ z:P.z, dir:P.dir })), beat, cur:CUR_SHOW ? CUR_SHOW.peak : null,
+      bursts:bursts.map(b => ({ type:b.type, a:+((beat - b.tb) * SPB).toFixed(2), life:b.life, x:Math.round(W * (.5 + b.bx) - skyOff * 200), y:Math.round(HZ - b.h * PX), R:Math.round(b.R * PX) })) }),   // (tests: every shell's age in seconds and its screen spot)
     reset(){ SPB = 60 / BPM; bursts.length = 0; beat = 0; lastHB = -1; T = 0; lastPos = 0; drumStep = -1; CUR_SHOW = null; for(const S of shows){ S.big = false; S.f0 = undefined; S.cut = false; } for(const P of parades) P.cut = false; },
     place(i, s, L){
       if(i === 0 || !segs[i - 1] || segs[i - 1].land !== s.land){

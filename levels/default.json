@@ -9,12 +9,12 @@
  "roads": [
   {
    "road": "bay",
-   "len": 2600,
+   "len": 1300,
    "jump": true,
    "events": [
     {
      "id": "kaiju",
-     "seg": 1300
+     "seg": 700
     }
    ]
   },
