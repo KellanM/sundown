@@ -344,8 +344,15 @@ function drawSegBack(s, sx, sy, uw, fog){ if(!RM.on || !RM.ready || state === 'r
     if(FKG >= 0 && s.index >= FKG - SPLIT_PRE - 40) { const fk = (FKG - SPLIT_PRE - s.index) / 40; if(fk <= 0) return; layer(s, n, fk); }
     else layer(s, n, 1);
   } finally { FR.ms += performance.now() - t0; } }
+/* The border seam (perf pass, Kellan 2026-11-22: "accept a harder material seam"). Across a border blend each segment lays ONE road's material,
+   never both (painting both doubled the cost over the whole 300-segment blend: 8.5 ms against 2.4 entering Akihabara). Which one is a stepped
+   dither in cells of SEAM_CELL segments over the middle of the blend (bm within SEAM_W of .5), world-anchored so it rides with the road:
+   1 cell in 4 is the incoming road's, then 2, then 3, then all, like a crew's patchwork where one surface meets the next. Each side fades
+   toward the seam to SEAM_F of its strength (and the ground, road colour and roadFX still cross-fade over the whole blend in the core). */
+const SEAM_W = .1, SEAM_CELL = 2, SEAM_F = .7, SEAM_TH = [.125, .625, .375, .875];
 function layer(s, n, w0){ const BL = s.bm < 1 && s.bA !== s.bB && !s.tunnel;
-  if(BL){ paint(s, n, LANDS[s.bA].key, w0 * (1 - s.bm)); paint(s, n, LANDS[s.bB].key, w0 * s.bm); } else paint(s, n, LANDS[s.land].key, w0); }
+  if(BL){ const inB = s.bm > .5 + SEAM_W * (2 * SEAM_TH[Math.floor(s.index / SEAM_CELL) & 3] - 1), m = inB ? s.bm : 1 - s.bm;
+    paint(s, n, LANDS[inB ? s.bB : s.bA].key, w0 * Math.min(1, m * 2 * SEAM_F)); } else paint(s, n, LANDS[s.land].key, w0); }
 function paint(s, n, key, wt){ if(wt < .03) return; const p = RP[key]; if(!p || p.mat === 'none') return; const T = TEX[p.mat]; if(!T || (s.tunnel && !p.tunnel)) return;
   const r0 = RS0[n], r1 = RS1[n], g = cx;
   // markings first (the material then wears them like the road)
