@@ -70,7 +70,7 @@ else try{ const x = new XMLHttpRequest(); x.open('GET', 'levels/' + NAME + '.jso
   if(x.status === 200) RAW = JSON.parse(x.responseText); else ERR = 'levels/' + NAME + '.json: HTTP ' + x.status; }catch(e){ ERR = String(e && e.message || e); }
 if(!RAW || !Array.isArray(RAW.roads) || !RAW.roads.length){ console.warn('[demo] no level:', ERR || 'no roads'); return; }
 
-const D = window.DEMO = { name:NAME, raw:RAW, forks:!!RAW.forks, invincible:!!RAW.invincible, police:!!RAW.police, roads:[], events:[], route:[], log:[], refused:{}, warn:[], ready:false };
+const D = window.DEMO = { name:NAME, raw:RAW, forks:!!RAW.forks, invincible:!!RAW.invincible, police:!!RAW.police, arrest:!!RAW.arrest, roads:[], events:[], route:[], log:[], refused:{}, warn:[], ready:false };
 const num = (v, d) => Number.isFinite(+v) && v !== null && v !== '' ? +v : d;
 function prep(){ if(D.ready) return D; D.ready = true;
   const keys = LANDS.map(l => l.key), from = Math.max(0, Math.min(RAW.roads.length - 1, num(QS.get('from'), 0) | 0)), at0 = Math.max(0, num(QS.get('at'), 0) | 0);

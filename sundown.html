@@ -1249,7 +1249,7 @@ const COP_T = 7, PULL_T = 9.6;   // PULL_T: how long the pull-over / arrest sequ
 function crash(c){ if(recov > 0 && state === 'play') return; if(window.DEMO && DEMO.invincible && state === 'play') return; /* (a demo level may be invincible) */   // the recovery blink protects from every source (set pieces included), not only traffic
   crashes++; cool = .9; recov = 3; speed *= .3; flow = 0; boostT = 0; drift = 0; charge = 0; tier = 0; { const sd = Math.sign(playerX - ((c && c.x) || 0) || 1); FEEL.knock = sd * .35; FEEL.stop = FEEL.STOP; if(!reduce) FEEL.kv += sd * FEEL.K_HIT; } shake = reduce ? 0 : 6; M.crash();
   // two strikes (Temple Run, Subway Surfers): the first crash brings the police; a second while they are behind you pulls you over
-  if(copT > 0 && !window.DEMO){ caught++; state = 'pulled'; pullT = 0; copSide = 1; drift = 0; charge = 0; tier = 0; boostT = 0; if(!mech('pulledOver')) showBanner({ kanji:'止', name:'Pulled over', note:'止まれ · stop' }, true); M.pulled(); }
+  if(copT > 0 && !(window.DEMO && !DEMO.arrest)){ caught++; state = 'pulled'; pullT = 0; copSide = 1; drift = 0; charge = 0; tier = 0; boostT = 0; if(!mech('pulledOver')) showBanner({ kanji:'止', name:'Pulled over', note:'止まれ · stop' }, true); M.pulled(); }
   else if(playT > 20 && ASSIST.police){ copT = COP_T; copSide = playerX > 0 ? -1 : 1; if(!mech('policeCue')) floatText('Police!', W / 2, H * .45, 30, '#ff3b5c'); }
   else floatText('Bump', W / 2, H * .55, 24, '#ffc0c0');   // a 20-second warm-up before the police patrol
   hud(); }
@@ -2913,7 +2913,7 @@ if(/[?&]prof(=|&|$)/.test(location.search)){ const s = document.createElement('s
    A new version downloads in the background and waits. It is applied only on the title (never mid-ride): by itself once
    the title has sat untouched for a few seconds, or at once when the player taps "Update ready". Tap the version to check now. */
 (() => {
-  const VER = 'v31 · 9c3f43', $id = (i) => document.getElementById(i);
+  const VER = 'v32 · 933737', $id = (i) => document.getElementById(i);
   const SDU = window.SDUPDATE = { version: VER, waiting: null, applied: false, checks: 0 };
   let reg = null, applying = false, asked = false, needReload = false, note = '', noteT = 0, lastInput = performance.now();
   ['keydown', 'pointerdown', 'touchstart', 'wheel'].forEach((t) => addEventListener(t, () => { lastInput = performance.now(); }, { capture: true, passive: true }));
@@ -2975,5 +2975,5 @@ if(/[?&]prof(=|&|$)/.test(location.search)){ const s = document.createElement('s
   }, 1000);
 })();
 </script>
-<!-- __sdbuild:31 9c3f43780010 --></body>
+<!-- __sdbuild:32 933737534504 --></body>
 </html>
