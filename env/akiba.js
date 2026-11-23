@@ -741,15 +741,25 @@
      scramble crossings every 230-300 segments; and on each side a continuous row of buildings, wall to wall, broken only by the cross
      streets and the railway corridor. The blackout's stretch is the 430 segments before the bridge. */
   const BD = 6, CW = 16, SPL = 430, LAYS = new Map(); let LREF = null;
+  /* THE COMBINED EVENT ('teiden_boss': this blackout with setpiece/boss.js's duel in it). A visit authored for it (a demo level's spot: the
+     segment where the dark reaches the rider and he arrives) or named by ?force=teiden_boss lays its bridge so that moment falls there
+     (TB_IN past S0: the wave reaches you at s ~196), with TB_ROOM segments of street after it, clear of the fork's window, for the duel
+     (its full length at a fair pace). Decided once per visit and kept (a demo booking would otherwise change the answer mid-ride). */
+  const TB_ID = 'teiden_boss', TB_IN = 196, TB_ROOM = 3200, TB_NAMED = /(^|[?&])force=([^&]*,)?teiden_boss(,|&|$)/.test(location.search), TBM = new Map(); let TBREF = null;
+  function tbWant(B0){ if(segs !== TBREF){ TBREF = segs; TBM.clear(); } if(TBM.has(B0)) return TBM.get(B0); let v = null; const D = DIR();
+    try{ const t = D && D.target ? D.target(TB_ID, B0 + 1) : null; if(t != null) v = t; else if(TB_NAMED && !(D && D.demo)) v = -1; }catch(e){ v = null; }
+    TBM.set(B0, v); return v; }
   const clear = (a, b) => !(window.inForkWindow && inForkWindow(a, b));
   const KW = [['denki', 5], ['camera', 2], ['radio', 2], ['arcade', 2], ['pencil', 4], ['plain', 2]];
   const KL = { denki:[16, 14], camera:[12, 8], radio:[16, 10], arcade:[12, 8], pencil:[5, 3], plain:[10, 8] }, KF = { denki:[6, 3], camera:[5, 2], radio:[4, 2], arcade:[4, 2], pencil:[6, 3], plain:[5, 3] };
   function pickK(r){ let t = 0; for(const q of KW) t += q[1]; let a = r * t; for(const q of KW){ a -= q[1]; if(a < 0) return q[0]; } return 'plain'; }
-  function lay(z){ if(z < 0 || typeof gates === 'undefined' || !gates.length) return null; if(segs !== LREF){ LREF = segs; LAYS.clear(); } const B0 = z > 0 ? gates[2 * z - 1] : 0, B1 = gates[2 * z + 1]; if(B0 === undefined || B1 === undefined) return null;
+  function lay(z){ if(z < 0 || typeof gates === 'undefined' || !gates.length) return null; if(segs !== LREF){ LREF = segs; LAYS.clear(); } const B0 = z > 0 ? gates[2 * z - 1] : 0, B1 = gates[2 * z + 1] !== undefined ? gates[2 * z + 1] : TB_NAMED && gates.length === 2 * z + 1 && typeof nextGateIdx === 'number' ? nextGateIdx : undefined; if(B0 === undefined || B1 === undefined) return null;   // (the named test's long visit: its border is the core's next gate, known before it is laid)
     const key = B0 + ':' + B1; let L = LAYS.get(key); if(L) return L;
     L = { z, B0, B1, BR:-1, S0:-1, X:[], rows:[[], []], req:false, sp:false, card:false, fin:false, off:false, rel:false };
-    const st = z === 0 ? 40 : 170, G0 = gates[2 * z], want = B0 + Math.max(st + SPL + 60, Math.round((B1 - B0) * .6));
-    outer: for(let d = 0; d < 600; d += 4) for(const sg of [1, -1]){ const br = want + sg * d; if(br - SPL < B0 + st || br + BD + 90 > B1 - 160) continue; if(G0 !== undefined && Math.abs(G0 - br) < 40) continue; if(clear(br - SPL - 20, br + BD + 70)){ L.BR = br; L.S0 = br - SPL; break outer; } }
+    const st = z === 0 ? 40 : 170, G0 = gates[2 * z], want = B0 + Math.max(st + SPL + 60, Math.round((B1 - B0) * .6)), tw = tbWant(B0);
+    if(tw !== null){ const tB = (tw >= 0 ? tw : B0 + 700) - TB_IN + SPL;   // the combined event: the nearest bridge to the authored spot that leaves the duel its street
+      tb: for(let d = 0; d < 900; d += 4) for(const sg of [1, -1]){ const br = tB + sg * d, ts = br - SPL + TB_IN; if(br - SPL < B0 + st || ts + TB_ROOM > B1 - 60) continue; if(G0 !== undefined && Math.abs(G0 - br) < 40) continue; if(clear(br - SPL - 20, ts + TB_ROOM)){ L.BR = br; L.S0 = br - SPL; L.tb = true; break tb; } } }
+    if(L.BR < 0) outer: for(let d = 0; d < 600; d += 4) for(const sg of [1, -1]){ const br = want + sg * d; if(br - SPL < B0 + st || br + BD + 90 > B1 - 160) continue; if(G0 !== undefined && Math.abs(G0 - br) < 40) continue; if(clear(br - SPL - 20, br + BD + 70)){ L.BR = br; L.S0 = br - SPL; break outer; } }
     for(let c = B0 + (z ? 200 : 110); c < B1 - 140; c += 230 + Math.round(H1(c * .37 + 1.1) * 70)){ if(L.BR >= 0 && c + CW > L.BR - 70 && c < L.BR + BD + 60) continue; if(G0 !== undefined && G0 > c - 6 && G0 < c + CW + 6) continue; if(clear(c - 12, c + CW + 12)) L.X.push(c); }
     for(let q = 0; q < 2; q++) fillRow(L, q ? 1 : -1, L.rows[q]);
     // the hero screens: hung off the corner of the first building past each crossing, facing you across it (the references' crossing
@@ -1319,7 +1329,7 @@
         if(ok) sp.push({ env:KEY, type:'trk', x:side * 1.33, k:i, a:ts, side }); } }
     const d = Math.min(i % 14, 14 - i % 14); s.akLit = s.lit0 = .1 + .5 * Math.max(0, 1 - d / 3) + (c >= 0 ? .15 : 0);
     // the set piece is decided once per visit, as its stretch begins to be laid (the street must not have been lit-and-booked late)
-    if(L.BR >= 0 && !L.req && i >= L.S0 - 200){ L.req = true; const D = DIR(); if(AKSP !== null){ L.sp = AKSP === '1'; return; } try{ L.sp = !!(D && D.request && D.request('teiden', { tier:'hero', seg:L.BR, road:KEY })); }catch(e){ L.sp = false; } } }
+    if(L.BR >= 0 && !L.req && i >= L.S0 - 200){ L.req = true; const D = DIR(); if(AKSP !== null){ L.sp = AKSP === '1'; return; } if(L.tb && tbBook(L, D)) return; try{ L.sp = !!(D && D.request && D.request('teiden', { tier:'hero', seg:L.BR, road:KEY })); }catch(e){ L.sp = false; } } }
   function lit(i, s){ return s.akLit || 0; }
 
   // ---------------------------------------------------------------- the road: pavements with the shops' light, crossings
@@ -1549,17 +1559,34 @@
   const RL = SPL - 70;
   MECH.sp_teiden = { update(dt){ if(typeof segs === 'undefined' || !segs.length || state !== 'play') { SPA.on = false; return; } const cs = position / SEG, L = visitOf(Math.floor(cs));   // (not cam(): its cache is per drawn frame, and update may run several times between draws)
       if(SPA.flash) SPA.flash = Math.max(0, SPA.flash - (dt || 0) * 2.6);
-      if(!L || !L.sp || L.BR < 0 || cs < L.S0 - 10 || cs > L.BR + 60){ if(SPA.on){ SPA.on = false; relamp(L, true); } return; }
-      const s = cs - L.S0, D = DIR(); SPA.on = true; SPA.L = L; SPA.lo = L.S0 - 40; SPA.hi = L.BR + 340; SPA.fr = s < 30 ? 1e9 : L.BR + 320 - (s - 30) * 3.2; SPA.rel = s >= RL; SPA.rel2 = s >= RL + 120;
-      if(!L.card && s >= 4){ L.card = true; if(D && D.cine){ let card = CARD; if(MECH.cutin && MECH.cutin.show && MECH.cutin.has && MECH.cutin.has('teiden')){ try{ if(MECH.cutin.show('teiden') !== false && !MECH.cutin.skipped) card = null; }catch(e){} }
-          try{ if(card) D.cine({ letterbox:false, dur:2.4, card }); L.cut = D.cine({ letterbox:{ top:.05, bottom:.06 }, duck:.55, guard:{ from:L.S0, to:L.BR + 40 }, dur:0 }); }catch(e){} }
-        for(let i = Math.max(0, L.S0); i < L.BR + 20 && i < segs.length; i++) if(segs[i].hz && segs[i].hz.type === 'pad') segs[i].hz = null;   // no stray speed lines over the dark
+      if(L && L.cmb) tbStep(L, cs, dt || 0);
+      const end = L && L.cmb ? (L.relS != null ? Math.max(L.BR + 60, L.relS + 130) : Infinity) : L ? L.BR + 60 : 0, hold = !!(L && L.cmb && L.relS == null);
+      if(!L || !L.sp || L.BR < 0 || cs < L.S0 - 10 || cs > end){ if(SPA.on){ SPA.on = false; relamp(L, true); } return; }
+      const s = cs - L.S0, D = DIR(); SPA.on = true; SPA.L = L; SPA.lo = L.S0 - 40; SPA.hi = hold ? Math.max(L.BR + 340, cs + DRAW + 40) : L.BR + 340; SPA.fr = s < 30 ? 1e9 : L.BR + 320 - (s - 30) * 3.2;
+      SPA.rel = L.cmb ? L.relS != null && cs >= L.relS : s >= RL; SPA.rel2 = L.cmb ? L.relS != null && cs >= L.relS + 120 : s >= RL + 120;
+      if(!L.card && s >= 4){ L.card = true; if(D && D.cine){ let card = L.cmb ? null : CARD; if(!L.cmb && MECH.cutin && MECH.cutin.show && MECH.cutin.has && MECH.cutin.has('teiden')){ try{ if(MECH.cutin.show('teiden') !== false && !MECH.cutin.skipped) card = null; }catch(e){} }
+          try{ if(card) D.cine({ letterbox:false, dur:2.4, card }); L.cut = D.cine({ letterbox:{ top:.05, bottom:.06 }, duck:.55, guard:{ from:L.S0, to:L.cmb ? L.S0 + TB_IN + 30 : L.BR + 40 }, dur:0 }); }catch(e){} }
+        for(let i = Math.max(0, L.S0); i < (L.cmb ? L.S0 + TB_IN + TB_ROOM : L.BR + 20) && i < segs.length; i++) if(segs[i].hz && segs[i].hz.type === 'pad') segs[i].hz = null;   // no stray speed lines over the dark
         snd([[196, 1.1], [147, 1.4], [98, 1.8]], 'sawtooth', .012); }
       if(!L.off && s >= 30){ L.off = true; try{ if(typeof M !== 'undefined' && M.ac && M.noise) M.noise(1.4, 70, .08); }catch(e){} }
-      if(!L.rel && s >= RL){ L.rel = true; SPA.flash = 1; snd([[110, .3], [220, .5], [440, .9]], 'square', .016); try{ if(typeof M !== 'undefined' && M.ac && M.noise){ M.noise(.25, 140, .14); M.noise(.6, 2400, .02); } }catch(e){}
+      if(!L.rel && L.relQ && SPA.rel){ L.rel = true; snd([[98, .6], [147, .8], [196, 1.1]], 'triangle', .012); }   // the combined event lost: no flash, the city just comes back
+      if(!L.rel && SPA.rel){ L.rel = true; SPA.flash = 1; snd([[110, .3], [220, .5], [440, .9]], 'square', .016); try{ if(typeof M !== 'undefined' && M.ac && M.noise){ M.noise(.25, 140, .14); M.noise(.6, 2400, .02); } }catch(e){}
         if(D && D.cine && !reduce) try{ D.cine({ letterbox:false, shake:1.5, dur:.5 }); }catch(e){} }
-      if(!L.fin && s >= SPL + 40){ L.fin = true; try{ if(L.cut) L.cut.end(); }catch(e){} try{ D && D.done && D.done('teiden'); }catch(e){} }
+      if(!L.fin && s >= (L.cmb ? TB_IN : SPL + 40)){ L.fin = true; try{ if(L.cut) L.cut.end(); }catch(e){} try{ D && D.done && D.done(L.cmb ? TB_ID : 'teiden'); }catch(e){} }   // (the combined event: his own cine takes over as he arrives)
       relamp(L, false); } };
+  /* the combined event, booked as its stretch is laid when setpiece/boss.js can take it (no duel yet this ride); else the plain blackout */
+  function tbBook(L, D){ const B = L.S0 + TB_IN, BS = MECH.sp_boss; let ok = false;
+    try{ ok = !!(BS && BS.canCombine && BS.canCombine() && D && D.request && D.request(TB_ID, { tier:'hero', seg:B, road:KEY })); }catch(e){ ok = false; }
+    if(!ok || !BS.combine({ B, z:L.z, hook:why => tbEnd(L, why) })) return false;
+    L.sp = true; L.cmb = true; L.relS = null; L.relT = null; return true; }
+  /* The lights hold while the duel runs and come back as its last beat. A win: with his salute horn (0.9 s after the result), the warm
+     flash and the breakers. A loss: once he has ridden on (2.2 s), no flash; the city just comes back. If he never started, the plain
+     blackout's own release (at s RL, or now if that is past). The one way the dark can end mid-duel: the street itself ends (the road's
+     border), and the power is back as you ride out of the dead district; the duel carries on to its end in the next road's light. */
+  function tbEnd(L, why){ if(L.relS != null || L.relT != null) return; L.tbWhy = why; L.relT = why === 'win' ? .9 : why === 'lose' ? 2.2 : 0; L.relQ = why === 'lose'; }
+  function tbStep(L, cs, dt){ if(L.relS != null) return;
+    if(L.relT != null){ L.relT -= dt; if(L.relT <= 0){ L.relS = Math.max(cs, L.tbWhy === 'skip' ? L.S0 + RL : 0); L.relT = null; } return; }
+    if(cs >= L.B1 - 40){ L.relS = cs; L.relQ = false; L.tbWhy = 'street'; } }
   // the street lamps' pools on the road follow the wave (the core reads s.lit; its value at placement is kept in s.lit0)
   function relamp(L, all){ if(!L) return; const a = Math.max(0, Math.floor(position / SEG)), b = Math.min(segs.length, a + DRAW + 2); for(let i = a; i < b; i++){ const s = segs[i]; if(s.lit0 === undefined) continue; s.lit = all || onAt(i) ? s.lit0 : (s.akX !== undefined ? .08 : 0); } }
   function snd(notes, type, v){ try{ if(typeof M === 'undefined' || !M.ac || !M.tone) return; const t0 = M.ac.currentTime; notes.forEach(([f, d], k) => M.tone(f, d, { type, v, at:t0 + k * .12 })); }catch(e){} }

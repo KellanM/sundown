@@ -2002,7 +2002,7 @@ function drawOil(s, h, fog, now){ const f = segs[s.index + 6]; if(!f) return;
     if(s.index <= OIL_B || est > 6) return; let yT = 1e9, yB = -1e9, xs = 0, ws = 0;
     for(let j = 0; j < n; j++){ yT = Math.min(yT, OIL_RY[j]); yB = Math.max(yB, OIL_RY[j]); xs += OIL_RX[j]; ws += OIL_RW[j]; }
     if(!n){ const a = s.p1.screen, b = f.p1.screen; if(!a.scale || !b.scale || a.y < b.y) return; yT = yB = Math.round((a.y + b.y) / 2 / step - .5) * step; ws = (a.w + b.w) / 2; xs = (a.x + b.x) / 2 + h.x * ws; n = 1; }
-    const m = n === 3 || est > .8 ? 3 : 2; if(yB - yT < (m - 1) * step) yT = yB - (m - 1) * step;   // (three rows from about 1.7 s in: the reflection reads before the lip resolves) xs /= n; ws /= n; { const lim = Math.floor(Math.min(s.p1.screen.y, s.clip || H) / step) * step - step; if(yB > lim){ yT -= yB - lim; yB = lim; } }   // whole rows above its near edge (the clip there would halve the lip)
+    const m = n === 3 || est > .8 ? 3 : 2; if(yB - yT < (m - 1) * step) yT = yB - (m - 1) * step; xs /= n; ws /= n; { const lim = Math.floor(Math.min(s.p1.screen.y, s.clip || H) / step) * step - step; if(yB > lim){ yT -= yB - lim; yB = lim; } }   // (three rows from about 1.7 s in: the reflection reads before the lip resolves; whole rows above its near edge, where the clip would halve the lip)
     if(yB >= H) return;
     for(let j = 0; j < m; j++){ OIL_RY[j] = m === 3 ? yT + j * step : j ? yB : yT; OIL_RV[j] = m === 3 ? [.8, .62, .3][j] : j ? .3 : .7; OIL_RX[j] = xs; OIL_RW[j] = ws; } n = m; sliver = true; }
   // the surface reacts to a tyre: a ripple ring from where it went in (world units: the blob is 1600 across, 1200 long), and its groove
@@ -2911,7 +2911,7 @@ function frame(){ if(PSE.on){ pzPad(); if(PSE.dirty){ PSE.dirty = false; try{ dr
    A new version downloads in the background and waits. It is applied only on the title (never mid-ride): by itself once
    the title has sat untouched for a few seconds, or at once when the player taps "Update ready". Tap the version to check now. */
 (() => {
-  const VER = 'v27 · 0fa832', $id = (i) => document.getElementById(i);
+  const VER = 'v28 · 54090a', $id = (i) => document.getElementById(i);
   const SDU = window.SDUPDATE = { version: VER, waiting: null, applied: false, checks: 0 };
   let reg = null, applying = false, asked = false, needReload = false, note = '', noteT = 0, lastInput = performance.now();
   ['keydown', 'pointerdown', 'touchstart', 'wheel'].forEach((t) => addEventListener(t, () => { lastInput = performance.now(); }, { capture: true, passive: true }));
@@ -2973,5 +2973,5 @@ function frame(){ if(PSE.on){ pzPad(); if(PSE.dirty){ PSE.dirty = false; try{ dr
   }, 1000);
 })();
 </script>
-<!-- __sdbuild:27 0fa83266786a --></body>
+<!-- __sdbuild:28 54090a3ab014 --></body>
 </html>

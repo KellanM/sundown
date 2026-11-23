@@ -53,6 +53,7 @@ const E = window.SD_EVENTS = [
   { id:'abyss',      kanji:'深淵',   name:'MOSASAUR + FLOOD', roads:['aqua'],           place:'road', pre:700, post:1450, min:300, tail:1500, lvl:5, fix:1410 },
   { id:'wheel',      kanji:'観覧車', name:'RUNAWAY WHEEL', roads:['minato'],            place:'road', pre:300, post:720, min:200, tail:740, lvl:3, fix:910 },
   { id:'teiden',     kanji:'停電',   name:'BLACKOUT',      roads:['akiba'],             place:'road', pre:400, post:400, min:300, tail:420, lvl:3, fix:1560 },
+  { id:'teiden_boss', kanji:'停電鬼火', name:'BLACKOUT + THE LEGEND', roads:['akiba'],     place:'free', pre:200, post:3200, min:370, tail:3260, lvl:5 },   // the moment: the dark reaches you and he arrives; env/akiba.js lays the street round it (the duel needs 3200 after)
   { id:'yoiyama',    kanji:'宵山',   name:'YOIYAMA',       roads:['gion'],              place:'road', pre:400, post:400, min:300, tail:420, lvl:2, fix:684 },
   { id:'kanpo',      kanji:'観光放水', name:'KANPO',       roads:['kurobe'],            place:'road', pre:400, post:400, min:300, tail:420, lvl:2, fix:1868 },
   { id:'boss',       kanji:'宵闇連合', name:'THE LEGEND',  roads:['*'],                 place:'free', pre:100, post:2300, min:90, tail:2320, lvl:5, jumpOk:true },

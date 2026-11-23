@@ -49,6 +49,22 @@ const DIR = MECH.director, ID = 'boss';
 const CARD = { kanji:'宵闇連合', name:'YOIYAMI RENGO', sub:'their leader rides out  -  onibi no tetsu', col:'#ffd04a', tag:'RIVAL BOSS', at:.5 };
 if(DIR) DIR.register(ID, { tier:'hero', roads:['*'], card:CARD });
 const ZONE_MIN = 2;   // the third road on: a legend has to hear about you first
+/* THE COMBINED EVENT (director id 'teiden_boss', booked by env/akiba.js): 停電 and this duel as one hero moment. As the blackout reaches
+   you, his headlight comes up the dead street from behind and lights the road (your shadow thrown ahead in it), the call sounds in the
+   hush (its notes on the director's moment bus, past a deep music duck), then his card. The duel plays out in the dark as built: every
+   tell unchanged (glance, body, sound, >= 0.85 s), his sprite graded to the moonlit street with the onibi crest, tail light and indicators
+   kept whole, a teal rim from the two onibi flames that ride beside him, his headlight pool on the road ahead. The lights hold until the
+   duel ends and come back as its last beat (env/akiba.js). Only authored (a demo level) or named (?force=teiden_boss): see combine(). */
+const TB = 'teiden_boss', CARD_TB = { kanji:'宵闇連合', name:'YOIYAMI RENGO', sub:'out of the dark  -  onibi no tetsu', col:'#ffd04a', tag:'RIVAL BOSS', at:2.3 };
+const tbNamed = () => /(^|[?&])force=([^&]*,)?teiden_boss(,|&|$)/.test(location.search);
+if(DIR && (DIR.demo || tbNamed())) DIR.register(TB, { tier:'hero', roads:['akiba'], card:CARD_TB });
+// the named test lengthens every Akihabara visit before its fork so the dark street holds the whole duel (as setpiece/megalodon.js does
+// for its bore, chained onto its GATE_EXTRA / GATE_TIME). A demo level sets the road's length itself.
+const TB_EXTRA = 3550, TBX = new Set();
+if(tbNamed() && !window.DEMO){ const GX0 = window.GATE_EXTRA, GT0 = window.GATE_TIME;
+  window.GATE_EXTRA = n => { const a = GX0 ? GX0(n) || 0 : 0; if(n === 0) TBX.clear(); if(n % 2 || typeof LANDS === 'undefined') return a; const z = n / 2, ak = LANDS.findIndex(l => l.key === 'akiba'); let can = false;
+    try{ can = z === 0 ? landIdx(0) === ak : forkChoices(z - 1).includes(ak); }catch(e){ can = false; } if(!can) return a; TBX.add(n); return a + TB_EXTRA; };
+  window.GATE_TIME = n => (GT0 ? GT0(n) || 0 : 0) + (TBX.has(n) ? Math.round(TB_EXTRA / 55 * 1.1) : 0); }
 // key grids (sprite px, y up negative; x0/y0 = top-left), authored in the scratchpad's boss/art/art2.py (side: side.py) and inlined here
 const ART = {
   pal:{ K:'#0c0710', a:'#5a5478', b:'#2e2a44', c:'#1c1930', d:'#100e1a', Y:'#ffd04a', y:'#b8862a', Z:'#fff2b0', R:'#ff3a46', r:'#b81428', q:'#5e0a16', E:'#e8a882', e:'#a8643e', H:'#221c2a', h:'#463e58', O:'#fffaf0', S:'#e4ded4', s:'#aea4b6', u:'#6e6484', W:'#f4f2fc', V:'#a8a4bc', v:'#5a566e', T:'#18161c', t:'#4a4652', L:'#ff2a3a', l:'#a01828', Q:'#ffd8cc', I:'#ffb030', i:'#a85e10', N:'#6a4430', n:'#9a6440', m:'#341e14', G:'#24264a', g:'#5a62a0', w:'#9aa8e0', P:'#e8e4d8', p:'#3a3a48' },
@@ -82,7 +98,9 @@ const pzz = () => position + PZ;
 const kP = () => Math.max(PX, Math.round(Math.min(W * .2, H * .27) / 30 / PX) * PX);
 const can = (w, h) => { const c = document.createElement('canvas'); c.width = Math.max(1, w); c.height = Math.max(1, h); return c; };
 const calm = () => reduce || !!(window.ASSIST && ASSIST.noFlash);
-const forced = () => /(^|[?&,=])force=([^&]*)(boss|all)/.test(location.search);
+const forced = () => /(^|[?&])force=([^&]*,)?(boss|all)(,|&|$)/.test(location.search);   // (exact ids: 'teiden_boss' is not 'boss')
+// the street's light at z (env/akiba.js's blackout): true where its lights are out. The combined event's dark drawing follows it.
+const darkAt = z => { const A = ENV.akiba, P = A && A._spa; return !!(P && P.on && !P.rel && A._onAt && !A._onAt(z / SEG)); };
 const ac = () => typeof M !== 'undefined' && M.ac && state === 'play';
 function nearScreen(z, x, cl){ const g = z - pzz(), f = PZ / Math.max(PZ * (cl || .35), PZ + g); return { x:W / 2 + (x - playerX) * W * f, y:H / 2 + (H / 2 - 8) * f, k:kP() * f, f }; }
 function projOn(s, z, x){ const pct = (z % SEG) / SEG, w = lerp(s.p1.screen.w, s.p2.screen.w, pct); return { x:lerp(s.p1.screen.x, s.p2.screen.x, pct) + x * w, y:lerp(s.p1.screen.y, s.p2.screen.y, pct), w }; }
@@ -119,7 +137,7 @@ function rotSprite(L, t, hang, head, headY){ const B8 = big8(L), n = L.rows.leng
   return { x0:lx + ax, y0:ly + ay, rows }; }
 
 /* ------------------------------------------------------------------ the atlas: every posed layer of the boss in one canvas, painted through ImageData */
-let ATL = null, CELL = {}, warmed = false; const POLE_TOP = [];
+let ATL = null, CELL = {}, warmed = false; const POLE_TOP = []; let ATLD = null, SRC = null;   // ATLD: the dark atlas (buildDark); SRC: the atlas a draw reads (null: ATL)
 const hexRGB = c => [parseInt(c.slice(1, 3), 16), parseInt(c.slice(3, 5), 16), parseInt(c.slice(5, 7), 16)];
 /* Round 2 (Kellan's review: the turned pipes broke into dashes and speckle). The broad parts (cowl, rider, seat and tail, tyre) are still
    turned and voted, then cleaned: a pixel with no neighbour of its own key takes its neighbours' key. The thin parts (the takeyari and the
@@ -172,7 +190,33 @@ function buildAtlas(){ const A = ART.L, list = [], HEADY = -28, GM = ART.geom;
   g.putImageData(im, 0, 0);
   RL.forEach(([li, ph, h], i) => { const c = rcomp(li, ph, h); if(!c) return; const sx = (i % perRow) * (RCW + 1), sy = RY + Math.floor(i / perRow) * (RCH + 1); g.drawImage(c, sx, sy); CELL['r' + li + ph + h] = { sx, sy, w:RCW, h:RCH, ox:-RCW / 2, oy:-RGY }; });
   ATL = cv; }
-const cell = (g, key, x, y, k) => { const c = CELL[key]; if(c) g.drawImage(ATL, c.sx, c.sy, c.w, c.h, Math.round(x + c.ox * k), Math.round(y + c.oy * k), c.w * k, c.h * k); };
+const cell = (g, key, x, y, k) => { const c = CELL[key]; if(c) g.drawImage(SRC || ATL, c.sx, c.sy, c.w, c.h, Math.round(x + c.ox * k), Math.round(y + c.oy * k), c.w * k, c.h * k); };
+
+/* the dark atlas (the combined event: the duel in the blackout). The same cells graded to the moonlit street (about 45% of their light,
+   cooled), with what glows kept whole: the gold onibi crest and the kanji on his coat, the tail light, the amber indicators; his face at 70%
+   so the glance still reads. His riders get the same grade with only their tail lights kept. ATLS is every cell as a flat teal silhouette:
+   drawBoss lays it a sprite pixel to either side of his whole composite before the dark layers, a rim of the light from the two onibi
+   flames beside him, so his silhouette reads on black (round 2: a rim per cell outlined every layer inside him in cyan). Built once at
+   warm-up (one read-back of the atlas); drawing from it costs what drawing from the lit one does. */
+let ATLS = null;
+function buildDark(){ if(!ATL) return; const w = ATL.width, h = ATL.height, c = can(w, h), g = c.getContext('2d', { willReadFrequently:true }); g.drawImage(ATL, 0, 0);
+  const im = g.getImageData(0, 0, w, h), D = im.data, key = s => hexRGB(s).join(','), KEEP = new Set(['#ffd04a', '#fff2b0', '#b8862a', '#ff2a3a', '#ffd8cc', '#ffb030', '#a85e10'].map(key)),
+    KEEPR = new Set(['#ff2a3a', '#ffd8cc'].map(key)), SKIN = new Set(['#e8a882', '#a8643e', '#9aa8e0', '#fffaf0'].map(key));
+  let ry = h; for(const k in CELL) if(/^r\d/.test(k)) ry = Math.min(ry, CELL[k].sy);
+  for(let y = 0; y < h; y++) for(let x = 0; x < w; x++){ const o = (y * w + x) * 4; if(!D[o + 3]) continue; const id = D[o] + ',' + D[o + 1] + ',' + D[o + 2];
+    if(y < ry ? KEEP.has(id) : KEEPR.has(id)) continue; const m = y < ry && SKIN.has(id) ? .72 : 1;
+    D[o] = Math.round(D[o] * .42 * m + 8); D[o + 1] = Math.round(D[o + 1] * .46 * m + 10); D[o + 2] = Math.round(D[o + 2] * .56 * m + 24); }
+  g.putImageData(im, 0, 0); ATLD = c;
+  const s = can(w, h), sg = s.getContext('2d'); sg.drawImage(ATL, 0, 0); sg.globalCompositeOperation = 'source-in'; sg.fillStyle = '#3cc4d6'; sg.fillRect(0, 0, w, h); ATLS = s;
+  try{ const t = can(2, 2).getContext('2d'); t.drawImage(c, 0, 0, 1, 1); t.drawImage(s, 0, 0, 1, 1); }catch(e){} }
+// the onibi: two will-o'-the-wisp flames riding beside him in the dark (three flicker frames, teal and white), built at warm-up
+const FLM = [];
+function buildFlames(){ if(FLM.length) return; const P = { b:'#1e6aa8', c:'#4fd8f0', W:'#e8ffff' };
+  for(const rows of [['...b.', '..bc.', '.bcc.', '.cWcb', 'bcWWc', 'cWWWc', 'cWWWc', '.cWc.', '..c..'], ['.b...', '.cb..', '.ccb.', 'bcWc.', 'cWWcb', 'cWWWc', 'cWWWc', '.cWc.', '..c..'],
+    ['..b..', '..cb.', '.bcc.', '.cWc.', 'bcWWc', 'cWWWc', 'cWWWc', '.cWc.', '..c..']]){ const c = can(5, rows.length), g = c.getContext('2d'); rows.forEach((r, y) => { for(let x = 0; x < r.length; x++){ const col = P[r[x]]; if(col){ g.fillStyle = col; g.fillRect(x, y, 1, 1); } } }); FLM.push(c); } }
+function onibi(g, k, now, a){ if(!FLM.length) return; const cm = calm();
+  for(const sd of [-1, 1]){ const fx = sd * 21, fy = -31 + (sd > 0 ? 3 : 0) + (cm ? 0 : Math.round(Math.sin(now / 260 + sd * 1.7) * 2)), f = FLM[cm ? 0 : (Math.floor(now / 120) + (sd > 0 ? 1 : 0)) % 3];
+    glow(fx * k, (fy + 5) * k, 10 * k, '#4fd8f0', .32 * a); g.drawImage(f, Math.round((fx - 2.5) * k), Math.round(fy * k), 5 * k, f.height * k); } }
 
 /* ------------------------------------------------------------------ the riders: mech/gang.js's grunt and sukajan looks in the gang's gold and black */
 const GP = { K:'#0a0810', 0:'#ffd04a', 1:'#6a6488', 2:'#3e3a58', 3:'#262238', 4:'#141220' };   // gunmetal black with gold glints: the riders are one black-and-gold wall; their leader is the colour
@@ -234,19 +278,20 @@ function warm(){ if(warmed || !ART || typeof cx === 'undefined' || !cx) return; 
   if(G0 && G0.wreckKit){ const P = Object.assign({}, RPAL); WRK = [null, G0.wreckKit(P, 1), G0.wreckKit(P, 2)]; }
   for(let p = 0; p < 2; p++){ bubble(p, false); bubble(p, true); }
   try{ buildAtlas(); }catch(e){ console.warn('boss atlas', e); }
+  try{ buildDark(); buildFlames(); for(const f of FLM) can(2, 2).getContext('2d').drawImage(f, 0, 0, 1, 1); }catch(e){ console.warn('boss dark atlas', e); }
   for(const [s, c] of TEXTS) txt(s, c); for(let n = 0; n < 100; n++){ txt(String(n), '#ff8a96'); txt(String(n), '#4ff0ff'); } for(let n = 0; n <= 120; n++) for(const c of ['#ffd04a', '#14040a']) txt('III FLAGS ' + n * 10 + 'M', c); for(const t of ['I BOX-IN', 'II ONE ON ONE', 'BOXED']) txt(t, '#14040a');
   try{ if(document.fonts) document.fonts.load('16px DotGothic16', '宵闇夜ハ我等ノモノ一騎打ち').then(warmKanji, () => {}); else warmKanji(); }catch(e){} }
   touch();
 
 /* ------------------------------------------------------------------ state */
 const S = { plan:null, planned:false, st:'idle', t:0, ph:0, phT:0, you:100, them:100, boss:null, R:[], res:null, endT:0, fin:null, cut:null, hold:0,
-  log:[], tele:[], hits:{ you:0, them:0, crash:0, takedowns:0, counters:0, dodged:0 }, kick:null, lastBoosts:0, lastClose:0, lastCrashes:0, prompt:false, boxT:0, boxCall:false, suppress:0 };
+  log:[], tele:[], hits:{ you:0, them:0, crash:0, takedowns:0, counters:0, dodged:0 }, kick:null, lastBoosts:0, lastClose:0, lastCrashes:0, prompt:false, boxT:0, boxCall:false, suppress:0, tb:null };
 let uid = 0, clock = 0, FX = [], DEB = [];
 const RES = { won:0, lost:0 };
 const pSeg = () => Math.floor(pzz() / SEG);
 
 function reset(){ warm(); if(!S.plan || S.plan.segs !== segs){ S.plan = null; S.planned = false; } endAll();   // (the core places the new ride's first road before it calls reset: keep a booking made on these segs)
-  S.st = 'idle'; S.log.length = 0; S.tele.length = 0; FX.length = 0; DEB.length = 0;
+  S.st = 'idle'; S.tb = null; S.log.length = 0; S.tele.length = 0; FX.length = 0; DEB.length = 0;
   for(const k in S.hits) S.hits[k] = 0; RES.won = 0; RES.lost = 0; }
 
 function endAll(){ S.boss = null; S.R.length = 0; S.res = null; S.fin = null; S.kick = null; if(S.cut){ S.cut.end(); S.cut = null; } }
@@ -257,6 +302,15 @@ function place(i, s){ if(S.planned && S.plan && S.plan.segs !== segs) S.planned 
   let B = i + (z === 0 ? 420 : 90); if(Tb != null) B = Math.max(B, Tb); const span = 2300; if(window.forkClear) B += forkClear(B, B + span) || 0;
   if(DIR && !DIR.request(ID, { tier:'hero', seg:B, auto:false })) return;
   S.planned = true; S.plan = { B, z, t0:-1, segs }; }
+
+/* the combined event's booking (env/akiba.js, as the blackout's stretch is laid): he starts at segment B, the moment the dark reaches you.
+   hook(why) is told once how it ended: 'win' / 'lose' (the duel's result), 'skip' (he could not start in time), 'abort' (the ride ended). */
+function canCombine(){ return S.st === 'idle' && S.ran !== segs && !(S.planned && S.plan && S.plan.segs === segs && !S.plan.tb); }
+function combine(o){ if(!o || !canCombine()) return false; warm(); S.planned = true; S.plan = { B:o.B | 0, z:o.z | 0, t0:-1, segs, tb:true, hook:o.hook || null }; return true; }
+function tbHook(why){ const T = S.tb || (S.plan && S.plan.tb ? S.plan : null); if(!T || T.told) return; T.told = why; S.log.push({ ev:'tb', why, t:typeof playT === 'number' ? +playT.toFixed(1) : 0 });
+  if(T.hook) try{ T.hook(why); }catch(e){ console.warn('boss tb hook', e); } }
+// the combined event's call sounds in the hush: its notes go to the director's moment bus, past the music duck (the synth reads M.out per note)
+function loud(f){ const B2 = S.tb && DIR && DIR.bus ? DIR.bus() : null; if(!B2 || typeof M === 'undefined' || !M.out || B2 === M.out){ f(); return; } const o = M.out; M.out = B2; try{ f(); } finally { M.out = o; } }
 
 /* ------------------------------------------------------------------ sounds (the core's synth) */
 const HORN = [[0, 76, .16], [.18, 79, .16], [.36, 83, .16], [.56, 79, .12], [.70, 76, .12], [.84, 72, .42]];   // an original call: up, back, and a long low note
@@ -271,20 +325,21 @@ function thump(v){ if(!ac()) return; if(window.SFX && SFX.ready && SFX.ready()) 
 function canStart(){ if(state !== 'play' || copT > 0) return false; const G0 = MECH.gang, E = G0 && G0._dbg ? G0._dbg.E() : null; if(E && !E.over) return false;
   const J = MECH.sp_jump; if(J && J.flying && J.flying()) return false; const ps = pSeg(); if(segs[ps] && segs[ps].spjP) return false;
   if(window.inForkWindow && inForkWindow(ps, ps + 2200)) return false; return true; }
-function start(){ const pz = pzz(); S.st = 'arrive'; S.t = 0; S.ph = 0; S.phT = 0; S.you = 100; S.them = 100; S.res = null; S.endT = 0; S.fin = null; S.boxT = 0; S.boxCall = false;
+function start(P){ const pz = pzz(); S.tb = P && P.tb ? P : null; S.st = 'arrive'; S.t = 0; S.ph = 0; S.phT = 0; S.you = 100; S.them = 100; S.res = null; S.endT = 0; S.fin = null; S.boxT = 0; S.boxCall = false;
   S.lastBoosts = boosts; S.lastClose = closeCalls; S.lastCrashes = crashes; S.R.length = 0; FX.length = 0; S.panOK = null; S.pan0 = null; S.cardSeen = false; S.ran = segs;
   try{ S.prompt = (+localStorage.getItem('sundown.boss.seen') || 0) < 1; localStorage.setItem('sundown.boss.seen', String((+localStorage.getItem('sundown.boss.seen') || 0) + 1)); }catch(e){ S.prompt = true; }
   // the formation, behind you: the boss in the middle, four riders in a V either side
   const side = playerX > 0 ? -1 : 1;
-  S.boss = { z:pz - 2600, x:playerX + side * .42, speed:MAXS * 1.2, vx:0, kvx:0, lean:0, tx:0, look:0, lookT:0, att:null, cd:2.2, stun:0, boostT:0, nBoost:0, flagPh:0, dip:0, side };
+  S.boss = { z:pz - (S.tb ? 3800 : 2600), x:playerX + side * .42, speed:MAXS * 1.2, vx:0, kvx:0, lean:0, tx:0, look:0, lookT:0, att:null, cd:2.2, stun:0, boostT:0, nBoost:0, flagPh:0, dip:0, side };
   const SL = [[-.62, -500, 1], [.62, -500, 2], [-.84, -950, 2], [.84, -950, 1]];
   SL.forEach(([dx, dz, li], i) => S.R.push({ id:uid++, li, role:i === 0 ? 'L' : i === 1 ? 'R' : i === 2 ? 'front' : 'spare', z:S.boss.z + dz, x:clamp(dx * .9, -.9, .9), slot:dx, speed:MAXS * 1.2, vx:0, kvx:0, lean:0,
     st:'ride', windT:0, windSide:0, kickT:0, kickSide:0, kickCD:1.5 + i * .4, stunT:0, brakeT:0, brk:0, brkCD:3 + i, flagPh:i * .7 }));
-  horn(.6); setTimeout(() => callRev(.8), 700); setTimeout(() => { if(S.st === 'arrive') horn(1); }, 1700);
-  if(DIR && DIR.cine) S.cut = DIR.cine({ letterbox:{ top:.1, bottom:.05 }, duck:.55, dur:0, card:CARD, guard:{ ahead:60, behind:0 } });
+  loud(() => horn(.6)); setTimeout(() => loud(() => callRev(.8)), 700); setTimeout(() => { if(S.st === 'arrive') loud(() => horn(1)); }, 1700);
+  if(S.tb && S.tb.z === 0 && TBX.has(0) && typeof sunLeft === 'number') sunLeft = Math.min(SUN_MAX + 60, sunLeft + 50);   // (the named test's first road has no gate before its long stretch to pay for it)
+  if(DIR && DIR.cine) S.cut = DIR.cine({ letterbox:{ top:.1, bottom:.05 }, duck:S.tb ? .3 : .55, dur:0, card:S.tb ? CARD_TB : CARD, guard:{ ahead:60, behind:0 } });
   else floatText('宵闇連合', W / 2, H * .3, 34, '#ffd04a');
   if(DIR && DIR.done) DIR.done(ID);
-  S.log.push({ ev:'start', seg:pSeg(), t:+playT.toFixed(1) }); }
+  S.log.push({ ev:'start', seg:pSeg(), t:+playT.toFixed(1), tb:!!S.tb }); }
 
 // Round 2 (Kellan: the arrival stacked card, panel, a big BOX-IN label and the bars for ~7 s): a phase is announced on the duel plate
 // itself, a small stamped label under the bars, in the sky, never over the riders. One message at a time: card, then panel, then plate.
@@ -301,7 +356,7 @@ function finish(won, how){ if(S.res) return; S.res = won ? 'win' : 'lose'; S.how
     co('THE LEGEND SALUTES YOU', '勝', '#ffd04a'); setTimeout(() => { if(state === 'play') floatText('+6s', W / 2, H * .4, 28, '#f4ecdf'); }, 500);
     try{ if(MECH.style && MECH.style.act) MECH.style.act('takedown', 1500); }catch(e){} setTimeout(() => horn(1, [[0, 72, .2], [.22, 76, .2], [.44, 79, .2], [.7, 84, .7]]), 900); }
   else { RES.lost++; co(how === 'line' ? 'ONIBI TAKES THE LINE' : 'ONIBI RIDES ON', '負', '#b9adc4'); setTimeout(() => horn(1), 600); }
-  S.log.push({ ev:'end', won, how, t:+playT.toFixed(1), you:Math.round(S.you), them:Math.round(S.them) }); }
+  S.log.push({ ev:'end', won, how, t:+playT.toFixed(1), you:Math.round(S.you), them:Math.round(S.them) }); tbHook(won ? 'win' : 'lose'); }
 
 /* ------------------------------------------------------------------ spirit */
 function drainYou(v){ if(S.res) return; S.you = Math.max(0, S.you - v); }
@@ -346,12 +401,12 @@ function takedown(r, how){ if(r.st === 'down') return; r.st = 'down'; const sd =
 
 /* ------------------------------------------------------------------ update */
 function update(dt){ clock += dt;
-  if(state !== 'play'){ if(S.st !== 'idle' && state !== 'pulled'){ S.st = 'idle'; endAll(); } else if(state === 'pulled' && S.st !== 'idle'){ for(const r of S.R) r.z += r.speed * dt; if(S.boss) S.boss.z += S.boss.speed * dt; } return; }
+  if(state !== 'play'){ if(S.st !== 'idle' && state !== 'pulled'){ tbHook('abort'); S.st = 'idle'; S.tb = null; endAll(); } else if(state === 'pulled' && S.st !== 'idle'){ for(const r of S.R) r.z += r.speed * dt; if(S.boss) S.boss.z += S.boss.speed * dt; } return; }
   const ps = pSeg(), G0 = MECH.gang;
   // keep the gang's packs away from the legend: from a little before the booked segment until after the duel
   if(S.plan && S.st === 'idle' && ps > S.plan.B - 1300 && ps < S.plan.B + 900 && G0 && G0._dbg) G0._dbg.set({ nextT:playT + 6 });
   if(S.st !== 'idle' && S.st !== 'done' && G0 && G0._dbg) G0._dbg.set({ nextT:playT + 20 });
-  if(S.plan && S.st === 'idle'){ if(ps >= S.plan.B){ if(canStart()){ S.plan = null; start(); } else if(ps > S.plan.B + 900){ S.log.push({ ev:'skipped', seg:ps }); S.plan = null; } } }
+  if(S.plan && S.st === 'idle'){ if(ps >= S.plan.B){ const P = S.plan; if(canStart()){ S.plan = null; start(P); } else if(ps > P.B + (P.tb ? 300 : 900)){ S.log.push({ ev:'skipped', seg:ps }); tbHook('skip'); S.plan = null; } } }
   if(G0 && !G0.kickExt) G0.kickExt = kickExt;
   for(let i = FX.length - 1; i >= 0; i--) if((FX[i].t += dt) > .4) FX.splice(i, 1);
   for(let i = DEB.length - 1; i >= 0; i--){ const p = DEB[i]; p.x += p.vx * dt; p.y += p.vy * dt; p.vy += 1500 * dt; if(p.y > p.floor && p.vy > 0){ p.y = p.floor; p.vy = -p.vy * .3; p.vx *= .7; } if((p.life -= dt) <= 0) DEB.splice(i, 1); }
@@ -370,20 +425,22 @@ function update(dt){ clock += dt;
     const A = MECH.arrival, on = !!(A && ((A.momentOn && A.momentOn()) || (A.cardOn && A.cardOn())) || (MECH.cutin && MECH.cutin.on && MECH.cutin.on()));
     // the bars lift for the panel; it waits while a checkpoint gantry is about to pass over the camera (its banner filled the sky round
     // the panel), and is dropped if that takes too long
-    const ps0 = pSeg(), gateNear = gates.some(g0 => g0 - ps0 > -6 && g0 - ps0 < 130);
+    const ps0 = pSeg(), gateNear = gates.some(g0 => g0 - ps0 > -6 && g0 - ps0 < 130) || skyBusy(ps0);
     if(on) S.cardSeen = true; if(S.pan0 == null && ((S.cardSeen && !on && S.t > 2.7) || S.t > 6)){ if(S.cut){ S.cut.end(); S.cut = null; } if(!gateNear) S.pan0 = S.t + .3; else if(S.t > 7.5) S.pan0 = -99; }
     const ahead = S.R.every(r => r.z - pz > 600) && b.z - pz > 1200; if(ahead && S.pan0 != null && S.t > S.pan0 + PAN.dur + .2 || S.t > 9.5){ S.st = 'duel'; phase(1); } }
   else if(S.st === 'duel' && !S.res){
     if(S.ph === 1){ const down = S.R.filter(r => r.st === 'down').length; if(down >= 2 || S.phT > 14) phase(2); }
     else if(S.ph === 2){ if(S.them <= 40 || S.phT > 20) phase(3); }
     else if(S.ph === 3){ const fz = S.fin.seg * SEG; S.fin.t += dt; if(S.them <= 0) finish(true, 'style'); else if(pz >= fz && b.z < pz + 40) finish(true, 'line'); else if(b.z >= fz && pz < b.z - 40) finish(false, 'line'); } }
-  if(S.res){ S.endT += dt; if(S.endT > 7 || (S.endT > 2.5 && Math.abs(b.z - pz) > 9000 && S.R.every(r => r.st === 'down' || Math.abs(r.z - pz) > 9000))){ S.st = 'done'; endAll(); S.st = 'idle'; if(G0 && G0._dbg) G0._dbg.set({ nextT:playT + 25 }); return; } }
+  if(S.res){ S.endT += dt; if(S.endT > 7 || (S.endT > 2.5 && Math.abs(b.z - pz) > 9000 && S.R.every(r => r.st === 'down' || Math.abs(r.z - pz) > 9000))){ S.st = 'done'; endAll(); S.st = 'idle'; S.tb = null; if(G0 && G0._dbg) G0._dbg.set({ nextT:playT + 25 }); return; } }
   // your spirit is spent: his next attack is the finisher; the box squeezes you
   updateBoss(b, dt, pz); for(const r of S.R) updateRider(r, dt, pz);
   if(S.ph === 1 && !S.res){ const fr = S.R.find(r => r.role === 'front' && r.st === 'ride'), sides = S.R.filter(r => (r.role === 'L' || r.role === 'R') && r.st === 'ride' && Math.abs(r.z - pz) < 320 && Math.abs(r.x - playerX) < .3);
     const boxed = fr && fr.z - pz > 100 && fr.z - pz < 800 && Math.abs(fr.x - playerX) < .2 && sides.length >= 1; S.boxT = boxed ? S.boxT + dt : 0;
     if(S.boxT > .6){ drainYou(5 * dt); if(!S.boxCall){ S.boxCall = true; S.stampT = 0; } } }
   { let n = 0; for(let i = 0; i < S.R.length; i++){ const r = S.R[i]; if(!(r.st === 'down' ? r.down.t > 2.6 : (r.st === 'leave' && Math.abs(r.z - pz) > 9000) || r.z - pz < -7000)) S.R[n++] = r; } S.R.length = n; } }   // (in place: no garbage)
+
+function skyBusy(p){ for(let i = Math.max(0, p - 6); i < p + 130 && i < segs.length; i++) if(segs[i].akG) return true; return false; }   // env/akiba.js's gantry screens
 
 // lateral steering shared by the boss and his riders: avoid traffic, keep off the gore, stay inside the barrier
 function steerTo(e, tx, dt, vmax){ const blocked = L => cars.some(c => c.z > e.z - 200 && c.z - e.z < 2400 && Math.abs(c.x - L) < .3);
@@ -479,7 +536,7 @@ function updateRider(r, dt, pz){ const gap = r.z - pz, dx = r.x - playerX; r.fla
   if(r.kickT > 0) r.kickT -= dt; }
 
 /* ------------------------------------------------------------------ drawing: the boss */
-function drawBoss(b, x, y, k, fog, now, am){ if(!ATL) return; const a = (1 - fog * .6) * (am === undefined ? 1 : am); if(a <= .01) return;
+function drawBoss(b, x, y, k, fog, now, am){ if(!ATL) return; const a = (1 - fog * .6) * (am === undefined ? 1 : am); if(a <= .01) return; const dk = !!ATLD && darkAt(b.z); SRC = dk ? ATLD : null;
   const f = poseOf(b.lean), F = FR[Math.abs(f)], res = clamp(b.lean - F.t * Math.sign(f), -.14, .14), ph = Math.floor(now / 45) % 3, fph = Math.floor(now / 110 + b.flagPh) % 3;
   const g = cx; g.save(); g.globalAlpha = a; g.imageSmoothingEnabled = false;
   g.fillStyle = 'rgba(0,0,0,.45)'; g.beginPath(); g.ellipse(x, y, 13 * k, Math.max(1, 1.8 * k), 0, 0, 6.283); g.fill();
@@ -487,11 +544,14 @@ function drawBoss(b, x, y, k, fog, now, am){ if(!ATL) return; const a = (1 - fog
   const rider = b.look < 0 ? 'riderLL' : b.look > 0 ? 'riderLR' : 'rider', top = POLE_TOP[f + 3] || [6, -58];
   // back to front: the cowl and screen, the pole (it stands behind him) and its cloth (lowered in steps for the salute), the tyre, the
   // rider and his hachimaki, the seat-back and tail, and the takeyari nearest of all
-  cell(g, 'back:' + f, 0, 0, k); cell(g, 'pole:' + f, 0, 0, k); cell(g, b.dip ? 'clothD' + b.dip : 'cloth' + fph, top[0] * k, top[1] * k, k);
-  cell(g, 'tyre' + ph + ':' + f, 0, 0, k); cell(g, rider + ':' + f, 0, 0, k); cell(g, 'ht' + fph + ':' + f, 0, 0, k); cell(g, 'front:' + f, 0, 0, k); cell(g, 'pipes:' + f, 0, 0, k);
+  const lay = () => { cell(g, 'back:' + f, 0, 0, k); cell(g, 'pole:' + f, 0, 0, k); cell(g, b.dip ? 'clothD' + b.dip : 'cloth' + fph, top[0] * k, top[1] * k, k);
+    cell(g, 'tyre' + ph + ':' + f, 0, 0, k); cell(g, rider + ':' + f, 0, 0, k); cell(g, 'ht' + fph + ':' + f, 0, 0, k); cell(g, 'front:' + f, 0, 0, k); cell(g, 'pipes:' + f, 0, 0, k); };
+  if(dk && ATLS){ const rk = Math.max(1, Math.round(k)); SRC = ATLS; g.globalAlpha = a * .85; g.translate(-rk, 0); lay(); g.translate(2 * rk, 0); lay(); g.translate(-rk, 0); g.globalAlpha = a; SRC = ATLD; }   // the onibi rim, then him
+  lay();
   // tail light and indicator glows ride with the pose
   const tl = (lx, ly) => { const t = F.t * Math.sign(f), v = -ly; return [lx * Math.cos(t) + v * Math.sin(t), -(-lx * Math.sin(t) + v * Math.cos(t))]; };
   { const [X, Y] = tl(0, -7.5); glow(X * k, Y * k, 7 * k, '#ff2a3a', .55 * a); }
+  if(dk){ onibi(g, k, now, a); const [X, Y] = tl(0, -24); glow(X * k, Y * k, 6 * k, '#ffd04a', .22 * a); }   // in the dark: the flames beside him, and the crest on his back catching them
   { const on = Math.floor(now / 380) % 2 === 0; if(on && b.att && b.att.ph === 'tell' && b.att.type !== 'kick'){ const [X, Y] = tl(b.att.side * 9, -7); glow(X * k, Y * k, 4 * k, '#ffb030', .7 * a); } }
   if(b.boostT > 0 || (S.res === 'lose' && b.finT < 3)) for(const sx of [-1, 1]){ const [X, Y] = tl(sx < 0 ? -17.5 : 17.5, -33); glow(X * k, Y * k, (5 + (reduce ? 1 : Math.random() * 2)) * k, '#ff8a3a', .7 * a); }
   // the kick: his leg cocks out toward you, then shoots out
@@ -504,12 +564,13 @@ function drawBoss(b, x, y, k, fog, now, am){ if(!ATL) return; const a = (1 - fog
   // the tell's bubble, upright, never smaller than 2 canvas pixels a sprite pixel
   if(at && at.ph === 'tell'){ const bb = bubble(calm() ? 0 : Math.floor(now / 140) % 2, at.type === 'fin'), bk = Math.max(2 * PX, Math.round(k * .8 / PX) * PX), bob = calm() ? 0 : Math.round(Math.sin(now / 90)) * PX;
     g.globalAlpha = 1; g.drawImage(bb, Math.round(x - bb.width * bk / 2), Math.round(y - 50 * k - bb.height * bk) - bob, bb.width * bk, bb.height * bk); }
-  g.globalAlpha = 1; }
+  g.globalAlpha = 1; SRC = null; }
 
 function drawRider(r, x, y, k, fog, now, am){ const a = (1 - fog * .6) * (am === undefined ? 1 : am); if(a <= .01) return; const hang = Math.round(clamp(r.lean / .5, -1, 1)), ph = Math.floor(now / 45 + r.id) % 3, c = CELL['r' + r.li + ph + hang]; if(!c || !ATL) return;
   const g = cx; g.globalAlpha = a; g.fillStyle = 'rgba(0,0,0,.45)'; g.beginPath(); g.ellipse(x, y, 9 * k, Math.max(1, 1.6 * k), 0, 0, 6.283); g.fill();
-  g.save(); g.translate(x, y); g.rotate(r.lean); g.imageSmoothingEnabled = false; g.drawImage(ATL, c.sx, c.sy, c.w, c.h, Math.round(-RCW / 2 * k), Math.round(-RGY * k), RCW * k, RCH * k);
-  const fl = CELL['gflag' + (Math.floor(now / 110 + r.flagPh) % 3)]; if(fl && ATL){ const fx0 = r.li === 1 ? 8 : 6; g.drawImage(ATL, fl.sx, fl.sy, fl.w, fl.h, Math.round((fx0 + fl.ox) * k), Math.round((-4 + fl.oy) * k), fl.w * k, fl.h * k); }
+  const AS = ATLD && darkAt(r.z) ? ATLD : ATL;
+  g.save(); g.translate(x, y); g.rotate(r.lean); g.imageSmoothingEnabled = false; g.drawImage(AS, c.sx, c.sy, c.w, c.h, Math.round(-RCW / 2 * k), Math.round(-RGY * k), RCW * k, RCH * k);
+  const fl = CELL['gflag' + (Math.floor(now / 110 + r.flagPh) % 3)]; if(fl && ATL){ const fx0 = r.li === 1 ? 8 : 6; g.drawImage(AS, fl.sx, fl.sy, fl.w, fl.h, Math.round((fx0 + fl.ox) * k), Math.round((-4 + fl.oy) * k), fl.w * k, fl.h * k); }
   const tl = r.li === 1 ? [0, -7.5, 5] : [0, -5, 4], bright = r.brakeT > 0 && Math.floor(now / 110) % 2 === 0 || r.brk > 0; glow(tl[0] * k, tl[1] * k, tl[2] * k * (bright ? 2.2 : 1), '#ff2a3a', (bright ? .95 : .55) * a);
   const G0 = MECH.gang && MECH.gang._dbg;
   if(G0 && (r.windT > 0 || r.kickT > 0)){ const sd = r.kickT > 0 ? r.kickSide : r.windSide, hip = -12;
@@ -558,7 +619,21 @@ function drawSeg(s, sx0, sy0, uw, fog, now){ if(S.st === 'idle') return; const p
   for(const r of S.R){ if(r.st === 'down'){ if(Math.floor(r.z / SEG) === s.index && r.z - pz >= 0){ const P = projOn(s, r.z, r.x); drawWreck(r, P.x, P.y, P.w * K / W); } continue; }
     if(Math.floor(r.z / SEG) === s.index && r.z - pz >= 0){ const P = projOn(s, r.z, r.x); drawRider(r, P.x, P.y, P.w * K / W, fog, now, EDGE); } }
   const b = S.boss; if(b && Math.floor(b.z / SEG) === s.index && b.z - pz >= 0){ const P = projOn(s, b.z, b.x); drawBoss(b, P.x, P.y, P.w * K / W, fog, now, EDGE); } }
-function drawSegBack(s, sx0, sy0, uw, fog, now){ if(S.st === 'idle') return; drawPaint(s); drawLine(s, now); }
+function drawSegBack(s, sx0, sy0, uw, fog, now){ if(S.st === 'idle') return; if(ATLD) drawBeams(s); drawPaint(s); drawLine(s, now); }
+/* the headlights in the dark (only where the street's lights are out): a long pale pool on the road ahead of his wheel, widening and
+   fading over 1500 units in four steps, and each rider's fainter one. While he comes up behind you it lights the road round you first,
+   and your own shadow is thrown ahead in it (Crazy Thunder Road: the pack is sound first, then a wall of light). */
+const BEAM_L = 1500;
+function drawBeams(s){ const b = S.boss; if(!b || !s.p1.screen || !s.p2.screen || s.p1.screen.y <= s.p2.screen.y || s.index < Math.floor(position / SEG) + 6) return; const z1 = s.index * SEG, z2 = z1 + SEG;   // (not the strips under the camera: there a beam's end read as a bar)
+  const bk = b.z < pzz() ? 1.7 : 1;   // his light from behind you is the strongest light in the street
+  cx.globalCompositeOperation = 'lighter'; for(const r of S.R) if(r.st !== 'down') beam(s, r, z1, z2, .5, .1, .3); beam(s, b, z1, z2, .6 * bk, .22, .55); beam(s, b, z1, z2, .8 * bk, .1, .32); cx.globalCompositeOperation = 'source-over';
+  // your shadow: the boss's light from behind you, cut by your bike, out ahead of you along the road
+  const pz = pzz(), bg = pz - b.z; if(bg > 0 && bg < BEAM_L * .85 && darkAt(b.z)){ const sl = 900 * (1 - bg / BEAM_L), wb = .06 + (.3 - .06) * bg / BEAM_L;
+    if(Math.abs(playerX - b.x) < wb && z2 > pz && z1 < pz + sl){ const lo = playerX - .055, hi = playerX + .055, p1 = s.p1.screen, p2 = s.p2.screen; cx.globalAlpha = .55 * (1 - Math.max(0, z1 - pz) / sl); cx.fillStyle = '#05040a';
+      cx.beginPath(); cx.moveTo(p1.x + lo * p1.w, p1.y); cx.lineTo(p1.x + hi * p1.w, p1.y); cx.lineTo(p2.x + hi * p2.w * .8, p2.y); cx.lineTo(p2.x + lo * p2.w * .8, p2.y); cx.closePath(); cx.fill(); cx.globalAlpha = 1; } } }
+function beam(s, e, z1, z2, a0, w0, wd){ const d1 = z1 - e.z, d2 = z2 - e.z; if(d2 < 0 || d1 > BEAM_L || !darkAt(e.z)) return; const p1 = s.p1.screen, p2 = s.p2.screen;
+  const t = clamp(((d1 + d2) / 2) / BEAM_L, 0, 1), al = a0 * Math.ceil(Math.min(1, t * 5, (1 - t) * 1.6) * 4) / 4, w1 = w0 + (wd - w0) * clamp(d1 / BEAM_L, 0, 1), w2 = w0 + (wd - w0) * clamp(d2 / BEAM_L, 0, 1); if(al <= 0) return;   // (lit additively: a warm glow on the wet road, rising from just ahead of the wheel and fading in four steps)
+  cx.globalAlpha = al; cx.fillStyle = '#3a3222'; cx.beginPath(); cx.moveTo(p1.x + (e.x - w1) * p1.w, p1.y); cx.lineTo(p1.x + (e.x + w1) * p1.w, p1.y); cx.lineTo(p2.x + (e.x + w2) * p2.w, p2.y); cx.lineTo(p2.x + (e.x - w2) * p2.w, p2.y); cx.closePath(); cx.fill(); cx.globalAlpha = 1; }
 // riders and the boss between you and the camera (they grow as they pass, like traffic you overtake). Drawn UNDER the bike: a rival
 // alongside or just behind never covers yours (audit #12: he sat over it at 6x). And faded out as the near projection passes 3 canvas px a
 // sprite px (gone by 4.5), before the art turns to blocks. Every tell (kick wind-up, swerve, finisher) starts within 330 of you, where
@@ -628,7 +703,7 @@ function drawMeter(now){ const P = PX, sx = W / cv.width, narrow = W < 640, show
   cx.restore(); }
 
 /* ------------------------------------------------------------------ the module */
-MECH.sp_boss = { warm, reset, place, update, drawSeg, drawSegBack, drawScreen, drawUnderBike:drawUnder,
+MECH.sp_boss = { warm, reset, place, update, drawSeg, drawSegBack, drawScreen, drawUnderBike:drawUnder, canCombine, combine, TB, get tb(){ return !!S.tb; },
   finish(rec){ if(RES.won || RES.lost) rec.boss = { won:RES.won, lost:RES.lost }; },
   // tests and bots
   _start(){ warm(); if(S.st === 'idle'){ start(); return true; } return false; },

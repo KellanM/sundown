@@ -48,7 +48,7 @@ const CATALOGUE = {
   fireball:{ tier:'hero', roads:['refinery'], card:{ kanji:'爆発', name:'INFERNO', sub:'outrun the fire', col:'#ff8a2a' } }, avalanche:{ tier:'hero', roads:['snow'] },
   jetwash:{ tier:'hero', roads:['haneda'] }, heli:{ tier:'ambient', roads:['*'], cooldown:150 }, rockslide:{ tier:'hero', roads:['pass'] },
   cavein:{ tier:'hero', roads:['tunnels'] }, screen:{ tier:'hero', roads:['neon'] }, lava:{ tier:'hero', roads:['sakurajima'] },
-  naruto:{ tier:'hero', roads:['shimanami'] }, flood:{ tier:'hero', roads:['aqua'] }, boss:{ tier:'hero', roads:['*'], chance:.35 },
+  naruto:{ tier:'hero', roads:['shimanami'] }, flood:{ tier:'hero', roads:['aqua'] }, boss:{ tier:'hero', roads:['*'], chance:.35 }, teiden_boss:{ tier:'hero', roads:['akiba'] },
   farjets:{ tier:'ambient', roads:['*'], cooldown:90 }, megalodon:{ tier:'hero', roads:['aqua'] },
   phantom:{ tier:'hero', roads:['tunnels', 'pass', 'paddies', 'snow', 'kurobe', 'coast', 'shimanami', 'gion'], chance:.5 } };   // setpiece/phantom.js (it registers itself too)
 

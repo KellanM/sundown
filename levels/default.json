@@ -20,11 +20,11 @@
   },
   {
    "road": "akiba",
-   "len": 2600,
+   "len": 4850,
    "jump": true,
    "events": [
     {
-     "id": "teiden",
+     "id": "teiden_boss",
      "seg": 1560
     }
    ]
