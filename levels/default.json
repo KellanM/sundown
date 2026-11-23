@@ -41,6 +41,17 @@
    ]
   },
   {
+   "road": "aqua",
+   "len": 3800,
+   "jump": true,
+   "events": [
+    {
+     "id": "abyss",
+     "seg": 1410
+    }
+   ]
+  },
+  {
    "road": "snow",
    "len": 2600,
    "jump": true,

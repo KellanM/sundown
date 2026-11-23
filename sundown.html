@@ -91,7 +91,8 @@ body:has(#attract) .top .stat,body:has(#attract) .top .title,body:has(#attract) 
     radial-gradient(ellipse 62% 78% at 50% 88%,transparent 0 58%,rgba(4,3,8,.16) 58% 70%,rgba(4,3,8,.3) 70% 82%,rgba(4,3,8,.44) 82% 94%,rgba(4,3,8,.56) 94%)}
 /* the stepped vignette (hard bands, no blur): the sky behind the wordmark and the two street walls step down toward the edges, so the busy roads frame the title
    instead of competing with it; the bottom centre stays clear, the bike is the showcase. PRESS START sits just above the bike, the middle is left to the road. */
-.attract>.btn.press{margin-top:auto;margin-bottom:clamp(6px,2.5vh,22px)}
+.attract>.btn.press{margin-top:auto;margin-bottom:clamp(6px,2.5vh,22px);top:calc(-1 * clamp(0px,6vh,64px))}   /* Kellan 2026-11-22: lifted higher off the bike; a relative offset, so PSTART's room() and scale are unchanged */
+@media (max-height:480px){ .attract>.btn.press{top:calc(-1 * clamp(0px,3vh,14px))} }
 /* the cabinet's corner legend: FREE PLAY in the HUD's 3x5 caps, as an arcade marks a set-to-free cabinet (true here: no coins, no store, ever) */
 .attract>.fplay{position:absolute;right:16px;bottom:14px;line-height:0;padding:5px 6px;background:rgba(7,6,12,.72);box-shadow:inset 0 0 0 1px #3a3350;pointer-events:none!important}
 .attract>*{pointer-events:auto}
@@ -2000,7 +2001,8 @@ function drawOil(s, h, fog, now){ const f = segs[s.index + 6]; if(!f) return;
     if(s.index <= OIL_B || est > 6) return; let yT = 1e9, yB = -1e9, xs = 0, ws = 0;
     for(let j = 0; j < n; j++){ yT = Math.min(yT, OIL_RY[j]); yB = Math.max(yB, OIL_RY[j]); xs += OIL_RX[j]; ws += OIL_RW[j]; }
     if(!n){ const a = s.p1.screen, b = f.p1.screen; if(!a.scale || !b.scale || a.y < b.y) return; yT = yB = Math.round((a.y + b.y) / 2 / step - .5) * step; ws = (a.w + b.w) / 2; xs = (a.x + b.x) / 2 + h.x * ws; n = 1; }
-    const m = n === 3 ? 3 : 2; if(yB - yT < step) yT = yB - step; xs /= n; ws /= n; if(yB >= H) return;
+    const m = n === 3 || est > .8 ? 3 : 2; if(yB - yT < (m - 1) * step) yT = yB - (m - 1) * step;   // (three rows from about 1.7 s in: the reflection reads before the lip resolves) xs /= n; ws /= n; { const lim = Math.floor(Math.min(s.p1.screen.y, s.clip || H) / step) * step - step; if(yB > lim){ yT -= yB - lim; yB = lim; } }   // whole rows above its near edge (the clip there would halve the lip)
+    if(yB >= H) return;
     for(let j = 0; j < m; j++){ OIL_RY[j] = m === 3 ? yT + j * step : j ? yB : yT; OIL_RV[j] = m === 3 ? [.8, .62, .3][j] : j ? .3 : .7; OIL_RX[j] = xs; OIL_RW[j] = ws; } n = m; sliver = true; }
   // the surface reacts to a tyre: a ripple ring from where it went in (world units: the blob is 1600 across, 1200 long), and its groove
   const hit = h.hitT !== undefined, ripA = hit ? OILW.clock - h.hitT : -1, rip = ripA >= 0 && ripA < .9 && !reduce, rr0 = .1 + ripA * 1.7, ru = hit ? h.hitU : 0, rd = hit ? h.hitD * .3 : 0;
@@ -2014,7 +2016,7 @@ function drawOil(s, h, fog, now){ const f = segs[s.index + 6]; if(!f) return;
       if(i < nc){ const u = (i + .5) / nc * 2 - 1, ang = Math.atan2(vv, u), ch = (i + row) & 1, uc = Math.floor((u + 1) * 12),
           r = Math.hypot(u, vv) / (.84 + lob[0] * Math.sin(ang * 2 + lob[1]) + lob[2] * Math.sin(ang * 3 + lob[3]));
         if(r <= 1 && !(r > .93 && ch)){   // inside, less the dithered outer rim (half the cells: a soft edge, no outline)
-          if(sliver){ const e = nc >= 7 && r > .76;   // (the ends only once it is wide enough to keep a bright middle)
+          if(sliver){ const e = nc >= 7 && r > .9;   // (the ends only once it is wide enough to keep a bright middle)
               // far off: a bright sliver of reflected sky with iridescent ends over a black lip; the swell is a glint sweeping across it
             col = v > .5 ? (Math.abs(u - swell) < .13 ? '#f8f6ff' : e ? T[6 + (uc + fi) % 4] : Math.abs(u - gl * .3) < .62 ? T[10] : T[5]) : (e && ch ? T[6 + (uc + 2) % 4] : '#020106'); }
           else if(r > .93) col = '#0c0b14';
@@ -2908,7 +2910,7 @@ function frame(){ if(PSE.on){ pzPad(); if(PSE.dirty){ PSE.dirty = false; try{ dr
    A new version downloads in the background and waits. It is applied only on the title (never mid-ride): by itself once
    the title has sat untouched for a few seconds, or at once when the player taps "Update ready". Tap the version to check now. */
 (() => {
-  const VER = 'v24 · 01201f', $id = (i) => document.getElementById(i);
+  const VER = 'v25 · 34ffc6', $id = (i) => document.getElementById(i);
   const SDU = window.SDUPDATE = { version: VER, waiting: null, applied: false, checks: 0 };
   let reg = null, applying = false, asked = false, needReload = false, note = '', noteT = 0, lastInput = performance.now();
   ['keydown', 'pointerdown', 'touchstart', 'wheel'].forEach((t) => addEventListener(t, () => { lastInput = performance.now(); }, { capture: true, passive: true }));
@@ -2970,5 +2972,5 @@ function frame(){ if(PSE.on){ pzPad(); if(PSE.dirty){ PSE.dirty = false; try{ dr
   }, 1000);
 })();
 </script>
-<!-- __sdbuild:24 01201f814fc9 --></body>
+<!-- __sdbuild:25 34ffc68c4216 --></body>
 </html>
