@@ -481,8 +481,12 @@
     const out = []; for(let i = 0; i < n; i++) if(keep[i]) out.push(P[i * 2], P[i * 2 + 1]); return Float32Array.from(out); }
   /* Every atlas becomes an ImageBitmap as soon as the browser hands it back (asynchronously, during the warm-up): immutable and uploaded
      to the GPU once. Drawn straight from the 2D canvas, the large near-detail atlases cost a re-upload (frames of 60-400 ms, measured)
-     when they first came into use; the canvas stays the fallback until the bitmap arrives. */
-  function toBitmap(L){ if(!window.createImageBitmap) return; try{ createImageBitmap(L.cv).then(b => { L.cv = b; try{ cx.drawImage(b, 0, 0, 1, 1); }catch(e){} }).catch(() => {}); }catch(e){} }
+     when they first came into use; the canvas stays the fallback until the bitmap arrives.
+     Not in WebKit (Safari, and every iOS browser): there an ImageBitmap is drawn into the game canvas the slow way (WebKit bugs 234920 and
+     267291), and the titans are the game's only ImageBitmaps, up to ~400 slice draws a frame near the gap (2 fps on an iPhone 13 at the ramp
+     and over the jump); the atlases stay canvases, which WebKit draws as cheaply as every other sprite. ?bmp=1 / ?bmp=0 force either way. */
+  const NO_BMP = (() => { const q = location.search.match(/[?&]bmp=([01])/); if(q) return q[1] === '0'; const ua = navigator.userAgent || ''; return typeof GestureEvent !== 'undefined' || /AppleWebKit/.test(ua) && !/(Chrome|Chromium|Edg|OPR)\//.test(ua); })();
+  function toBitmap(L){ if(NO_BMP || !window.createImageBitmap) return; try{ createImageBitmap(L.cv).then(b => { L.cv = b; try{ cx.drawImage(b, 0, 0, 1, 1); }catch(e){} }).catch(() => {}); }catch(e){} }
   function* vBake(key, G, MAT, HT, res, fine, kz = 1){ const C = yield* vShade(G, MAT, HT * res, res, kz), { w, h, d } = G, wh = w * h;
     // trim: the slices that hold anything
     let k0 = 0, k1 = d - 1; const any = k => { for(let i = k * wh, e = i + wh; i < e; i++) if(C[i]) return true; return false; }; while(k0 < k1 && !any(k0)) k0++; while(k1 > k0 && !any(k1)) k1--;
@@ -996,6 +1000,8 @@
     // foam, and the main cables hanging down into the gap. While it falls (the first 60 segments after the blast) the slab tumbles away.
     if(o >= 0 && o < GAP && g >= 0){ const hole = [P(s, 0, -2.2, 0), P(s, 0, 2.2, 0), P(s, 1, 2.2, 0), P(s, 1, -2.2, 0)];
       quad(...hole, fc2(o % 2 ? '#181a3a' : '#1c1c40'));
+      /* (a hole under a canvas pixel tall, far down the gap, shows only its quad: no path clip for it; WebKit pays for every path clip) */
+      if(Math.abs(hole[2][1] - hole[0][1]) >= PX){
       cx.save(); cx.beginPath(); cx.moveTo(hole[0][0], hole[0][1]); for(const q of hole) cx.lineTo(q[0], q[1]); cx.closePath(); cx.clip();
       // the water surface far below: a darker band where it sits, broken reflections of the fires and the beam
       quad(P(s, 0, -3, WATER), P(s, 0, 3, WATER), P(s, 1, 3, WATER), P(s, 1, -3, WATER), fc2(o % 3 ? '#1e2048' : '#26224a'));
@@ -1018,7 +1024,7 @@
       // the main cables, cut, hanging down into the gap from both sides
       for(const X of [-1.42, 1.42]){ const hang = q => DEEP + (q < GAP / 2 ? 3600 - Math.pow(q / 7, 1.4) * 6000 : 3600 - Math.pow((GAP - q) / 7, 1.4) * 6000);
         const h1 = Math.max(WATER, hang(o)), h2 = Math.max(WATER, hang(o + 1)); if(h1 > WATER || h2 > WATER){ pline(P(s, 0, X + (o % 3) * .01, h1), P(s, 1, X, h2), fc2('#a8b0c8'), Math.max(PX, snap(uw * .02))); pline(P(s, 0, X - .02, h1), P(s, 1, X - .02, h2), fc2('#3a4058'), Math.max(PX, snap(uw * .01))); } }
-      cx.restore();
+      cx.restore(); }
       if(g < 60){ const dr = Math.pow(g / 60, 2) * 5200, rot = (o % 2 ? 1 : -1) * g / 60 * .5, sh = (h, X) => -dr + h + rot * X * 900;
         if(dr < 4800){ quad(P(s, 0, -1.5, sh(0, -1.5)), P(s, 0, 1.5, sh(0, 1.5)), P(s, 1, 1.5, sh(0, 1.5)), P(s, 1, -1.5, sh(0, -1.5)), fc2(o % 2 ? '#22202c' : '#1c1a26'));
           quad(P(s, 0, -1.5, sh(0, -1.5)), P(s, 0, 1.5, sh(0, 1.5)), P(s, 0, 1.5, sh(-260, 1.5)), P(s, 0, -1.5, sh(-260, -1.5)), fc2(CONC[1]));
