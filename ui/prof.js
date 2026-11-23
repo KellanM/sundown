@@ -55,6 +55,7 @@ function install(){
   // the core's own passes (global function declarations: the core calls them by name, so the wrapper is what runs)
   ['pixelSky', 'backdrop'].forEach(n => wrapG(n, 'sky'));
   ['drawRoad', 'laneFlush', 'drawReflections'].forEach(n => wrapG(n, 'road'));
+  ['drawRoadPass'].forEach(n => wrapG(n, 'roadmat'));   // (?gl: roadmat's pre-pass, the GPU flush and the layer's composite)
   ['drawSprites', 'drawProp', 'drawGate', 'drawHazard', 'drawOil', 'drawTunnel', 'drawHinge', 'drawPBox'].forEach(n => wrapG(n, 'sprites'));
   ['drawSetPiece'].forEach(n => wrapG(n, 'setpiece'));
   ['drawCar', 'fkCars'].forEach(n => wrapG(n, 'cars'));
@@ -115,6 +116,7 @@ function show(){ if(!el){ el = document.createElement('pre'); el.id = 'profOverl
   if(P.level === 0){ el.style.display = 'none'; return; } el.style.display = '';
   const w = P.window(60), f1 = v => v.toFixed(1), pad = (s, n) => (s + '').padStart(n), bar = (v, max) => '█'.repeat(Math.max(0, Math.min(16, Math.round(v / max * 16))));
   const L = [`${pad(w.fps.toFixed(0), 3)} fps  frame ${f1(w.dt.med)} (p95 ${f1(w.dt.p95)})  draw ${f1(w.draw.med)} (max ${f1(w.draw.max)})  upd ${f1(w.upd.med)} ms`];
+  { const G = window.GLR; if(G || window.GLR_OFF) L.push(G ? `gl ${G.on ? 'on' : 'off'} ${G.kind}${G.ok ? '' : ' (' + G.reason + ')'}  last layer ${G.stats.instances} inst / ${G.stats.draws} draws` : 'gl off: ' + window.GLR_OFF); }   // (?gl)
   if(P.level >= 2){ const tot = CATS.reduce((a, c) => a + w.cat[c], 0), mx = Math.max(2, ...CATS.map(c => w.cat[c]));
     for(const c of CATS){ const v = w.cat[c]; if(v < .005 && P.level < 3) continue; L.push(`${LABEL[c].padEnd(13)}${pad(f1(v), 5)} ${bar(v, mx)}`); }
     L.push(`${'sum'.padEnd(13)}${pad(f1(tot), 5)}  (ms/frame, self)`); }

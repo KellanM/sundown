@@ -329,7 +329,7 @@ function prep(){ FR.f = DRAWN; const base = segAt(position).index; FR.base = bas
   for(let k = 0; k < cars.length; k++){ const c = cars[k]; if(c.oth) continue; const n = Math.floor(c.z / SEG) - base; if(n < 0 || n >= nd) continue; CARN[k] = CARH[n]; CARH[n] = k; }
   // this frame's state per road (Shuto's drizzle comes and goes by visit)
   WETK.shuto = ENV.shuto && ENV.shuto.wetVisit && segs[base] && segs[base].shB !== undefined ? (ENV.shuto.wetVisit(segs[base].shB) ? 1 : .12) : 1;
-  PLN = 0; DKN = 0; PLHOT = 0; PLLG = 0;   // this frame's deferred pools (and dark breaks)
+  PLN = 0; DKN = 0; PLHOT = 0; PLLG = 0; BN = 0; WFE.fill(null);   // this frame's deferred pools (and dark breaks; ?gl: the stored wetFX calls)
   PK.ph = reduce ? 0 : Math.floor(performance.now() / 85);   // the ripples' time step (pools shiver on it; none under reduced motion)
   const st = RM.stats; st.frames++; st.ms = st.ms * .95 + FR.ms * .05; if(FR.ms > st.peak) st.peak = FR.ms; st.last = FR.ms; FR.ms = 0; }
 const WETK = { shuto:1 };
@@ -338,9 +338,43 @@ const WETK = { shuto:1 };
 const MOONC = '#f0e4c8', TAILC = '#ff2a3c';
 // the core wraps cx.globalAlpha to multiply by its draw-distance fade (EDGE); this sets the same thing without the accessor's cost per row
 const GA_SET = Object.getOwnPropertyDescriptor(CanvasRenderingContext2D.prototype, 'globalAlpha').set, SA = a => GA_SET.call(cx, a * EDGE);
+/* ?gl=1 (WebGL phase 2; research/sundown-craft/webgl-batch.md). The core's road pre-pass (drawRoadPass) calls drawSegBack for every segment with
+   RM.pass = 1 before the sprite pass: the material draws on cx as ever, and the light pools go to the GPU batch RM.gb as fill instances (PA / PF /
+   PR set the same alpha, colour and rect on whichever target is current); glEnd composites them, then lays the dark breaks (2D) and the late
+   pools (a second GPU layer) on the bands a break crosses. The sprite pass then calls drawSegBack with RM.pass = 2, which runs only each
+   segment's stored wetFX, in its old place (after its pools, before its props). RM.pass = 0: everything as before, on cx. */
+let GB = null, GBC = 0, PE = 1, PEX = 0;   // (PEX: glEnd's 2D late pools take the band's stored EDGE, PE)
+const PA = a => { if(GB) GB.alpha(a * PE); else GA_SET.call(cx, a * (PEX ? PE : EDGE)); };
+const PR = (x, y, w, h) => { if(GB) GB.fill(x, y, w, h, GBC); else cx.fillRect(x, y, w, h); };
+const GLC = new Map(); let GLK = null;
+function glCol(c){ let v = GLC.get(c); if(v !== undefined) return v; let t = c;
+  if(!(typeof c === 'string' && /^#[0-9a-f]{6}$/i.test(c))){ if(!GLK) GLK = document.createElement('canvas').getContext('2d'); GLK.fillStyle = '#000'; GLK.fillStyle = c; t = GLK.fillStyle; }
+  if(t[0] === '#') v = GLBatch.hex(t.length === 7 ? t : '#000000'); else { const m = t.match(/[\d.]+/g) || [0, 0, 0]; v = GLBatch.rgba(+m[0], +m[1], +m[2], Math.round((m[3] === undefined ? 1 : +m[3]) * 255)); }
+  if(GLC.size > 600) GLC.clear(); GLC.set(c, v); return v; }
+const PF = c => { if(GB) GBC = glCol(c); else cx.fillStyle = c; };
+const WFE = new Array(1024).fill(null), WFS = new Int16Array(1024), WFR = new Int16Array(1024), WFW = new Float32Array(1024), WFT = new Array(1024).fill(null);   // pass 1: each segment's wetFX, for pass 2
+const BNM = 1024, BR0 = new Int16Array(BNM), BR1 = new Int16Array(BNM), BE = new Float32Array(BNM), BC = new Float32Array(BNM), BD = new Int16Array(BNM); let BN = 0, SCLIP = 0;   // (BD: how many dark breaks were recorded by then: only those cut it, as before)   // pass 1: the bands a dark break crosses (rows, EDGE, the segment's clip)
+RM.pass = 0; RM.gb = null; Object.defineProperty(RM, 'plN', { get:() => PLN });
+RM.glStat = { inst:0, bands:0, dark:0 };
+RM.glEnd = function(B, comp){ const st = B.flush(), n = BN; let late = 0; BN = 0; RM.glStat.inst = st.instances; RM.glStat.bands = n; RM.glStat.dark = DKN; if(st.instances) comp(); if(!n) return st.instances;
+  cx.save(); cx.globalCompositeOperation = 'source-over'; cx.fillStyle = '#05060c';
+  for(let b = 0; b < n; b++){ const r0 = BR0[b], r1 = BR1[b]; cx.save(); cx.beginPath(); cx.rect(0, 0, W, BC[b]); cx.clip();   // (the segment's own clip, as in the sprite pass: it can cut the band's last row)
+    for(let k = 0; k < BD[b]; k++){ const ra = Math.max(r0, DKYA[k]), rb = Math.min(r1, DKYB[k]); if(rb < ra) continue; GA_SET.call(cx, DKA[k] * BE[b]); cx.fillRect(Math.round((DKX[k] - DKW[k] / 2) / PX) * PX, ra * PX, DKW[k], (rb - ra + 1) * PX); }
+    cx.restore(); }
+  cx.restore();
+  for(let k = 0; k < PLN && !late; k++) if(PLF[k] & 2) late = 1;
+  // the late pools (tail lights over a car's dark image) on these bands: few, so on cx as before (a second GPU layer drawn into cx after the
+  // first was cleared is avoided: it would cost another full-frame composite, and whether drawImage snapshots a WebGL canvas at call time
+  // is not something to rely on across browsers)
+  if(late){ cx.save(); cx.globalCompositeOperation = 'lighter'; PLCC = ''; PEX = 1;
+    try{ for(let b = 0; b < n; b++){ PE = BE[b]; cx.save(); cx.beginPath(); cx.rect(0, 0, W, BC[b]); cx.clip(); PLCC = '';   // (restore() resets fillStyle: forget fillC's cached colour)
+        for(let k = 0; k < PLN; k++){ if(PLYB[k] < BR0[b] || PLYA[k] > BR1[b] || !(PLF[k] & 2)) continue; hotPool(k, BR0[b], BR1[b]); } cx.restore(); } }
+    finally { PEX = 0; cx.restore(); } }
+  return st.instances; };
 function maskAt(T, u, v){ const x = Math.max(0, Math.min(LW[1] - 1, ((u + 1) * LW[1] / 2) | 0)), y = ((v / 4) | 0) % LH[1]; return T.m[1][y * LW[1] + x] / 255; }
 function drawSegBack(s, sx, sy, uw, fog){ if(!RM.on || !RM.ready || state === 'ready') return; const t0 = performance.now();
   try{ if(FR.f !== DRAWN) prep(); const n = s.index - FR.base; if(n < 0 || n >= 1024) return;
+    SCLIP = s.clip; if(RM.pass === 2){ const E = WFE[n]; if(E){ WFE[n] = null; E.wetFX(s, n, WFS[n], WFR[n], RV, WFW[n], WFT[n]); } return; }   // (?gl: this segment's wetFX only; its material and pools came in the pre-pass)
     if(FKG >= 0 && s.index >= FKG - SPLIT_PRE - 40) { const fk = (FKG - SPLIT_PRE - s.index) / 40; if(fk <= 0) return; layer(s, n, fk); }
     else layer(s, n, 1);
   } finally { FR.ms += performance.now() - t0; } }
@@ -392,7 +426,7 @@ function paint(s, n, key, wt, src){ if(wt < .03) return; const p = RP[key]; if(!
   if(src){ g.globalCompositeOperation = 'source-over'; return; }
   if(PLN && r1 >= r0){ drawPools(r0, r1); POOLED = true; }
   SA(1); g.globalCompositeOperation = 'source-over';
-  const E2 = ENV[key]; if(E2 && E2.wetFX && r1 >= r0) E2.wetFX(s, n, r0, r1, RV, wet, T); }
+  const E2 = ENV[key]; if(E2 && E2.wetFX && r1 >= r0){ if(RM.pass === 1){ WFE[n] = E2; WFS[n] = r0; WFR[n] = r1; WFW[n] = wet; WFT[n] = T; } else E2.wetFX(s, n, r0, r1, RV, wet, T); } }
 // one row of a strip across [x0, x1] (CSS px), on the grid, cropped to the screen
 function blitRow(C, X0, X1, r, vr, hh){ const cw = C.width, dx0 = Math.round(X0 / PX) * PX, dx1 = Math.round(X1 / PX) * PX, ax = Math.max(0, dx0), bx = Math.min(W, dx1); if(bx <= ax || X1 <= X0) return;
   const su0 = (ax - X0) / (X1 - X0) * cw, su1 = (bx - X0) / (X1 - X0) * cw, u0 = Math.max(0, su0), u1 = Math.min(cw, su1); if(u1 - u0 <= 0) return;
@@ -429,8 +463,8 @@ function DARK(lx, by, uw, h, w, al){ if(!PK.hot || DKN >= DKM || !(uw > 0) || !(
   const k = DKN++; DKX[k] = lx; DKB[k] = by; DKW[k] = Math.max(PX, Math.round(Math.min(w, W * .1) / PX) * PX); DKA[k] = al; DKYA[k] = ya; DKYB[k] = yb; PLHOT = 1; }
 POOL.dark = DARK;
 let PL_rs = -1, PL_I = 0, PL_W = 0, PL_X = 0, PL_lx = 0, PL_a = 0;
-function poolFlush(re){ if(PL_rs >= 0 && PL_I > 0){ const x = PL_lx + PL_X; SA(Math.min(1, PL_a * PL_I)); cx.fillRect(Math.round((x - PL_W / 2) / PX) * PX, PL_rs * PX, PL_W, (re - PL_rs) * PX);
-    if(PL_W >= PX * 10){ const w2 = Math.round(PL_W * 1.8 / PX) * PX; SA(Math.min(1, PL_a * PL_I * .28)); cx.fillRect(Math.round((x - w2 / 2) / PX) * PX, PL_rs * PX, w2, (re - PL_rs) * PX); } } }
+function poolFlush(re){ if(PL_rs >= 0 && PL_I > 0){ const x = PL_lx + PL_X; PA(Math.min(1, PL_a * PL_I)); PR(Math.round((x - PL_W / 2) / PX) * PX, PL_rs * PX, PL_W, (re - PL_rs) * PX);
+    if(PL_W >= PX * 10){ const w2 = Math.round(PL_W * 1.8 / PX) * PX; PA(Math.min(1, PL_a * PL_I * .28)); PR(Math.round((x - w2 / 2) / PX) * PX, PL_rs * PX, w2, (re - PL_rs) * PX); } } }
 /* One pool's rows inside [r0, r1]: the mirror image of a light standing h0..h1 above its base, stretched toward the viewer (to ~1.9x its height),
    full in the puddles and thinner on the film, shivering sideways in the ripples except where the water is deep; out to its limit across (the
    pavements' puddles are the road's mask, mirrored). Runs of equal rows are one rect, with a dimmer wider fringe near by (a rough mirror's spread). */
@@ -438,13 +472,14 @@ function poolFlush(re){ if(PL_rs >= 0 && PL_I > 0){ const x = PL_lx + PL_X; SA(M
    a row is already finer than the mask, and the same whole-pixel grid. The colour is set only when it changes (pools come in runs of one light). */
 const PL_HALF = 48;
 function drawPools(r0, r1){ const c0 = cx.fillStyle; let cc = '';
-  if(PLHOT){ hotPools(r0, r1); cx.fillStyle = c0; return; }
-  for(let k = 0; k < PLN; k++){ if(PLYB[k] < r0 || PLYA[k] > r1) continue; cc = plainPool(k, r0, r1, cc); }
-  cx.fillStyle = c0; }
+  GB = RM.pass === 1 ? RM.gb : null; if(GB) PE = EDGE;
+  try{ if(PLHOT){ hotPools(r0, r1); return; }
+    for(let k = 0; k < PLN; k++){ if(PLYB[k] < r0 || PLYA[k] > r1) continue; cc = plainPool(k, r0, r1, cc); } }
+  finally { cx.fillStyle = c0; GB = null; } }
 function plainPool(k, r0, r1, cc){ {
     const lx = PLX[k], by = PLB[k], uw = PLU[k], h0 = PLH0[k], h1 = PLH1[k], w0 = PLW[k], lim = PLL[k], T = PLT[k];
     const yt = by + h0 * uw * .9, ym = by + (h0 + h1) * .5 * uw, ye = by + (h1 * 1.9 + .25) * uw, dm = Math.max(1, ym - yt), de = Math.max(1, ye - ym), ra = Math.max(r0, PLYA[k]), rb = Math.min(r1, PLYB[k]), half = uw < PL_HALF;
-    if(PLC[k] !== cc){ cc = PLC[k]; cx.fillStyle = cc; } PL_rs = -1; PL_I = 0; PL_W = 0; PL_X = 0; PL_lx = lx; PL_a = PLA[k];
+    if(PLC[k] !== cc){ cc = PLC[k]; PF(cc); } PL_rs = -1; PL_I = 0; PL_W = 0; PL_X = 0; PL_lx = lx; PL_a = PLA[k];
     for(let r = ra; r <= rb; r++){ if(half && (r & 1) && r > ra) continue; let I = 0, ww = 0, ox = 0;
       if(ROWN[r] >= 0){ const u = (lx - ROWX[r]) / ROWW[r], au = u < 0 ? -u : u;
         if(au < lim){ const yc = (r + .5) * PX, pr = yc < ym ? .45 + .55 * (yc - yt) / dm : Math.max(0, 1 - (yc - ym) / de), m = maskAt(T, au <= 1 ? u : (u > 0 ? 2 - au : au - 2), ROWV[r]);
@@ -461,10 +496,11 @@ function plainPool(k, r0, r1, cc){ {
 const HOT_S = 1.7, HOT_LONG = .6, HOT_G = 1.3, HRM = 1024, HRS = new Int16Array(HRM), HRE = new Int16Array(HRM), HRX = new Float32Array(HRM), HRW = new Float32Array(HRM), HRA = new Float32Array(HRM), HRI = new Float32Array(HRM), HRB = new Int8Array(HRM);
 const HOTC = new Map(); let PLCC = '';
 const hotCol = c => { let h = HOTC.get(c); if(h === undefined){ if(HOTC.size > 400) HOTC.clear(); h = mixHex(c, '#ffffff', .45); HOTC.set(c, h); } return h; };
-const fillC = c => { if(c !== PLCC){ PLCC = c; cx.fillStyle = c; } };
+const fillC = c => { if(c !== PLCC){ PLCC = c; PF(c); } };
 function hotPools(r0, r1){ PLCC = ''; let cc = '';
   for(let k = 0; k < PLN; k++){ if(PLYB[k] < r0 || PLYA[k] > r1 || (PLF[k] & 2)) continue; if(PLF[k] & 1) hotPool(k, r0, r1); else { cc = plainPool(k, r0, r1, PLCC); PLCC = cc; } }
-  if(DKN){ cx.globalCompositeOperation = 'source-over'; fillC('#05060c');
+  if(GB){ for(let k = 0; k < DKN; k++) if(DKYA[k] <= r1 && DKYB[k] >= r0){ if(BN < BNM){ BR0[BN] = r0; BR1[BN] = r1; BE[BN] = PE; BC[BN] = SCLIP; BD[BN] = DKN; BN++; } return; } }   // (?gl: a band a break crosses waits for glEnd)
+  else if(DKN){ cx.globalCompositeOperation = 'source-over'; fillC('#05060c');
     for(let k = 0; k < DKN; k++){ const ra = Math.max(r0, DKYA[k]), rb = Math.min(r1, DKYB[k]); if(rb < ra) continue; SA(DKA[k]); cx.fillRect(Math.round((DKX[k] - DKW[k] / 2) / PX) * PX, ra * PX, DKW[k], (rb - ra + 1) * PX); }
     cx.globalCompositeOperation = 'lighter'; }
   for(let k = 0; k < PLN; k++){ if(PLYB[k] < r0 || PLYA[k] > r1 || !(PLF[k] & 2)) continue; hotPool(k, r0, r1); } }
@@ -483,8 +519,8 @@ function hotPool(k, r0, r1){ const lx = PLX[k], by = PLB[k], uw = PLU[k], h0 = P
           if(I > 0){ const t = (yc - by) / span; ww = Math.round(Math.max(PX, w0 * (.75 + .4 * m) * (1 + 1.1 * t)) / PX) * PX; if(m < .8) ox = Math.round((ih(vr, PK.ph, 5) - .5) * ww * .3 / PX) * PX; } } } }
     if(I !== cI || ww !== cW || ox !== cX || bd !== cB || r > rb){ if(rs >= 0 && cI > 0 && n < HRM){ HRS[n] = rs; HRE[n] = r; HRX[n] = lx + cX; HRW[n] = cW; HRA[n] = al * cI; HRI[n] = cI; HRB[n] = cB; n++; } rs = r; cI = I; cW = ww; cX = ox; cB = bd; } }
   if(!n) return;
-  for(let q = 0; q < n; q++){ const w = HRW[q]; if(w < PX * 3 || HRI[q] < .72) continue; const w2 = Math.round(w * 1.6 / PX) * PX; fillC(HRB[q] < 0 || !pf.c[HRB[q]] ? PLC[k] : pf.c[HRB[q]]); SA(Math.min(1, HRA[q] * .38)); cx.fillRect(Math.round((HRX[q] - w2 / 2) / PX) * PX, HRS[q] * PX, w2, (HRE[q] - HRS[q]) * PX); }
-  for(let q = 0; q < n; q++){ const c = HRB[q] < 0 || !pf.c[HRB[q]] ? PLC[k] : pf.c[HRB[q]], w = HRW[q]; fillC(HRI[q] === 1 && w >= PX * 2 && HRA[q] >= .7 ? hotCol(c) : c); SA(Math.min(1, HRA[q] * HOT_G)); cx.fillRect(Math.round((HRX[q] - w / 2) / PX) * PX, HRS[q] * PX, w, (HRE[q] - HRS[q]) * PX); } }
+  for(let q = 0; q < n; q++){ const w = HRW[q]; if(w < PX * 3 || HRI[q] < .72) continue; const w2 = Math.round(w * 1.6 / PX) * PX; fillC(HRB[q] < 0 || !pf.c[HRB[q]] ? PLC[k] : pf.c[HRB[q]]); PA(Math.min(1, HRA[q] * .38)); PR(Math.round((HRX[q] - w2 / 2) / PX) * PX, HRS[q] * PX, w2, (HRE[q] - HRS[q]) * PX); }
+  for(let q = 0; q < n; q++){ const c = HRB[q] < 0 || !pf.c[HRB[q]] ? PLC[k] : pf.c[HRB[q]], w = HRW[q]; fillC(HRI[q] === 1 && w >= PX * 2 && HRA[q] >= .7 ? hotCol(c) : c); PA(Math.min(1, HRA[q] * HOT_G)); PR(Math.round((HRX[q] - w / 2) / PX) * PX, HRS[q] * PX, w, (HRE[q] - HRS[q]) * PX); } }
 
 // ---------------------------------------------------------------- the lab (roadlab.html): postMessage, same origin only
 if(LAB){ const C = RM.lab = { freeze:false, pos:-1, x:null, speed:-1, pitch:null, night:null, traffic:true };

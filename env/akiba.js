@@ -699,13 +699,19 @@
     if(f >= 12 && f < 16){ const r = f - 11; for(let a = 0; a < 8; a++) ap(I, 21 + Math.round(Math.cos(a * .785) * r), 4 + Math.round(Math.sin(a * .785) * r), a & 1 ? '#ffe23a' : '#ff7a1a'); }
     if(f >= 6 && f < 12) af(I, fx + 4, 18 - (f - 6) * 2.4, 1, 2, '#ffffff');
     as(I, SHIP, fx, 11, false); for(let x = 0; x < 32; x += 2) ap(I, x, 19, '#2a2a5a'); return acv(I); }
-  const ART = { ban:[], bb:[], po:[], band:[], wrap:[], plate:[], shop:[], crane:[], fox:[], att:[] };
+  /* The gantry's channel change (64 x 40, 2 frames, 1-bit): snow in horizontal dashes of 1-3 LEDs, each row its own density (the tuner
+     hunting), a thick bright band and a thin dark one where the picture would roll (anime's flicked-channel cel, not a noise texture). */
+  function staticFrame(f){ const I = AI(64, 40), bb = f ? 25 : 8; af(I, 0, 0, 64, 40, '#08070e');
+    for(let y = 0; y < 40; y++){ const inb = y >= bb && y < bb + 4, dn = inb ? .9 : y === bb + 4 || y === bb - 1 ? 0 : .05 + .3 * H1(f * 31.7 + y * 1.93) * H1(f * 7.1 + y * .37); let x = 0;
+      while(x < 64){ const h = H1(f * 977.1 + y * 61.37 + x * 1.711), run = 1 + Math.floor(H1(h * 53.9 + y) * 3); if(h < dn) af(I, x, y, run, 1, '#dcdff0'); x += run + (h < dn ? 1 : 0); } }
+    return acv(I); }
+  const ART = { ban:[], bb:[], po:[], band:[], wrap:[], plate:[], shop:[], crane:[], fox:[], att:[], stat:[] };
   // the stepped build (one piece a step, research/sundown-craft/first60.md); after the text atlas, which builds the glyph scratch canvas
   /* One atlas for everything (round 4 perf): ~300 small canvases drawn from per frame thrashed the GPU canvas's image cache (frames of
      80-110 ms on desktop); every level of every piece and every screen frame now lives in one 1024-wide texture, packed in shelves. */
   let AT = null;
   const fobj = c => ({ c, x:0, y:0, w:c.width, h:c.height });
-  function* artSteps(){ const T = { ban:[], bb:[], po:[], band:[], wrap:[], plate:[], shop:[], crane:[], fox:[], att:[] };
+  function* artSteps(){ const T = { ban:[], bb:[], po:[], band:[], wrap:[], plate:[], shop:[], crane:[], fox:[], att:[], stat:[] };
     for(let v = 0; v < BAN.length; v++){ T.ban[v] = banner(v); yield; }
     for(let v = 0; v < NBB + BRANDS.length; v++){ T.bb[v] = billboard(v); yield; }
     for(let v = 0; v < NPO + BRANDS.length; v++){ T.po[v] = poster(v); yield; }
@@ -713,19 +719,28 @@
     for(let v = 0; v < 2; v++){ T.wrap[v] = wrap(v); yield; } for(let v = 0; v < BRANDS.length; v++){ T.wrap[2 + v] = wrapBrand(BRANDS[v]); yield; }
     for(let ic = 0; ic < ICON.length; ic++) for(let p = 0; p < PAN.length; p++){ T.plate[ic * PAN.length + p] = plateArt(ic, p); yield; }
     T.shopv = []; T.int = []; T.rfh = []; for(let v = 0; v < SHOPN; v++){ T.shopv[v] = []; T.int[v] = []; T.rfh[v] = []; for(let r = 0; r < 2; r++){ const S = shopLayers(v, r); T.shopv[v][r] = acomp(S.C); T.rfh[v][r] = reflH(S.C); yield; T.int[v][r] = S.flat ? null : []; if(!S.flat) for(const Lq of S.Ls){ T.int[v][r].push(acomp(Lq)); yield; } } T.shop[v] = T.shopv[v][0]; }
-    for(let f = 0; f < 40; f++){ T.crane[f] = fobj(craneFrame(f)); yield; } for(let f = 0; f < 40; f++){ T.fox[f] = fobj(foxFrame(f)); yield; } for(let f = 0; f < 16; f++){ T.att[f] = fobj(attractFrame(f)); yield; }
-    const all = []; for(const k of ['ban', 'bb', 'po', 'band', 'wrap', 'plate', 'shop']) for(const A of T[k]) all.push(...A.L); for(let v = 0; v < SHOPN; v++){ all.push(...T.shopv[v][1].L); for(const Q of T.int[v]) if(Q) for(const A of Q) all.push(...A.L); } for(const k of ['crane', 'fox', 'att']) all.push(...T[k]);
+    for(let f = 0; f < 40; f++){ T.crane[f] = fobj(craneFrame(f)); yield; } for(let f = 0; f < 40; f++){ T.fox[f] = fobj(foxFrame(f)); yield; } for(let f = 0; f < 16; f++){ T.att[f] = fobj(attractFrame(f)); yield; } for(let f = 0; f < 2; f++){ T.stat[f] = fobj(staticFrame(f)); yield; }
+    const all = []; for(const k of ['ban', 'bb', 'po', 'band', 'wrap', 'plate', 'shop']) for(const A of T[k]) all.push(...A.L); for(let v = 0; v < SHOPN; v++){ all.push(...T.shopv[v][1].L); for(const Q of T.int[v]) if(Q) for(const A of Q) all.push(...A.L); } for(const k of ['crane', 'fox', 'att', 'stat']) all.push(...T[k]);
     all.sort((a, b) => b.h - a.h || b.w - a.w); let x = 0, y = 0, rh = 0; for(const o of all){ if(x + o.w > 1024){ x = 0; y += rh + 1; rh = 0; } o.x = x; o.y = y; x += o.w + 1; if(o.h > rh) rh = o.h; } yield;
     const at = mk(1024, y + rh + 1), g = at.getContext('2d'); yield;
     for(let i = 0; i < all.length; i += 24){ for(let q = i; q < Math.min(all.length, i + 24); q++){ const o = all[q]; g.drawImage(o.c, o.x, o.y); } yield; }
     upW(at); yield;
     try{ cx.save(); cx.setTransform(1, 0, 0, 1, 0, 0); cx.globalAlpha = .004; cx.drawImage(at, 0, 0, 1, 1); cx.restore(); }catch(e){ try{ cx.restore(); }catch(e2){} }   // its texture uploaded now, never on a ride's first frame
+    /* (bug fix, Kellan: "the big panel signs ... look like they don't have any graphics on them") A screen frame's x, y are now its place in
+       the atlas, but its c was still its own small canvas, and screenAt draws fr.c || AT (fr.c for env/akiba_ads.js frames, whose c is their
+       atlas): the source rect fell outside the 64 x 40 canvas and nothing was drawn. The crane gantry, the fox corner screens and the arcade
+       attract screens were all blank. Every packed screen frame now points at the atlas it lives in (and the small canvases are let go). */
+    for(const k of ['crane', 'fox', 'att', 'stat']) for(const o of T[k]) o.c = at;
     AT = at; Object.assign(ART, T); }
   /* A video screen at (sx, sy, sw x sh): the frame drawn with its edges on the pixel grid, then the LED grid fading in as its pixels grow
      past two screen pixels (following the screen's placement, so every line falls between two LEDs), and a slow bright roll (the refresh). */
-  function screenAt(fr, sx, sy, sw, sh, now){ if(!fr || !(fr.c || AT) || sw < PX * 2) return; const fw = fr.w, fh = fr.h, k = sw / fw, x0 = jbE(sx, 0, k), x1 = jbE(sx, fw, k), y0 = jbE(sy, 0, sh / fh), y1 = jbE(sy, fh, sh / fh); if(x1 <= x0 || y1 <= y0) return;
+  function screenAt(fr, sx, sy, sw, sh, now, roll){ if(!fr || !(fr.c || AT) || sw < PX * 2) return; const fw = fr.w, fh = fr.h, k = sw / fw, x0 = jbE(sx, 0, k), x1 = jbE(sx, fw, k), y0 = jbE(sy, 0, sh / fh), y1 = jbE(sy, fh, sh / fh); if(x1 <= x0 || y1 <= y0) return;
     if(!ON){ cx.fillStyle = '#06060a'; cx.fillRect(x0, y0, x1 - x0, y1 - y0); return; }
-    cx.imageSmoothingEnabled = false; cx.drawImage(fr.c || AT, fr.x, fr.y, fw, fh, x0, y0, x1 - x0, y1 - y0);
+    cx.imageSmoothingEnabled = false;
+    // roll (the gantry's channel change): the picture slipped down by roll of its height, wrapping, the blanking bar dark at the seam (two blits)
+    if(roll > 0){ const S = fr.c || AT, rr = Math.max(1, Math.min(fh - 3, Math.round(roll * fh))), ya = jbE(sy, rr, sh / fh), bh = Math.min(ya - y0, Math.max(PX, jbE(sy, rr, sh / fh) - jbE(sy, rr - 2, sh / fh)));
+      cx.drawImage(S, fr.x, fr.y + fh - rr, fw, rr, x0, y0, x1 - x0, ya - y0); cx.drawImage(S, fr.x, fr.y, fw, fh - rr, x0, ya, x1 - x0, y1 - ya); cx.fillStyle = '#04030a'; cx.fillRect(x0, ya - bh, x1 - x0, bh); }
+    else cx.drawImage(fr.c || AT, fr.x, fr.y, fw, fh, x0, y0, x1 - x0, y1 - y0);
     const ex = clamp((k / PX - 2) / 1, 0, 1), a0 = cx.globalAlpha; if(ex > 0){ cx.globalAlpha = a0 * ex * .55; cx.fillStyle = '#04030a'; const uy = sh / fh;
       for(let i = 1; i < fw; i++){ const xx = jbE(sx, i, k); if(xx > 0 && xx < W) cx.fillRect(xx, y0, PX, y1 - y0); } for(let j2 = 1; j2 < fh; j2++){ const yy = jbE(sy, j2, uy); if(yy > 0 && yy < H) cx.fillRect(x0, yy, x1 - x0, PX); } }
     if(!reduce && k > PX){ const ry = y0 + snp(((now / 2600) % 1) * (y1 - y0)); cx.globalAlpha = a0 * .07; cx.fillStyle = '#ffffff'; cx.fillRect(x0, ry, x1 - x0, Math.min(y1 - ry, snp((y1 - y0) * .12) + PX)); }
@@ -1313,7 +1328,7 @@
   function place(i, s){ regDir(); const L = visitOf(i); s.akLit = 0; if(!L) return; const sp = s.sprites, c = crossAt(L, i), inBr = L.BR >= 0 && i >= L.BR - 3 && i < L.BR + BD + 3;
     if(inBr || (c >= 0 && i >= c - 4 && i < c + CW + 4)) s.zeb = true;
     if(c >= 0 || (L.BR >= 0 && i >= L.BR - 8 && i < L.BR + BD + 8)) s.akNoHz = true;   // (no side lane at a crossing or under the bridge: the core calls a lane off where a segment carries zeb)
-    if(c >= 0 && i === c + CW + 3 && !(L.X.indexOf(c) & 1)){ sp.push({ env:KEY, type:'gnt', x:0, k:i }); s.akG = 1; }   // round 5: the hero screen (round 6: the cranes) on a gantry over the road, straight ahead
+    if(c >= 0 && i === c + CW + 3 && !(L.X.indexOf(c) & 1)){ { const g = gntSp(L, c, i); sp.push(g); s.akG = g; } }   // round 5: the hero screen (round 6: the cranes) on a gantry over the road, straight ahead
     if(c >= 0){ s.akX = i - c; if(i === c + CW) for(const side of [-1, 1]){ const B = bAt(L, side, i) || bAt(L, side, i + 1); sp.push({ env:KEY, type:'xf', x:side * ((B ? B.x0 + B.depth : 3.8)), side, k:i }); } }
     if(L.BR >= 0 && i >= L.BR && i <= L.BR + BD) sp.push({ env:KEY, type:'br', x:0, k:i, L });
     for(const side of [-1, 1]){ const B = bAt(L, side, i); if(B) sp.push({ env:KEY, type:'b', x:side * B.x0, k:i, b:B }); }
@@ -1424,7 +1439,8 @@
     return (B.rs = o); }
   function wetSrc(s, n, a, P){ if(!RAINON || AKX.includes('nrpool')) return; const V = s.akV !== undefined ? s.akV : (s.akV = visitOf(s.index) || null); if(!V) return; const i = s.index, uw = a.w; if(!(uw > .5)) return;
     if(n > 100) return; const st = n < 10 ? 2 : n < 30 ? 4 : 8, fa = 1 - Math.pow(n / DRAW, 1.6) * .9, lx = 0;   // (bug fix: the gantry and the train stand over the road, which a side lane does not push)
-    if(s.akG && onAt(i)){ const x = a.x + lx * uw; P(x, a.y, uw, 1.66, 2.91, 2 * uw, '#4a5cc8', .85 * fa); P(x + .25 * uw, a.y, uw, 2.1, 2.7, .55 * uw, '#f0e4c8', 1 * fa); P(x, a.y, uw, 1.58, 1.66, 1.9 * uw, '#ffb02a', .9 * fa); }   // (refl: the moon's cream core runs the length of the road)
+    if(s.akG && onAt(i)){ const x = a.x + lx * uw, G = s.akG, gc = (G.D && GCOL[gChan(G, Math.floor((performance.now() + G.ph) / GDW))]) || '#4a5cc8'; P(x, a.y, uw, 1.66, 2.91, 2 * uw, gc, .85 * fa);   // (the screen's pool takes its programme's colour, as its halo does)
+ P(x + .25 * uw, a.y, uw, 2.1, 2.7, .55 * uw, '#f0e4c8', 1 * fa); P(x, a.y, uw, 1.58, 1.66, 1.9 * uw, '#ffb02a', .9 * fa); }   // (refl: the moon's cream core runs the length of the road)
     // the blackout's lights: the train standing lit across the bridge, the signals on backup power (their pools are all the street has)
     if(i === V.BR && SPA.on && SPA.L === V && !SPA.rel2) P(a.x + lx * uw, a.y, uw, HT + .3, HT + .6, 3.2 * uw, '#ffd23a', .75 * fa);
     // the signals (drawSig): the green lamp in the head over the road, the pedestrians' red box on the pole
@@ -1535,6 +1551,35 @@
     if(t === 'b') return drawB(sp, x, y, uw, fog, now); if(t === 'w') return drawWire(sp, x, y, uw, fog, now); if(t === 'lamp') return drawLamp(sp, x, y, uw, fog, now); if(t === 'pole') return drawPole(sp, x, y, uw, fog, now);
     if(t === 'ped') return drawPed(sp, x, y, uw, fog, now); if(t === 'xf') return drawXF(sp, x, y, uw, fog, now); if(t === 'sig') return drawSig(sp, x, y, uw, fog, now); if(t === 'trk') return drawTruck(sp, x, y, uw, fog, now);
     if(t === 'pv') return drawProp(sp, x, y, uw, fog, now); if(t === 'br') return drawBridge(sp, x, y, uw, fog, now); if(t === 'gnt') return drawGantry(sp, x, y, uw, fog, now); }
+  /* Round 9 (Kellan: "add beautiful animations to them ... the ads should rotate"): each gantry is a channel. Seven programmes, the cranes and
+     the six adverts of env/akiba_ads.js, in one shuffled deck per visit. Each gantry deals its own cut of it: the cards on the corner screens at
+     either neighbouring crossing and on the end walls and roof boards framed with it are left out (so no screen in view repeats it), and it
+     starts three cards on from the gantry before (gantries stand two crossings apart, past the draw distance). A programme dwells 8 s. The change is anime's flicked channel, four held cels of 75 ms, 1-bit, no tween:
+     the old picture slips a third of its height, two cels of snow, the new one drops in still slipping. The tall adverts (jelly, hana) and
+     the wide navi stand centred in a matte of their own colour taken nearly to black, a rule of it lit along their edges. The halo takes the
+     programme's colour. Reduced motion (or no flashes): each holds its tag card and the change is a cut. Dead in the blackout (onAt). */
+  const GCH = ['crane', 'whale', 'jelly', 'sat', 'navi', 'ramen', 'hana'], GDW = 8000, GTR = 300, GCOL = { crane:'#e8d8a0' }, GMAT = {}, GRUL = {};
+  for(const k of GCH) if(ADS[k]) GCOL[k] = ADS[k].col;
+  function gDeck(L){ const d = GCH.slice(); let sd = L.B0 * .0291 + 7.7; for(let n = d.length - 1; n > 0; n--){ const j = Math.floor(H1(sd += 1.37) * (n + 1)), t = d[n]; d[n] = d[j]; d[j] = t; } return d; }
+  function gntSp(L, c, i){ if(!GMAT.crane){ GMAT.crane = GRUL.crane = '#000'; for(const k in GCOL){ GMAT[k] = mixc(GCOL[k], '#05040a', .9); GRUL[k] = mixc(GCOL[k], '#05040a', .45); } }   // (mixc is the core's, defined after the env scripts load)
+    const q = L.X.indexOf(c), D = L.gd || (L.gd = gDeck(L)), ban = [];
+    for(const qq of [q - 1, q + 1]){ const xq = L.X[qq]; if(xq === undefined) continue; for(const side of [-1, 1]){ const B = bAt(L, side, xq + CW); if(B && B.hero >= 0 && B.b0 === xq + CW && B.ad) ban.push(B.ad); } }
+    const near = []; for(const row of L.rows) for(const B of row) if(Math.abs(B.b0 - i) < 60){ if(B.ew && B.ew.ad) near.push(B.ew.ad); if(B.rb && B.rb.ad) near.push(B.rb.ad); }   // the adverts on the end walls and roof boards framed with it
+    let Dg = D.filter(id => ban.indexOf(id) < 0 && near.indexOf(id) < 0); if(Dg.length < 4) Dg = D.filter(id => ban.indexOf(id) < 0);   // (its own deck: a skipped card would otherwise hold the next one for two dwells)
+    return { env:KEY, type:'gnt', x:0, k:i, D:Dg, o:(q >> 1) * 3, ph:(((q >> 1) * .37) % 1) * GDW, ban:ban.concat(near) }; }
+  function gChan(sp, n){ const D = sp.D, m = D.length; return D[((n + sp.o) % m + m) % m]; }
+  const gCrane = now => ART.crane[reduce ? 20 : Math.floor(now / 120) % 40];
+  function gntScreen(sp, sx, sy, sw, sh, t, now){ if(!sp.D) return screenAt(gCrane(now), sx, sy, sw, sh, now);
+    const fx = !reduce && !(window.ASSIST && ASSIST.noFlash), tt = now + sp.ph, n = Math.floor(tt / GDW), id = gChan(sp, n), e = tt - n * GDW;
+    halo(sx - t, sy - t, sw + t * 2, sh + t * 2, GCOL[id], 1.3);
+    if(!ON) return screenAt(gCrane(now), sx, sy, sw, sh, now);   // (dead: screenAt paints the panel black)
+    if(fx && e < GTR){ const c = Math.floor(e / (GTR / 4)); if(c === 1 || c === 2) return screenAt(ART.stat[c - 1], sx, sy, sw, sh, now); return gProg(c ? id : gChan(sp, n - 1), sx, sy, sw, sh, now, c ? .55 : .3); }
+    gProg(id, sx, sy, sw, sh, now, 0); }
+  function gProg(id, sx, sy, sw, sh, now, roll){ const fr = id === 'crane' ? gCrane(now) : adFrame(id, now) || gCrane(now); if(!fr) return; const fw = fr.w, fh = fr.h;
+    if(Math.abs(fw * sh - fh * sw) < fh * sw * .04) return screenAt(fr, sx, sy, sw, sh, now, roll);
+    const k = Math.min(sw / fw, sh / fh), aw = snp(fw * k), ah = snp(fh * k), ax = sx + snp((sw - aw) / 2), ay = sy + snp((sh - ah) / 2), rl = F(GRUL[id]);
+    R(sx, sy, sw, sh, F(GMAT[id])); if(aw < sw - PX * 2){ R(ax - PX, ay, PX, ah, rl); R(ax + aw, ay, PX, ah, rl); } if(ah < sh - PX * 2){ R(ax, ay - PX, aw, PX, rl); R(ax, ay + ah, aw, PX, rl); }
+    screenAt(fr, ax, ay, aw, ah, now, roll); }
   /* The gantry screen (round 5): the crane hero (round 6) over the road just past a crossing, facing straight down it, as Neon Ward's jumbo does: two
      steel posts at the kerbs, a lattice beam, the screen (64 x 40 LEDs, the grid fading in near by) in a bezel, its glow, a marquee. */
   function drawGantry(sp, x, y, uw, fog, now){ if(!CF(sp.k + .5)) return; FF = fog; ON = onAt(sp.k); const u = CFU; if(u < .4) return;
@@ -1543,7 +1588,7 @@
     for(const X of [-1.22, 1.22]){ const px0 = CFX + X * u; R(px0 - pw / 2, sy - t * 3, pw, CFY - sy + t * 3, sc); if(pw > PX) R(px0 - pw / 2, sy - t * 3, PX, CFY - sy + t * 3, F('#5a5668')); }
     const bh = Math.max(PX, snp(u * .04)), by = sy - t - bh * 3; R(CFX - 1.26 * u, by, 2.52 * u, bh, sc); R(CFX - 1.26 * u, by + bh * 2, 2.52 * u, bh, sc);
     if(u > 8) for(let X = -1.2; X < 1.2; X += .2) pline(CFX + X * u, by + bh, CFX + (X + .2) * u, by + bh * 2, sc, 1);
-    bezel(sx, sy, sw, sh, t, false); halo(sx - t, sy - t, sw + t * 2, sh + t * 2, '#e8d8a0', 1.3); screenAt(ART.crane[reduce ? 20 : Math.floor(now / 120) % 40], sx, sy, sw, sh, now);
+    bezel(sx, sy, sw, sh, t, false); gntScreen(sp, sx, sy, sw, sh, t, now);
     const th = Math.max(PX * 2, snp(sh * .06)), my = sy + sh + t; R(sx - t, my, sw + t * 2, th + PX * 2, F('#141220'));
     if(ON){ const st = Math.max(PX * 2, snp(th * .8)), ph0 = reduce ? 0 : Math.floor(now / 90), byy = my + PX + snp((th - PX) / 2); cx.fillStyle = fc('#ffb02a', FF * .4); for(let xx = sx, q = 0; xx < sx + sw; xx += st, q++) if((q + ph0) % 4) pxRect(xx, byy, PX, PX); } }
 

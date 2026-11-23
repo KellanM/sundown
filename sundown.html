@@ -550,6 +550,7 @@ window.SKY_TIER = { sky:30, moon:40, far:120, mid:250, near:450, edge:700 };</sc
 <script src="env/akiba_ads.js"></script>
 <script src="env/akiba.js"></script>
 <script src="env/gion.js"></script>
+<script src="gl/batch.js"></script>
 <script src="env/roadmat.js"></script>
 <script src="mech/demo.js"></script>
 <script src="mech/director.js"></script>
@@ -630,6 +631,12 @@ const EDGE_N = 36;
 let PX = 3;   // the road is drawn at low resolution and scaled up with hard pixels
 function resize(){ W = innerWidth; H = innerHeight; PX = clamp(Math.round(H / 300), 2, 4); cv.width = Math.ceil(W / PX); cv.height = Math.ceil(H / PX); cv.style.width = cv.width * PX + 'px'; cv.style.height = cv.height * PX + 'px'; cx.setTransform(1 / PX, 0, 0, 1 / PX, 0, 0); cx.imageSmoothingEnabled = false; }
 addEventListener('resize', resize); if(window.visualViewport) visualViewport.addEventListener('resize', resize); resize();
+/* WebGL phase 2 (?gl=1; research/sundown-craft/webgl-batch.md, gl/batch.js). The GPU canvas (#cgl, never in the page) is the game canvas's
+   backing size; each frame drawRoadPass lays roadmat's material on cx and its light pools on the GPU, then draws the GPU layer into cx
+   ('lighter', 1:1 on the pixel grid) before the sprite pass, so props, cars, the bike and the HUD stay on cx above it. Off (the default, ?gl=0,
+   no WebGL, software WebGL, a lost context, a fork in view): the single-canvas path, unchanged. GLR.on switches it per frame (tests). */
+const GLR = window.GLR = (() => { if(new URLSearchParams(location.search).get('gl') !== '1' || !window.GLBatch) return null;
+  const c = document.createElement('canvas'); c.id = 'cgl'; const B = GLBatch.create(c); if(!B.ok){ window.GLR_OFF = B.reason; console.info('Sundown gl off:', B.reason); return null; } B.on = true; return B; })();
 /* Colour helpers, shared with the env/mech plugins, allocation-free after warm-up (research/sundown-architecture.md §3.7):
    hx(c) parses each distinct colour once and returns a cached, FROZEN [r, g, b]: read it or destructure it, never write to it (.slice() for a copy).
    mixc(a, b, t) quantises t to 1/32 (stepped, like the rest of the pixel art) and returns a cached 'rgb(r,g,b)' string; mixq takes the step 0..32.
@@ -1474,7 +1481,10 @@ function draw(now){ DRAWN++;
   // they are already where your road is)
   const fkB = FK_G >= 0 ? clamp(playerX / .3, -1, 1) : 0;
   if(fkB) for(let n = 0; n < DRAW; n++){ const s = segs[base.index + n]; if(!s) break; if(s.index < FK_G - SPLIT_PRE){ s.fkS1 = s.fkS2 = 0; continue; } s.p1.screen.x += (s.fkS1 = Math.round(s.p1.screen.w * fkB * fkC(s.index, FK_G))); s.p2.screen.x += (s.fkS2 = Math.round(s.p2.screen.w * fkB * fkC(s.index + 1, FK_G))); }
+  if(MECH.roadmat) MECH.roadmat.pass = 0;
+  if(GLR && GLR.on && FK_G < 0 && !FK_L) drawRoadPass(base, now);   // (?gl: roadmat's material and pools first; see GLR)
   drawSprites(base, now, sk, fga, FK_G, FK_L, FK_K, FK_A, fkB);
+  if(MECH.roadmat) MECH.roadmat.pass = 0;
   if(fkB) for(let n = 0; n < DRAW; n++){ const s = segs[base.index + n]; if(!s) break; s.p1.screen.x -= s.fkS1 || 0; s.p2.screen.x -= s.fkS2 || 0; s.fkS1 = s.fkS2 = 0; }
   // the rider, low and centred: the bike leans with steering and leans hard in a drift
   const bob = speed > 10 ? Math.sin(now / 40) * (Math.abs(playerX) > 1 ? 2 : .6) : 0, bs = Math.min(W * .2, H * .27);
@@ -1567,6 +1577,20 @@ function drawRoad(base, basePct, py, moonX, now, FK_G, FK_L, FK_K, FK_A, FK_ON, 
 const SEG_HK = { drawSeg:[], drawSegBack:[] };
 function segHooks(){ for(const nm in SEG_HK){ const L = SEG_HK[nm]; L.length = 0; for(const k in MECH){ const o = MECH[k]; if(o && o[nm]) L.push(k); } } }
 function mechSeg(L, name, s, x, y, uw, fog, now){ for(let i = 0; i < L.length; i++){ const k = L[i], o = MECH[k], fn = o && o[name]; if(fn){ try{ fn(s, x, y, uw, fog, now, undefined); }catch(err){ console.error('mech', k, name, err); } } } }
+/* (?gl) roadmat's pass, far to near, ahead of the sprite pass: each segment as the sprite pass would call it (its clip, its EDGE), material on cx,
+   pools on the GPU; then the GPU layer is drawn into cx. Exact by the row-band rule: a segment's material and pools lie on its own rows, and every
+   sprite drawn over those rows belongs to it or a nearer segment (farther sprites are clipped above them), so nothing drawn in between moves. The
+   wetFX each segment drew after its pools runs from the sprite pass as before (roadmat's pass 2). Roads without pools skip it (no gain). */
+function drawRoadPass(base, now){ const RM = MECH.roadmat; if(!RM || !RM.on || !RM.ready || state === 'ready' || !RM.plN || !GLR.begin(cv.width, cv.height, PX)) return;
+  GLR.blend('lighter'); RM.gb = GLR; RM.pass = 1;
+  try{ for(let n = DRAW - 1; n > 0; n--){ const s = segs[base.index + n]; if(!s || !s.p1.screen.scale || s.p1.camera.z <= DEPTH) continue;
+      if(n > DRAW - 1 - EDGE_N && !s.tunnel){ EDGE = (DRAW - 1 - n) / EDGE_N; if(EDGE < .04){ EDGE = 1; continue; } }
+      cx.save(); cx.beginPath(); cx.rect(0, 0, W, s.clip); cx.clip(); cx.globalAlpha = 1;
+      RM.drawSegBack(s, s.p1.screen.x, s.p1.screen.y, s.p1.screen.scale * ROADW * W / 2, clamp(Math.pow(n / DRAW, 1.6), 0, 1), now);
+      EDGE = 1; cx.restore(); } }
+  finally { EDGE = 1; RM.gb = null; }
+  RM.glEnd(GLR, glComp); RM.pass = 2; }
+function glComp(){ const c = GLR.canvas; cx.globalCompositeOperation = 'lighter'; cx.globalAlpha = 1; cx.drawImage(c, 0, 0, c.width * PX, c.height * PX); cx.globalCompositeOperation = 'source-over'; }
 function drawSprites(base, now, sk, fga, FK_G, FK_L, FK_K, FK_A, fkB){ segHooks(); oilSpan(base);
   for(let n = DRAW - 1; n > 0; n--){ const s = segs[base.index + n]; if(!s || !s.p1.screen.scale || s.p1.camera.z <= DEPTH) continue; const sc = s.p1.screen.scale, sx0 = s.p1.screen.x, sy0 = s.p1.screen.y, uw = sc * ROADW * W / 2, fog = clamp(Math.pow(n / DRAW, 1.6), 0, 1);
     cx.save(); cx.beginPath(); cx.rect(0, 0, W, s.clip); cx.clip();
@@ -2913,7 +2937,7 @@ if(/[?&]prof(=|&|$)/.test(location.search)){ const s = document.createElement('s
    A new version downloads in the background and waits. It is applied only on the title (never mid-ride): by itself once
    the title has sat untouched for a few seconds, or at once when the player taps "Update ready". Tap the version to check now. */
 (() => {
-  const VER = 'v32 · 933737', $id = (i) => document.getElementById(i);
+  const VER = 'v33 · 20e0c3', $id = (i) => document.getElementById(i);
   const SDU = window.SDUPDATE = { version: VER, waiting: null, applied: false, checks: 0 };
   let reg = null, applying = false, asked = false, needReload = false, note = '', noteT = 0, lastInput = performance.now();
   ['keydown', 'pointerdown', 'touchstart', 'wheel'].forEach((t) => addEventListener(t, () => { lastInput = performance.now(); }, { capture: true, passive: true }));
@@ -2975,5 +2999,5 @@ if(/[?&]prof(=|&|$)/.test(location.search)){ const s = document.createElement('s
   }, 1000);
 })();
 </script>
-<!-- __sdbuild:32 933737534504 --></body>
+<!-- __sdbuild:33 20e0c353f714 --></body>
 </html>

@@ -1,12 +1,13 @@
 /* Sundown set piece module: kaiju. See setpiece/README.md.
    Two set pieces, both scheduled by world position (segments after the road begins), never by time:
 
-   1. 怪獣決戦 Kaiju battle over the bay (Bay Bridge, 460 segments in). Two original giants fight astride the bridge, and you ride between the titan's feet (world-space stacked sprites: the 立体 section; research/sundown-craft/kaiju_pass.md):
+   1. 怪獣決戦 Kaiju battle over the bay (Bay Bridge, 460 segments in). Two original giants wade in the bay on either side of the bridge, facing each
+      other across it, and the road is the no-man's-land between them: you ride (and jump the cut) through the gap (world-space stacked sprites: the 立体 section; research/sundown-craft/kaiju_pass.md):
       Sairyū (帆竜), a sail-backed reptile titan, slate-violet with a bony crested snout and a Dimetrodon-style sail whose ribs charge
       amber from tail to head before it breathes a beam; and Kanigaru (蟹蛾), an oxblood armoured crab with moth wings whose
       teal eye-spots blaze. As you ride toward the trigger they rise, brawl (swipes, claw jabs, a wing flare), the titan roars,
-      charges, and fires as you pass; the beam glances off the crab's shell into a skyscraper, which collapses; the crab topples
-      into the bay and its shockwave rolls toward the bridge; the titan roars and the pair slide out to the sides as you pass between.
+      charges, and fires across the road: the beam rakes the deck between them (the cut you jump) and swings up onto the crab, glancing
+      off its shell into a skyscraper, which collapses; you fly the gap between them; the crab topples into the bay behind you.
    2. 台風 Typhoon stretch (Shonan Coast, segments 200..720 of the road): storm cloud, lightning over the sea, wind-driven rain,
       spray sheets bursting over the sea wall (the coast bends its own palms from MECH.sp_kaiju.wind()), windsocks, amber beacons and a 強風注意 gantry; gusts from the sea
       push the bike gently toward the land side. Every gust is telegraphed about a second ahead (windsocks fill, a screen windsock
@@ -242,7 +243,7 @@
     for(const k in TPOSE){ const { g, meta } = titanGrid(TPOSE[k]); S['t_' + k] = bake('t_' + k, g, TM); S['t_' + k].meta = meta; meta.wl = TWL; S['tH_' + k] = bake('tH_' + k, g, TM, HOT_R); S['tH_' + k].meta = meta;
       if(k === 'idle0' || k === 'beam' || k === 'roar') for(let lv = 1; lv <= 4; lv++) S['tG_' + k + lv] = sailGlow(lv, g); }
     for(const k in FPOSE){ const { g, meta } = foeGrid(FPOSE[k]); S['f_' + k] = bake('f_' + k, g, FM); S['f_' + k].meta = meta; meta.wl = FWL; S['fH_' + k] = bake('fH_' + k, g, FM, HOT_L); S['fH_' + k].meta = meta; }
-    for(let f = 0; f < 5; f++){ S['sp' + f] = bake('sp' + f, sprayGrid(Math.min(5, f + (f > 2 ? 1 : 0)), [24, 63], 0, 99), WM); S['ex' + f] = explosion(f); }
+    for(let f = 0; f < 5; f++){ S['sp' + f] = bake('sp' + f, sprayGrid(Math.min(5, f + (f > 2 ? 1 : 0)), [24, 63], 0, 99), WM); S['ex' + f] = explosion(f); S['wk' + f] = bake('wk' + f, splashGrid(f), WM); }
     for(const lv of [0, 1]){ S['heliN' + lv] = makeSprite(HELI_NEAR, HELI_PAL[lv], false); S['heliM' + lv] = makeSprite(HELI_MID, HELI_PAL[lv], false); }
     S.pieces = [mkPiece(3, 820, 240, 600, 1), mkPiece(7, 640, 220, 520, 1), mkPiece(11, 420, 300, 360, 1)]; DRC = document.createElement('canvas'); DRC.width = DRW; DRC.height = DRW; DRG = DRC.getContext('2d', { willReadFrequently:true }); DRI = DRG.createImageData(DRW, DRW); pats(); S.tower = tower(0); S.towerD = tower(1); for(let n = 0; n < 3; n++){ S['pf' + n] = puff(n, 0); S['pfl' + n] = puff(n, 1); } S.cloudLit = cloudLit();
     S.storm = stormBand(0); S.stormL = stormBand(1);
@@ -361,7 +362,7 @@
      built in warm/warmSteps; per frame each part takes the coarsest level whose slices stay under a pixel apart, or at full resolution
      draws 1-4 copies across each slice's thickness so no gap opens. Near the road the slices are drawn in their own segment's depth order
      (drawSegBack), so the bridge's lamps, cables and traffic sort with them; far away the whole pile is drawn in the backdrop. */
-  const V = 125, NEAR = 260;
+  const V = 165, NEAR = 260;   /* (125 when they stood on the deck; wading thigh-deep they are scaled up 1.32x so they still stand 1.5-2x the bridge's towers) */
   function VP(){ this.P = []; }
   VP.prototype.cap = function(a, b, r0, r1, m, zs, aux){ this.P.push([0, a, b, r0, r1, m, zs || 1, aux || 0]); return this; };
   VP.prototype.ell = function(c, rx, ry, rz, m){ this.P.push([1, c, rx, ry, rz, m]); return this; };
@@ -546,8 +547,8 @@
     const hip = [8, 50, z + 1], knee = up ? [26, 46, z - 1] : [22, 31, z - 1], ank = up ? [31, 29, z - 2] : [26, 10, z - 2], toe = up ? [37, 22, z - 2] : [31, 4, z - 2];
     p.cap([hip[0] - 3, hip[1] + 6, hip[2]], knee, 14, 9.5, HD, .85).ell(knee, 9.5, 9, 8.5, HD).cap(knee, ank, 9.5, 6.5, HD).ell(ank, 7, 6.5, 7, HD);
     const toes = limb(p, knee, ank, toe, z - 2, 9.5, 6.5, noToes); return { p, toes }; }
-  // the hips, the rear leg (planted beyond the left barrier: the titan straddles the bridge in a lunge, and you ride between its feet,
-  // under its belly) and the plated underside, lit from below by the burning bay as you pass beneath
+  // the hips, the rear leg (a lunge toward the crab; both feet are under the bay now, the titan wading thigh-deep left of the bridge)
+  // and the plated underside, lit from below by the burning bay
   function sHips(noToes){ const p = new VP(), HD = 1, BE = 2, z = 6, hip = [-10, 49, 5], knee = [-26, 29, z], ank = [-33, 10, z], toe = [-30, 4, z];
     p.cap([hip[0] + 2, hip[1] + 6, hip[2]], knee, 13, 9, HD, .85).ell(knee, 8.5, 8.5, 8, HD).cap(knee, ank, 9, 6.5, HD).ell(ank, 7, 6.5, 7, HD);
     const toes = limb(p, knee, ank, toe, z, 9, 6.5, noToes);
@@ -655,20 +656,38 @@
     ['f', 'shell', 'idle', () => ({ p:fShell() })], ['f', 'arch', 'idle', () => ({ p:fArch() }), 2],
     ['f', 'claw', 'idle', () => fClaw('idle'), 2], ['f', 'claw', 'raise', () => fClaw('raise'), 2], ['f', 'claw', 'strike', () => fClaw('strike'), 2], ['f', 'claw', 'hit', () => fClaw('hit'), 2],
     ['f', 'wings', 'fold', () => fWings(0)], ['f', 'wings', 'flare', () => fWings(1)] ];
-  // the two titans: X0 world units across the road (the near foot's claws stop 150 units short of the left road edge; the crab's arched
-  // leg plants just beyond it), Zo world units beyond the pass segment
-  const TT = { s:{ id:'s', X0:0, Zo:2400, parts:{}, order:['tail', 'body', 'hips', 'leg', 'head', 'arm'], sink:0, mat:null, mk:SMAT_, ht:S_HT },
-    f:{ id:'f', X0:0, Zo:3000, parts:{}, order:['wings', 'shell', 'arch', 'claw'], sink:0, mat:null, mk:FMAT_, ht:F_HT } };
+  // the two titans wade in the bay on either side of the bridge, facing each other across it: Sairyū to the left, Kanigaru to the right.
+  // X0 world units across the road (set in tsJob: whatever stands above the water stops WADE_CLR beyond the deck's edge, 3320; only the
+  // head, the arms and the claw reach out over the road, high up), Zo world units beyond their stand segment (STAND past the peak). Sairyū's
+  // mouth and the crab's chest share one depth, so the beam bar crosses the road square, just past the landing; its rake (d 72..64) cuts
+  // the deck at the middle of the break (z.B + XB), where the blast goes up.
+  // WADE_*: the waterline, in model units up the body (Sairyū thigh-deep, between knee and hip; the crab to the underside of its shell)
+  const WADE_S = 36, WADE_F = 33, WADE_CLR = 3900, MOUTH_CLR = 3000;
+  const TT = { s:{ id:'s', X0:-9000, Zo:2400, parts:{}, order:['tail', 'body', 'hips', 'leg', 'head', 'arm'], sink:0, mat:null, mk:SMAT_, ht:S_HT },
+    f:{ id:'f', X0:15000, Zo:2400 + 8 * V, parts:{}, order:['wings', 'shell', 'arch', 'claw'], sink:0, mat:null, mk:FMAT_, ht:F_HT } };
+  const WAKE = { ships:1, sleg:1, stail:1, fshell:1, farch:1 };   // the parts that cross the waterline: they get a foam collar and ripples
+  // where a part crosses the waterline: the connected cross-sections of its voxels at row wl (model units), as { x, z, rx, rz }
+  function wakeBlobs(G, wl, res, kz){ const { w, h, d, m } = G, yi = Math.round(wl * res) - G.y0, out = []; if(yi < 0 || yi >= h) return out;
+    const B = new Uint8Array(w * d); for(let z = 0; z < d; z++) for(let x = 0; x < w; x++) if(m[(z * h + yi) * w + x]) B[z * w + x] = 1;
+    for(let i = 0; i < B.length; i++){ if(B[i] !== 1) continue; let x0 = 1e9, x1 = -1e9, z0 = 1e9, z1 = -1e9, n = 0; const stk = [i]; B[i] = 2;
+      while(stk.length){ const j = stk.pop(), x = j % w, z = (j / w) | 0; n++; if(x < x0) x0 = x; if(x > x1) x1 = x; if(z < z0) z0 = z; if(z > z1) z1 = z;
+        for(const q of [j - 1, j + 1, j - w, j + w]){ if(q < 0 || q >= B.length || B[q] !== 1 || (q === j - 1 && x === 0) || (q === j + 1 && x === w - 1)) continue; B[q] = 2; stk.push(q); } }
+      if(n >= 3 * res * kz) out.push({ x:(G.x0 + (x0 + x1 + 1) / 2) / res, z:(G.z0 + (z0 + z1 + 1) / 2) / kz, rx:(x1 - x0 + 1) / 2 / res, rz:(z1 - z0 + 1) / 2 / kz }); }
+    return out; }
   function* tsJob(j){ const [who, part, pose, fn, res = 1, fine = 0, kz = 1] = TJOBS[j], T = TT[who]; TSTEP = 'model'; const r = fn(); if(!T.mat) T.mat = T.mk(); yield; YT = performance.now(); const G = yield* vGrid(vRes(r.p.P, res, kz)), st = yield* vBake(who + part + pose + (fine ? 'f' : ''), G, T.mat, T.ht, res, fine, kz);
-    st.anc = r; st.G = null; delete r.p; const PP = T.parts[part] = T.parts[part] || { name:part, poses:{}, fine:null, pose:pose, lv:null, c:1 }; if(fine){ (PP.fine = PP.fine || {})[pose] = st; return; } PP.poses[pose] = st;
+    st.anc = r; st.G = null; delete r.p; if(WAKE[who + part]) st.wl = wakeBlobs(G, who === 's' ? WADE_S : WADE_F, res, kz); const PP = T.parts[part] = T.parts[part] || { name:part, poses:{}, fine:null, pose:pose, lv:null, c:1 }; if(fine){ (PP.fine = PP.fine || {})[pose] = st; return; } PP.poses[pose] = st;
     if(who === 's' && part === 'body'){   // the sail's charge glow: the ribs lit from the tail toward the head in four hard steps, front view
       st.glow = []; for(let lv = 1; lv <= 4; lv++){ const c = document.createElement('canvas'); c.width = G.w; c.height = G.h; const k = c.getContext('2d'), img = k.createImageData(G.w, G.h), U = new Uint32Array(img.data.buffer), on = 8 - Math.ceil(lv * 7 / 4), hot = pk32('#fff4c8'), mid = pk32('#ffc04a'), low = pk32('#ff7a2a');
         for(let y = 0; y < G.h; y++) for(let x = 0; x < G.w; x++) for(let z = 0; z < G.d; z++){ const i = (z * G.h + y) * G.w + x; if(!G.m[i]) continue; const a = G.a[i]; if(a && a >= on && G.m[i] === 3){ const tip = !G.m[i + G.w] || !G.m[i - 1]; U[(G.h - 1 - y) * G.w + x] = tip ? hot : a > on + 1 ? mid : low; } break; }
         k.putImageData(img, 0, 0); st.glow.push(c); } st.gx0 = G.x0; st.gy0 = G.y0; }
     // where a foot meets the deck: the nearest voxel to the road below ankle height (side -1: its lowest x, +1: its highest)
     const footX = (side, below) => { let best = side < 0 ? 1e9 : -1e9; for(let z = 0; z < G.d; z++) for(let y = 0; y < Math.min(G.h, below * res - G.y0); y++) for(let x = 0; x < G.w; x++) if(G.m[(z * G.h + y) * G.w + x]) best = side < 0 ? Math.min(best, x) : Math.max(best, x + 1); return (G.x0 + best) * st.vs; };
-    if(who === 's' && part === 'leg' && pose === 'planted') T.X0 = 2250 - footX(-1, 12);   // the front foot's heel stops 250 units beyond the right road edge (the rear foot's toes are as far beyond the left: checked in the placement scan)
-    if(who === 'f' && part === 'arch') T.X0 = 3300 - footX(-1, 8);
+    // what stands above the water, at its nearest to the road (side +1: highest x, -1: lowest), from model row `from` up
+    const extX = (side, from) => { let best = side < 0 ? 1e9 : -1e9; for(let z = 0; z < G.d; z++) for(let y = Math.max(0, Math.round(from * res) - G.y0); y < G.h; y++) for(let x = 0; x < G.w; x++) if(G.m[(z * G.h + y) * G.w + x]) best = side < 0 ? Math.min(best, x) : Math.max(best, x + 1); return (G.x0 + best) * st.vs; };
+    if(!fine && who === 's' && (part === 'body' || part === 'hips' || part === 'tail' || part === 'leg' && pose === 'planted')) T.reach = Math.max(T.reach === undefined ? -1e9 : T.reach, extX(1, WADE_S));
+    if(!fine && who === 's' && part === 'head') T.mouthX = Math.max(T.mouthX === undefined ? -1e9 : T.mouthX, r.mouth[0] * V);
+    if(who === 's' && T.reach !== undefined) T.X0 = Math.min(-WADE_CLR - T.reach, -MOUTH_CLR - (T.mouthX === undefined ? 0 : T.mouthX));   // Sairyū: in the bay left of the deck, its snout short of the left cables
+    if(!fine && who === 'f' && (part === 'shell' || part === 'arch')){ T.reach = Math.min(T.reach === undefined ? 1e9 : T.reach, extX(-1, WADE_F)); T.X0 = WADE_CLR - T.reach; }   // Kanigaru: right of it
     if(who === 's' && part === 'hips') T.rearToe = footX(1, 12); }   // (the rear foot's toes, for the placement check)
   const TOE_ROWS = [
     '...RRR......RRR......RRR................',
@@ -711,8 +730,8 @@
   const PR = { x:0, y:0, sc:0 };
   function proj(z){ const cz = z - position; if(cz < NEAR) return null; const i = Math.floor(z / SEG), b = Math.floor(position / SEG), lim = Math.min(b + DRAW - 2, segs.length - 1), R = segs[Math.min(i, lim)];
     if(!R || !R.p1.screen.scale) return null; const sc = DEPTH / cz;
-    if(i <= lim && R.p1.camera.z > DEPTH){ const f = (z - i * SEG) / SEG, a = R.p1.screen, c = R.p2.screen; PR.x = a.x + (c.x - a.x) * f; PR.y = a.y + (c.y - a.y) * f; }
-    else { const camY = R.p1.world.y - R.p1.camera.y, s2 = segs[i], wy = s2 ? s2.p1.world.y : R.p1.world.y; PR.x = R.p1.screen.x + (W / 2 - R.p1.screen.x) * clamp((i - lim) / 160, 0, .85);   /* beyond the drawn road, eased toward the view's centre (a bend past the horizon would hide them behind the bridge) */ PR.y = H / 2 - PITCH - sc * (wy - camY) * H / 2; }
+    if(i <= lim && R.p1.camera.z > DEPTH){ const f = (z - i * SEG) / SEG, a = R.p1.screen, c = R.p2.screen; PR.x = a.x + (c.x - a.x) * f; PR.y = a.y + (c.y - a.y) * f + lerp(a.scale * (R.kjA1 || 0), c.scale * (R.kjA2 || 0), f) * H / 2; }   /* (less the break's deck deform: the titans stand in the bay, they do not ride the falling deck) */
+    else { const camY = R.p1.world.y - R.p1.camera.y, s2 = segs[i], wy = s2 ? s2.p1.world.y - (s2.kjA1 || 0) : R.p1.world.y - (R.kjA1 || 0); PR.x = R.p1.screen.x + (W / 2 - R.p1.screen.x) * clamp((i - lim) / 160, 0, .85);   /* beyond the drawn road, eased toward the view's centre (a bend past the horizon would hide them behind the bridge) */ PR.y = H / 2 - PITCH - sc * (wy - camY) * H / 2; }
     PR.sc = sc; return PR; }
   // a titan-space point (voxel units) to the screen: [x, y] in OUT, or null when it is behind the camera
   const OUT = [0, 0];
@@ -720,24 +739,27 @@
   let TDRAWS = 0;
   const INTS = { on:false, clip:false };   /* round 4: both tested in motion and left off: integer texels misalign the layers; the contour clip costs too much at the scale where it shows */
   // (INTS.on / INTS.clip turn them on for tests)   /* integer texel snapping for near slices (A/B in tests: MECH.sp_kaiju.INTS.on) */
-  const CQ = { x0:new Float64Array(8), x1:new Float64Array(8), y0:new Float64Array(8), y1:new Float64Array(8), fx:new Float64Array(8), fy:new Float64Array(8), tk:new Float64Array(8) };
+  const CQ = { x0:new Float64Array(8), x1:new Float64Array(8), y0:new Float64Array(8), y1:new Float64Array(8), fx:new Float64Array(8), fy:new Float64Array(8), tk:new Float64Array(8), sh:new Float64Array(8) };
   function tsSlice(T, P, j, zc){ const st = P.st, vs = st.vs, L = P.lv, c = L.g === 1 ? P.c : 1, rw = L.rw[j]; if(!rw) return; const rh = L.rh[j], sx = L.rx[j], sy = L.ry[j], ax = st.x0 + L.ox[j], at = st.y0 + st.h - L.oy[j];
     let n = 0, big = false;
     for(let q = c - 1; q >= 0; q--){ const pr = proj(c > 1 ? zc + ((q + .5) / c - .5) * st.vz : zc); if(!pr) continue; const k = pr.sc * W / 2;
       const x0 = snap(pr.x + (T.X0 + ax * vs) * k), x1 = snap(pr.x + (T.X0 + (ax + rw) * vs) * k), y0 = snap(pr.y - (at * vs - T.sink) * k), y1 = snap(pr.y - ((at - rh) * vs - T.sink) * k);
       if(x1 <= 0 || x0 >= W || y1 <= 0 || y0 >= H || x1 <= x0 || y1 <= y0) continue;
       if(st.fine && INTS.on){ const r = cv.width / W, fx0 = pr.x + (T.X0 + ax * vs) * k, tc = vs * k * r; if(tc >= 1.5){ const nt = Math.round(tc) / r, mx = fx0 + rw * vs * k / 2, by = pr.y - ((at - rh) * vs - T.sink) * k;   /* integer texels: whole canvas-pixel stairs */
-          const X0 = Math.round((mx - rw * nt / 2) * r) / r, Y1 = Math.round(by * r) / r; CQ.x0[n] = X0; CQ.x1[n] = X0 + rw * nt; CQ.y1[n] = Y1; CQ.y0[n] = Y1 - rh * nt; CQ.fx[n] = X0; CQ.fy[n] = Y1 - rh * nt; CQ.tk[n] = nt; n++; continue; } }
-      CQ.x0[n] = x0; CQ.x1[n] = x1; CQ.y0[n] = y0; CQ.y1[n] = y1; CQ.fx[n] = pr.x + (T.X0 + ax * vs) * k; CQ.fy[n] = pr.y - (at * vs - T.sink) * k; CQ.tk[n] = vs * k; if((x1 - x0) * cv.width / W > rw * 1.9) big = true; n++; }
+          const X0 = Math.round((mx - rw * nt / 2) * r) / r, Y1 = Math.round(by * r) / r; CQ.x0[n] = X0; CQ.x1[n] = X0 + rw * nt; CQ.y1[n] = Y1; CQ.y0[n] = Y1 - rh * nt; CQ.fx[n] = X0; CQ.fy[n] = Y1 - rh * nt; CQ.tk[n] = nt; CQ.sh[n] = rh; n++; continue; } }
+      // the waterline: they wade in the bay, so each slice is cut at the sea (the road's own level at the slice's depth: the bay is drawn
+      // flush with the deck), by whole texel rows; the foam collar (wakeAt) covers the cut
+      const wl = snap(pr.y); if(y0 >= wl) continue; let yb = y1, sh = rh; if(y1 > wl){ sh = Math.max(1, Math.floor(rh * (wl - y0) / (y1 - y0))); yb = y0 + (y1 - y0) * sh / rh; }
+      CQ.x0[n] = x0; CQ.x1[n] = x1; CQ.y0[n] = y0; CQ.y1[n] = yb; CQ.sh[n] = sh; CQ.fx[n] = pr.x + (T.X0 + ax * vs) * k; CQ.fy[n] = pr.y - (at * vs - T.sink) * k; CQ.tk[n] = vs * k; if((x1 - x0) * cv.width / W > rw * 1.9) big = true; n++; }
     if(!n) return; const ct = big && L.ct && (P.name === 'leg' || P.name === 'hips') && INTS.clip ? L.ct[j] : null;   /* (only the legs, the silhouettes nearest the camera: a clip costs) */
     if(ct){ cx.save(); cx.beginPath();   /* near: one clip for all the copies, the union of their smoothed outlines */
       for(let i = 0; i < n; i++){ const fx = CQ.fx[i], fy = CQ.fy[i], tk = CQ.tk[i]; for(const lp of ct){ cx.moveTo(fx + lp[0] * tk, fy + lp[1] * tk); for(let e = 2; e < lp.length; e += 2) cx.lineTo(fx + lp[e] * tk, fy + lp[e + 1] * tk); cx.closePath(); } }
       cx.clip('nonzero'); }
-    for(let i = 0; i < n; i++){ cx.drawImage(L.cv, sx, sy, rw, rh, CQ.x0[i], CQ.y0[i], CQ.x1[i] - CQ.x0[i], CQ.y1[i] - CQ.y0[i]); TDRAWS++; }
+    for(let i = 0; i < n; i++){ cx.drawImage(L.cv, sx, sy, rw, CQ.sh[i], CQ.x0[i], CQ.y0[i], CQ.x1[i] - CQ.x0[i], CQ.y1[i] - CQ.y0[i]); TDRAWS++; }
     if(ct) cx.restore(); }
   // per frame: each part's pose and depth LOD (the coarsest merged level whose slices stay under a pixel apart; else gap-filling copies)
-  function tsFrame(F, st, d){ const A = F.kj - PASS, camX = playerX * ROADW;
-    for(const id in TT){ const T = TT[id]; T.Z0 = A * SEG + T.Zo; T.sink = id === 's' ? (1 - st.tRise) * S_HT * V * .9 : (1 - st.fRise) * F_HT * V * .9 + st.fall * F_HT * V * .62;
+  function tsFrame(F, st, d){ const A = F.kj + STAND, camX = playerX * ROADW;
+    for(const id in TT){ const T = TT[id]; T.Z0 = A * SEG + T.Zo; T.sink = id === 's' ? (1 - st.tRise) * S_HT * V * .9 + WADE_S * V : (1 - st.fRise) * F_HT * V * .9 + st.fall * F_HT * V * .62 + WADE_F * V;
       for(const nm of T.order){ const P = T.parts[nm]; if(!P) continue; const ps = st.pose[id + nm] || P.pose, cs = P.poses[ps] || P.poses[P.pose]; P.cst = cs; P.st = cs;
         if(P.fine && P.fine[ps] && !MECH.sp_kaiju.DBGnofine){ const f = P.fine[ps], czc = Math.max(300, T.Z0 + cs.z0 * V - position); if(cs.vs * DEPTH / czc * W / 2 * cv.width / W > .5 * (cs.vs / f.vs)) P.st = f; }   /* (in canvas pixels: the 400 px layout's canvas is finer than its CSS px) */   // LOD: coarse far, fine near
         const s = P.st;
@@ -763,6 +785,40 @@
     const ga = cx.globalAlpha; cx.globalAlpha = ga * alpha; cx.imageSmoothingEnabled = false;
     let rooted = false;
     for(let i = 0; i < n; i++){ const o = ITO[i]; if(!rooted && ITP[o].name === 'head' && ITT[o].id === 's' && ITZ[o] <= ITT[o].Z0){ rooted = true; beamRoot(FR.now); } tsSlice(ITT[o], ITP[o], ITI[o], ITZ[o]); if(ITP[o].name === 'body' && ITT[o].id === 's') sailGlowAt(ITT[o], ITP[o], ITZ[o]); }
+    // the water at their legs, at each cross-section's near edge (near: in that segment's turn, after its slices)
+    for(const id in TT){ const T = TT[id]; for(const nm of T.order){ const P = T.parts[nm]; if(!P || !P.lv || !P.st.wl) continue; for(const b of P.st.wl){ const z = T.Z0 + (b.z - b.rz) * V; if(zb >= 0 && (z < za || z >= zb)) continue; wakeAt(T, nm, b, FR.now, alpha); } } }
+    cx.globalAlpha = ga; }
+  /* 波 the wading water at a leg (or the tail, or the crab's walking legs): where the part crosses the bay, as pixel art drawn flat on the
+     water plane (Hokusai's rule from the sea wall: foam as broken white dots, three blues): a broken foam collar along the front of the
+     cross-section, two dotted ripple rings spreading from it (never over the leg itself), flecks of churn thrown up and falling back. The
+     big moments throw a splash column (the 5-frame splash sprite): rising out of the bay, Sairyū's stomp, the crab going down. */
+  const WAKE_C = ['#e8f4ff', '#a8c0e0', '#6a84b8'];
+  function wakeAt(T, nm, b, now, al){ const st = FR.st; if(!st || MECH.sp_kaiju.DBGnowake) return;   /* (DBGnowake: perf A/B in tests) */ const cz = T.Z0 + b.z * V - position, pr = proj(T.Z0 + b.z * V); if(!pr || cz < NEAR) return;
+    const k = pr.sc * W / 2, x = pr.x + (T.X0 + b.x * V) * k, y = snap(pr.y), rx = Math.max(PX * 2, (b.rx * V + 220) * k), hz = H / 2 - PITCH, ry = Math.max(PX, (pr.y - hz) * (b.rz * V + 220) / cz), seed = b.x * 3.1 + b.z * 7.7 + (T.id === 's' ? 0 : 50);
+    if(x + rx * 3 < 0 || x - rx * 3 > W) return;
+    const rise = T.id === 's' ? st.tRise : st.fRise * (1 - st.fall), t = reduce ? 0 : now, ga = cx.globalAlpha; cx.globalAlpha = ga * al;
+    if(rise > .05){ const th = clamp(snap(rx * .045), PX, PX * 4); cx.globalAlpha = ga * al * rise;   // th: the foam's pixel block, growing with the leg up close
+      // ripple rings, dotted, spreading out over the bay and fading (pixels that would land on the leg itself are skipped)
+      for(let j = 0; j < 2; j++){ const ph = ((t / 1900 + j * .5 + H1(seed)) % 1), R = 1.15 + ph * 1.9, n = Math.max(10, Math.min(64, Math.round(rx * R / th * .7))); cx.fillStyle = ph < .4 ? WAKE_C[1] : WAKE_C[2];
+        for(let i = 0; i < n; i++){ if((i + j) % 2) continue; const a = i / n * 6.283, px = x + Math.cos(a) * rx * R, py = y + Math.sin(a) * ry * R; if(py < y && Math.abs(px - x) < rx) continue; if(H1(seed + i * 1.7 + j) < .2) continue;
+          cx.globalAlpha = ga * al * rise * (1 - ph) * .85; cx.fillRect(snap(px), snap(py), th * (i % 3 ? 1 : 2), th); } }
+      cx.globalAlpha = ga * al * rise;
+      // the foam collar: the front half of the cross-section's rim, broken into runs, churning in two held steps; a pale lip piled
+      // against the leg above it, and a dark trough of displaced water just outside it (value, not only colour: it reads in grey too)
+      { const n = Math.max(8, Math.min(72, Math.round(rx / th * 2.2))), ch = Math.floor(t / 260);
+        for(let i = 0; i <= n; i++){ const a = -.2 + i / n * (Math.PI + .4), h = H1(seed + Math.floor(i / 2) * 2.3 + (ch % 2) * .37); const px = x + Math.cos(a) * rx, py = y + Math.max(-ry * .4, Math.sin(a) * ry);
+          if(Math.sin(a) > .15){ cx.fillStyle = '#060c22'; cx.fillRect(snap(px - th), snap(py + th), th * 2, th); }   // the trough
+          if(h < .16) continue; cx.fillStyle = h > .5 ? WAKE_C[0] : WAKE_C[1]; cx.fillRect(snap(px - th), snap(py), th * 2, th);
+          if(h > .62){ cx.fillStyle = WAKE_C[h > .85 ? 0 : 1]; cx.fillRect(snap(px - th * .5), snap(py - th), th, th); } } }
+      // churn: flecks thrown up off the collar and falling back
+      cx.fillStyle = WAKE_C[0]; for(let i = 0; i < 8; i++){ const ph = (t / 700 + H1(seed + i * 4.1)) % 1, side = i % 2 ? 1 : -1, px = x + side * rx * (.5 + H1(seed + i) * .6) + side * ph * rx * .3, py = y - Math.sin(ph * Math.PI) * Math.max(PX * 2, rx * .4);
+        cx.globalAlpha = ga * al * rise * (1 - ph * .6); cx.fillRect(snap(px), snap(py), th, th); } }
+    // the splash columns: rising out of the bay, the stomp, the crab going down
+    const d = FR.kj - FR.p; let sf = -1, sk = 1;
+    { const up = T.id === 's' ? st.tRise : st.fRise; if(up > 0 && up < 1) sf = Math.min(4, Math.floor(up * 5)), sk = 1.4; }
+    if(T.id === 's' && nm === 'leg' && d <= STOMP_D && d > STOMP_D - 30) sf = Math.min(4, Math.floor((STOMP_D - d) / 6)), sk = 1.8;
+    if(T.id === 'f' && st.fall > 0 && st.fall < .5) sf = Math.min(4, Math.floor(st.fall * 10)), sk = 1.6;
+    if(sf >= 0 && S['wk' + sf]){ const spr = S['wk' + sf], kk = rx * 2 * sk / spr.width; cx.globalAlpha = ga * al; blit(spr, x, y + PX, kk); }
     cx.globalAlpha = ga; }
   // the beam's root, inside the open mouth: the throat glows in hard steps as it charges, then the beam runs from the throat out
   // between the jaws (the nearer jaw and teeth are drawn over it, as the slices nearer than the head's mid-plane follow)
@@ -819,10 +875,11 @@
     { const fl = st.fp === 'flare' ? 1 : st.fp === 'raise' ? .7 : .45, sp = f.parts.wings.st.anc.spots; for(const [x, y, r] of sp){ const q = tsPt(f, x, y, -10); if(q) glow(q[0], q[1], r * 2.2 * V * PR.sc * W / 2 * fl, '#3affd8', .5 * al * (reduce ? 1 : .85 + .15 * Math.sin(now / 400))); } }
     // the sail's rib tips glowing as the beam charges
     if(st.charge){ const n = Math.ceil(st.charge * 7 / 4); for(let i = 0; i < n; i++){ const q = tsPt(s, -22 + i * 3.4, 98 + Math.sin(i * .9) * 10, 0); if(q) glow(q[0], q[1], 5 * V * PR.sc * W / 2, '#ffa040', .2 * al); } }
-    // the beam: mouth to shell (for d 72..56 it is first on the bridge ahead: it cuts the deck at d 64, then swings up onto the crab)
+    // the beam: mouth to shell, square across the bridge between them (for d 72..56 it first rakes the deck across the break's middle: the cut, at d 64; then it swings up onto the crab)
     const m = tsPt(s, mo[0], mo[1], 0); AN.ok = 0; if(!m) return; AN.mouth[0] = m[0]; AN.mouth[1] = m[1]; const kk = V * PR.sc * W / 2;
     const ch = tsPt(f, -26, 50, -8); if(!ch) return; AN.chest[0] = ch[0]; AN.chest[1] = ch[1]; AN.ok = 1; const ck = V * PR.sc * W / 2; let tgt = AN.chest;
-    { const z = FR.bz, sb = z && segs[z.B]; if(sb && d > 56 && d <= 72 && sb.p1.camera.z > 0){ const bp = [sb.p1.screen.x, sb.p1.screen.y - sb.p1.screen.scale * 300 * H / 2], q = clamp((64 - d) / 8, 0, 1); tgt = [lerp(bp[0], AN.chest[0], q), lerp(bp[1], AN.chest[1], q)]; } }
+    { const z = FR.bz, sb = z && segs[z.B]; if(sb && d > 56 && d <= 72){ const pr = proj((z.B + XB) * SEG + SEG / 2); if(pr){ const kw = pr.sc * W / 2 * ROADW, u = clamp((72 - d) / 8, 0, 1), q = clamp((64 - d) / 8, 0, 1), bp = [pr.x + lerp(-1.7, 1.7, sm(u)) * kw, pr.y];   /* the slice: across the deck from the left edge to the right where the beam crosses it, then up onto the crab */
+      tgt = [lerp(bp[0], AN.chest[0], q), lerp(bp[1], AN.chest[1], q)]; } } }
     cx.globalAlpha = al;
     if(st.tp === 'beam' && d > 70) glow(AN.mouth[0], AN.mouth[1], kk * (2 + (100 - d) * .12), '#ff8a30', .3 * al);   /* (the throat glows inside the mouth: beamRoot) */
     if(st.beam > 0){ beamLine(AN.mouth[0], AN.mouth[1], tgt[0], tgt[1], st.beam, clamp(kk * 5, PX * 2, PX * 9), now, al); glow(AN.mouth[0], AN.mouth[1], Math.min(kk * 9, H * .16), '#ffc060', .5 * al); glow(AN.mouth[0], AN.mouth[1], Math.min(kk * 3.5, H * .06), '#fff4d0', .6 * al); }   /* the flare at the lips */   // (capped: close overhead it would fill the screen)
@@ -897,6 +954,10 @@
   // line can fail it. Traffic in the zone is thrown clear by the blast; new cars never spawn into it. The zone reserves its segments
   // (skRes / police / no hazards, curves straightened) the same way the drawbridge does.
   const BRK = 86, GAP = 48, RAMP = 22, HR = 3000, LOW = 2200, LANDX = 6, FAR = 44, BLAST_D = 64, WATER = 0, DEEP = 2600, PEAK = 3400;
+  // XB: where the beam rakes across the deck, segments into the gap (its middle: the section that drops). The titans stand just past the
+  // landing, one either side (STAND: their segment past the peak; Sairyū's mouth and the crab's chest are 12 segments beyond it, so 10
+  // beyond the far deck's edge): they frame the whole flight, and you land and ride between them
+  const XB = 24, STAND = BRK + GAP + 10 - 12;
   const zones = [];
   const zoneOf = i => { for(let n = zones.length - 1; n >= 0; n--){ const z = zones[n]; if(i >= z.B - 200 && i <= z.B + GAP + FAR + 30) return z; } return null; };   // newest first: a re-placed stretch belongs to its newest zone
   function reserve(q, z){ if(!q || q.kjZ === z) return; q.kjZ = z; q.skRes = 1; q.police = 1; q.hz = null; const o = q.index - z.B;
@@ -1009,10 +1070,10 @@
         if(g < 200){ cx.fillStyle = '#ffd070'; for(let k = 0; k < 5; k++){ const q = (now / 500 + H1(k * 2.9 + X)) % 1; cx.globalAlpha = a * (1 - q) * Math.min(1, q * 5); cx.fillRect(snap(ep[0] + (H1(k * 4.3) - .5) * uw * .2), snap(ep[1] + q * uw * .5), PX, PX); } cx.globalAlpha = a; } } }
     // the blast at the break: fireball, shockwave ring over the deck and water, debris arcing out
     if(g >= 0 && g < 90){ const tau = g / 45;
-      if(o === 0){ const ef = Math.min(4, Math.floor(g / 9)), ek = uw * 3.2 / 40, c0 = P(s, 0, 0, 0); blit(S['ex' + ef], c0[0], c0[1] + ek * 8, ek); const c1 = P(s, 0, 0, 600); glow(c1[0], c1[1], uw * 2.5 * (1 - g / 90), '#ffe0a0', .45); }
-      const r = g * 1.4; if(Math.abs(o) < r && Math.abs(o) > r - 6){ const xw = Math.sqrt(Math.max(0, r * r - o * o)) * SEG / ROADW; cx.fillStyle = '#e8f0ff'; cx.globalAlpha = a * (1 - g / 90) * .8;
+      if(o === XB){ const ef = Math.min(4, Math.floor(g / 9)), ek = uw * 3.2 / 40, c0 = P(s, 0, 0, 0); blit(S['ex' + ef], c0[0], c0[1] + ek * 8, ek); const c1 = P(s, 0, 0, 600); glow(c1[0], c1[1], uw * 2.5 * (1 - g / 90), '#ffe0a0', .45); }   // (where the beam crossed)
+      const r = g * 1.4, ob = o - XB; if(Math.abs(ob) < r && Math.abs(ob) > r - 6){ const xw = Math.sqrt(Math.max(0, r * r - ob * ob)) * SEG / ROADW; cx.fillStyle = '#e8f0ff'; cx.globalAlpha = a * (1 - g / 90) * .8;
         for(const sd of [-1, 1]){ const pt = P(s, .5, sd * xw, 0); cx.fillRect(snap(pt[0] - PX * 2), snap(pt[1] - PX), PX * 4, PX); } cx.globalAlpha = a; }
-      for(let i = 0; i < CHUNKS.length; i++){ const c = CHUNKS[i], zc = z.B * SEG + c.vz * tau, hc = c.vy * tau - 4200 * tau * tau; if(Math.floor(zc / SEG) !== s.index || hc < -2000) continue;
+      for(let i = 0; i < CHUNKS.length; i++){ const c = CHUNKS[i], zc = (z.B + XB) * SEG + c.vz * tau, hc = c.vy * tau - 4200 * tau * tau; if(Math.floor(zc / SEG) !== s.index || hc < -2000) continue;
         const f = (zc % SEG) / SEG, pt = P(s, f, c.x0 + c.vx * tau, hc), spr = S['ch' + ((c.v + Math.floor(tau * 6)) % 3)]; blit(spr, pt[0], pt[1], Math.max(PX, uw * .06 * c.sz)); } }
     cx.globalAlpha = 1; }
   // the blast, the clear-out and the launch (from update)
@@ -1271,7 +1332,7 @@
     for(let n = 0; n < 12; n++) sparks.push({ x:W / 2 + (Math.random() - .5) * W * .1, y:H * .82, vx:(Math.random() - .5) * 360, vy:-Math.random() * 300, life:.45, c:n % 2 ? '#ffd070' : '#8a92a8' }); }
   function tsUpdate(dt, t, p, d){
     // the look up: as the legs close in, the view tips up to follow them into the sky, then settles once they are behind (none mid-jump)
-    const J = MECH.sp_jump, fly = J && J.flying && J.flying(), u = t >= 0 ? t - PASS - p : 1e9;
+    const J = MECH.sp_jump, fly = J && J.flying && J.flying(), u = 1e9;   /* off: the titans now flank the gap, so you pass them in the jump, whose own camera already looks up; tipping up on the ramp would hide the lip */
     const e = t < 0 || fly || state !== 'play' ? 0 : u > 48 ? 0 : u > 6 ? sm((48 - u) / 42) : u > -26 ? sm((u + 26) / 32) : 0, pitch = -H * (reduce ? .07 : .2) * e;
     K.pv = (K.pv || 0) + (pitch - (K.pv || 0)) * Math.min(1, dt * 3.5); if(Math.abs(K.pv) < .5 && pitch === 0) K.pv = 0;
     if(window.CAM && (K.pv < -.5 || K.pitchOwn)){ CAM.pitch = K.pv < -.5 ? K.pv : 0; K.pitchOwn = K.pv < -.5; }
@@ -1283,7 +1344,7 @@
       if(!q.landed && d <= D0.d0 - DEB_FALL){ q.landed = true; if(state === 'play'){ crunch(.6); bump(3); } cars = cars.filter(c => !(Math.abs(c.z / SEG - cs) < 5 && Math.abs(c.x - D0.x) < .55)); }
       if(q.landed && !q.hit && state === 'play' && K.lp !== undefined && K.lp <= cs + .5 && p >= cs + .5 && Math.abs(playerX - D0.x) < DEB_R && AIR.h < 6 && !(typeof recov !== 'undefined' && recov > 0)){ q.hit = true; debrisHit(D0); } }
     K.lp = p; }
-  // per segment: the debris (telegraph, fall, rubble), the raised foot's shadow, the stomp's dust and the cracks it sends into the left lane
+  // per segment: the debris (telegraph, fall, rubble)
   function footSeg(){ const L = TT.s.parts.leg; return L && L.st ? Math.floor((TT.s.Z0 + (L.st.z0 + L.st.n / 2) * L.st.vz) / SEG) : -1; }
   function ring(c, rx, ry, col){ cx.fillStyle = col; const n = Math.max(12, Math.min(40, Math.round(rx / PX * 1.4))); for(let k = 0; k < n; k++){ if(k % 4 === 3) continue; const a = k / n * 6.283; cx.fillRect(snap(c[0] + Math.cos(a) * rx), snap(c[1] + Math.sin(a) * ry), PX, PX); } }
   function tsSeg(s, uw, fog, now, t, d){ const a = 1 - fog * .7, gen = !!(window.ASSIST && ASSIST.jumps) || state === 'ready';
@@ -1301,13 +1362,7 @@
         flameAt([gx + r * .2, gy - r * .15], kk * .9, i + 3, now); glow(gx, gy - r * .3, r * 1.2, '#ff7a2a', .3 * a);
         if(fq < 1.8){ const q = (fq - 1) / .8; cx.fillStyle = '#c8b8a8'; for(let k = 0; k < 14; k++){ const an = k / 14 * 6.283; cx.globalAlpha = a * (1 - q) * .8; cx.fillRect(snap(gx + Math.cos(an) * r * (.5 + q)), snap(gy + Math.sin(an) * r * .25 * (.5 + q) - q * r * .2), PX * (k % 3 ? 1 : 2), PX); } } }
       cx.globalAlpha = 1; }
-    const fs = footSeg(); if(fs < 0 || Math.abs(s.index - fs) > 7) return; const lp = TT.s.parts.leg.poses.planted, fx = (TT.s.X0 + (lp.x0 + lp.w / 2) * lp.vs) / ROADW;
-    if(s.index === fs && d <= STOMP_UP && d > STOMP_D){ const g = P(s, .5, fx, 0), q = sm((STOMP_UP - d) / 20); cx.globalAlpha = a * .5 * q; cx.fillStyle = '#05030c'; cx.beginPath(); cx.ellipse(g[0], g[1], uw * .9, uw * .2, 0, 0, 6.283); cx.fill(); cx.globalAlpha = 1; }
-    if(d <= STOMP_D){ const gr = clamp((STOMP_D - d) / 14, 0, 1), w = Math.max(PX, snap(uw * .012)), o = s.index - fs;
-      const sd = fx < 0 ? -1 : 1; cx.globalAlpha = a; for(let k = 0; k < 2; k++){ let X = sd * 1.02, f = H1(s.index * 3 + k) * .6; const len = gr * (.75 - Math.abs(o) * .08) * (.6 + H1(k * 7 + s.index) * .5); if(len <= 0) continue;
-        for(let q = 0; q < 4; q++){ const nX = X - sd * len / 4, nf = clamp(f + (H1(k * 5 + q + s.index) - .5) * .5, 0, 1); pline(P(s, f, X, 3), P(s, nf, nX, 3), mixc('#05060a', '#0a0c1c', fog * .8), w); if(q === 1) pline(P(s, nf, nX, 3), P(s, clamp(nf + .3, 0, 1), nX - sd * .12, 3), mixc('#05060a', '#0a0c1c', fog * .8), w); X = nX; f = nf; } }
-      if(s.index === fs && d > STOMP_D - 40){ const q = (STOMP_D - d) / 40, g = P(s, .5, fx, 0); for(let i = 0; i < 9; i++){ const pf = S[(i % 3 === 1 ? 'pfl' : 'pf') + (i % 3)], dk = uw * (.05 + q * .09) * (.7 + H1(i * 9.1) * .5); cx.globalAlpha = a * (1 - q); blit(pf, g[0] + (H1(i * 3.1) - .5) * uw * 2.2 * (.4 + q), g[1] - H1(i * 5.7) * uw * .8 * q + pf.height * dk * .4, dk); } }
-      cx.globalAlpha = 1; } }
+    }   // (the stomp lands in the bay now, far off the deck: no shadow, dust or cracks on the road; its splash is drawn with the wakes, wakeAt)
 
   const tsRes = q => { if(q){ q.skRes = 1; q.police = 1; q.hz = null; } };   // the debris lanes: no kickers, checkpoints or hazards under the falling shell
   // ---------------------------------------------------------------- the module
@@ -1329,7 +1384,7 @@
     drawSegBack(s, sx0, sy0, uw, fog, now){ const F = frame(now); if(F.kj < 0 || F.tsFar || !TS.built) return; tsDraw(s.index * SEG, (s.index + 1) * SEG, F.st.alpha); },
     hitCar(){ const z = FR.bz; return !!(z && z.own); },
     drawUnderBike(now){ },   // (sp_jump) the screen-space look-down band is removed: the chasm below is real geometry the camera sees
-    reset(){ K.pending = -1; K.cutT = -1;   // trigger lists are validated against segs (s.kjPeak / s.tyStart), so stale entries are harmless
+    reset(){ K.pending = -1; K.cutT = -1; K.clr = -1;   /* (a new road: its liner is cleared again when the fight starts) */   // trigger lists are validated against segs (s.kjPeak / s.tyStart), so stale entries are harmless
       K.trig = -1; K.lastD = null; T.trig = -1; T.lastP = null; T.told = false;
       if(K.pitchOwn && window.CAM) CAM.pitch = 0; K.pitchOwn = false; K.shove = 0; K.lp = undefined; K.dt = -1; K.tsP = K.tsP.filter(q => q.r === segs); },
     place(i, s, L){ const rel = i - (typeof landStart === 'number' ? landStart : 0);
@@ -1344,13 +1399,13 @@
         { const zEnd = gates[2 * zoneOfSeg(i) + 1], SPAN = Math.max(BRK + GAP + FAR + 30, 110 - PASS);
           if(zEnd !== undefined && pk + SPAN > zEnd - 10){ const hd = K.hold[pk]; delete K.hold[pk]; pk = zEnd - 10 - SPAN; if(hd !== undefined && hd < pk - 60) K.hold[pk] = hd; }
           const fits = pk > i + 20 && !(window.inForkWindow && inForkWindow(pk - 14, pk + SPAN));
-          /* the titans stand astride the bridge at pk - PASS: their feet, the debris lanes and the look up (pk - PASS - 130 .. + 40) must be
+          /* the titans flank the break (pk + STAND) and the debris lanes lie beyond it (pk - PASS - 130 .. + 40): all of it must be
              clear of a fork's split window and on the bay, or there is no fight this visit */
           const tfit = !(window.inForkWindow && inForkWindow(pk - 200, pk - PASS + 110)) && (zEnd === undefined || pk - PASS + 110 < zEnd);
           if(pk > i && tfit && (!DIR || DIR.request('kaiju', { seg:pk }))){ K.pending = pk; if(fits) addZone(pk); K.tsP.push({ pk, r:segs }); if(K.tsP.length > 8) K.tsP.shift(); for(let j = pk - PASS + 30; j < i; j++) tsRes(segs[j]); } } }
       for(const q of K.tsP) if(q.r === segs && i >= q.pk - PASS + 30 && i <= q.pk - PASS + 110) tsRes(s);   // (plans are tagged with their road: a reset builds a new one)
       { const z = zoneOf(i); if(z){ reserve(s, z); const pv = segs[i - 1]; if(pv && pv.kjZ && pv.hz) pv.hz = null; } }
-      if(L.key === 'bay' && K.pending === i){ s.kjPeak = true; if(!kjTrig.includes(i)) kjTrig.push(i); if(kjTrig.length > 16) kjTrig.shift(); K.pending = -1; }
+      if(L.key === 'bay' && (K.pending === i || K.tsP.some(q => q.r === segs && q.pk === i))){ s.kjPeak = true;   /* (or a fight booked on this road: Play again's reset() clears K.pending after the demo's first chunk is placed, so the peak segment, built later, lost its mark and the bridge blew with no titans) */ if(!kjTrig.includes(i)) kjTrig.push(i); if(kjTrig.length > 16) kjTrig.shift(); K.pending = -1; }
       const tyF = L.key === 'coast' ? tyFrom(i - rel) : TY_FROM;
       if(L.key === 'coast' && rel === tyF) tyGo = { at:i, ok:!(window.inForkWindow && inForkWindow(i, i + TY_LEN)) && (!DIR || DIR.request('typhoon', { seg:i })) };   // (?split=1: no typhoon through a fork's split window)
       if(L.key === 'coast' && rel >= tyF && rel <= tyF + TY_LEN && tyGo.ok && tyGo.at === i - (rel - tyF)){ tyPlace(i, s, rel - tyF); if(rel === tyF){ s.tyStart = true; if(!tyTrig.includes(i)) tyTrig.push(i); if(tyTrig.length > 16) tyTrig.shift(); } } },
@@ -1359,6 +1414,7 @@
       const t = activeKj(p);
       if(t >= 0 && !TS.built) needTitans();   // (the late build was not done: finish it now, timed and logged)
       if(t >= 0){ const d = t - p, a = K.trig === t && K.lastD !== null ? K.lastD : d, hd = K.hold[t], X = v => (hd === undefined || p > hd) && a > v && d <= v; if(K.trig !== t){ K.trig = t; K.ref = skyPar('far'); }
+        if(K.clr !== t){ K.clr = t; for(let j = t - 60; j < t + STAND + 160; j++){ const q = segs[j]; if(q && q.sprites && q.sprites.some(sp => sp.type === 'ship')) q.sprites = q.sprites.filter(sp => sp.type !== 'ship'); } }   // the liner has fled the bay: it sat where the crab wades and hid it
         if(X(580)) roar(.35); if(X(540)){ shriek(.5); } if(X(425)) roar(.55); if(X(400)){ shriek(.8); thud(.6); } for(const s2 of T_STRIKES) if(X(s2)){ thud(.7); bump(2); } if(X(330)) shriek(.6); if(X(286)) shriek(.5);
         if(X(228)){ roar(1); bump(3); } for(const c of [192, 162, 132, 102]) if(X(c) && ac()) M.tone(196 * Math.pow(2, (192 - c) / 60), .4, { type:'square', v:.02 });
         if(X(70) && !reduce && DIR && DIR.cine && state === 'play') DIR.cine({ slowmo:{ scale:.6, hold:.6 }, dur:1.4 });   /* the fire reads: 0.6x for 0.6 s */
@@ -1367,7 +1423,7 @@
         // the 怪獣決戦 title card (ui/cutin.js): once per fight, at the titan's roar, or as soon as a checkpoint hold releases the fight
         if(K.cutT !== t && (hd === undefined || p > hd) && d <= 400 && d > 110){ K.cutT = t; if(MECH.cutin && state === 'play') MECH.cutin.show('kaiju'); }   /* (when they stand in full view) */
         if(X(STOMP_UP) && ac()) M.tone(46, 1.1, { type:'sawtooth', v:.05, fuzz:true });   // the foot lifts: a low strain
-        if(X(STOMP_D)){ thud(1.4); bump(7); crunch(.7); }   // and comes down beyond the barrier, cracking the left lane
+        if(X(STOMP_D)){ thud(1.4); bump(7); if(ac()) M.noise(1.6, 700, .12); }   // and comes down in the bay: a wall of water (wakeAt)
         if(X(PASS - 12)) shriek(.8); if(X(PASS - 66)){ thud(1.1); bump(2); }   // the crab goes down into the bay behind you
         K.lastD = d; }
       tsUpdate(dt, t, p, t >= 0 ? t - p : 0);
@@ -1384,7 +1440,7 @@
     drawSeg(s, sx0, sy0, uw, fog, now){
       const F = frame(now); if(s.ty && F.ty >= 0) drawTySeg(s, sx0, sy0, uw, fog, now, F.ty);
       if(F.bz && s.kjZ === F.bz && F.g >= 0){ const o = s.index - F.bz.B; if(o >= -RAMP && o <= GAP + 2 || F.g < 90 && o > -60 && o < 80) drawBreakSeg(s, uw, fog, now, F.bz, F.g); }
-      if(F.kj < 0) return; const p = F.p, t = F.kj, d = t - p, rel = s.index - p; if(TS.built){ if(!F.tsFar) tsToes(s.index * SEG, (s.index + 1) * SEG, F.st.alpha); { for(const h of HE) if(h.on){ const a2 = F.st.alpha * (1 - fog * .4); if(h.bseg === s.index && h.seg !== s.index) drawHeli(h, now, a2, 1); if(h.seg === s.index) drawHeli(h, now, a2, h.bseg === s.index || h.bseg > h.seg ? 3 : 2); } } tsSeg(s, uw, fog, now, t, d); }
+      if(F.kj < 0) return; const p = F.p, t = F.kj, d = t - p, rel = s.index - p; if(TS.built){ /* (no toes on the deck: the feet are under the bay now) */ { for(const h of HE) if(h.on){ const a2 = F.st.alpha * (1 - fog * .4); if(h.bseg === s.index && h.seg !== s.index) drawHeli(h, now, a2, 1); if(h.seg === s.index) drawHeli(h, now, a2, h.bseg === s.index || h.bseg > h.seg ? 3 : 2); } } tsSeg(s, uw, fog, now, t, d); }
       // shockwave crests rolling over the bay toward the bridge; spray where they hit the deck
       for(const d0 of WAVES){ if(d > d0) continue; const A = crestAhead(d0, d); if(A < 1 || A > 175 || Math.abs(rel - A) > .5) continue;
         const e = clamp(A / 175, 0, 1), th = Math.max(PX, snap(PX * 2 * (1 - e) + PX)), xl = sx0 - 1.75 * uw, xr = sx0 + 1.75 * uw;
