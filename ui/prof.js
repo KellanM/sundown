@@ -29,7 +29,7 @@ const LABEL = { sky:'sky+backdrop', road:'road+ground', roadmat:'roadmat', sprit
 const OPS = ['fillRect', 'drawImage', 'draw', 'state', 'comp'];
 const N = 600;   // ring of frames
 const R = { i:0, n:0, t:new Float64Array(N), dt:new Float32Array(N), draw:new Float32Array(N), upd:new Float32Array(N), cat:CATS.map(() => new Float32Array(N)), op:OPS.map(() => new Float32Array(N)) };
-const P = window.PROF = { level:(v => v >= 0 && v <= 3 ? v : 2)(parseInt(QP.get('prof'), 10)), ops:true, sub:true, R, CATS, OPS, keys:new Map(), installed:false };
+const P = window.PROF = { level:QP.has('prof') ? (v => v >= 0 && v <= 3 ? v : 2)(parseInt(QP.get('prof'), 10)) : 1, ops:true, sub:true, R, CATS, OPS, keys:new Map(), installed:false };
 
 // ---------------------------------------------------------------- the per-frame accumulators and the bracket stack
 const CUR = new Float64Array(CATS.length), OPC = new Float64Array(OPS.length);
