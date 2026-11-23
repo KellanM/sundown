@@ -226,14 +226,15 @@
   // so a night of bends put the show off-screen or slid it out mid-show (Kellan, 2026-11-23: the 花火 card, then no fireworks). Now, the way
   // env/coast.js anchors its backdrop: the turn since the show came into view (S.sk0 eases after the heading over ~5 s), tanh-bound to 15% of W
   let SKX = 0;
-  const skyX = (S, dt) => { if(S.sk0 === undefined) S.sk0 = skyOff; else S.sk0 += (skyOff - S.sk0) * Math.min(1, dt / 5); const A = W * .15; SKX = -A * Math.tanh((skyOff - S.sk0) * 200 / A); };
+  const skyX = (S, dt) => { if(S.sk0 === undefined) S.sk0 = skyOff; else S.sk0 += (skyOff - S.sk0) * Math.min(1, dt / 5); const A = W * .15 * NARW(); SKX = -A * Math.tanh((skyOff - S.sk0) * 200 / A); };
   function unitC(){ return H / PX / 253; }
-  const band = S => S.key === 'coast' ? -.2 : .2;   // the venue: between the vanishing point and one side (paddies: right, coast: the sea, left)
+  const NARW = () => clamp(W / H * 1.1, .5, 1);   // portrait phones: shells are sized by H, so the venue and its spread pull in toward the middle
+  const band = S => (S.key === 'coast' ? -.2 : .2) * NARW();   // the venue: between the vanishing point and one side (paddies: right, coast: the sea, left)
   function addShell(type, S, D, tb, opt = {}){
     if(bursts.length >= (reduce ? 8 : 20)) return;
     const u = unitC(), seed = H1(tb * 13.7 + bursts.length * 3.1 + S.start), dz = opt.dz !== undefined ? opt.dz : H1(seed * 4.9), sc = .62 + .48 * clamp(1 - D / 660, 0, 1);
     const base = { kiku:lerp(54, 18, dz), botan:lerp(44, 16, dz), ring:lerp(40, 16, dz), heart:26, smile:26, kamuro:lerp(50, 32, dz), shaku:58 }[type];
-    const R = base * u * sc * (opt.big || 1), spread = lerp(.34, .14, dz), bx = clamp(opt.bx !== undefined ? opt.bx : band(S) + (seed - .5) * spread, -.3, .3);
+    const R = base * u * sc * (opt.big || 1), spread = lerp(.34, .14, dz), bx = clamp(opt.bx !== undefined ? opt.bx : band(S) + (seed - .5) * spread * NARW(), -.3 * NARW(), .3 * NARW());
     const h = Math.max(R * 1.15 + 10 * u, Math.min(118 * u - R * .95, R * 1.1 + lerp(22, 4, dz) * u + H1(seed * 9) * 12 * u * (1 - dz)));
     const b = { type, tb, rise:opt.rise || (type === 'shaku' ? 3 : 2), seed, bx, h, R, dz, life:{ kamuro:4.6, shaku:5.4, heart:2.6, smile:2.6 }[type] || 3.2, fired:false, D };
     b.pal = type === 'kamuro' || type === 'shaku' || type === 'smile' ? FP.gold : type === 'heart' ? FP.pink : FP[PK[Math.floor(H1(seed * 5.3) * PK.length)]];
@@ -247,7 +248,7 @@
     if(D > 640) return;
     const pick = a => a[Math.floor(H1(h * 2.71 + S.start) * a.length)];
     if(D <= 120 && S.f0 === undefined) S.f0 = h + (h % 2);
-    // the opening salvo: the 花火 card (update) sets S.op, and four big shells launch on its beats so they bloom while the card holds and
+    // the opening salvo: the 花火 card (update) sets S.op, and five shells launch on its beats so they bloom while the card holds and
     // hang after it goes (before, the card came at D 420, where the build had one small low shell every bar: hidden by the viaduct). Mid
     // height (dz .4-.5), below the card's poster band at the top of the screen; either side of the venue, then a ring over it
     if(S.op !== undefined && S.f0 === undefined){ const k = h - S.op;

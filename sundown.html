@@ -2932,12 +2932,12 @@ function frame(){ if(PSE.on){ pzPad(); if(PSE.dirty){ PSE.dirty = false; try{ dr
   if(state === 'play') hud(); draw(now); requestAnimationFrame(frame); }
 </script>
 <script>/* ?prof: the profiler overlay (ui/prof.js: per-subsystem ms and canvas op counts; ` cycles its detail). Loaded only when asked for, so it costs nothing when off. */
-if(!/[?&]prof=0(&|$)/.test(location.search)){   /* Kellan 2026-11-23: the FPS counter shows by default for live testing; ?prof=0 turns it (and its wrappers) off */ const s = document.createElement('script'); s.src = 'ui/prof.js'; document.body.appendChild(s); }</script>
+if(!/[?&]prof=off(&|$)/.test(location.search)){   /* Kellan 2026-11-23: the FPS counter shows by default for live testing; ?prof=0 hides it (tools/perfgate.mjs relies on that), ?prof=off doesn't load it at all */ const s = document.createElement('script'); s.src = 'ui/prof.js'; document.body.appendChild(s); }</script>
 <script>/* web app (added by tools/deploy-sundown.mjs, not in the source): the offline cache and quiet updates.
    A new version downloads in the background and waits. It is applied only on the title (never mid-ride): by itself once
    the title has sat untouched for a few seconds, or at once when the player taps "Update ready". Tap the version to check now. */
 (() => {
-  const VER = 'v36 · 2fd81c', $id = (i) => document.getElementById(i);
+  const VER = 'v37 · bbd1e1', $id = (i) => document.getElementById(i);
   const SDU = window.SDUPDATE = { version: VER, waiting: null, applied: false, checks: 0 };
   let reg = null, applying = false, asked = false, needReload = false, note = '', noteT = 0, lastInput = performance.now();
   ['keydown', 'pointerdown', 'touchstart', 'wheel'].forEach((t) => addEventListener(t, () => { lastInput = performance.now(); }, { capture: true, passive: true }));
@@ -2999,5 +2999,5 @@ if(!/[?&]prof=0(&|$)/.test(location.search)){   /* Kellan 2026-11-23: the FPS co
   }, 1000);
 })();
 </script>
-<!-- __sdbuild:36 2fd81cac6777 --></body>
+<!-- __sdbuild:37 bbd1e1222329 --></body>
 </html>
