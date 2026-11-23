@@ -2913,7 +2913,7 @@ if(/[?&]prof(=|&|$)/.test(location.search)){ const s = document.createElement('s
    A new version downloads in the background and waits. It is applied only on the title (never mid-ride): by itself once
    the title has sat untouched for a few seconds, or at once when the player taps "Update ready". Tap the version to check now. */
 (() => {
-  const VER = 'v30 · cfff95', $id = (i) => document.getElementById(i);
+  const VER = 'v31 · 9c3f43', $id = (i) => document.getElementById(i);
   const SDU = window.SDUPDATE = { version: VER, waiting: null, applied: false, checks: 0 };
   let reg = null, applying = false, asked = false, needReload = false, note = '', noteT = 0, lastInput = performance.now();
   ['keydown', 'pointerdown', 'touchstart', 'wheel'].forEach((t) => addEventListener(t, () => { lastInput = performance.now(); }, { capture: true, passive: true }));
@@ -2975,5 +2975,5 @@ if(/[?&]prof(=|&|$)/.test(location.search)){ const s = document.createElement('s
   }, 1000);
 })();
 </script>
-<!-- __sdbuild:30 cfff95db3155 --></body>
+<!-- __sdbuild:31 9c3f43780010 --></body>
 </html>

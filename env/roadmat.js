@@ -352,11 +352,18 @@ function drawSegBack(s, sx, sy, uw, fog){ if(!RM.on || !RM.ready || state === 'r
 const SEAM_W = .1, SEAM_CELL = 2, SEAM_F = .7, SEAM_TH = [.125, .625, .375, .875];
 function layer(s, n, w0){ const BL = s.bm < 1 && s.bA !== s.bB && !s.tunnel;
   if(BL){ const inB = s.bm > .5 + SEAM_W * (2 * SEAM_TH[Math.floor(s.index / SEAM_CELL) & 3] - 1), m = inB ? s.bm : 1 - s.bm;
-    paint(s, n, LANDS[inB ? s.bB : s.bA].key, w0 * Math.min(1, m * 2 * SEAM_F)); } else paint(s, n, LANDS[s.land].key, w0); }
-function paint(s, n, key, wt){ if(wt < .03) return; const p = RP[key]; if(!p || p.mat === 'none') return; const T = TEX[p.mat]; if(!T || (s.tunnel && !p.tunnel)) return;
+    // a road with its own light pools (Akihabara) still records them on the other road's cells, at its own blend weight, and they are drawn
+    // across the whole blend as before, even on a cell of the dry road (else the lights' columns stop dead at a seam row); recording is cheap
+    const ko = LANDS[inB ? s.bA : s.bB].key, po = RP[ko]; if(po && po.pools > 0) paint(s, n, ko, w0 * (inB ? 1 - s.bm : s.bm), true);
+    POOLED = false; paint(s, n, LANDS[inB ? s.bB : s.bA].key, w0 * Math.min(1, m * 2 * SEAM_F));
+    if(PLN && !POOLED && RS1[n] >= RS0[n]){ cx.globalCompositeOperation = 'lighter'; drawPools(RS0[n], RS1[n]); SA(1); cx.globalCompositeOperation = 'source-over'; } }
+  else paint(s, n, LANDS[s.land].key, w0); }
+let POOLED = false;
+// src: only record this road's light pools (the border seam, above)
+function paint(s, n, key, wt, src){ if(wt < .03) return; const p = RP[key]; if(!p || p.mat === 'none') return; const T = TEX[p.mat]; if(!T || (s.tunnel && !p.tunnel)) return;
   const r0 = RS0[n], r1 = RS1[n], g = cx;
   // markings first (the material then wears them like the road)
-  if(p.marks !== 'none' && r1 >= r0){ let D = s.rmDk === key ? s.rmD : null; if(!D){ const P = DPER[p.marks]; D = cellDecals(key, Math.floor(s.index / P), P); if(D !== NO_DEC){ s.rmD = D; s.rmDk = key; } }
+  if(!src && p.marks !== 'none' && r1 >= r0){ let D = s.rmDk === key ? s.rmD : null; if(!D){ const P = DPER[p.marks]; D = cellDecals(key, Math.floor(s.index / P), P); if(D !== NO_DEC){ s.rmD = D; s.rmDk = key; } }
     for(let k = 0; k < D.length; k++){ const d = D[k], dc = DEC[d.nm]; if(!dc || s.index < d.i0 || s.index >= d.i0 + dc.len) continue;
       for(let r = r0; r <= r1; r++){ const P2 = ROWP[r] - d.i0; if(P2 < 0 || P2 >= dc.len) continue; const lod = ROWL[r] + (dc.full ? 0 : -1.415), a = wt * p.paint * (1 - ROWF[r]) * Math.min(1, Math.max(0, 2.8 - lod)); if(a < .02) continue;
         const lv = Math.min(NDL - 1, Math.max(0, Math.ceil(lod - .3))), C = dc.c[lv], vr = Math.min(C.height - 1, Math.floor(P2 * SPS / (1 << (2 * lv)))), x = ROWX[r], w = ROWW[r];
@@ -364,13 +371,13 @@ function paint(s, n, key, wt){ if(wt < .03) return; const p = RP[key]; if(!p || 
         if(!lanes) blitRow(C, x - w, x + w, r, vr); else for(let l = 0; l < lanes.length; l++){ const c = x + lanes[l] * w; blitRow(C, c - w / 3, c + w / 3, r, vr); } }
       SA(1); } }
   // the material
-  if(r1 >= r0){ const str = p.str * wt * (.6 + 1.4 * Math.min(.5, s.lit || 0)); for(let r = r0; r <= r1; r++){ const lod = ROWL[r], a = str * (1 - ROWF[r] * .7) * Math.min(1, Math.max(0, (4.6 - lod) / 1.2)); if(a < .02) continue;
+  if(!src && r1 >= r0){ const str = p.str * wt * (.6 + 1.4 * Math.min(.5, s.lit || 0)); for(let r = r0; r <= r1; r++){ const lod = ROWL[r], a = str * (1 - ROWF[r] * .7) * Math.min(1, Math.max(0, (4.6 - lod) / 1.2)); if(a < .02) continue;
       const lv = Math.min(NL - 1, Math.max(0, Math.ceil(lod - .3))), vr = Math.floor(ROWV[r] / (1 << (2 * lv))) % LH[lv]; SA(Math.min(1, a)); blitRow(T.c[lv], ROWX[r] - ROWW[r], ROWX[r] + ROWW[r], r, vr); }
     SA(1); }
   // wet: the sky in the puddles (Fresnel: strong toward the horizon), the moon's broken glitter, the lamps' and tail lights' streaks
   const wet = p.wet * (WETK[key] !== undefined ? WETK[key] : 1) * wt; if(wet <= .02) return; const Q = TINT[key];
   g.globalCompositeOperation = 'lighter';
-  if(r1 >= r0 && Q){ const sh = wet * p.sheen, h2 = p.pools > 0;   // (perf pass: roads with pools (Akihabara) lay the sky sheen on even rows, each two rows deep)
+  if(!src && r1 >= r0 && Q){ const sh = wet * p.sheen, h2 = p.pools > 0;   // (perf pass: roads with pools (Akihabara) lay the sky sheen on even rows, each two rows deep)
     for(let r = r0; r <= r1; r++){ const h4 = p.hot && ROWF[r] < .03; if(h2 && (r & (h4 ? 3 : 1)) && r > r0) continue; const f = ROWF[r], fr = Math.max(ss(.004, .4, f), p.sheenN) * (1 - ss(.72, .98, f)), lod = ROWL[r], a = sh * fr * Math.min(1, Math.max(0, (4.8 - lod) / 1.2)); if(a < .02) continue;
       const lv = Math.min(NL - 1, Math.max(0, Math.ceil(lod - .3))), vr = Math.floor(ROWV[r] / (1 << (2 * lv))) % LH[lv]; SA(Math.min(1, a)); blitRow(Q.c[lv], ROWX[r] - ROWW[r], ROWX[r] + ROWW[r], r, vr, h2 ? Math.min(h4 ? (r | 3) + 1 - r : 2, r1 - r + 1) : 1); }
     const mx = MOON.x, ma = sh * .5 * (1 - ss(.85, 1, MOON.t || 0)); if(ma > .02){ g.fillStyle = MOONC;
@@ -382,7 +389,8 @@ function paint(s, n, key, wt){ if(wt < .03) return; const p = RP[key]; if(!p || 
         if(p.hot && p.pools > 0){ PK.T = T; PK.rf = rf; PK.hot = 1; PK.n = n; DARK(cxp, cyp, w, .34, cw * .62, .5); PK.late = 1; }   // (hot: the car's own dark image breaks the columns behind it; its tail lights' come after)
         for(let sd = -1; sd <= 1; sd += 2){ if(p.pools > 0){ PK.T = T; PK.rf = rf; PK.lim = p.pools; PK.hot = p.hot; POOL(cxp + sd * cw * .36, cyp, w, .06, .16, cw * .11, TAILC, .8); } else streak(T, cxp + sd * cw * .36, cyp, cw * .3, cw * .1, rf * .8); } } }
     const E = ENV[key]; if(E && E.wetSrc && p.pools > 0){ PK.T = T; PK.rf = rf; PK.lim = p.pools; PK.hot = p.hot; PK.late = 0; PK.n = n; E.wetSrc(s, n, a, POOL); } }
-  if(PLN && r1 >= r0) drawPools(r0, r1);
+  if(src){ g.globalCompositeOperation = 'source-over'; return; }
+  if(PLN && r1 >= r0){ drawPools(r0, r1); POOLED = true; }
   SA(1); g.globalCompositeOperation = 'source-over';
   const E2 = ENV[key]; if(E2 && E2.wetFX && r1 >= r0) E2.wetFX(s, n, r0, r1, RV, wet, T); }
 // one row of a strip across [x0, x1] (CSS px), on the grid, cropped to the screen
