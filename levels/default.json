@@ -52,6 +52,34 @@
    ]
   },
   {
+   "road": "harbour",
+   "len": 3000,
+   "jump": true,
+   "events": []
+  },
+  {
+   "road": "refinery",
+   "len": 2200,
+   "jump": true,
+   "events": [
+    {
+     "id": "fireball",
+     "seg": 900
+    }
+   ]
+  },
+  {
+   "road": "sakurajima",
+   "len": 2600,
+   "jump": true,
+   "events": [
+    {
+     "id": "lava",
+     "seg": 1300
+    }
+   ]
+  },
+  {
    "road": "snow",
    "len": 2600,
    "jump": true,
@@ -185,17 +213,6 @@
     {
      "id": "screenfall",
      "seg": 1078
-    }
-   ]
-  },
-  {
-   "road": "refinery",
-   "len": 2200,
-   "jump": true,
-   "events": [
-    {
-     "id": "fireball",
-     "seg": 900
     }
    ]
   }

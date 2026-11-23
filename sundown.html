@@ -1967,8 +1967,9 @@ function drawHazard(s, x0, y, uw, fog, now){ const h = s.hz, x = x0 + h.x * uw, 
    The layers: a soft dithered rim, a near-black core with a touch of blue, a lamp-light reflection band across the far half that a slow
    swell of light crosses now and then (the sheen, never the outline), and at the edge, where the film is thinnest, the interference
    colours of oil (violet, rose, amber, teal, kept to the night palette but brighter at the very edge), half strength just inside.
-   Far off (Fresnel: a wet patch at a grazing angle is a mirror) it is two rows: a bright sliver of reflected sky with iridescent ends,
-   a glint that sweeps across it every few seconds, over a black lip. That sliver is what reads at about 1.5 s at top speed.
+   Far off (Fresnel: a wet patch at a grazing angle is a mirror) it is a sliver of two or three rows: a bright band of reflected sky
+   with iridescent ends, a glint that sweeps across it every few seconds, over a black lip, kept to whole rows above its near edge.
+   That sliver is what reads at about 1.5 s at top speed (it read at about 1.2 s, and flickered out where its edges rounded together).
    The surface reacts when a tyre crosses it: a ripple ring spreads from where the tyre went in, and the tyre's groove shows thinner film.
    Scenic roads where oil makes no sense carry none (LANDS oil: Kurobe, Gion, Shimanami, Snow 0; Paddies and the coast fewer). */
 const OIL_TONE = new Map();   // per road: [reflection, sheen, film x3, highlight, edge film x4, far sliver], from its lamp colour
@@ -1997,7 +1998,7 @@ function drawOil(s, h, fog, now){ const f = segs[s.index + 6]; if(!f) return;
   const cz = (s.index + 3) * SEG - position, est = cz > PZ ? H * PZ * 600 / (cz * cz) / step : 99;   // est: the slick's true height in rows (its distance, not what is left on screen)
   const far = clamp(1 - (est - 2) / 7, 0, 1), fi = Math.floor(est / 5);   // far: Fresnel (the reflection widens far off); fi: the film's tones walk as you close in (the viewing angle changes)
   let n = oilRows(s, h), sliver = false;
-  if(n <= 3){   // far off it is a sliver of two rows (three once it has them): its reflection over its dark lip; a legibility floor below that
+  if(n <= 3){   // far off it is a sliver: its reflection over its dark lip (three rows from about 1.7 s in, two beyond); a legibility floor
     if(s.index <= OIL_B || est > 6) return; let yT = 1e9, yB = -1e9, xs = 0, ws = 0;
     for(let j = 0; j < n; j++){ yT = Math.min(yT, OIL_RY[j]); yB = Math.max(yB, OIL_RY[j]); xs += OIL_RX[j]; ws += OIL_RW[j]; }
     if(!n){ const a = s.p1.screen, b = f.p1.screen; if(!a.scale || !b.scale || a.y < b.y) return; yT = yB = Math.round((a.y + b.y) / 2 / step - .5) * step; ws = (a.w + b.w) / 2; xs = (a.x + b.x) / 2 + h.x * ws; n = 1; }
@@ -2910,7 +2911,7 @@ function frame(){ if(PSE.on){ pzPad(); if(PSE.dirty){ PSE.dirty = false; try{ dr
    A new version downloads in the background and waits. It is applied only on the title (never mid-ride): by itself once
    the title has sat untouched for a few seconds, or at once when the player taps "Update ready". Tap the version to check now. */
 (() => {
-  const VER = 'v25 · 34ffc6', $id = (i) => document.getElementById(i);
+  const VER = 'v26 · 3a3c0b', $id = (i) => document.getElementById(i);
   const SDU = window.SDUPDATE = { version: VER, waiting: null, applied: false, checks: 0 };
   let reg = null, applying = false, asked = false, needReload = false, note = '', noteT = 0, lastInput = performance.now();
   ['keydown', 'pointerdown', 'touchstart', 'wheel'].forEach((t) => addEventListener(t, () => { lastInput = performance.now(); }, { capture: true, passive: true }));
@@ -2972,5 +2973,5 @@ function frame(){ if(PSE.on){ pzPad(); if(PSE.dirty){ PSE.dirty = false; try{ dr
   }, 1000);
 })();
 </script>
-<!-- __sdbuild:25 34ffc68c4216 --></body>
+<!-- __sdbuild:26 3a3c0b7e7947 --></body>
 </html>
