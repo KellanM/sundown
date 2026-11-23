@@ -2911,7 +2911,7 @@ function frame(){ if(PSE.on){ pzPad(); if(PSE.dirty){ PSE.dirty = false; try{ dr
    A new version downloads in the background and waits. It is applied only on the title (never mid-ride): by itself once
    the title has sat untouched for a few seconds, or at once when the player taps "Update ready". Tap the version to check now. */
 (() => {
-  const VER = 'v26 · 3a3c0b', $id = (i) => document.getElementById(i);
+  const VER = 'v27 · 0fa832', $id = (i) => document.getElementById(i);
   const SDU = window.SDUPDATE = { version: VER, waiting: null, applied: false, checks: 0 };
   let reg = null, applying = false, asked = false, needReload = false, note = '', noteT = 0, lastInput = performance.now();
   ['keydown', 'pointerdown', 'touchstart', 'wheel'].forEach((t) => addEventListener(t, () => { lastInput = performance.now(); }, { capture: true, passive: true }));
@@ -2973,5 +2973,5 @@ function frame(){ if(PSE.on){ pzPad(); if(PSE.dirty){ PSE.dirty = false; try{ dr
   }, 1000);
 })();
 </script>
-<!-- __sdbuild:26 3a3c0b7e7947 --></body>
+<!-- __sdbuild:27 0fa83266786a --></body>
 </html>

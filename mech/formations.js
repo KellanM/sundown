@@ -56,14 +56,15 @@ const LIB = [
   { id:'weave',    name:'WEAVE',      kj:'縫', d:3, bend:true,  tnl:true, on:{ x:1, s:1, m:1 }, rows:[[0, [C, R]], [3, [L, C]], [6, [C, R]], [9, [L, C]], [12, [C, R]]] },
   { id:'cascade',  name:'CASCADE',    kj:'滝', d:4, bend:false, on:{ x:1, s:2, m:1 }, rows:[[0, [L]], [1.25, [C]], [2.5, [R]], [3.75, [C]], [5, [L]], [6.25, [C]], [7.5, [R]]] },
   { id:'fakeout',  name:'FAKEOUT',    kj:'偽', d:4, bend:false, on:{ x:1, s:2, m:1 }, rows:[[0, [L, [C, 'c', { to:.66 }]]], [3.4, [R]]] },
-  { id:'squeeze',  name:'SQUEEZE',    kj:'搾', d:4, bend:false, on:{ x:2, s:1, m:1 }, rows:[[0, [L, C]], [2.6, [[-.7, 'c'], [-.04, 'c'], [.62, 't']]]] },
+  { id:'squeeze',  name:'SQUEEZE',    kj:'搾', d:4, bend:false, on:{ x:2, s:1, m:1 }, rows:[[0, [L, C]], [2.6, [[-.7, 'c'], [.62, 't']]]] },
   { id:'trap',     name:'SPEED TRAP', kj:'罠', d:4, bend:false, on:{ x:2, s:1, m:1 }, rows:[[-1.6, [[R, 'c', { v:-.08 }]]], [0, [[-.58, 't'], [-.08, 't']]], [2.9, [R]]] },
-  { id:'needle',   name:'NEEDLE',     kj:'針', d:5, bend:false, on:{ x:1, s:1, m:1 }, rows:[[0, [L, R]], [2.4, [[-.68, 'c'], [.02, 'c'], [.7, 'c']]], [4.8, [C]]] },
+  { id:'needle',   name:'NEEDLE',     kj:'針', d:5, bend:false, on:{ x:1, s:1, m:1 }, rows:[[0, [L, R]], [2.4, [[-.68, 'c'], [.02, 'c']]], [4.8, [C]]] },
   { id:'knot',     name:'KNOT',       kj:'結', d:5, bend:false, on:{ x:1, s:2, m:1 }, rows:[[0, [C, R]], [2.5, [L, R]], [5, [L, [C, 'c', { to:.66 }]]], [8, [L]]] },
   // the first night's opener (never picked at random): two slow cars on the lane lines, staggered. Whatever lane you hold, one of them
   // passes you inside Close range (.33 from a lane centre) and outside its hit box, with .1 to spare either side
   { id:'stagger',  name:'STAGGER',    kj:'初', d:1, fn:true, bend:true, on:{ x:1, s:1, m:1 }, rows:[[0, [[-.33, 'c']]], [1.8, [[.33, 'c']]]] },
   { id:'gauntlet', name:'GAUNTLET',   kj:'関', d:5, bend:false, on:{ x:2, s:1, m:1 }, rows:[[0, [C, [R, 't']]], [2.4, [[L, 't'], C]], [4.8, [C, [R, 't']]], [7.2, [-.42]], [8.6, [.42]], [10, [[L, 't'], C]]] } ];
+for(const f of LIB) f.rows = f.rows.filter(r => r[1].length < 3);   /* Kellan 2026-11-22: never three cars side by side (it reads as unbeatable); a safety net under the library above */
 F.LIB = LIB;
 const BYID = {}; for(const d of LIB) BYID[d.id] = d;
 

@@ -137,6 +137,7 @@ if(!BROWSER) return;
 
 /* ================================================================== browser glue */
 const QS = new URLSearchParams(location.search), DEVL = /[?&]dev(?=[=&]|$)/.test(location.search);
+const OFF = new Set(['typhoon']);   /* Kellan 2026-11-22: temporarily disabled everywhere (normal, force=all, demo); ?force=typhoon still plays it alone. Empty this set to bring it back */
 const FORCE = QS.get('force') === 'paced' ? [] : (QS.get('force') || 'all').split(',').map(s => s.trim()).filter(Boolean);   // Kellan 2026-11-21: every event on by default (force=all); ?force=paced restores the governor and the first night
 const quietSys = () => !!(MECH.quiet && MECH.quiet.enabled);   // mech/arrival.js QUIET_ON: off = no quiet stretches, no breathing room, cards ~1 visit in 2
 const DEMO = window.DEMO && window.DEMO.ask ? window.DEMO : null;   // mech/demo.js (?demo=<level>): the authored night replaces the governor
@@ -158,7 +159,7 @@ const D = MECH.director = {
   register(id, o){ G.register(id, o); return D; },
   // demo mode: the authored spot (segment of the moment) for a set piece that chooses its own, or null (always null in normal play)
   target(id, seg){ return DEMO ? DEMO.target(id, seg == null ? (curI >= 0 ? curI : pSeg()) : seg) : null; }, get demo(){ return !!DEMO; },
-  request(id, o){ rideCheck(); o = Object.assign({}, o || {}); const placing = curI >= 0;
+  request(id, o){ if(OFF.has(id) && !FORCE.includes(id)) return false; rideCheck(); o = Object.assign({}, o || {}); const placing = curI >= 0;
     if(o.seg == null) o.seg = placing ? curI : pSeg(); o.i0 = placing ? curI : (o.i0 == null ? o.seg : o.i0);
     if(o.visit == null || o.road == null){ const v = visitOf(placing ? curI : o.seg); if(o.visit == null) o.visit = v.visit; if(o.road == null) o.road = v.road; }
     const ok = G.request(id, o); if(DEVL) console.log('[director]', id, ok ? 'YES' : 'no', '(' + (G.last && G.last.why) + ')', 'seg', o.seg, o.road); return ok; },
