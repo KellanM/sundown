@@ -1631,7 +1631,7 @@
   function tbEnd(L, why){ if(L.relS != null || L.relT != null) return; L.tbWhy = why; L.relT = why === 'win' ? .9 : why === 'lose' ? 2.2 : 0; L.relQ = why === 'lose'; }
   function tbStep(L, cs, dt){ if(L.relS != null) return;
     if(L.relT != null){ L.relT -= dt; if(L.relT <= 0){ L.relS = Math.max(cs, L.tbWhy === 'skip' ? L.S0 + RL : 0); L.relT = null; } return; }
-    if(cs >= L.B1 - 40){ L.relS = cs; L.relQ = false; L.tbWhy = 'street'; } }
+    if(cs >= Math.min(L.BR >= 0 ? L.S0 + RL : Infinity, L.B1 - 40)){ L.relS = cs; L.relQ = false; L.tbWhy = cs >= L.B1 - 40 ? 'street' : 'timed'; } }   /* Kellan 2026-11-23: the power comes back on the plain blackout's timing (as you reach the bridge and its train); the duel carries on in the light */
   // the street lamps' pools on the road follow the wave (the core reads s.lit; its value at placement is kept in s.lit0)
   function relamp(L, all){ if(!L) return; const a = Math.max(0, Math.floor(position / SEG)), b = Math.min(segs.length, a + DRAW + 2); for(let i = a; i < b; i++){ const s = segs[i]; if(s.lit0 === undefined) continue; s.lit = all || onAt(i) ? s.lit0 : (s.akX !== undefined ? .08 : 0); } }
   function snd(notes, type, v){ try{ if(typeof M === 'undefined' || !M.ac || !M.tone) return; const t0 = M.ac.currentTime; notes.forEach(([f, d], k) => M.tone(f, d, { type, v, at:t0 + k * .12 })); }catch(e){} }

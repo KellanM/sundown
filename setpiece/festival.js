@@ -222,13 +222,18 @@
   // with the road's curves like the far hills; h and R in canvas px
   const shows = [], parades = [], bursts = [];
   let beat = 0, lastHB = -1, T = 0, lastPos = 0, drumStep = -1, fstFrame = -1;
+  // the venue's swing with the bends (CSS px). It was -skyOff * 200, but skyOff is the heading swung through since the ride began (unbounded),
+  // so a night of bends put the show off-screen or slid it out mid-show (Kellan, 2026-11-23: the 花火 card, then no fireworks). Now, the way
+  // env/coast.js anchors its backdrop: the turn since the show came into view (S.sk0 eases after the heading over ~5 s), tanh-bound to 15% of W
+  let SKX = 0;
+  const skyX = (S, dt) => { if(S.sk0 === undefined) S.sk0 = skyOff; else S.sk0 += (skyOff - S.sk0) * Math.min(1, dt / 5); const A = W * .15; SKX = -A * Math.tanh((skyOff - S.sk0) * 200 / A); };
   function unitC(){ return H / PX / 253; }
   const band = S => S.key === 'coast' ? -.2 : .2;   // the venue: between the vanishing point and one side (paddies: right, coast: the sea, left)
   function addShell(type, S, D, tb, opt = {}){
     if(bursts.length >= (reduce ? 8 : 20)) return;
     const u = unitC(), seed = H1(tb * 13.7 + bursts.length * 3.1 + S.start), dz = opt.dz !== undefined ? opt.dz : H1(seed * 4.9), sc = .62 + .48 * clamp(1 - D / 660, 0, 1);
     const base = { kiku:lerp(54, 18, dz), botan:lerp(44, 16, dz), ring:lerp(40, 16, dz), heart:26, smile:26, kamuro:lerp(50, 32, dz), shaku:58 }[type];
-    const R = base * u * sc * (opt.big || 1), spread = lerp(.34, .14, dz), bx = opt.bx !== undefined ? opt.bx : band(S) + (seed - .5) * spread;
+    const R = base * u * sc * (opt.big || 1), spread = lerp(.34, .14, dz), bx = clamp(opt.bx !== undefined ? opt.bx : band(S) + (seed - .5) * spread, -.3, .3);
     const h = Math.max(R * 1.15 + 10 * u, Math.min(118 * u - R * .95, R * 1.1 + lerp(22, 4, dz) * u + H1(seed * 9) * 12 * u * (1 - dz)));
     const b = { type, tb, rise:opt.rise || (type === 'shaku' ? 3 : 2), seed, bx, h, R, dz, life:{ kamuro:4.6, shaku:5.4, heart:2.6, smile:2.6 }[type] || 3.2, fired:false, D };
     b.pal = type === 'kamuro' || type === 'shaku' || type === 'smile' ? FP.gold : type === 'heart' ? FP.pink : FP[PK[Math.floor(H1(seed * 5.3) * PK.length)]];
@@ -242,6 +247,14 @@
     if(D > 640) return;
     const pick = a => a[Math.floor(H1(h * 2.71 + S.start) * a.length)];
     if(D <= 120 && S.f0 === undefined) S.f0 = h + (h % 2);
+    // the opening salvo: the 花火 card (update) sets S.op, and four big shells launch on its beats so they bloom while the card holds and
+    // hang after it goes (before, the card came at D 420, where the build had one small low shell every bar: hidden by the viaduct). Mid
+    // height (dz .4-.5), below the card's poster band at the top of the screen; either side of the venue, then a ring over it
+    if(S.op !== undefined && S.f0 === undefined){ const k = h - S.op;
+      if(reduce){ if(k === 0 || k === 4) addShell('kiku', S, D, tb + 2, { dz:.45, bx:band(S) + (k ? .1 : -.1) }); }
+      else if(k === 0 || k === 1 || k === 3) addShell('kiku', S, D, tb + 2, { dz:.4 + k * .03, bx:band(S) + [-.17, .05, 0, -.08][k] });
+      else if(k === 4) addShell('ring', S, D, tb + 2, { dz:.5, bx:band(S) - .03 });
+      else if(k === 6) addShell('kamuro', S, D, tb + 2, { dz:.45, bx:band(S) - .02 }); }
     if(S.f0 !== undefined){ const k = h - S.f0; if(k < 0) return;
       if(reduce){ if(k <= 12 && k % 4 === 0) addShell('kiku', S, D, tb + 2, { dz:.55 - k * .03 }); else if(k === 16) for(const o of [-.12, 0, .12]) addShell('kamuro', S, D, tb + 2, { bx:band(S) + o, dz:.25 }); else if(k === 28) addShell('shaku', S, D, tb + 3, { bx:band(S), dz:0 }); return; }
       if(k < 12) addShell('kiku', S, D, tb + 2, { dz:clamp(.78 - k * .07 + (r - .5) * .16, 0, 1) });
@@ -264,7 +277,7 @@
   const stage = q => q < .05 ? 0 : q < .5 ? 1 : q < .74 ? 2 : q < .9 ? 3 : 4;
   const easeR = (a, k) => (1 - Math.exp(-a * k)) / (1 - Math.exp(-k * 1.2));
   let BY = 0;
-  function bxy(b, hz){ BY = hz / PX - b.h; return MIRR && b.mxOK ? b.mx : (W * (.5 + b.bx) - skyOff * 200) / PX; }   // X; sets BY (no array per call)
+  function bxy(b, hz){ BY = hz / PX - b.h; return MIRR && b.mxOK ? b.mx : (W * (.5 + b.bx) + SKX) / PX; }   // X; sets BY (no array per call)
   // halos: stepped discs (four flat alpha steps) cached per colour and size, drawn 1:1 on the pixel grid with 'lighter'
   const HALO_R = [8, 13, 20, 28, 38, 50, 64];
   function halo(col, n){ return cache('ha' + col + n, () => { const r0 = HALO_R[n], s = r0 * 2 + 2, [c, k] = canvas(s, s), [R, G, B] = hx(col);
@@ -383,7 +396,7 @@
   // where each burst's reflection lies: under the burst, mirrored and squashed toward the horizon; if that is on the road, slide it out
   // into the field on the venue's side (the paddies rule: the moon is drawn again in each field, slid toward its column)
   function placeRefl(hz){ const base = segAt(position).index, sideV = CUR_SHOW && CUR_SHOW.key === 'coast' ? -1 : 1;
-    for(const b of bursts){ b.mxOK = false; const X = (W * (.5 + b.bx) - skyOff * 200) / PX, Y = hz / PX - b.h, yr = (HZC + (HZC - Y) * MSQ) * PX;
+    for(const b of bursts){ b.mxOK = false; const X = (W * (.5 + b.bx) + SKX) / PX, Y = hz / PX - b.h, yr = (HZC + (HZC - Y) * MSQ) * PX;
       for(let n = 1; n < DRAW; n++){ const s = segs[base + n]; if(!s || s.p1.camera.z <= DEPTH) continue; const a = s.p1.screen, q = s.p2.screen; if(!(q.y <= yr && a.y >= yr)) continue;
         const cxr = lerp(a.x, q.x, (a.y - yr) / Math.max(1, a.y - q.y)), wr = lerp(a.w, q.w, (a.y - yr) / Math.max(1, a.y - q.y)) * 1.42, need = wr + b.R * PX * .75;
         if(Math.abs(X * PX - cxr) < need){ const sd = X * PX === cxr ? sideV : Math.sign(X * PX - cxr) || sideV; b.mx = (cxr + sd * need) / PX; b.mxOK = true; } break; } } }
@@ -396,8 +409,8 @@
   MECH.sp_festival = {
     sprites:() => C,
     anchors:() => ({ stat:STAT, shows:shows.map(S => ({ key:S.key, start:S.start, peak:S.peak })), parades:parades.map(P => ({ z:P.z, dir:P.dir })), beat, cur:CUR_SHOW ? CUR_SHOW.peak : null,
-      bursts:bursts.map(b => ({ type:b.type, a:+((beat - b.tb) * SPB).toFixed(2), life:b.life, x:Math.round(W * (.5 + b.bx) - skyOff * 200), y:Math.round(HZ - b.h * PX), R:Math.round(b.R * PX) })) }),   // (tests: every shell's age in seconds and its screen spot)
-    reset(){ SPB = 60 / BPM; bursts.length = 0; beat = 0; lastHB = -1; T = 0; lastPos = 0; drumStep = -1; CUR_SHOW = null; for(const S of shows){ S.big = false; S.f0 = undefined; S.cut = false; } for(const P of parades) P.cut = false; },
+      bursts:bursts.map(b => ({ type:b.type, a:+((beat - b.tb) * SPB).toFixed(2), life:b.life, x:Math.round(W * (.5 + b.bx) + SKX), y:Math.round(HZ - b.h * PX), R:Math.round(b.R * PX) })) }),   // (tests: every shell's age in seconds and its screen spot)
+    reset(){ SPB = 60 / BPM; bursts.length = 0; beat = 0; lastHB = -1; T = 0; lastPos = 0; drumStep = -1; CUR_SHOW = null; SKX = 0; for(const S of shows){ S.big = false; S.f0 = undefined; S.cut = false; S.op = undefined; S.sk0 = undefined; } for(const P of parades) P.cut = false; },
     place(i, s, L){
       if(i === 0 || !segs[i - 1] || segs[i - 1].land !== s.land){
         for(let k = shows.length - 1; k >= 0; k--) if(shows[k].start >= i) shows.splice(k, 1);
@@ -419,10 +432,10 @@
       if(state !== 'play'){ lastPos = position; return; }
       T += dt; const ba = beatAudio(); if(ba !== null) beat = Math.abs(ba - beat) > 4 ? ba : Math.max(beat, ba); else beat += dt / SPB;
       const ps = Math.floor((position + PZ) / SEG), S = activeShow(ps); CUR_SHOW = S;
-      if(S){ const D = S.peak - ps, hb = Math.floor(beat * 2); if(lastHB < 0 || hb - lastHB > 8) lastHB = hb; while(lastHB < hb){ lastHB++; plan(lastHB, S, D); } S_KEY = S.key;
+      if(S){ skyX(S, dt); const D = S.peak - ps, hb = Math.floor(beat * 2); if(lastHB < 0 || hb - lastHB > 8) lastHB = hb; while(lastHB < hb){ lastHB++; plan(lastHB, S, D); } S_KEY = S.key;
         // the 花火 title card (ui/cutin.js) as the show builds; never over a landmark jump's approach or flight (the paddies RAILWAY JUMP
         // sits right here): it waits until the bike has landed, and is dropped if that leaves the show too close to its peak
-        if(D <= 420 && !S.cut && !(segs[ps] && segs[ps].spjP) && !(MECH.sp_jump && MECH.sp_jump.flying && MECH.sp_jump.flying())){ S.cut = true; if(MECH.cutin && D > 200) MECH.cutin.show('hanabi'); }
+        if(D <= 420 && !S.cut && !(segs[ps] && segs[ps].spjP) && !(MECH.sp_jump && MECH.sp_jump.flying && MECH.sp_jump.flying())){ S.cut = true; if(D > 200){ S.op = lastHB + 1; if(MECH.cutin) MECH.cutin.show('hanabi'); } }
         for(const b of bursts){ if(!b.fired && beat >= b.tb){ b.fired = true; boomFor(b, D); }
           if(!b.launched && beat >= b.tb - b.rise){ b.launched = true; const a = AC(); if(a){ const v = clamp(1 - D / 700, .2, 1); M.noise(.1, 380, .05 * v, a.currentTime); thump(a.currentTime, 170, 80, .16, .05 * v); if(H1(b.seed * 3) < .3 && b.type !== 'star') whistle(a.currentTime + .05, b.rise * SPB * .9, .012 * v); } } } }
       for(let k = bursts.length - 1; k >= 0; k--) if((beat - bursts[k].tb) * SPB > Math.max(bursts[k].life, 7)) bursts.splice(k, 1);
