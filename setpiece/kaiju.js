@@ -485,7 +485,7 @@
      Not in WebKit (Safari, and every iOS browser): there an ImageBitmap is drawn into the game canvas the slow way (WebKit bugs 234920 and
      267291), and the titans are the game's only ImageBitmaps, up to ~400 slice draws a frame near the gap (2 fps on an iPhone 13 at the ramp
      and over the jump); the atlases stay canvases, which WebKit draws as cheaply as every other sprite. ?bmp=1 / ?bmp=0 force either way. */
-  const NO_BMP = (() => { const q = location.search.match(/[?&]bmp=([01])/); if(q) return q[1] === '0'; const ua = navigator.userAgent || ''; return typeof GestureEvent !== 'undefined' || /AppleWebKit/.test(ua) && !/(Chrome|Chromium|Edg|OPR)\//.test(ua); })();
+  const NO_BMP = true;   // Kellan 2026-11-23: no ImageBitmaps on any browser (they crawled on iOS Safari); the titan atlases stay plain canvases like every other sprite
   function toBitmap(L){ if(NO_BMP || !window.createImageBitmap) return; try{ createImageBitmap(L.cv).then(b => { L.cv = b; try{ cx.drawImage(b, 0, 0, 1, 1); }catch(e){} }).catch(() => {}); }catch(e){} }
   function* vBake(key, G, MAT, HT, res, fine, kz = 1){ const C = yield* vShade(G, MAT, HT * res, res, kz), { w, h, d } = G, wh = w * h;
     // trim: the slices that hold anything
