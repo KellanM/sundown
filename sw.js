@@ -1,7 +1,7 @@
 // Sundown's offline cache (written by tools/deploy-sundown.mjs). Every file is fetched on install and served
 // cache-first. A new deploy changes VERSION: the new worker fills its own cache, then WAITS until the page posts
 // SKIP_WAITING (on the title, never mid-ride), takes over, and the old cache is dropped.
-const VERSION = '54090a3ab014';
+const VERSION = '0ff9ebe99d42';
 const FILES = [
   "./",
   "audio/music.js",
@@ -32,6 +32,8 @@ const FILES = [
   "env/sky.js",
   "env/snow.js",
   "env/tunnels.js",
+  "gl/batch.js",
+  "gltest.html",
   "icons/favicon-64.png",
   "icons/icon-180.png",
   "icons/icon-192.png",

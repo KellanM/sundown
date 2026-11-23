@@ -1483,7 +1483,16 @@
   let RSH = null, RSHT = null;
   /* (perf pass, Kellan: the rain reads too dense at top speed on the phone) A portrait screen takes the mid and near sheets from a sparser set:
      the same streaks, the first 60 % of them (no streak moves), and the near layer fades a little more with speed there. Landscape is unchanged. */
-  function buildRain(){ RSH = []; RSHT = []; for(let L = 0; L < 3; L++){ const row = [], rowT = []; for(let v = 0; v < RSLS.length; v++){ row.push(rainSheet(L, v, RLAY[L].n)); rowT.push(L ? rainSheet(L, v, Math.round(RLAY[L].n * .6)) : row[v]); } RSH.push(row); RSHT.push(rowT); } }
+  function buildRain(){ RSH = []; RSHT = []; for(let L = 0; L < 3; L++){ const row = [], rowT = []; for(let v = 0; v < RSLS.length; v++){ row.push(rainSheet(L, v, RLAY[L].n)); rowT.push(L ? rainSheet(L, v, Math.round(RLAY[L].n * .6)) : row[v]); } RSH.push(row); RSHT.push(rowT); }
+    if(!RVO){ RVO = mk(1, 1); RVG = RVO.getContext('2d'); } }   // the overlay layer (rainOverlay), sized to the game canvas on first use
+  /* (perf, Kellan: "some of the recent changes made akihabara incredibly laggy") 'overlay' is not a one-pass blend on Chrome's D3D11 backend (no
+     advanced-blend extension there): every overlay draw first copies the pixels under it, and three zones x three overlay sheets made ~32 such
+     draws a frame (23 before the reactive rain). The overlay sheets of every zone are now laid on one transparent layer (RVO: source-over, each at
+     its own alpha) and that layer goes over the frame in one 'overlay' draw; the far sheets before it and the 'lighter' glints after it, as before.
+     The same pixels, except where streaks of two layers cross (there the two act as one overlay). */
+  let RVO = null, RVG = null; const RLC = [], RLN = new Float64Array(30);
+  function rvoPrep(){ if(!RVG) return null; const w = cv.width, h = cv.height; if(RVO.width !== w || RVO.height !== h){ RVO.width = w; RVO.height = h; }
+    const g = RVG; g.setTransform(1 / PX, 0, 0, 1 / PX, 0, 0); g.imageSmoothingEnabled = false; g.globalCompositeOperation = 'source-over'; g.globalAlpha = 1; g.clearRect(0, 0, w * PX, h * PX); return g; }
   function rainSheet(L, v, nq){ const c = mk(RTS, RTS), g = c.getContext('2d'), id = g.createImageData(RTS, RTS), D = id.data, Ld = RLAY[L];
         for(let q = 0; q < nq; q++){ const x0 = H1(q * 1.37 + L * 11.1) * RTS, y0 = H1(q * 2.71 + L * 5.3) * RTS, len = Math.max(2, Math.round(Ld.len[0] * (.7 + .6 * H1(q * 4.1 + L)))), sl = RSLS[v];
           for(let k = 0; k < len; k++){ const xa = Math.round(x0 - sl * k), xn = Math.round(x0 - sl * (k + 1)), yy = Math.round(y0 + k) % RTS, t = k / len, al = Ld.a * (t < .3 ? .45 : 1);
@@ -1491,8 +1500,8 @@
               D[j] = D[j + 1] = D[j + 2] = 255; D[j + 3] = Math.max(D[j + 3], Math.round(al * 255)); } } }
         g.putImageData(id, 0, 0); const c2 = mk(RTS * 2, RTS * 2), g2 = c2.getContext('2d'); for(let k = 0; k < 4; k++) g2.drawImage(c, (k & 1) * RTS, (k >> 1) * RTS); return c2; }   // (perf pass: the tile laid 2 x 2, a quarter of the drawImages per sheet; the same pixels)
   // a sheet tiled over [xa, xb) of the screen, its tile stretched ky times down the screen (whole pixels)
-  function sheet(c, ox, oy, xa, xb, ky){ const P = RTS * 2 * PX, Q = Math.max(PX, snp(P * (ky || 1))), a = xa === undefined ? 0 : xa, b = xb === undefined ? W : xb, x0 = snp(-(((ox % P) + P) % P)), y0 = snp((((oy % Q) + Q) % Q) - Q);
-    for(let x = x0; x < b; x += P){ if(x + P <= a) continue; for(let y = y0; y < H; y += Q) cx.drawImage(c, x, y, P, Q); } }
+  function sheet(c, ox, oy, xa, xb, ky, tg){ const P = RTS * 2 * PX, Q = Math.max(PX, snp(P * (ky || 1))), a = xa === undefined ? 0 : xa, b = xb === undefined ? W : xb, x0 = snp(-(((ox % P) + P) % P)), y0 = snp((((oy % Q) + Q) % Q) - Q), t = tg || cx;
+    for(let x = x0; x < b; x += P){ if(x + P <= a) continue; for(let y = y0; y < H; y += Q) t.drawImage(c, x, y, P, Q); } }
   function rainOverlay(al, now){ if(!RSH || !RAINON || al < .02 || AKX.includes('nrov')) return; const g = cx, a0 = g.globalAlpha, sp = clamp(speed / MAXS, 0, 1), cs = Math.floor(position / SEG);
     AKDK += ((onAt(cs + 12) ? 0 : 1) - AKDK) * .08; const dk = AKDK; try{ const rp = MECH.roadmat && MECH.roadmat.RP[KEY]; if(rp) rp.sheen = .8 + 1.1 * dk; }catch(e){}   // (in the dark the puddles hold only the sky: colder and stronger, the moon's glitter with them)
     g.imageSmoothingEnabled = false;
@@ -1501,15 +1510,20 @@
     const dt = RST.t < 0 ? 0 : clamp((now - RST.t) / 1000, 0, .05); RST.t = now; const sg = segAt(position + PZ), lat = dt > 0 ? clamp((playerX - RST.px) / dt, -3, 3) : 0; RST.px = playerX;
     RST.st += (clamp(.06 * (sg ? sg.curve : 0) * sp + .3 * lat, -.42, .42) - RST.st) * Math.min(1, dt * 5); const steer = RST.st, rad = .3 * sp;
     const zb = [0, snp(W * .36), snp(W * .64), W];
-    for(let z = 0; z < 3; z++){ g.save(); g.beginPath(); g.rect(zb[z], 0, zb[z + 1] - zb[z], H); g.clip();
+    const OV = rvoPrep(), T = OV || g; let nq = 0;   // T: where the overlay sheets go (the layer, or straight on the frame if it is missing)
+    for(let z = 0; z < 3; z++){ g.save(); g.beginPath(); g.rect(zb[z], 0, zb[z + 1] - zb[z], H); g.clip(); if(OV){ OV.save(); OV.beginPath(); OV.rect(zb[z], 0, zb[z + 1] - zb[z], H); OV.clip(); }
       for(let L = 0; L < 3; L++){ if(reduce && L === 2) break; const k = 1 + (RKX[L] - 1) * sp * rs, vel = RVEL[L] * H * rs * (1 + sp * .35);
         const d = .04 + steer * RPL[L] + (z === 0 ? rad : z === 2 ? -rad : 0) * (.55 + .225 * L), v = rslI(d * k), zi = L * 3 + z;
         if(z === 0) RST.oy[L] += vel * dt; RST.ox[zi] += vel * dt * RSLS[v] / k; const oy = RST.oy[L], ox = RST.ox[zi] - par * (.4 + L * .3) - playerX * W * RLX[L], c = S[L][v], th = L === 2 ? thin : 1;
         if(L === 0){ g.globalCompositeOperation = 'source-over'; g.globalAlpha = a0 * al * (.18 + .3 * dk); sheet(c, ox, oy, zb[z], zb[z + 1], k); continue; }
-        g.globalCompositeOperation = 'overlay'; g.globalAlpha = a0 * al * (L === 1 ? .85 : 1) * (1 - .7 * dk) * th; sheet(c, ox, oy, zb[z], zb[z + 1], k);
-        if(L === 2 && sp > .5 && !reduce){ g.globalAlpha = a0 * al * (1 - .7 * dk) * th * (sp - .5) * 1.6; sheet(c, ox + RTS * PX * .9, oy + RTS * PX * .63, zb[z], zb[z + 1], k); }   // full speed: a second near sheet, the drops thicker
-        g.globalCompositeOperation = 'lighter'; g.globalAlpha = a0 * al * ((L === 1 ? .04 : .055) + (L === 1 ? .2 : .32) * dk) * th; sheet(c, ox, oy, zb[z], zb[z + 1], k); }
-      g.restore(); }
+        if(!OV) g.globalCompositeOperation = 'overlay'; T.globalAlpha = a0 * al * (L === 1 ? .85 : 1) * (1 - .7 * dk) * th; sheet(c, ox, oy, zb[z], zb[z + 1], k, T);
+        if(L === 2 && sp > .5 && !reduce){ T.globalAlpha = a0 * al * (1 - .7 * dk) * th * (sp - .5) * 1.6; sheet(c, ox + RTS * PX * .9, oy + RTS * PX * .63, zb[z], zb[z + 1], k, T); }   // full speed: a second near sheet, the drops thicker
+        const la = a0 * al * ((L === 1 ? .04 : .055) + (L === 1 ? .2 : .32) * dk) * th;
+        if(OV){ RLC[nq] = c; RLN[nq * 5] = ox; RLN[nq * 5 + 1] = oy; RLN[nq * 5 + 2] = k; RLN[nq * 5 + 3] = la; RLN[nq * 5 + 4] = z; nq++; continue; }   // its glint waits for the overlay
+        g.globalCompositeOperation = 'lighter'; g.globalAlpha = la; sheet(c, ox, oy, zb[z], zb[z + 1], k); }
+      if(OV) OV.restore(); g.restore(); }
+    if(OV){ g.globalCompositeOperation = 'overlay'; g.globalAlpha = 1; g.drawImage(RVO, 0, 0, RVO.width * PX, RVO.height * PX);   // every zone's overlay streaks in one draw
+      g.globalCompositeOperation = 'lighter'; for(let q = 0; q < nq; q++){ const z = RLN[q * 5 + 4]; g.save(); g.beginPath(); g.rect(zb[z], 0, zb[z + 1] - zb[z], H); g.clip(); g.globalAlpha = RLN[q * 5 + 3]; sheet(RLC[q], RLN[q * 5], RLN[q * 5 + 1], zb[z], zb[z + 1], RLN[q * 5 + 2]); g.restore(); } }
     // the blackout: the streaks catch the moon (a band of them brighter under it), at the middle third's slant
     if(dk > .05 && !reduce){ const mx = MOON.x || W / 2, k = 1 + (RKX[2] - 1) * sp, v = rslI((.04 + steer) * k); g.save(); g.beginPath(); g.rect(snp(mx - W * .2), 0, snp(W * .4), H); g.clip(); g.globalCompositeOperation = 'lighter'; g.globalAlpha = a0 * al * .28 * dk;
       sheet(S[2][v], RST.ox[7] - par, RST.oy[2], snp(mx - W * .2), snp(mx + W * .2), k); g.restore(); }

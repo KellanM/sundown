@@ -1,0 +1,219 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>GL Batch Test</title>
+<!-- Local only (not deployed): the WebGL instanced-quad batcher (gl/batch.js) against Canvas2D. Design: research/sundown-craft/webgl-batch.md.
+     ?auto=1 runs everything on load and leaves the results in window.RESULTS (for tools/headless.mjs). -->
+<style>
+:root{ --bg:#0c0d14; --fg:#d8dae6; --dim:#8a8ea4; --ok:#5fd38a; --bad:#ff6a6a; --warn:#f0c060; --line:#262838; }
+body{ margin:0; padding:16px; background:var(--bg); color:var(--fg); font:13px/1.45 ui-monospace,Consolas,monospace; }
+h1{ font-size:16px; margin:0 0 8px; } h2{ font-size:14px; margin:18px 0 6px; }
+.row{ display:flex; flex-wrap:wrap; gap:12px; }
+figure{ margin:0; } figcaption{ color:var(--dim); margin-bottom:4px; }
+canvas.v{ width:480px; height:270px; image-rendering:pixelated; border:1px solid var(--line); background:#000; max-width:100%; }
+table{ border-collapse:collapse; margin-top:6px; } td,th{ border-bottom:1px solid var(--line); padding:3px 10px 3px 0; text-align:left; white-space:nowrap; }
+.ok{ color:var(--ok); } .bad{ color:var(--bad); } .warn{ color:var(--warn); } .dim{ color:var(--dim); }
+button{ background:#1c1e2c; color:var(--fg); border:1px solid #3a3d55; padding:5px 10px; font:inherit; cursor:pointer; } button:hover{ background:#26293c; }
+label{ margin-left:10px; } p{ max-width:980px; }
+</style></head><body>
+<h1>GL batch: WebGL instanced quads vs Canvas2D</h1>
+<div><button id="bAll">Run diff suite</button> <button id="bTime">Run timing (short)</button> <button id="bLoss">Context-loss test</button>
+  <label><input type="checkbox" id="phone"> phone-ish 4x estimate</label> <span id="status" class="dim"></span></div>
+<div class="row" style="margin-top:10px">
+  <figure><figcaption>Canvas2D (reference) <span id="capA"></span></figcaption><canvas class="v" id="cA"></canvas></figure>
+  <figure><figcaption>WebGL batcher <span id="capB"></span></figcaption><canvas class="v" id="cB"></canvas></figure>
+  <figure><figcaption>diff heatmap (grey: same; yellow: 1; orange: 2-3; red: 4+) <span id="capH"></span></figcaption><canvas class="v" id="cH"></canvas></figure>
+</div>
+<h2>Pixel diff</h2><div id="diffs" class="dim">not run</div>
+<h2>Timing (synthetic scene)</h2><div id="times" class="dim">not run</div>
+<h2>Known, unavoidable differences</h2>
+<p>1. <b>'lighten' with source alpha below 1.</b> Canvas2D computes dst + a·max(0, src − dst); GL's MAX blend computes max(dst, a·src). They agree exactly
+where the instance is opaque (a = 1), which is how the suite tests it; the "lighten, alpha &lt; 1" row measures the gap. Keep 'lighten' layers opaque,
+or move them to 'lighter' / 'screen', which are exact.</p>
+<p>2. <b>8-bit rounding.</b> GL quantises each instance's premultiplied colour to 8 bits before blending; GPU-raster Canvas2D (Skia) does the
+same on its batched path (an alpha sweep matched 64/64) but not on every op, so a translucent blend can differ by 1. Software-raster Canvas2D
+(what Chrome falls back to on some devices, and what a canvas becomes after repeated getImageData) rounds differently again: the CONTROL rows
+compare Canvas2D with itself, GPU against software, and show a spread as large as GL's. The gate (against GPU Canvas2D): geometry exact (no texel,
+row, dash or clip off: that would be a large delta), max delta &le; 4, under 0.5% of pixels off by more than 1. Columns are laid as two instances
+(fringe, then core) so GL blends exactly as often as Canvas2D does; opts.fuseColumns folds them into one quad (half the instances, one more
+rounding step).</p>
+<p>3. <b>Sprite tint.</b> The GL sprite material can tint; Canvas2D cannot without a tinted copy, so the suite draws sprites untinted.</p>
+<p>4. <b>'overlay'</b> (Akihabara's rain sheets) has no fixed-function blend: it needs the destination in the shader. It stays in Canvas2D, or the rain sheets move
+to 'screen' / 'lighter' when they move to GL.</p>
+<p>5. <b>A mixed GL layer</b> (additive pools and source-over dark breaks in one transparent GL canvas, composited source-over) is close but not
+exact: the layer stores its colour in 8 bits once more (deltas of 2-3), and light that has already clipped at white over the road before a dark
+break clips in the one-canvas picture but not in the layer (a few pixels, up to ~20). An additive-only layer composited 'lighter'
+(CSS mix-blend-mode: plus-lighter) is exact. See the design note's layering plan.</p>
+<div id="notes"></div>
+<script src="gl/batch.js"></script>
+<script>
+'use strict';
+const PX = 3, W = 480, H = 270, HZ = 72;   // backing w x h (device px); PX as the game's; the horizon row
+const $ = id => document.getElementById(id);
+const G = GLBatch, P = G.rgba;
+const cA = $('cA'), cB = $('cB'), cH = $('cH'); cA.width = cH.width = W; cA.height = cH.height = H;
+const ctx = cA.getContext('2d'); ctx.setTransform(1 / PX, 0, 0, 1 / PX, 0, 0); ctx.imageSmoothingEnabled = false;
+const BG = G.create(cB, { allowSoftware:true });   // (software WebGL allowed here, to measure it; the game would keep Canvas2D) (the visible 2D canvas cA only shows the reference; each test draws its own fresh one)
+const NOTES = [];
+function rng(seed){ let a = seed >>> 0; return () => { a = (a + 0x6D2B79F5) | 0; let t = Math.imul(a ^ (a >>> 15), 1 | a); t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t; return ((t ^ (t >>> 14)) >>> 0) / 4294967296; }; }
+const PAL = ['#ff2a3c', '#ff4fa8', '#3ad0ff', '#4dff9a', '#ffd23a', '#b06bff', '#ff8a2a', '#7af0e8', '#f0f4ff', '#ff6e5a', '#5a8cff', '#e8ff5a'].map(h => G.hex(h));
+const HOT = PAL.map(c => P(Math.round((c & 255) * .55 + 255 * .45), Math.round(((c >>> 8) & 255) * .55 + 255 * .45), Math.round(((c >>> 16) & 255) * .55 + 255 * .45)));
+
+// ---------------------------------------------------------------- the atlas: pixel sprites with hard edges and some half-transparent glass
+const atlas = document.createElement('canvas'); atlas.width = 64; atlas.height = 64; (function(){ const k = atlas.getContext('2d'), id = k.createImageData(64, 64), d = id.data, r = rng(7);
+  for(let s = 0; s < 16; s++){ const ox = (s & 3) * 16, oy = (s >> 2) * 16, c = PAL[s % PAL.length], br = [c & 255, (c >>> 8) & 255, (c >>> 16) & 255];
+    for(let y = 0; y < 16; y++) for(let x = 0; x < 16; x++){ const i = ((oy + y) * 64 + ox + x) * 4, edge = x < 2 || x > 13 || y < 1, win = (x % 4 === 2 || x % 4 === 3) && y % 5 > 1 && y < 14, v = r();
+      if(y < 2 + (s % 5) && x > 3 + (s % 3) && x < 12) continue;   // a notched top: transparent pixels
+      if(edge){ d[i] = 12; d[i + 1] = 14; d[i + 2] = 24; d[i + 3] = 255; }
+      else if(win){ d[i] = br[0]; d[i + 1] = br[1]; d[i + 2] = br[2]; d[i + 3] = v < .3 ? 96 : v < .6 ? 160 : 255; }   // lit glass, some of it half see-through
+      else { d[i] = 30 + (s * 9) % 40; d[i + 1] = 26 + (s * 5) % 30; d[i + 2] = 44 + (s * 7) % 50; d[i + 3] = 255; } } }
+  k.putImageData(id, 0, 0); })();
+BG.setAtlas(atlas);
+
+// ---------------------------------------------------------------- scenes: emitted through the API, identically for both back ends
+const BANDS = []; (function(){ let r = HZ, h = 2; while(r < H){ const r1 = Math.min(H, r + Math.round(h)); BANDS.push([r, r1]); r = r1; h *= 1.16; } })();   // road segments: thin far, thick near
+function background(B){ B.stage(0); B.blend('source-over'); B.alpha(1); B.noClip();
+  for(let r = 0; r < HZ; r += 6) B.fill(0, r * PX, W * PX, 6 * PX, P(14 + r / 6, 12 + r / 8, 34 + r / 3));
+  for(let i = 0; i < BANDS.length; i++){ const [r0, r1] = BANDS[i], t = i / BANDS.length; B.fill(0, r0 * PX, W * PX, (r1 - r0) * PX, P(20 + 18 * t + (i & 1) * 4, 20 + 14 * t, 30 + 16 * t)); } }
+function rclip(B, r){ if(r() < .35){ const x = Math.floor(r() * W * .7), y = Math.floor(r() * H * .7), w = 20 + Math.floor(r() * W * .5), h = 10 + Math.floor(r() * H * .5); B.clipDev(x, y, x + w, y + h); } else B.noClip(); }
+function oneColumn(B, r, opaque){ const ci = Math.floor(r() * PAL.length), len = (6 + Math.floor(r() * 70)) * PX, fw = 2 + Math.floor(r() * 9), cw = r() < .2 ? 0 : 1 + Math.floor(r() * fw * .6);
+  B.column(Math.floor(r() * W) * PX, Math.floor(r() * H * .8) * PX, len, fw, cw, r() < .5 ? 0 : 1, opaque ? 999 : 2 + Math.floor(r() * 10), 1 + Math.floor(r() * 4), r() * .5, Math.floor(r() * 400) - 200, Math.floor(r() * 1000), Math.floor(r() * 3),
+    opaque ? PAL[ci] : G.withA(PAL[ci], 60 + Math.floor(r() * 140)), opaque ? HOT[ci] : G.withA(HOT[ci], 150 + Math.floor(r() * 105))); }
+function oneStreak(B, r, opaque){ const len = (3 + Math.floor(r() * 22)) * PX;
+  B.streak(Math.floor(r() * W) * PX, Math.floor(r() * H) * PX, len, Math.floor(r() * 9) - 4, 2 + Math.floor(r() * 6), r() < .8 ? 1 : 2, opaque ? 999 : 1 + Math.floor(r() * 5), opaque ? P(200, 214, 240) : P(200, 214, 240, 70 + Math.floor(r() * 150))); }
+function matScene(B, mat, blend, seed, opaque){ const r = rng(seed); background(B); B.blend(blend);
+  for(let i = 0; i < 400; i++){ rclip(B, r); B.alpha(opaque ? 1 : .2 + .8 * r());
+    if(mat === 'flat'){ const w = 1 + Math.floor(r() * 60), h = 1 + Math.floor(r() * 40), c = PAL[Math.floor(r() * PAL.length)]; B.fill(Math.floor(r() * W) * PX, Math.floor(r() * H) * PX, w * PX, h * PX, opaque ? c : G.withA(c, 40 + Math.floor(r() * 215))); }
+    else if(mat === 'sprite'){ const s = Math.floor(r() * 16), k = [1, 2, 3, 1.5, 2.5][Math.floor(r() * 5)], sw = 16, sh = 16, dw = Math.round(sw * k), dh = Math.round(sh * (r() < .2 ? k * .75 : k));
+      B.sprite((s & 3) * 16, (s >> 2) * 16, sw, sh, Math.floor(r() * W) * PX, Math.floor(r() * H) * PX, dw * PX, dh * PX); }
+    else if(mat === 'column') oneColumn(B, r, opaque);
+    else oneStreak(B, r, opaque); }
+  B.noClip(); }
+/* The synthetic Akihabara frame. Road segments are row bands (far thin, near thick). Per segment, as roadmat orders it: its material
+   (source-over), the light pools' rows inside it (lighter), dark breaks (source-over), late pools (tail lights, lighter), then its props (sprites,
+   bottom-anchored in the band and standing up over farther bands). A light's column spans several nearer bands and is drawn once per band,
+   clipped to that band's rows, as drawPools does. Then rain over everything (lighter, a few source-over and screen), and a few sign blooms. */
+const LIGHTS = (function(){ const r = rng(42), L = []; for(let i = 0; i < 820; i++){ const b = Math.floor(Math.pow(r(), .8) * (BANDS.length - 2)), ci = Math.floor(r() * PAL.length), near = b / BANDS.length;
+    L.push({ b, x:Math.floor(W * (.5 + (r() - .5) * (.25 + 1.1 * near))), len:Math.round(8 + near * 150 * (.4 + r())), fw:Math.max(2, Math.round(2 + near * 14 * r())), cw:0, ci, seed:Math.floor(r() * 9999), J:near > .4 ? Math.floor(r() * 3) : 0, late:r() < .15, a:120 + Math.floor(r() * 135) }); }
+  for(const l of L) l.cw = Math.max(1, Math.round(l.fw * .45)); return L; })();
+function fullScene(B, opts){ opts = opts || {}; const r = rng(99), add = opts.layer ? 'add' : 'lighter', base = !opts.poolsOnly, noDark = !!opts.noDark;   // poolsOnly: the pools (and dark breaks) alone, for the layer tests
+  if(base) background(B);
+  for(let i = 0; i < BANDS.length; i++){ const [r0, r1] = BANDS[i]; B.clipDev(0, r0, W, r1);
+    if(base){ B.stage(0); B.blend('source-over'); for(let q = 0; q < 6; q++){ B.alpha(.15 + .2 * r()); B.fill(Math.floor(r() * W) * PX, r0 * PX, (8 + Math.floor(r() * 60)) * PX, (r1 - r0) * PX, P(140, 150, 175)); } }
+    // the pools' rows in this band (every light at or beyond it whose column reaches it)
+    for(let pass = 0; pass < 2; pass++){ B.stage(pass ? 3 : 1); B.blend(add); B.alpha(1);
+      for(const l of LIGHTS){ if(l.late !== !!pass || l.b > i) continue; const y0 = BANDS[l.b][0]; if(y0 + l.len <= r0) continue;
+        const dm = opts.dim ? .25 : 1; B.column(l.x * PX, y0 * PX, l.len * PX, l.fw, l.cw, l.b > BANDS.length * .5 ? 1 : 0, 3 + (l.b % 4), 2, .22, l.b * 7, l.seed, l.J, G.withA(PAL[l.ci], Math.round(l.a * .5 * dm)), G.withA(l.late ? PAL[0] : HOT[l.ci], Math.round(l.a * dm))); }
+      if(!pass && !noDark){ B.stage(2); B.blend('source-over'); for(let q = 0; q < 3; q++){ B.alpha(.5); B.fill(Math.floor(r() * W) * PX, r0 * PX, (2 + Math.floor(r() * 10)) * PX, (r1 - r0) * PX, P(5, 6, 12)); } } }
+    if(base){ B.stage(4); B.blend('source-over'); B.alpha(1); B.noClip(); const nS = 1 + (i & 1);
+      for(let q = 0; q < nS; q++){ const s = Math.floor(r() * 16), k = 1 + Math.floor(i / BANDS.length * 3), x = Math.floor(r() * W), sw = 16 * k, sh = 16 * k; B.sprite((s & 3) * 16, (s >> 2) * 16, 16, 16, (x - (sw >> 1)) * PX, (r1 - sh) * PX, sw * PX, sh * PX); } } }
+  B.noClip();
+  if(base){ B.stage(5); B.blend('screen'); for(let q = 0; q < 14; q++){ B.alpha(.25 + .3 * r()); const w = 20 + Math.floor(r() * 50), h = 6 + Math.floor(r() * 20); B.fill(Math.floor(r() * W) * PX, Math.floor(r() * HZ) * PX, w * PX, h * PX, PAL[Math.floor(r() * PAL.length)]); } }
+  if(base){ B.stage(7); B.alpha(1); const N = [1600, 250, 150], M = ['lighter', 'source-over', 'screen'];   // the rain, as a rain pass is authored: one group per blend (a sheet per layer)
+    for(let g = 0; g < 3; g++){ B.blend(M[g]); const rr = rng(500 + g); for(let q = 0; q < N[g]; q++) oneStreak(B, rr, false); } }
+  B.blend('source-over'); }
+
+// ---------------------------------------------------------------- running and reading back
+/* Every reference is a fresh Canvas2D, read back once. (Found the hard way: Chrome moves a canvas to software raster after repeated getImageData,
+   and software Skia rounds differently from GPU Skia. The game's canvas is never read back, so the GPU-raster canvas is the reference that counts;
+   the software one (willReadFrequently) is reported beside it, as the picture on a device where Chrome rasters canvases on the CPU.) */
+const GLPIX = new Uint8Array(W * H * 4);
+function readGL(B){ const gl = B.gl, out = new Uint8ClampedArray(W * H * 4); gl.readPixels(0, 0, W, H, gl.RGBA, gl.UNSIGNED_BYTE, GLPIX);
+  for(let y = 0; y < H; y++) out.set(GLPIX.subarray((H - 1 - y) * W * 4, (H - y) * W * 4), y * W * 4); return out; }
+function fresh(cpu){ const c = document.createElement('canvas'); c.width = W; c.height = H; const k = c.getContext('2d', cpu ? { willReadFrequently:true } : undefined);
+  k.setTransform(1 / PX, 0, 0, 1 / PX, 0, 0); k.imageSmoothingEnabled = false; const B = G.create2D(k); B.setAtlas(atlas); return { c, k, B }; }
+function ref(fn, cpu){ const R = fresh(cpu); R.B.begin(W, H, PX); fn(R.B); const st = Object.assign({}, R.B.flush()); return { d:R.k.getImageData(0, 0, W, H).data, st, c:R.c }; }
+function glr(fn, B){ B = B || BG; if(!B.begin(W, H, PX)) throw new Error('GL not ok: ' + B.reason); fn(B); const st = Object.assign({}, B.flush()); return { d:readGL(B), st }; }
+function drawBoth(fn){ const A = ref(fn), Gl = glr(fn); return { a:A.d, b:Gl.d, s2:A.st, sg:Gl.st, c:A.c }; }
+function compare(a, b, heat){ let n = 0, max = 0; const hist = [0, 0, 0, 0]; const hd = heat ? heat.data : null;
+  for(let i = 0; i < a.length; i += 4){ const d = Math.max(Math.abs(a[i] - b[i]), Math.abs(a[i + 1] - b[i + 1]), Math.abs(a[i + 2] - b[i + 2]), Math.abs(a[i + 3] - b[i + 3]));
+    if(d){ n++; if(d > max) max = d; hist[d === 1 ? 1 : d <= 3 ? 2 : 3]++; } else hist[0]++;
+    if(hd){ const g = (a[i] + a[i + 1] + a[i + 2]) / 12; if(!d){ hd[i] = hd[i + 1] = hd[i + 2] = g; } else if(d === 1){ hd[i] = 255; hd[i + 1] = 230; hd[i + 2] = 60; } else if(d <= 3){ hd[i] = 255; hd[i + 1] = 140; hd[i + 2] = 20; } else { hd[i] = 255; hd[i + 1] = 30; hd[i + 2] = 30; } hd[i + 3] = 255; } }
+  return { n, max, hist, pct:n / (a.length / 4) * 100 }; }
+function showHeat(a, b){ const hk = cH.getContext('2d'), id = hk.createImageData(W, H), r = compare(a, b, id); hk.putImageData(id, 0, 0); return r; }
+
+const RESULTS = window.RESULTS = { tests:[], timing:null, renderer:'', kind:'', loss:null, layer:[], done:false };
+/* The gate, against the GPU-raster Canvas2D. Geometry must be exact: a wrong pixel (a texel, a row, a dash, a clip off by one) shows as a large
+   delta. Colour may differ by 8-bit rounding (GL quantises the source to 8 bits before blending; Skia does too on its batched path, not always),
+   so: max delta <= 4, and under 0.5% of pixels off by more than 1. */
+const gate = r => r.max <= 4 && (r.hist[2] + r.hist[3]) / (W * H) < .005;
+function test(name, fn, expectExact){ const { a, b, s2, sg } = drawBoth(fn), r = compare(a, b), rs = compare(ref(fn, true).d, b);
+  const row = { name, n:r.n, max:r.max, pct:+r.pct.toFixed(4), hist:r.hist, nCpu:rs.n, maxCpu:rs.max, histCpu:rs.hist, calls2d:s2.calls, state2d:s2.state, inst:sg.instances, draws:sg.draws, expectExact:!!expectExact,
+    pass:expectExact === 'diverge' ? true : gate(r) }; RESULTS.tests.push(row); return row; }
+function renderDiffs(){ const T = RESULTS.tests; let h = '<table><tr><th>test</th><th>differing px</th><th>%</th><th>max delta</th><th>delta 1 / 2-3 / 4+</th><th>vs software 2D: px / max</th><th>2D calls (+state)</th><th>GL instances / draws</th><th></th></tr>';
+  for(const t of T) h += `<tr><td>${t.name}</td><td>${t.n}</td><td>${t.pct}</td><td>${t.max}</td><td>${t.hist[1]} / ${t.hist[2]} / ${t.hist[3]}</td><td>${t.nCpu === undefined ? '' : t.nCpu + ' / ' + t.maxCpu}</td><td>${t.calls2d} (+${t.state2d})</td><td>${t.inst} / ${t.draws}</td><td class="${t.expectExact === 'diverge' ? 'warn' : t.pass ? 'ok' : 'bad'}">${t.expectExact === 'diverge' ? 'known gap' : t.pass ? 'pass' : 'FAIL'}</td></tr>`;
+  for(const t of RESULTS.layer) h += `<tr><td>${t.name}</td><td>${t.n}</td><td>${t.pct}</td><td>${t.max}</td><td>${t.hist[1]} / ${t.hist[2]} / ${t.hist[3]}</td><td></td><td></td><td></td><td class="${t.control ? 'dim' : t.pass ? 'ok' : 'warn'}">${t.control ? 'control' : t.pass ? 'pass' : 'see note 5'}</td></tr>`;
+  $('diffs').innerHTML = h + '</table>'; $('diffs').className = ''; }
+
+/* Layering: the GL canvas as a separate transparent layer composited over the 2D one (here by drawImage; in the game by stacking canvases).
+   (a) an additive-only layer: GL 'lighter' into transparency, composited with 'lighter' (CSS: mix-blend-mode: plus-lighter);
+   (b) a mixed layer (additive pools + source-over dark breaks): GL 'add' keeps alpha for coverage only, so a plain source-over composite of the
+       premultiplied layer gives base*(1 - a) + rgb: the dark breaks darken, the light adds. */
+function layerTest(name, layerOpts, op){
+  const a = ref(B => { background(B); fullScene(B, { poolsOnly:true, noDark:layerOpts.noDark, dim:layerOpts.dim }); }).d;   // one Canvas2D: background, then the pools in order
+  const X = fresh(); X.B.begin(W, H, PX); background(X.B); X.B.flush();   // hybrid: 2D background, GL pools in a transparent layer, composited
+  BG.begin(W, H, PX); fullScene(BG, layerOpts); BG.flush();
+  X.k.setTransform(1, 0, 0, 1, 0, 0); X.k.globalCompositeOperation = op; X.k.drawImage(cB, 0, 0); X.k.globalCompositeOperation = 'source-over';
+  const r = compare(a, X.k.getImageData(0, 0, W, H).data);
+  const row = { name, n:r.n, max:r.max, pct:+r.pct.toFixed(4), hist:r.hist, pass:gate(r) }; RESULTS.layer.push(row); return row; }
+
+function runAll(){ RESULTS.tests = []; RESULTS.layer = []; RESULTS.kind = BG.kind; RESULTS.renderer = BG.renderer(); RESULTS.software = !!BG.caps.software; if(BG.caps.software) NOTES.push('This WebGL is software (' + BG.caps.renderer + '): the game would refuse it and keep Canvas2D.');
+  const blends = ['source-over', 'lighter', 'lighten', 'screen'];
+  for(const mat of ['flat', 'sprite', 'column', 'streak']) for(const bl of blends){ const op = bl === 'lighten', glass = op && mat === 'sprite';   // (the atlas's glass texels are half transparent: lighten's known gap)
+    test(`${mat} / ${bl}${op ? (glass ? ' (alpha 1; glass texels < 1)' : ' (opaque)') : ''}`, B => matScene(B, mat, bl, mat.length * 31 + bl.length, op), glass ? 'diverge' : true); }
+  for(const mat of ['flat', 'column']) test(`${mat} / lighten, alpha < 1`, B => matScene(B, mat, 'lighten', 5, false), 'diverge');
+  test('FULL synthetic Akihabara frame', B => fullScene(B), true);
+  // the full frame again on WebGL1 + ANGLE_instanced_arrays
+  try{ const c1 = document.createElement('canvas'), B1 = G.create(c1, { webgl1:true }); B1.setAtlas(atlas);
+    if(B1.ok){ const A = ref(B => fullScene(B)), Gl = glr(B => fullScene(B), B1), r = compare(A.d, Gl.d);
+      RESULTS.tests.push({ name:`FULL frame on WebGL1 (lighten: ${B1.caps.lighten ? 'EXT_blend_minmax' : 'none'})`, n:r.n, max:r.max, pct:+r.pct.toFixed(4), hist:r.hist, calls2d:A.st.calls, state2d:A.st.state, inst:Gl.st.instances, draws:Gl.st.draws, expectExact:true, pass:gate(r) }); B1.lose(); }
+    else NOTES.push('WebGL1 path unavailable: ' + B1.reason); }catch(e){ NOTES.push('WebGL1 path error: ' + e.message); }
+  layerTest('LAYER: additive pools, GL layer composited "lighter"', { poolsOnly:true, noDark:true }, 'lighter');
+  layerTest('LAYER: pools + dark breaks, GL "add" layer composited source-over', { poolsOnly:true, layer:true }, 'source-over');
+  layerTest('LAYER: the same, lights dimmed (nothing saturates)', { poolsOnly:true, layer:true, dim:true }, 'source-over');
+  // the controls: GPU-raster Canvas2D against software Canvas2D (the same calls), the spread Canvas2D itself has
+  for(const [mat, bl] of [['column', 'source-over'], ['streak', 'source-over'], ['sprite', 'source-over'], ['flat', 'lighter']]){ const fn = B => matScene(B, mat, bl, mat.length * 31 + bl.length, false), r = compare(ref(fn).d, ref(fn, true).d);
+    RESULTS.layer.push({ name:`CONTROL Canvas2D GPU vs software: ${mat} / ${bl}`, n:r.n, max:r.max, pct:+r.pct.toFixed(4), hist:r.hist, pass:true, control:true }); }
+  { const r = compare(ref(B => fullScene(B)).d, ref(B => fullScene(B), true).d); RESULTS.layer.push({ name:'CONTROL Canvas2D GPU vs software: FULL frame', n:r.n, max:r.max, pct:+r.pct.toFixed(4), hist:r.hist, pass:true, control:true }); }
+  // leave the full frame on show
+  const { a, b, s2, sg, c } = drawBoth(B => fullScene(B)); const r = showHeat(a, b);
+  ctx.setTransform(1, 0, 0, 1, 0, 0); ctx.drawImage(c, 0, 0); ctx.setTransform(1 / PX, 0, 0, 1 / PX, 0, 0);
+  $('capA').textContent = `${s2.calls} calls, +${s2.state} state changes`; $('capB').textContent = `${sg.instances} instances, ${sg.draws} draws`; $('capH').textContent = `${r.n} px differ, max ${r.max}`;
+  renderDiffs(); $('notes').innerHTML = NOTES.map(n => `<p class="warn">${n}</p>`).join(''); RESULTS.notes = NOTES; }
+
+// ---------------------------------------------------------------- timing: a few frames of the full scene on each path (rAF-paced; short)
+const cT = document.createElement('canvas'); cT.width = W; cT.height = H; const tk = cT.getContext('2d'); tk.setTransform(1 / PX, 0, 0, 1 / PX, 0, 0); tk.imageSmoothingEnabled = false;
+const BT = G.create2D(tk); BT.setAtlas(atlas); document.body.appendChild(cT); cT.className = 'v'; cT.style.display = 'none';
+function frames(kind, N){ return new Promise(res => { const sub = [], gap = []; let last = 0, i = 0; cT.style.display = kind === '2d' ? '' : 'none';
+  const step = now => { if(last) gap.push(now - last); last = now; if(i >= N){ res({ sub, gap }); return; } i++;
+    const t0 = performance.now(); if(kind === '2d'){ BT.begin(W, H, PX); fullScene(BT); BT.flush(); } else { BG.begin(W, H, PX); fullScene(BG); BG.flush(); } sub.push(performance.now() - t0);
+    requestAnimationFrame(step); }; requestAnimationFrame(step); }); }
+const med = a => { const s = a.slice().sort((x, y) => x - y); return s.length ? s[s.length >> 1] : 0; };
+// the scene generator's own cost (walking LIGHTS, rng) is in both; measured with a no-op back end so it can be subtracted
+const NOP = { begin(){ return true; }, blend(){}, stage(){}, alpha(){}, clip(){}, clipDev(){}, noClip(){}, fill(){}, sprite(){}, column(){}, streak(){}, flush(){ return {}; } };
+async function runTiming(){ $('status').textContent = 'timing...'; const N = 24; await frames('gl', 4);   // (warm-up)
+  const t2 = await frames('2d', N), tg = await frames('gl', N); const g0 = []; for(let i = 0; i < 8; i++){ const t = performance.now(); fullScene(NOP); g0.push(performance.now() - t); }
+  BT.begin(W, H, PX); fullScene(BT); const s2 = Object.assign({}, BT.flush()); BG.begin(W, H, PX); fullScene(BG); const sg = Object.assign({}, BG.flush());
+  RESULTS.timing = { frames:N, gen:+med(g0).toFixed(2), c2d:{ submit:+med(t2.sub).toFixed(2), frame:+med(t2.gap.slice(2)).toFixed(2), calls:s2.calls, state:s2.state },
+    gl:{ submit:+med(tg.sub).toFixed(2), frame:+med(tg.gap.slice(2)).toFixed(2), draws:sg.draws, instances:sg.instances, bytes:sg.bytes } };
+  cT.style.display = 'none'; renderTiming(); $('status').textContent = ''; return RESULTS.timing; }
+function renderTiming(){ const T = RESULTS.timing; if(!T) return; const k = $('phone').checked ? 4 : 1, f = v => (v * k).toFixed(2), fps = v => (1000 / Math.max(v * k, 1000 / 60)).toFixed(0);
+  $('times').className = ''; $('times').innerHTML = `<table><tr><th>path</th><th>JS submit ms (median)</th><th>frame interval ms</th><th>~fps</th><th>draw calls</th><th>notes</th></tr>
+  <tr><td>Canvas2D</td><td>${f(T.c2d.submit)}</td><td>${f(T.c2d.frame)}</td><td>${fps(Math.max(T.c2d.submit, T.c2d.frame))}</td><td>${T.c2d.calls}</td><td>+${T.c2d.state} state changes</td></tr>
+  <tr><td>WebGL batcher</td><td>${f(T.gl.submit)}</td><td>${f(T.gl.frame)}</td><td>${fps(Math.max(T.gl.submit, T.gl.frame))}</td><td>${T.gl.draws}</td><td>${T.gl.instances} instances, ${(T.gl.bytes / 1024).toFixed(0)} KB uploaded</td></tr></table>
+  <p class="dim">${N_FR(T)} frames each, rAF-paced. Submit includes the scene generator's own walk (${f(T.gen)} ms with a no-op back end), identical for both. ${k > 1 ? 'Times x4: a phone-ish estimate, not a measurement; fps is capped at 60.' : ''}</p>`; }
+const N_FR = T => T.frames;
+$('phone').onchange = renderTiming;
+
+async function lossTest(){ const r = { lostOk:false, beginFalse:false, flushSafe:false, restoredOk:false, diffAfter:null };
+  if(!BG.lose()){ r.note = 'WEBGL_lose_context unavailable'; RESULTS.loss = r; return r; }
+  await new Promise(res => setTimeout(res, 50)); r.lostOk = BG.ok === false; r.beginFalse = BG.begin(W, H, PX) === false; try{ BG.fill(0, 0, 9, 9, PAL[0]); BG.flush(); r.flushSafe = true; }catch(e){ r.flushSafe = false; }
+  const restored = new Promise(res => { BG.onRestored = ok => res(ok); setTimeout(() => res('timeout'), 3000); }); BG.restore(); r.restoredOk = await restored;
+  if(r.restoredOk === true){ const { a, b } = drawBoth(B => fullScene(B)); const c = compare(a, b); r.diffAfter = { n:c.n, max:c.max }; }
+  RESULTS.loss = r; $('notes').innerHTML += `<p>Context loss: ${JSON.stringify(r)}</p>`; return r; }
+
+$('bAll').onclick = () => { try{ runAll(); }catch(e){ $('diffs').textContent = 'error: ' + e.message; } };
+$('bTime').onclick = () => runTiming();
+$('bLoss').onclick = () => lossTest();
+if(!BG.ok){ $('diffs').textContent = 'WebGL unavailable: ' + BG.reason + ' (the 2D back end is the fallback)'; }
+else if(new URLSearchParams(location.search).has('auto')) setTimeout(async () => { try{ runAll(); await runTiming(); await lossTest(); }catch(e){ RESULTS.error = e.message + '\n' + e.stack; } RESULTS.done = true; }, 50);
+</script></body></html>
