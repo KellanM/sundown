@@ -550,7 +550,7 @@
     const kd = pkOf(j, side), lx = laneDX(j); if(j % wsAt(j) && pkOf(j - 1, side) === kd && laneDX(j - 1) === lx) return 0;
     let n = 1; while(n < 16 && (j + n) % wsAt(j + n) && pkOf(j + n, side) === kd && laneDX(j + n) === lx && segs[j + n]) n++; return n; }
   function drawPar(sp, x, y, uw, fog, now){ const j = sp.k, side = sp.side, n = parSpan(j, side); if(!n) return; const s = sp.s, kd = sp.kd;
-    if(n <= 2 && kd !== 'rail' && uw > 5 && RFA) for(let m = 0; m < n; m++) roofProps(j + m, side, now);   // the low roofs' clutter beyond the parapet (drawn before it: the parapet covers their feet)
+    if(n <= 2 && kd === 'con' && uw > 5 && RFA) for(let m = 0; m < n; m++) roofProps(j + m, side, now);   // the low roofs' clutter beyond the parapet (drawn before it: the parapet covers their feet)
     const t = segs[j + n - 1] || s; const q = t.p2.screen; if(!q.w) return; const x2 = q.x + sp.x * q.w, y2 = q.y, u2 = q.w; face(x, y, uw, x2, y2, u2);
     if(side < 0 ? Math.max(x, x2) < -PX : Math.min(x, x2) > W + PX) return;
     FF = fog; const F = F0, near = uw > 26;
@@ -709,7 +709,7 @@
      other sprite of the frame comes after it. The engine's per-segment clip is lifted for the pass and put back afterwards. What lies
      outside the deck below the horizon: the river (its far bank, bridges, boats and the long reflections) or the city (blocks of low
      buildings, avenues with taxis, crossings with signals). Only the open (railing) side is drawn, and only while a railing is near. */
-  let HOST = -1, BWF = -1, OPEN = 0, CAMC = .3, BWZ = null; const DBG = { bw:0, host:0, open:0, err:'' };
+  let HOST = -1, BWF = -1, OPEN = 0, CAMC = .3, BWZ = null; const DBG = { bw:0, host:0, open:0, err:'', rp:0, rc:0 };
   const DW = 1.5;   // the open stretches stand DW half-road widths above the street or the water (lower than the canyon's deck: from a bike's eye height a deeper drop is all hidden by the rail)
   function hostPrep(){ HOST = -1; OPEN = 0; const b = segAt(position).index; if(FKG >= 0 || (SPLIT_LOCK && b < SPLIT_LOCK.G + SPLIT_POST + 40)) return;
     for(let n = 2; n < 110; n++){ const s = segs[b + n]; if(!s || !s.shOpen) continue; OPEN |= s.shOpen; }
@@ -903,14 +903,14 @@
     put('sky', 10, 3, (R, w, h) => { R(0, 0, w, h, '#3a3440'); R(1, 1, w - 2, 1, '#e8c890'); });   // a lit skylight, edge on
     RFA = c; }
   const RFK = ['tank0', 'tank1', 'ac0', 'ac1', 'hut0', 'hut1', 'hut2', 'mast', 'sky', 'ac0', 'tank0', 'hut2'];
-  function roofProps(z, sd, now){ const sg = segs[z]; if(!sg || !sg.p1.screen.w) return; const p = sg.p1.screen, uw = p.w; if(uw < 5) return;
-    const cl = Math.floor(z / 9), slot = z - cl * 9; let lim = 99; for(let r = 0; r < 3; r++){ const B = bldAt(z, sd, r); if(B && B.x0 < lim) lim = B.x0; }   // nothing past the nearest building at this segment
-    let X = 2.5; for(let k = 0; k < 5 && X < lim; k++){ const w = 2.2 + hash(cl * 3.7 + k * 1.9 + sd) * 2.4, hv = hash(cl * 11.3 + k * 4.1 + sd * 2.7);   // (the floor's own cells: belowDeck)
-      if(hv < .62 && slot === Math.floor(hash(cl * 2.9 + k + sd) * 9)){ const id = RFK[Math.floor(hash(cl * 5.7 + k * 3.3 + sd) * RFK.length)], r = RFR[id], X0 = X + w * (.15 + hv * .9);
-        if(r && X0 + r.w / RFS < lim - .1){ const kk = uw / RFS, sx = Math.round((p.x + sd * X0 * uw) / PX) * PX, sy = Math.round(p.y / PX) * PX, dw = Math.max(PX, Math.round(r.w * kk / PX) * PX), dh = Math.max(PX, Math.round(r.h * kk / PX) * PX);
-          if(sx > -dw && sx < W + dw){ cx.imageSmoothingEnabled = false; cx.drawImage(RFA, r.x, r.y, r.w, r.h, sx - (sd < 0 ? dw : 0), sy - dh, dw, dh);
-            if(id === 'mast' && (reduce || ((now / 1000) * .55 + hv * 3) % 1 < .55)){ const ls = Math.max(PX, Math.min(PX * 2, snp(kk * 2))); R(sx - (sd < 0 ? dw : 0) + dw / 2 - ls / 2, sy - dh - ls, ls, ls, AVL); } } } }
-      X += w; } }
+  function roofProps(z, sd, now){ DBG.rc++; const sg = segs[z]; if(!sg || !sg.p1.screen.w) return; const p = sg.p1.screen, uw = p.w; if(uw < 5) return;
+    let lim = 99; for(let r = 0; r < 3; r++){ const B = bldAt(z, sd, r); if(B && B.x0 < lim) lim = B.x0; }   // nothing past the nearest building at this segment
+    const top = Math.min(lim - .1, 9); if(top < 3) return;
+    for(let k = 0; k < 2; k++){ const bl = Math.floor(z / 6), hv = hash(bl * 11.3 + k * 4.1 + sd * 2.7);   // two chances per 6-segment block, across the roofs that show (past the street slot, short of the nearest building)
+      if(hv < .8 && z - bl * 6 === Math.floor(hash(bl * 2.9 + k * 1.3 + sd) * 6)){ const id = RFK[Math.floor(hash(bl * 5.7 + k * 3.3 + sd) * RFK.length)], r = RFR[id], X0 = 2.6 + hash(bl * 7.1 + k * 2.2 + sd) * Math.max(0, top - 2.6 - r.w / RFS);
+        if(r && X0 + r.w / RFS < top){ const kk = uw / RFS, sx = Math.round((p.x + sd * X0 * uw) / PX) * PX, sy = Math.round(p.y / PX) * PX, dw = Math.max(PX, Math.round(r.w * kk / PX) * PX), dh = Math.max(PX, Math.round(r.h * kk / PX) * PX);
+          if(sx > -dw && sx < W + dw){ DBG.rp++; cx.imageSmoothingEnabled = false; cx.drawImage(RFA, r.x, r.y, r.w, r.h, sx - (sd < 0 ? dw : 0), sy - dh, dw, dh);
+            if(id === 'mast' && (reduce || ((now / 1000) * .55 + hv * 3) % 1 < .55)){ const ls = Math.max(PX, Math.min(PX * 2, snp(kk * 2))); R(sx - (sd < 0 ? dw : 0) + dw / 2 - ls / 2, sy - dh - ls, ls, ls, AVL); } } } } } }
   /* The wet deck's light (round 2; the roadmat preset 'shuto' turns the pools on): every light that stands over the deck lays its image on
      it through env/roadmat.js's POOL: the sodium heads of the lamps, the gantries' green panels and red message boards, the junction's soffit
      lights. Harder and longer on drizzle visits. */
@@ -1047,6 +1047,7 @@
     backdrop(o){ if(!ABL.includes('sky')) backdrop(o); if(FR !== DRAWN){ FR = DRAWN; hostPrep(); const e = segs[segAt(position).index + 40]; if(e && e.p1.screen.w) EYE = Math.max(.05, (e.p1.screen.y - HZ) / e.p1.screen.w); } },
     overlay,
     wetSrc,
+    get _roofAtlas(){ return RFA; },   // (dev: the rooftop props' atlas, for contact sheets)
     // for setpiece/screenfall.js and tests
     zoneAt, claim, bldAt, mkBld, riverSide, wetVisit, DBG, PANELS, SIGN, face, FQ, fpt, FPT, fc, KBT, KBC, _parSpan:parSpan
   };
