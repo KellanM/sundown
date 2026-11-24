@@ -134,9 +134,16 @@
   // ---------------------------------------------------------------- buildings
   /* Two rows each side, world-anchored like the engine's pbAt: a street row standing a few metres off the deck and a back row of taller
      towers. A building belongs to the zone at both its ends (it never straddles the river or the open side). */
-  function runAt(i, side, row){ const per = row ? 46 : 34, c = Math.floor(i / per), h = k => hash(c * 7.31 + side * 13.7 + row * 31.1 + k);
+  /* The rows (2026-11-24, Kellan: "we want to make it so the buildings look layered and you can't see the ground texture"): the street
+     row abuts along the deck, broken only by a cross street now and then; the back row of towers stands with narrow gaps; a deep row of
+     mid-rise blocks (row 2) runs unbroken behind them, so every gap between near buildings opens onto deeper buildings, never onto
+     ground (the C1 from its deck at night: Route 5 / Ginza / Kyobashi photos, a carpet of blocks with no street showing). */
+  const RUN2 = new Map();
+  function runAt(i, side, row){ const per = row === 2 ? 40 : row ? 46 : 34, c = Math.floor(i / per), h = k => hash(c * 7.31 + side * 13.7 + row * 31.1 + k);
     if(row === 0){ const L = run0(c, side); for(let q = 0; q < L.length; q++){ const r = L[q]; if(i >= r.b0 && i < r.b0 + r.len) return r; } return null; }
-    const len = 24 + Math.floor(h(1) * 18), b0 = c * per + Math.floor(h(2) * (per - len)); return i >= b0 && i < b0 + len ? { b0, len, c } : null; }
+    if(row === 2){ const key = c * 2 + (side > 0 ? 1 : 0); let L = RUN2.get(key); if(L === undefined){ const l1 = 12 + Math.floor(h(1) * 16); L = [{ b0:c * per, len:l1, c }, { b0:c * per + l1, len:per - l1, c }]; if(RUN2.size > 1200) RUN2.clear(); RUN2.set(key, L); }
+      return i < L[1].b0 ? L[0] : L[1]; }
+    const len = 32 + Math.floor(h(1) * 13), b0 = c * per + Math.floor(h(2) * (per - len)); return i >= b0 && i < b0 + len ? { b0, len, c } : null; }
   /* The street row, per 34-segment period: one building, or a pencil building beside a neighbour. The kind is a weighted pick for the zone,
      with the neighbour rule: a building never takes the kind of the one before it on its side (the chain restarts every 8 periods, so
      finding a kind never looks back more than 7 periods). Cached; the arrays are made once per period, at place() time. */
@@ -146,21 +153,25 @@
     const prev = c % 8 ? run0(c - 1, side) : null, last = prev && prev.length ? prev[prev.length - 1].kind : '';
     let k1 = pickK(WL, h(11)); if(k1 === last) k1 = pickK(WL, h(12)); if(k1 === last) k1 = WL[(WL.findIndex(q => q[0] === k1) + 1) % WL.length][0];
     const fk = typeof QS !== 'undefined' ? QS.get('shutokind') : null; if(fk && BST[fk]) k1 = fk;   // ?shutokind=<kind> for tests: every street-row building that kind
-    L = [];
+    L = []; const st = h(3) < .2 ? 7 + Math.floor(h(4) * 4) : 0, room = per - st;   // st: a cross street at the period's end (the deeper rows show through it)
     if(k1 === 'pencil'){ const lp = 5 + Math.floor(h(13) * 3); let k2 = pickK(WL, h(14)); if(k2 === 'pencil') k2 = WL[0][0] === 'pencil' ? WL[1][0] : WL[0][0];
-      const l2 = 12 + Math.floor(h(15) * 9), off = Math.floor(h(2) * Math.max(0, per - lp - l2 - 2)), pf = k2 === last || h(16) < .5;   // (the pencil first when the neighbour would repeat the last kind)
-      if(pf) L.push({ b0:c * per + off, len:lp, c, kind:'pencil' }, { b0:c * per + off + lp + 1, len:l2, c, kind:k2 });
-      else L.push({ b0:c * per + off, len:l2, c, kind:k2 }, { b0:c * per + off + l2 + 1, len:lp, c, kind:'pencil' }); }
-    else { const LR = KLEN[k1] || KLEN.office, len = LR[0] + Math.floor(h(1) * LR[1]); L.push({ b0:c * per + Math.floor(h(2) * (per - len)), len, c, kind:k1 }); }
+      const l2 = room - lp, pf = k2 === last || h(16) < .5;   // (the pencil first when the neighbour would repeat the last kind)
+      if(pf) L.push({ b0:c * per, len:lp, c, kind:'pencil' }, { b0:c * per + lp, len:l2, c, kind:k2 });
+      else L.push({ b0:c * per, len:l2, c, kind:k2 }, { b0:c * per + l2, len:lp, c, kind:'pencil' }); }
+    else { const LR = KLEN[k1] || KLEN.office, len = Math.min(room, LR[0] + Math.floor(h(1) * LR[1]));
+      if(room - len >= 7){ let k2 = pickK(WL, h(5)); if(k2 === k1 || k2 === 'pencil') k2 = WL[(WL.findIndex(q => q[0] === k1) + 2) % WL.length][0]; if(k2 === k1) k2 = k1 === 'office' ? 'tile' : 'office';   // the rest of the period: a neighbour of another kind
+        const fst = h(6) < .5; L.push({ b0:c * per + (fst ? room - len : 0), len, c, kind:k1 }, { b0:c * per + (fst ? 0 : len), len:room - len, c, kind:k2 }); if(fst) L.reverse(); }
+      else L.push({ b0:c * per, len:room, c, kind:k1 }); }
     if(RUN0.size > 1200) RUN0.clear(); RUN0.set(key, L); return L; }
   const BLD = new Map();
   function bldAt(i, side, row){ const r = runAt(i, side, row); if(!r) return null; const key = side + ':' + row + ':' + r.b0; let B = BLD.get(key); if(B !== undefined) return B;
     const Za = zoneAt(r.b0), Zb = zoneAt(r.b0 + r.len - 1), rs = riverSide(Za.B), h = k => hash(r.b0 * 1.37 + side * 5.1 + row * 9.7 + k);
     B = null;
     const open = Z => (Z.k === 'river' && side === rs) || (Z.k === 'ginza' && side === -rs);
-    if(Za.k === Zb.k || (Za.k !== 'river' && Zb.k !== 'river' && Za.k !== 'ginza' && Zb.k !== 'ginza')){
-      const k = Za.k, far = open(Za) || open(Zb);
+    { const far = open(Za) || open(Zb), k = far ? (open(Za) ? Za.k : Zb.k) : Za.k;
       if(far){ if(row === 1) B = { x0:k === 'river' ? 29.5 : 44 + h(3) * 6, h:5 + h(4) * (k === 'river' ? 9 : 14), st:h(5) < .5 ? 'office' : k === 'river' ? 'tile' : 'glass', lo:true, depth:2 }; }
+      else if(row === 2){ const x0 = (k === 'towers' ? 9 : k === 'jct' ? 8.5 : 7.4) + h(3) * 4.5, tall = k === 'towers' ? 9 + h(4) * 16 : 4.5 + h(4) * h(11) * 13;
+        B = { x0, h:tall, st:pickK(k === 'towers' ? [['glass', 3], ['ministry', 2], ['office', 2]] : [['office', 4], ['tile', 3], ['hotel', 2], ['band70', 2], ['glass', 1]], h(5)), lo:true, depth:2.6, deep:true }; }
       else if(row === 0){ const x0 = k === 'jct' ? 3.3 + h(3) * .5 : k === 'trench' ? 2.5 + h(3) * .4 : k === 'ginza' ? 1.6 + h(3) * .35 : 1.75 + h(3) * .7;
         const st = r.kind || 'office', HR = KH[st]; let hh = k === 'towers' ? 9 + h(4) * 14 : k === 'ginza' ? 3.6 + h(4) * 4.4 : 4 + h(4) * 9; if(HR) hh = HR[0] + h(4) * HR[1] * (k === 'towers' ? 1.6 : 1);
         B = { x0, h:hh, st, lo:false, depth:st === 'pencil' ? .6 + h(6) * .3 : .9 + h(6) * .7, bill:st !== 'park' && st !== 'ministry' && (k === 'ginza' ? h(7) < .7 : h(7) < .16), plate:st !== 'pencil' && st !== 'park' && h(8) < .45 }; }
@@ -178,7 +189,7 @@
     B.wa = K === 'hotel' ? .3 : K === 'dept' ? .24 : .18; B.wb = K === 'hotel' ? .74 : K === 'dept' ? .76 : .82;
     if(K === 'dept') B.dfc = [mixc(B.S.face[1], B.S.face[2], .4)];   // the floodlit lower floors
     B.crown = K === 'glass' && B.h > 8 && h(21) < .65; B.cyl = K === 'ministry' && B.row === 0 && h(22) < .45; B.kbs = []; B.roof = [];
-    if(B.lo && B.row === 1){ if(B.h > 6 && h(24) < .5) B.roof.push({ a:Math.floor(B.len * .3), b:Math.floor(B.len * .3), t:'mast' }); return; }
+    if(B.lo && B.row >= 1){ if(B.h > 6 && h(24) < .5) B.roof.push({ a:Math.floor(B.len * .3), b:Math.floor(B.len * .3), t:'mast' }); if(B.row === 2 && h(25) < .55) B.roof.push({ a:Math.floor(B.len * (.5 + h(26) * .3)), b:Math.min(B.len - 1, Math.floor(B.len * (.5 + h(26) * .3)) + 3), t:h(27) < .6 ? 'tank' : 'ac' }); return; }
     // signboard columns (tate-kanban) projecting toward the road: z (segments from b0), the top floor, and a word seed per plate
     const kn = K === 'pencil' ? 1 : K === 'neon' ? 2 + (h(25) < .5 ? 1 : 0) : K === 'band70' ? (h(25) < .55 ? 1 + (h(26) < .4 ? 1 : 0) : 0) : K === 'tile' || K === 'office' ? (h(25) < .22 ? 1 : 0) : 0;
     for(let q = 0; q < kn; q++) B.kbs.push({ z:K === 'pencil' ? 1 : 1 + Math.floor((q + .3 + h(27 + q) * .4) / kn * (B.len - 2)), top:Math.min(B.nF, 3 + Math.floor(h(30 + q) * 7)), sd:h(33 + q) * 97, tall:-1 });
@@ -295,8 +306,9 @@
   // ---------------------------------------------------------------- drawing: buildings
   // a back-row slice is hidden when the street-row building it is seen through (the same ray crosses the street row's face plane nearer
   // the camera) stands taller than the ray there: skip it (measured: back rows were most of the overdraw in the canyon)
-  function hidden(B, j, n){ if(B.row !== 1 || B.x0 > 12) return false; const cz = (position + PZ) / SEG, d = j - cz; if(d < 4) return false;
-    const S0 = bldAt(Math.floor(cz + d * 2.1 / B.x0), B.side, 0); if(!S0) return false; const r = S0.x0 / B.x0, hTop = .3 + (B.h - .3) * r; return S0.h > hTop + .2 && bldAt(Math.floor(cz + (d + n) * S0.x0 / B.x0), B.side, 0) === S0; }
+  function hidden(B, j, n){ if(B.row === 0 || B.x0 > 16) return false; const cz = (position + PZ) / SEG, d = j - cz; if(d < 4) return false;
+    return occl(B, cz, d, n, 0, 2.1) || (B.row === 2 && occl(B, cz, d, n, 1, 4.6)); }
+  function occl(B, cz, d, n, row, xg){ const S0 = bldAt(Math.floor(cz + d * xg / B.x0), B.side, row); if(!S0 || S0.x0 >= B.x0) return false; const r = S0.x0 / B.x0, hTop = .3 + (B.h - .3) * r; return S0.h > hTop + .2 && bldAt(Math.floor(cz + d * S0.x0 / B.x0), B.side, row) === S0 && bldAt(Math.floor(cz + (d + n) * S0.x0 / B.x0), B.side, row) === S0; }
   // the band partition of a building face (drawBld): bands fill upward from BCUR, the face colour BFCOL fills any gap below each one, capped at BHV
   let BCUR = 0, BHV = 0, BFCOL = '';
   function bandB(a, b, col){ if(b > BHV) b = BHV; if(b <= a) return; if(a > BCUR) FQ(BCUR, a, BFCOL); FQ(a, b, col); BCUR = b; }
@@ -550,6 +562,8 @@
     const hh = kd === 'snd' ? PH.snd : PH.con;
     FQ(0, .24, F(j & 2 ? CON.M : '#2a2d3e')); FQ(.215, .24, F(CON.T));   // the concrete parapet and its coping (lit warm)
     FQ(0, .025, F(CON.D));
+    if(n <= 2 && uw > 9) for(let m = 0; m < n; m++){ const z = j + m; if(z % 6) continue; const ta = m / n, tb = Math.min(1, ta + .09 / n), hv = hash(z * .37 + side);
+      FQ(.025, .215, F(CON.D), ta, tb); if(hv < .45){ const tc = Math.min(1, ta + (.1 + hv * .3) / n); FQ(.11 + hv * .06, .212, F(hv < .2 ? '#3a2c2a' : '#22242f'), Math.min(1, ta + .09 / n), tc); } }   // a panel joint, a stain below the coping
     if(kd === 'snd'){ // a sound wall: louvred panels, a pale translucent band on top, H-steel posts every 4 segments
       FQ(.24, .5, F('#26303a')); if(near) for(let k = 0; k < 4; k++) FQ(.28 + k * .055, .29 + k * .055, F('#344250'));
       FQ(.5, .62, F('#3a4a64')); FQ(.6, .62, F('#7a8aa8'));
@@ -601,12 +615,25 @@
     R(x - 1.36 * uw, by, 2.72 * uw, Math.max(PX, uw * .045), F(STL[2])); R(x - 1.36 * uw, by + uw * .1, 2.72 * uw, Math.max(PX, uw * .035), F(STL[1]));   // the twin beams
     if(uw > 8) for(let k = -6; k <= 6; k++){ const bx = x + k * .21 * uw; poly(bx, by + uw * .045, bx + uw * .1, by + uw * .1, bx + uw * .1 + Math.max(PX, uw * .012), by + uw * .1, bx + Math.max(PX, uw * .012), by + uw * .045, F(STL[1])); }   // lattice diagonals
     if(sp.v < 0) return;   // a bare gantry (a set piece hangs its own board on it)
+    // the variable message board on the beam (Hamazakibashi JCT, inspected: a black box of red-orange LED dots over the green signs, a
+    // grey controller box on its roof): its own message by gantry, dots drawn 1:1 at warm-up, a faint red bloom
+    const V = VMS[sp.v % VMS.length]; if(V && V.width > 1){ const bw = 1.5 * uw, k = bw / V.width, bh = V.height * k, vx = x - .55 * uw, vy = by - bh - uw * .03;
+      if(bh >= PX * 2){ R(vx - bw / 2 - uw * .03, vy - uw * .03, bw + uw * .06, bh + uw * .06, F('#101014')); const a0 = cx.globalAlpha; cx.globalAlpha = a0 * (1 - fog * .6); blit(V, vx, vy + bh, k); cx.globalAlpha = a0;
+        R(vx + bw * .2, vy - uw * .13, bw * .22, uw * .1, F(STL[2])); R(vx + bw * .2, vy - uw * .13, bw * .22, Math.max(PX, uw * .012), F(STL[3]));   // the controller box
+        if(fog < .5 && uw > 6) glow(vx, vy + bh / 2, Math.min(H * .06, bw * .4), '#ff4a20', .08 * (1 - fog)); } }
     const G = GANTRIES[sp.v % GANTRIES.length], pwid = .7, pos = G.length === 2 ? GPOS2 : GPOS3;
     for(let q = 0; q < G.length; q++){ const pi = G[q], pair = SIGN[PANELS.indexOf(PANELS[pi])]; if(!pair) continue; const sw = pwid * uw, spr = sw > pair[0].width * 2.2 ? pair[1] : pair[0], k = sw / spr.width;
       const px = x + pos[q] * uw, pyb = by + uw * .1 + spr.height * k + uw * .06; const a0 = cx.globalAlpha; cx.globalAlpha = a0 * (1 - fog * .75); blit(spr, px, pyb, k); cx.globalAlpha = a0;
       if(fog < .6){ R(px - sw * .3, pyb, Math.max(PX, sw * .05), Math.max(PX, uw * .02), F(STL[0])); R(px + sw * .25, pyb, Math.max(PX, sw * .05), Math.max(PX, uw * .02), F(STL[0])); }   // floodlights under the panel
       glow(px, pyb - spr.height * k * .5, Math.min(H * .1, sw * .55), '#2adf80', .1 * (1 - fog)); } }
   const GPOS2 = [-.42, .42], GPOS3 = [-.66, 0, .66];   // the panels' places across a gantry
+  // the message boards' texts (generic road messages) and their canvases (made in warm: 12 px DotGothic, every LED a 2x2 cell, one dark)
+  const VMS_T = ['この先 渋滞 2km', '事故 車線規制', '雨天 スリップ注意', '銀座 5分 新宿 18分', '工事 夜間通行止'], VMS = [];
+  function paintVMS(c, str){ const k = TXT.getContext('2d'); k.clearRect(0, 0, TXT.width, TXT.height); k.font = '12px DotGothic16'; k.textBaseline = 'top'; k.fillStyle = '#fff'; k.fillText(str, 1, 1);
+    const w = Math.min(120, Math.ceil(k.measureText(str).width) + 3), d = k.getImageData(0, 0, w, 14).data, g = c.getContext('2d'); c.width = w * 2; c.height = 28; const o = g.createImageData(w * 2, 28);
+    for(let y = 0; y < 14; y++) for(let x = 0; x < w; x++){ const on = d[(y * w + x) * 4 + 3] > 110; for(let q = 0; q < 4; q++){ const px = x * 2 + (q & 1), py = y * 2 + (q >> 1), i = (py * w * 2 + px) * 4, gap = q === 3;
+        o.data[i] = on ? (gap ? 120 : 255) : (gap ? 10 : 34); o.data[i + 1] = on ? (gap ? 30 : 90) : (gap ? 4 : 10); o.data[i + 2] = on ? (gap ? 10 : 40) : (gap ? 4 : 8); o.data[i + 3] = 255; } }
+    g.putImageData(o, 0, 0); }
   // a deck crossing overhead (the Edobashi stack, the Kyobashi street bridges): drawn as one slice per segment of its depth. At its first
   // segment the fascia faces the camera; every segment carries its slice of the soffit (lit by a row of sodium lights) and the piers'
   // inner faces. o: { b0, dep, h0 (soffit), h1 (top of the fascia), span (half width), pier (pier x or 0), street (a street bridge) }
@@ -790,7 +817,7 @@
     s.shK = kid; s.shM = Z.m; s.shA = Z.a; s.shRS = rs; s.shB = Z.B; s.shOpen = 0;
     sp.push({ env:KEY, type:'bw', x:0, k:i });
     // buildings: back rows, then street rows (nearer draws over)
-    for(const row of [1, 0]) for(const side of [-1, 1]){ const B = bldAt(i, side, row); if(B) sp.push({ env:KEY, type:'bld', x:side * B.x0, k:i, b:B }); }
+    for(const row of [2, 1, 0]) for(const side of [-1, 1]){ const B = bldAt(i, side, row); if(B) sp.push({ env:KEY, type:'bld', x:side * B.x0, k:i, b:B }); }
     // the deck: parapets each side, lamps, gantries
     s.shPK = 0; for(const side of [-1, 1]){ const kd = parKind(i, side, Z); if(kd === 'rail') s.shOpen |= side < 0 ? 1 : 2; s.shPK |= (kd === 'rail' ? 3 : kd === 'snd' ? 2 : 1) << (side < 0 ? 0 : 2);
       const o = { env:KEY, type:'par', x:side * PAR_X, k:i, s, side, kd };
@@ -817,14 +844,35 @@
     const d = Math.min(i % (LAMP_EVERY / 2), LAMP_EVERY / 2 - i % (LAMP_EVERY / 2)); return Math.max(0, 1 - d / 3.2) * .85; }
 
   // ---------------------------------------------------------------- the road surface
+  /* Beyond the deck, on the engine's ground plane (the deck's own level): the ground never shows (Kellan, 2026-11-23). Out to the street
+     row, the street far below the deck's edge: a dark slot with its lamps; beyond it the flat roofs of the low blocks between the rows, in
+     world-anchored cells (9 segments by ~3 half-road widths) of five roof tones, their parapet lines, plant boxes and a lit stair hatch
+     now and then, all coarser with distance (one band per side far away). On an open side the view down is drawn over it. */
+  const ROOFC = ['#1a1822', '#201c28', '#17161f', '#1d1f27', '#231d22'], VOIDC = ['#0c0a12', '#0e0b14'];
+  function bq(a, b, sd, X1, X2, col){ poly(a.x + sd * X1 * a.w, a.y, a.x + sd * X2 * a.w, a.y, b.x + sd * X2 * b.w, b.y, b.x + sd * X1 * b.w, b.y, col); }
+  function belowDeck(s, a, b, fog, f, sd){ const i = s.index, XF = Math.max(60, W * 1.6 / Math.max(.5, b.w)), cl = Math.floor(i / 9), XV = 2.5;
+    if(fog > .16){ bq(a, b, sd, DECK_X, XF, f(ROOFC[Math.floor(hash(cl * 1.3 + sd) * 5)])); return; }
+    bq(a, b, sd, DECK_X, XV, f(VOIDC[(i >> 2) & 1]));   // the street below the deck's edge
+    if(i % 12 === 0 && a.w > 8){ const lx = a.x + sd * 1.9 * a.w, sz = Math.max(PX, Math.min(PX * 2, snp(a.w * .025))); cx.fillStyle = f('#ffcf80'); pxRect(lx - sz / 2, a.y - sz, sz, sz); }   // its lamps, seen far below
+    // the roofs: cells across, each its own tone, a parapet line on its near edge
+    let X = XV; for(let k = 0; X < XF; k++){ const w = 2.2 + hash(cl * 3.7 + k * 1.9 + sd) * 2.4, X2 = Math.min(XF, X + w), hv = hash(cl * 5.1 + k * 2.3 + sd * 7);
+      bq(a, b, sd, X, X2, f(ROOFC[Math.floor(hv * 5)]));
+      if(fog < .06 && k < 6){ if(i % 9 === 0) bq(a, b, sd, X, X2, f('#2c2834'));   // the cell's parapet toward you
+        bq(a, b, sd, X, X + .08, f('#2a2632'));
+        if(hv > .7 && (i % 9) >= 3 && (i % 9) < 5) bq(a, b, sd, X + w * .3, X + w * .3 + .5, f(hv > .9 ? '#e8c890' : '#34303c')); }   // a plant box, or a lit stair hatch
+      X = X2; if(k > 14 || fog > .06 && k > 3){ if(X < XF) bq(a, b, sd, X, XF, f(ROOFC[Math.floor(hash(cl * 1.3 + sd) * 5)])); break; } } }
   const RED = '#4e2624';
   function roadFX(s, a, b, fog, f, now){ if(a.y - b.y < .5) return;
     // the deck's margin beyond the road edge, out to the parapet foot (concrete, lit warm under the lamps)
     const mc = f(s.lit > .3 ? '#3a3238' : '#26252f');
     poly(a.x - a.w, a.y, a.x - a.w * DECK_X, a.y, b.x - b.w * DECK_X, b.y, b.x - b.w, b.y, mc); poly(a.x + a.w, a.y, a.x + a.w * DECK_X, a.y, b.x + b.w * DECK_X, b.y, b.x + b.w, b.y, mc);
+    belowDeck(s, a, b, fog, f, -1); belowDeck(s, a, b, fog, f, 1);
     // the red anti-skid paint on the sharp bends (and through the junction), eased in and out over the segments either side
     const c = Math.abs(s.curve), rw = s.shK === 1 && s.shM > 60 && s.shM < 140 ? 1 : clamp((c - 4.3) / .5, 0, 1);   // (only the sharpest bends: this road's curve scale runs to about 4.6)
     if(rw > .1){ const col = f(mixc(s.stripe ? '#26262f' : '#282832', RED, Math.round(rw * 4) / 4)); poly(a.x - a.w * .985, a.y, a.x + a.w * .985, a.y, b.x + b.w * .985, b.y, b.x - b.w * .985, b.y, col); }
+    // an expansion joint across the deck every 42 segments: a steel strip at the segment's near edge, its finger teeth catching the light
+    if(s.index % 42 === 0){ const t = Math.max(PX, (a.y - b.y) * .18), jc = f('#121218'); poly(a.x - a.w * DECK_X, a.y - t, a.x + a.w * DECK_X, a.y - t, a.x + a.w * DECK_X, a.y, a.x - a.w * DECK_X, a.y, jc);
+      if(a.w > 60){ cx.fillStyle = f('#6a6470'); const st = Math.max(PX * 3, snp(a.w * .05)); for(let X = a.x - a.w * DECK_X; X < a.x + a.w * DECK_X; X += st) pxRect(X, a.y - t, PX, Math.max(PX, t * .6)); } }
     // solid white edge lines (no rumble kerbs on the Shuto)
     const lc = f('#c8c6d0'); poly(a.x - a.w * .965, a.y, a.x - a.w * .935, a.y, b.x - b.w * .935, b.y, b.x - b.w * .965, b.y, lc); poly(a.x + a.w * .935, a.y, a.x + a.w * .965, a.y, b.x + b.w * .965, b.y, b.x + b.w * .935, b.y, lc); }
 
@@ -836,6 +884,17 @@
     for(let t = 0; t < 120; t++){ const w = 4 + Math.floor(rnd() * 12), h = 6 + Math.floor(rnd() * rnd() * 40), x0 = Math.floor(rnd() * SW); for(let x = x0; x < x0 + w; x++) for(let y = hgt - 6 - h; y < hgt - 5; y++){ const xx = x % SW;
         k0.fillStyle = (x - x0) % 2 === 1 && (y % 2 === 0) && rnd() < .22 ? (rnd() < .7 ? '#7a86a8' : '#a08a6a') : x === x0 ? '#1e1e36' : '#18182c'; k0.fillRect(xx, y, 1, 1); }
       if(h > 26) av.push([ (x0 + (w >> 1)) % SW, hgt - 7 - h, 0 ]);  yield; } yield;
+    /* the city wall (2026-11-24): an unbroken band of mid-rise blocks between the far haze and the named towers, so no gap between the
+       rows ever opens onto sky at the horizon (Route 5 at night from above: blocks shoulder to shoulder, most windows dark, warm stair
+       cores lit floor by floor, red lights on the taller roofs) */
+    const c2 = can(SW, hgt), k2 = c2.getContext('2d'), av2 = []; yield;
+    for(let x0 = 0; x0 < SW;){ const w = 3 + Math.floor(rnd() * 7), h = 7 + Math.floor(rnd() * rnd() * 24), face = rnd() < .5 ? '#121228' : '#16162e', core = rnd() < .18 ? x0 + 1 + Math.floor(rnd() * (w - 2)) : -1, warm = rnd() < .35;
+      for(let x = x0; x < Math.min(SW, x0 + w); x++) for(let y = hgt - h; y < hgt; y++){ let col = x === x0 ? '#1c1c38' : y === hgt - h ? '#24243e' : face;
+        if(x === core && (y - (hgt - h)) % 2 === 1 && y < hgt - 1) col = '#d8a860';   // a stair core, lit floor by floor
+        else if((x - x0) % 2 === 1 && (y - (hgt - h)) % 2 === 1 && y < hgt - 1 && rnd() < .16) col = warm ? '#c8a070' : '#8a9ac8';
+        k2.fillStyle = col; k2.fillRect(x, y, 1, 1); }
+      if(h > 22) av2.push([(x0 + (w >> 1)) % SW, hgt - h - 1, 1]); x0 += w; if((x0 & 31) < 8) yield; }
+    for(let x = 0; x < SW; x++){ const r = rnd(); k2.fillStyle = r < .3 ? '#5a3a2a' : '#2a1e24'; k2.fillRect(x, hgt - 1, 1, 1); } yield;   // the sodium-lit street line at its feet
     // the near layer: towers with lit windows, Shinjuku's cluster and Tokyo Tower
     const tower = (x0, w, h, face, lit, edge) => { for(let x = x0; x < x0 + w; x++) for(let y = hgt - h; y < hgt; y++){ const xx = ((x % SW) + SW) % SW; let col = face;
         if(x === x0) col = edge; else if((x - x0) % 2 === 0 && (y - (hgt - h)) % 2 === 1 && y < hgt - 2 && rnd() < lit) col = rnd() < .75 ? '#dce8ff' : '#ffd890'; k1.fillStyle = col; k1.fillRect(xx, y, 1, 1); }
@@ -861,12 +920,14 @@
           else col = '#ffe8c8'; if(y >= md && y < md + 4 && ax <= 6) col = y === md + 1 || y === md + 2 ? (ax % 2 ? '#fff4d8' : '#ffd890') : '#c86020';
           if(y >= ud && y < ud + 2 && ax <= 3) col = '#fff0d0'; if(col) px(x, y, col); }  yield; } yield;
       av.push([x0, hgt - 1 - h - 1, 2]); yield; } yield;
-    SKY = { c0, c1, av, hgt }; yield; }
-  function buildSky(){ for(const _ of buildSkyG()); }   // (the same build at once; buildSkyG is it stepped)
+    SKY = { c0, c1, c2, av, av2, hgt }; yield; }
+  function buildSky(){ for(const _ of buildSkyG()); }
+  let BDL = null;   // the backdrop's layers: [canvas, parallax tier, y offset, alpha], made once   // (the same build at once; buildSkyG is it stepped)
   function backdrop(o){ const { hz, sk, now } = o; setLow(sk.low); if(!SKY) return; const a0 = cx.globalAlpha, sc = PX, hgt = SKY.hgt;
     // the far layer then the near layer, each at its own parallax; drawn in whole canvas pixels
-    for(const [c, par, yo, al] of [[SKY.c0, 'far', 2, .9], [SKY.c1, 'mid', 0, 1]]){ const off = ((Math.round(skyPar(par) / sc) % SW) + SW) % SW, y = snp(hz - hgt * sc + yo * sc), wpx = Math.ceil(W / sc);
+    for(const [c, par, yo, al] of BDL || (BDL = [[SKY.c0, 'far', 2, .9], [SKY.c2, 180, 1, 1], [SKY.c1, 'mid', 0, 1]])){ const off = ((Math.round(skyPar(par) / sc) % SW) + SW) % SW, y = snp(hz - hgt * sc + yo * sc), wpx = Math.ceil(W / sc);
       cx.globalAlpha = a0 * al; for(let x = -off; x < wpx; x += SW) cx.drawImage(c, x * sc, y, SW * sc, hgt * sc);
+      if(c === SKY.c2) for(const [ax, ay] of SKY.av2){ const xs = (((ax - off) % SW) + SW) % SW; if(xs > wpx) continue; if(!(reduce || ((now / 1000) * .55 + hash(ax * .7)) % 1 < .55)) continue; cx.fillStyle = AVL; cx.fillRect(xs * sc, y + ay * sc, sc, sc); }   // the wall's roof lights (no glow: they are small and far)
       if(c === SKY.c1){ // aviation lights blinking slowly together (each tower its own phase); Tokyo Tower's glow
         for(const [ax, ay, t] of SKY.av){ if(t === 0) continue; const xs = (((ax - off) % SW) + SW) % SW; if(xs > wpx) continue; const X = xs * sc, Y = y + ay * sc;
           if(t === 2){ glow(X, Y + 60 * sc, 26 * sc, '#ff7a2a', .16); continue; } const on = reduce || ((now / 1000) * .55 + hash(ax * .3)) % 1 < .55; if(!on) continue; cx.fillStyle = AVL; cx.fillRect(X, Y, sc, sc); glow(X + sc / 2, Y + sc / 2, sc * 3, '#ff2020', .35); } } }
@@ -890,11 +951,12 @@
     if(!DRZ.length) for(let i = 0; i < 90; i++) DRZ.push([hash(i * 1.3), hash(i * 2.7), hash(i * 4.1)]);   // the drizzle's streaks (hash() exists by now)
     for(let p = 0; p < PANELS.length; p++){ if(!SIGN[p]) SIGN[p] = [can(PW / 2, PHh / 2), can(PW, PHh)]; paintPanel(SIGN[p][1], PANELS[p], true); paintPanel(SIGN[p][0], PANELS[p], false); yield; }
     for(let b = 0; b < BILLS.length; b++){ const n = BILLS[b][0].length; if(!BILL[b]) BILL[b] = [can(n * 16 + 8, 22), can(n * 32 + 12, 40)]; paintBill(BILL[b][0], BILLS[b], 16); paintBill(BILL[b][1], BILLS[b], 32); yield; }
+    for(let v = 0; v < VMS_T.length; v++){ if(!VMS[v]) VMS[v] = can(2, 2); paintVMS(VMS[v], VMS_T[v]); } yield;
     yield; yield* buildKBG(); yield; if(!SKY) yield* buildSkyG(); yield;   // (stepped: first 60 s, research/sundown-craft/first60.md)
-    if(document.fonts && document.fonts.ready && !warmSteps.fontHook){ warmSteps.fontHook = true; document.fonts.load('16px DotGothic16', '銀座新宿霞が関羽田江戸橋箱崎京橋渋谷神田上野電機カメラ時計洋酒真珠化粧品写真ホテル' + KBW.map(w => w[0]).join('') + KBV.map(w => w[0]).join('')).then(() => {
-        try{ for(let p = 0; p < PANELS.length; p++){ paintPanel(SIGN[p][1], PANELS[p], true); paintPanel(SIGN[p][0], PANELS[p], false); } for(let b = 0; b < BILLS.length; b++){ paintBill(BILL[b][0], BILLS[b], 16); paintBill(BILL[b][1], BILLS[b], 32); } buildKB(); }catch(e){} }).catch(() => {}); }
+    if(document.fonts && document.fonts.ready && !warmSteps.fontHook){ warmSteps.fontHook = true; document.fonts.load('16px DotGothic16', '銀座新宿霞が関羽田江戸橋箱崎京橋渋谷神田上野電機カメラ時計洋酒真珠化粧品写真ホテル' + KBW.map(w => w[0]).join('') + KBV.map(w => w[0]).join('') + VMS_T.join('')).then(() => {
+        try{ for(let p = 0; p < PANELS.length; p++){ paintPanel(SIGN[p][1], PANELS[p], true); paintPanel(SIGN[p][0], PANELS[p], false); } for(let b = 0; b < BILLS.length; b++){ paintBill(BILL[b][0], BILLS[b], 16); paintBill(BILL[b][1], BILLS[b], 32); } for(let v = 0; v < VMS.length; v++) paintVMS(VMS[v], VMS_T[v]); buildKB(); }catch(e){} }).catch(() => {}); }
     // upload every canvas once, and prime the patterns this road uses
-    try{ cx.save(); cx.globalAlpha = .004; for(const pr of SIGN) for(const c of pr) cx.drawImage(c, 0, 0, 1, 1); for(const pr of BILL) for(const c of pr) cx.drawImage(c, 0, 0, 1, 1); if(ATL) cx.drawImage(ATL, 0, 0, 1, 1); cx.drawImage(SKY.c0, 0, 0, 1, 1); cx.drawImage(SKY.c1, 0, 0, 1, 1);
+    try{ cx.save(); cx.globalAlpha = .004; for(const pr of SIGN) for(const c of pr) cx.drawImage(c, 0, 0, 1, 1); for(const pr of BILL) for(const c of pr) cx.drawImage(c, 0, 0, 1, 1); if(ATL) cx.drawImage(ATL, 0, 0, 1, 1); cx.drawImage(SKY.c0, 0, 0, 1, 1); cx.drawImage(SKY.c1, 0, 0, 1, 1); cx.drawImage(SKY.c2, 0, 0, 1, 1);
       cx.fillStyle = ditherPat('#6a3a2a', .25); cx.fillRect(0, 0, PX, PX); cx.restore(); }catch(e){}
     yield; }
 

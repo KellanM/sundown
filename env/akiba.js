@@ -844,8 +844,12 @@
     return B; }
   // the visit of this road that segment i belongs to (or borders), or null
   function visitOf(i){ if(i < 0 || typeof gates === 'undefined' || !gates.length) return null; const K = landK(), z = zoneOfSeg(i);
-    for(const zz of [z, z + 1, z - 1]) if(zz >= 0 && typeof ROUTE !== 'undefined' && ROUTE[zz] !== undefined && ROUTE[zz] === K) return lay(zz);
+    for(const zz of [z, z + 1, z - 1]) if(zz >= 0 && typeof ROUTE !== 'undefined' && routeAt(zz) === K) return lay(zz);
     return null; }
+  /* a fork's commit cuts ROUTE back to the zone it decides (chooseFork: ROUTE.length = k) and extend() fills it again as it lays the next
+     segment; a frame drawn in between saw no road for the laid zones beyond and its null was cached on the segment (s.akV) for good: its
+     pavement and pools never drew (sundown-akigaps). Up to the laid frontier, ask landIdx(), which fills ROUTE just as extend() would. */
+  const routeAt = zz => ROUTE[zz] !== undefined ? ROUTE[zz] : typeof landIdx === 'function' && segs.length && zz <= zoneOfSeg(segs.length - 1) ? landIdx(zz) : undefined;
   function crossAt(L, i){ for(const c of L.X) if(i >= c - 8 && i < c + CW + 8) return c; return -1; }
 
   // ---------------------------------------------------------------- the blackout's state (set each frame by MECH.sp_teiden.update)
@@ -1384,21 +1388,30 @@
   /* in a border blend the core draws each road's roadFX at its weight (blendFX: EDGE = w); props choose in cells (blendFar). Where one of our
      buildings stands on this segment's side, its pavement is drawn whole, so no strip of bare ground shows between the kerb and the shop. */
   function akStands(s, side){ const sp = s.sprites; for(let k = 0; k < sp.length; k++){ const q = sp[k]; if(q.type === 'b' && q.env === KEY && (q.x < 0) === (side < 0)) return true; } return false; }
+  /* The floor of every opening in the wall (?gapviz showed bare ground there): beyond the pavement's edge, the side street's asphalt out to
+     the facades across it (X 16, drawXF) at a crossing, the dark ground under the viaduct across the railway corridor, an alley's floor two
+     building-depths back, and inside a fork's window the island between the carriageways (this branch's inner side, out to the engine's clip
+     line). Drawn before the pavement and the props, so a shop, a facade or the gore lays over it. */
+  function gapFloor(s, a, b, f, V, i, side, B, X3){ const fk = typeof FX_CLIP !== 'undefined' && FX_CLIP, inner = !!fk && side === -fk.q; if(B && !inner) return;
+    const xc = s.akX !== undefined && s.akX >= 0 && s.akX < CW, br = V.BR >= 0 && i >= V.BR - 3 && i < V.BR + BD + 3, Xo = side * (inner || xc || br ? 16 : Math.abs(X3) + 2.2);
+    poly4(a.x + a.w * X3, a.y, a.x + a.w * Xo, a.y, b.x + b.w * Xo, b.y, b.x + b.w * X3, b.y, f(inner ? ((i % 4) === 0 ? '#1a1820' : '#2a2a34') : xc ? '#1e1c26' : br ? '#16141c' : '#121018')); }
   function roadFX(s, a, b, fog, f, now){ if(s.akNoHz && s.hz && (s.hz.type === 'oil' || s.hz.type === 'pad')) s.hz = null;   // no slick or pad on a crossing or under the bridge (they would read as a stray shape at the scramble)
-    if(a.y - b.y < .5 || fog > .75) return; const L = s.akV; if(L === undefined){ s.akV = visitOf(s.index) || null; }
+    if(a.y - b.y < .5 || fog > .75) return; if(!s.akV) s.akV = visitOf(s.index) || null;   // (a null is not kept: asked again next frame)
     const V = s.akV; if(!V) return; const i = s.index, a0 = cx.globalAlpha;
-    for(const side of [-1, 1]){ const B = bAt(V, side, i), x0 = B ? B.x0 : 2.3, on = B ? onAt(B.b0) : 1, X1 = side * 1.0, X2 = side * 1.1, X3 = side * x0, eS = EDGE;
+    for(const side of [-1, 1]){ const B = bAt(V, side, i), x0 = B ? B.x0 : 2.3, on = B ? onAt(B.b0) : 1, lo = s.lane && s.lane.sd === side ? side * SL_PUSH : 0, X1 = side * 1.0 + lo, X2 = side * 1.1 + lo, X3 = side * x0 + lo, eS = EDGE;   // (lo: over a side lane the shops stand SL_PUSH further out (laneS), so their kerb and pavement do too)
       if(eS < 1 && s.bA !== s.bB && akStands(s, side)){ EDGE = Math.min(1, eS / Math.max(.03, s.bB === landK() ? s.bm : 1 - s.bm)); cx.globalAlpha = a0; }   // (border blend: where our shop stands, its pavement is whole, not cross-faded over the bare ground)
+      if(lo){ const Xi = side * 1.1; poly4(a.x + a.w * Xi, a.y, a.x + a.w * X1, a.y, b.x + b.w * X1, b.y, b.x + b.w * Xi, b.y, f('#16141c')); }   // under the side lane and its divider, out to the moved kerb (the core lays the lane over it)
       poly4(a.x + a.w * X1, a.y, a.x + a.w * X2, a.y, b.x + b.w * X2, b.y, b.x + b.w * X1, b.y, f((i & 3) ? '#5a5866' : '#6e6c78'));   // the kerb stones
+      gapFloor(s, a, b, f, V, i, side, B, X3);
       const pc = B && on ? (B.gr === 'crane' ? '#3a2838' : B.gr === 'stall' ? '#34302e' : '#2e2e3a') : '#201e26';
       poly4(a.x + a.w * X2, a.y, a.x + a.w * X3, a.y, b.x + b.w * X3, b.y, b.x + b.w * X2, b.y, f((i % 4) === 0 ? '#1a1820' : pc));   // the pavement tiles (a joint every 4), lit by the shop it fronts
       if(B && on && fog < .45){ const wc = B.wc || (B.wc = wetCols(B, pc));
         // the soaked tiles mirror the shop: three stepped bands of its light, brightest at the sill, the joint rows left dark (the tile grid shows through)
         // (perf pass: past fog .2 a band is a few pixels across and a row deep, and the three steps read as their middle: one band there)
-        if(fog >= .2){ const Xa = side * (x0 - WB[0]), Xb = side * (x0 - WB[3]); poly4(a.x + a.w * Xb, a.y, a.x + a.w * Xa, a.y, b.x + b.w * Xa, b.y, b.x + b.w * Xb, b.y, f(wc[1])); }
-        else for(let q = 0; q < 3; q++){ if(q === 2 && (i & 3) === 0) continue; const Xa = side * (x0 - WB[q]), Xb = side * (x0 - WB[q + 1]); poly4(a.x + a.w * Xb, a.y, a.x + a.w * Xa, a.y, b.x + b.w * Xa, b.y, b.x + b.w * Xb, b.y, f(wc[q])); } }
+        if(fog >= .2){ const Xa = side * (x0 - WB[0]) + lo, Xb = side * (x0 - WB[3]) + lo; poly4(a.x + a.w * Xb, a.y, a.x + a.w * Xa, a.y, b.x + b.w * Xa, b.y, b.x + b.w * Xb, b.y, f(wc[1])); }
+        else for(let q = 0; q < 3; q++){ if(q === 2 && (i & 3) === 0) continue; const Xa = side * (x0 - WB[q]) + lo, Xb = side * (x0 - WB[q + 1]) + lo; poly4(a.x + a.w * Xb, a.y, a.x + a.w * Xa, a.y, b.x + b.w * Xa, b.y, b.x + b.w * Xb, b.y, f(wc[q])); } }
       // a puddle on the pavement: a dark mirror, the shop's light in it, a lit far rim
-      if(RAINON && fog < .4 && H1(i * 1.37 + side * .53) < .2){ const h = H1(i * 2.9 + side), Xa = side * (1.24 + h * .5), Xb = Xa + side * (.22 + .2 * H1(i * 4.3 + side)), t0 = .15 + .3 * h, t1 = t0 + .35;
+      if(RAINON && fog < .4 && H1(i * 1.37 + side * .53) < .2){ const h = H1(i * 2.9 + side), Xa = side * (1.24 + h * .5) + lo, Xb = Xa + side * (.22 + .2 * H1(i * 4.3 + side)), t0 = .15 + .3 * h, t1 = t0 + .35;
         const ya = a.y + (b.y - a.y) * t0, yb = a.y + (b.y - a.y) * t1, xa = a.x + (b.x - a.x) * t0, xb = a.x + (b.x - a.x) * t1, wa = a.w + (b.w - a.w) * t0, wb = a.w + (b.w - a.w) * t1;
         poly4(xa + wa * Xa, ya, xa + wa * Xb, ya, xb + wb * Xb, yb, xb + wb * Xa, yb, f('#0c0a14'));
         if(B && on){ cx.globalCompositeOperation = 'lighter'; cx.globalAlpha = a0 * .42 * (1 - fog); poly4(xa + wa * Xa, ya, xa + wa * Xb, ya, xb + wb * Xb, yb, xb + wb * Xa, yb, SHOPL[B.sv] || '#ffc070'); cx.globalAlpha = a0; cx.globalCompositeOperation = 'source-over'; }
@@ -1474,7 +1487,7 @@
       if(t === 'S') o.push([fy + .05, fy + FH - .03, BRANDS[B.br].f]); else if(t === 'K') o.push([fy + .06, fy + FH * 2 - .04, ART.wrap[B.wv] ? ART.wrap[B.wv].avg : '#3a2a8a']);
       else if(t === 'N') o.push([fy + .2, fy + .42, f & 1 ? '#c050ff' : '#ff4aa0']); else if(t === 'T') o.push([fy + .2, fy + .4, '#ffa020']); }
     return (B.rs = o); }
-  function wetSrc(s, n, a, P){ if(!RAINON || AKX.includes('nrpool')) return; const V = s.akV !== undefined ? s.akV : (s.akV = visitOf(s.index) || null); if(!V) return; const i = s.index, uw = a.w; if(!(uw > .5)) return;
+  function wetSrc(s, n, a, P){ if(!RAINON || AKX.includes('nrpool')) return; const V = s.akV || (s.akV = visitOf(s.index) || null); if(!V) return; const i = s.index, uw = a.w; if(!(uw > .5)) return;
     if(n > 100) return; const st = n < 10 ? 2 : n < 30 ? 4 : 8, fa = 1 - Math.pow(n / DRAW, 1.6) * .9, lx = 0;   // (bug fix: the gantry and the train stand over the road, which a side lane does not push)
     if(s.akG && onAt(i)){ const x = a.x + lx * uw, G = s.akG, gc = (G.D && GCOL[gChan(G, Math.floor((performance.now() + G.ph) / GDW))]) || '#4a5cc8'; P(x, a.y, uw, 1.66, 2.91, 2 * uw, gc, .85 * fa);   // (the screen's pool takes its programme's colour, as its halo does)
  P(x + .25 * uw, a.y, uw, 2.1, 2.7, .55 * uw, '#f0e4c8', 1 * fa); P(x, a.y, uw, 1.58, 1.66, 1.9 * uw, '#ffb02a', .9 * fa); }   // (refl: the moon's cream core runs the length of the road)

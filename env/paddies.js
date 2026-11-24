@@ -17,6 +17,7 @@
 "use strict";
 (function(){
   const snap = v => Math.round(v / PX) * PX;
+  const PDX = (/[?&]pdx=([^&]*)/.exec(location.search) || [0, ''])[1].split(',');   // (tests) ablation switches: ?pdx=field,tuft,mat turn those passes off
   // ---------------------------------------------------------------- palettes: [outline, dark, mid, light, rim] (rim = moonlight)
   const PAL = {
     1: ['#05070c', '#121824', '#1c2434', '#2c3648', '#7a8aa6'],   // kawara roof tiles
@@ -302,7 +303,7 @@
     const T = hx(sk.top), M = hx(sk.mid), L = hx(sk.low), INK = T.map((v, i) => v + ([8, 14, 46][i] - v) * .6), D = [3, 6, 10], NB = 16;
     const mix3 = (a, b, t) => a.map((v, i) => v + (b[i] - v) * t);
     const sky = SC || (u => u < .1 ? INK : u < .3 ? mix3(INK, T, (u - .1) / .2) : u < .7 ? mix3(T, M, (u - .3) / .4) : mix3(M, L, (u - .7) / .3));   // u: 0 zenith .. 1 horizon
-    const band = []; for(let b = 0; b <= NB; b++){ const r = Math.pow(b / NB, 1.5) * hzRows, u = 1 - Math.min(1, r / hzRows), c = mix3(mix3(sky(u), [190, 198, 226], .08 * Math.pow(u, 4)), D, .32 + .28 * (1 - u)); band.push(c.map(Math.round)); }
+    const band = []; for(let b = 0; b <= NB; b++){ const r = Math.pow(b / NB, 1.5) * hzRows, u = 1 - Math.min(1, r / hzRows), c = mix3(mix3(sky(u), [176, 188, 228], .16 * Math.pow(u, 6)), D, .14 + .5 * Math.pow(1 - u, 1.3)); band.push(c.map(Math.round)); }
     WTOP = '#' + band[0].map(v => Math.max(0, Math.min(255, v)).toString(16).padStart(2, '0')).join('');
     const c = WCV || (WCV = document.createElement('canvas')); if(c.width !== 4 || c.height !== rows){ c.width = 4; c.height = rows; } const k = c.getContext('2d'), img = k.createImageData(4, rows), d = img.data;   // one canvas, repainted (createPattern snapshots it)
     for(let y = 0; y < rows; y++){ const f = Math.pow(Math.min(1, y / hzRows), 1 / 1.5) * NB; for(let x = 0; x < 4; x++){ const b = Math.min(NB, Math.floor(f + BYF[(y & 3) * 4 + x] - .5) + 1), C = band[Math.max(0, b)], o = (y * 4 + x) * 4; d[o] = C[0]; d[o + 1] = C[1]; d[o + 2] = C[2]; d[o + 3] = 255; } }
@@ -359,7 +360,7 @@
   for(let i = 0, c = 0; i < PIDX.length; i++){ while(c + 1 < PB.length && PB[c + 1] * 32 <= i) c++; PIDX[i] = c; }
   // plot type per side, slot and plot: 0 bare water, 1 just planted, 2 established, 3 rows across, 4 machine rows with gaps, 5 nursery, 6 dry plot
   const PTY = []; for(let sd = 0; sd < 2; sd++) for(let sl = 0; sl < NSLOT; sl++){ const a = new Uint8Array(PB.length);
-    for(let c = 0; c < PB.length; c++){ const h = ih(c * 13 + sd * 7, sl + 11); a[c] = h < .2 ? 0 : h < .41 ? 1 : h < .68 ? 2 : h < .8 ? 3 : h < .9 ? 4 : h < .945 ? 5 : 6; } PTY.push(a); }
+    for(let c = 0; c < PB.length; c++){ const h = ih(c * 13 + sd * 7, sl + 11); a[c] = h < .22 ? 0 : h < .44 ? 1 : h < .7 ? 2 : h < .81 ? 3 : h < .92 ? 4 : h < .97 || c === 0 ? 5 : 6; } PTY.push(a); }
   const ptypeAt = (X, slot, sd) => { const ci = Math.max(0, Math.round((X - WX) * 128)); let c = PIDX[Math.min(PIDX.length - 1, ci >> 2)]; if(ci < PBT[c]) c--; return PTY[(sd > 0 ? NSLOT : 0) + slot][Math.max(0, c)]; };
   const fslot = (f, sd) => Math.floor(ih(f, sd + 3) * NSLOT);
   // the palette: [r, g, b, a]
@@ -367,9 +368,9 @@
     [16, 28, 20, 255], [62, 96, 70, 255], [26, 42, 31, 255], [40, 62, 46, 255], [6, 12, 8, 255],          // 1-5 levee: road face, moonlit edge, grass top, fleck, far edge
     [9, 16, 11, 255], [22, 36, 27, 255], [50, 78, 58, 255],                                                // 6-8 cross levee: face, top, lit top
     [3, 6, 9, 140],                                                                                          // 9 a levee's reflection
-    [7, 20, 13, 255], [20, 52, 33, 255], [10, 29, 18, 255], [66, 110, 74, 255], [104, 150, 98, 255],       // 10-14 seedlings: base, body, body shade, tip, bright tip
-    [10, 24, 16, 255], [52, 92, 62, 255],                                                                   // 15-16 new seedlings: base, tip
-    [29, 74, 42, 255], [42, 102, 56, 255], [70, 140, 80, 255],                                              // 17-19 nursery mats
+    [8, 16, 14, 255], [18, 38, 30, 255], [11, 24, 20, 255], [52, 84, 70, 255], [100, 134, 108, 255],      // 10-14 seedlings (moonlight takes the green out): base, body, shade, tip, moonlit tip
+    [12, 22, 20, 255], [46, 74, 62, 255],                                                                   // 15-16 new seedlings: base, tip
+    [22, 52, 34, 255], [32, 70, 44, 255], [58, 104, 70, 255],                                               // 17-19 nursery mats
     [18, 15, 12, 255], [12, 13, 16, 255], [104, 112, 130, 255], [10, 8, 6, 255], [26, 58, 30, 255],        // 20-24 dry plot: soil, mulch, mulch gleam, furrow, leaves
     [150, 164, 210, 70], [2, 4, 9, 90], [106, 90, 52, 255], [92, 96, 104, 255], [4, 6, 9, 255]];             // 25-29 ripple light, ripple dark, straw, concrete inlet, inlet slot
   // one L0 texel: column ci (1/128 half-road from the bank foot), row rj (a quarter segment, 0 at the field's near levee), its field slot and side
@@ -389,9 +390,10 @@
       if(hp < (pt === 0 ? .24 : .08) && (rj & 1) === 0){ const d = Math.abs((lx & 31) - 16) / 16 + Math.abs((rj & 7) - 4) / 5; if(d < .9){ const m = (lx + rj * 3 + (hp * 50 | 0)) % 9; return m < 3 ? 25 : m === 5 ? 26 : 0; } }
       return g > .9994 ? 27 : 0; }
     const ax = lx - 16, ay = rj - 10;
-    if(pt === 5){ const bx = ax % 46, by = ay % 30; if(bx >= 40 || by >= 24) return 0; return by === 23 ? 19 : g > .93 ? 19 : g > .6 ? 18 : 17; }
-    if(pt === 1){ const rx = ax % 8, hy = ay % 4; if(rx !== 0 || hy > 1 || ih((ax >> 3) * 131 + (ay >> 2), c + so) < .06) return 0; return hy === 0 ? 15 : 16; }
-    if(pt === 3){ const rx = ax % 3, hy = ay % 6; if(rx === 2 || hy > 2) return 0; return hy === 0 ? 10 : hy === 1 ? 11 : rx === 0 ? 13 : 12; }
+    if(pt === 5){ if(ax < 150 && ay < 96){ const bx = ax % 50, by = ay % 32; if(bx >= 40 || by >= 24) return 0; return by === 23 ? 19 : g > .93 ? 19 : g > .6 ? 18 : 17; } }   // a nursery: trays of seedling mats in the plot's near corner, the rest just planted
+    if(pt === 5 || pt === 1){
+      const rx = ax % 8, hy = ay % 4; if(rx !== 0 || hy > 1 || ih((ax >> 3) * 131 + (ay >> 2), c + so) < .06) return 0; return hy === 0 ? 15 : 16; }
+    if(pt === 3){ const rx = ax % 4, hy = ay % 8; if(rx > 1 || hy > 2) return 0; return hy === 0 ? 10 : hy === 1 ? 11 : rx === 0 ? 13 : 12; }
     const rx = ax % 8, hy = ay % 3, hid = (ax >> 3) * 131 + (ay / 3 | 0);
     if(rx > 1 || pt === 4 && ih(hid, c + slot * 17 + so) < .2) return 0;
     if(rx === 0) return hy === 0 ? 10 : hy === 1 ? 11 : ih(hid, 7 + c) > .8 ? 14 : 13;
@@ -419,29 +421,86 @@
     FAOK = true; }
   /* Per frame, inside the water's clip: every canvas row of water takes the frontmost segment covering it (near to far, as the road is
      drawn, so a crest hides what is behind it), and one drawImage per side per level span. */
-  function fieldRow(si, sd, slot, dz, xc, w, Xa, Xend, ry){
+  function fieldRow(si, sd, slot, dz, xc, w, Xa, Xend, ry, rh){
     const P = w / PX; let k = 0; while(k < 6 && FLV[k].tx > P) k++; if(k === 0 && !FL0) k = 1;
     for(; k < FLV.length && Xa < Xend; k++){ const L = FLV[k], Xm = WX + L.w / L.tx, Xb = Math.min(Xend, Xm); if(Xb <= Xa) continue;
       const yy = L.y0 + (L.s > 0 ? Math.min(L.rows - 1, ((slot * FL + dz) * L.s) | 0) : L.s < 0 ? slot : 0), sw = (Xb - Xa) * L.tx;
-      if(sd > 0) cx.drawImage(FAT[si], (Xa - WX) * L.tx, yy, sw, 1, xc + Xa * w, ry, (Xb - Xa) * w, PX);
-      else cx.drawImage(FAT[si], L.w - (Xb - WX) * L.tx, yy, sw, 1, xc - Xb * w, ry, (Xb - Xa) * w, PX);
+      if(sd > 0) cx.drawImage(FAT[si], (Xa - WX) * L.tx, yy, sw, 1, xc + Xa * w, ry, (Xb - Xa) * w, rh);
+      else cx.drawImage(FAT[si], L.w - (Xb - WX) * L.tx, yy, sw, 1, xc - Xb * w, ry, (Xb - Xa) * w, rh);
       Xa = Xb; } }
   let FDC = 0;
-  function fieldPass(){ FDC = 0; if(!FAOK) return; cx.imageSmoothingEnabled = false; let maxr = Math.ceil(H / PX);
+  function fieldPass(){ FDC = 0; if(!FAOK || PDX.includes('field')) return; cx.imageSmoothingEnabled = false; let maxr = Math.ceil(H / PX);
     for(let n = 0; n < NQ; n++){ const q = Q[n], dy = q.ay - q.by; if(dy <= .01) continue; if(q.fog > .92) break;
       const r0 = Math.ceil(q.by / PX - .5), r1 = Math.min(maxr, Math.ceil(q.ay / PX - .5)); if(r1 <= r0){ maxr = Math.min(maxr, Math.max(0, r0)); continue; } maxr = r0;
       const i = q.s.index, ia = 1 / q.aw, ib = 1 / q.bw; if(isRail(i) || jRail(i)) continue;
       cx.globalAlpha = 1 - q.fog * .85;
-      for(let r = Math.max(0, r0); r < r1; r++){ const y = (r + .5) * PX, u = (q.ay - y) / dy, w = q.aw + (q.bw - q.aw) * u, xc = q.ax + (q.bx - q.ax) * u;
+      for(let r = Math.max(0, r0); r < r1; r++){ const far2 = q.aw < PX * 32 && r + 1 < r1;   // far rows (a row per field or coarser) two at a time: half the calls where nothing shows the difference
+        const y = (r + (far2 ? 1 : .5)) * PX, u = (q.ay - y) / dy, w = q.aw + (q.bw - q.aw) * u, xc = q.ax + (q.bx - q.ax) * u;
         const d = i + (ib !== ia ? (1 / w - ia) / (ib - ia) : u), f = Math.floor(d / FL), dz = d - f * FL;
         for(let si = 0; si < 2; si++){ const sd = si ? 1 : -1; if(!ok(q, sd)) continue; const Xe = sd > 0 ? (W - xc) / w : xc / w; if(Xe <= q.xw) continue;
-          FDC++; fieldRow(si, sd, fslot(f, sd), dz, xc, w, q.xw, Xe + .01, r * PX); } } }
+          FDC++; fieldRow(si, sd, fslot(f, sd), dz, xc, w, q.xw, Xe + .01, r * PX, far2 ? PX * 2 : PX); }
+        if(far2) r++; } }
     cx.globalAlpha = 1; }
+
+  // ---------------------------------------------------------------- rice tufts standing in the near plots, each doubled in the water (Kellan, 2026-11-23)
+  /* Studied at pixel zoom (Commons): "Newly planted rice paddy with hills, Tsuruga, June 2017" (machine rows: clumps of four to seven blades
+     fanning from one point, a little higher than the row spacing is wide, the outer blades bending out; fresh yellow-green tips, darker
+     at the base; the bright water between rows), "Reflection in a Flooded Paddy field" (close tufts: each a small V of thin blades, its
+     reflection a darker, bluer, inverted V just under the waterline, cut off by a one-pixel gap of bright water and broken where the
+     surface trembles), and "Transplanting rice seedlings ... leaves gaps" at dusk (low angle: far rows become short dark ticks, gaps in the
+     machine rows filled by hand). Pixel technique borrowed (not copied): the festival's field mirror in setpiece/festival.js (mirror about the
+     waterline, every fourth row dropped) and the common pixel-art reed/water convention (Octopath Traveler's HD-2D fields and reed beds:
+     the reflection a flat darker copy, broken into scanline slivers that shift a pixel left and right).
+     How it's drawn: for each size step (tuft height 3..14 art pixels) a strip of 48 tufts at that step's own pitch, each with its reflection
+     under it, three sway frames, and a variant with machine gaps, all baked at warm-up into one atlas. A depth line of hills across a plot is
+     then one drawImage of a run of that strip, stretched only by the few percent between the step's pitch and the line's true pitch. The
+     tufts sit exactly on the texture's rows (one per row every 1/16 half-road, a hill every 3/4 segment from the field's tenth texel row). */
+  const TTH = [3, 4, 5, 6, 7, 9, 11, 14], TN = 48, TFR = 3, TRW = 1 / 16;   // tuft heights (art px), tufts a strip, sway frames, row spacing (half-roads)
+  const TP = TTH.map(h => Math.max(4, Math.round(h * 1.56))), TRH = TTH.map(h => Math.max(2, Math.round(h * .8)));
+  let TAT = null; const TY = [], TSW = [0, 1, 2, 1];   // TSW: the sway cycle over the three lean frames   // the atlas, and per [step][gap][frame] the strip's top row
+  const TCOL = { base:[12, 26, 20], mid:[28, 54, 40], lit:[70, 106, 80], tip:[116, 148, 110], rb:[16, 26, 44], rm:[30, 46, 70], rl:[66, 94, 124] };   // moonlight takes most of the green out; the reflections go bluer
+  function* tuftBake(){ let H0 = 0; for(let s = 0; s < TTH.length; s++){ TY[s] = []; for(let g = 0; g < 2; g++){ TY[s][g] = []; for(let f = 0; f < TFR; f++){ TY[s][g][f] = H0; H0 += TTH[s] + 1 + TRH[s] + 1; } } }
+    const AW = TN * TP[TP.length - 1], c = TAT || (TAT = document.createElement('canvas')); c.width = AW; c.height = H0; const k = c.getContext('2d'), img = k.createImageData(AW, H0), D = img.data;
+    const put = (x, y, C, a) => { if(x < 0 || x >= AW || y < 0 || y >= H0) return; const o = (y * AW + x) * 4; if(D[o + 3] && a < D[o + 3]) return; D[o] = C[0]; D[o + 1] = C[1]; D[o + 2] = C[2]; D[o + 3] = a; };
+    for(let s = 0; s < TTH.length; s++){ const th = TTH[s], p = TP[s], rh = TRH[s];
+      for(let g = 0; g < 2; g++) for(let f = 0; f < TFR; f++){ const y0 = TY[s][g][f], wl = y0 + th;   // wl: the waterline row
+        for(let j = 0; j < TN; j++){ if(g && ih(j, s + 77) < .22) continue; const cx0 = j * p + (p >> 1) + (ih(j, s) < .2 ? (ih(j, s + 9) < .5 ? -1 : 1) : 0);
+          const sh = ih(j, s + 11), hh = Math.max(2, Math.round(th * (.72 + ih(j, s + 3) * .4))), nb = th < 5 ? 3 : th < 9 ? 4 + (ih(j, s + 13) * 2 | 0) : 5 + (ih(j, s + 13) * 3 | 0), lean = (f - 1) * (th >= 6 ? 1 : .6) + (ih(j, s + 5) - .5) * .8;
+          for(let b = 0; b < nb; b++){ const spread = (b / (nb - 1) - .5) * 2, bl = Math.round(hh * (1 - Math.abs(spread) * .3 + (ih(j * 7 + b, s) - .5) * .2));   // each blade: up from the base, fanning out, bending at the top
+            for(let y = 0; y < bl; y++){ const t = y / Math.max(1, bl - 1), x = Math.round(cx0 + spread * (th * .38) * Math.pow(t, 1.3) + lean * t * t * 1.4);
+              const C = t > .8 && spread > -.2 && sh > .35 ? TCOL.tip : spread > .3 ? TCOL.lit : t < .35 || sh < .2 ? TCOL.base : TCOL.mid; put(x, wl - 1 - y, C, 255);
+              // the reflection: inverted under a one-row gap, darker and bluer, every fourth row dropped, alternate rows nudged a pixel
+              const ry = wl + 1 + Math.round(y * rh / th); if(ry >= wl + 1 + rh) continue; const rr = ry - wl - 1; if(rr % 4 === 3) continue;
+              const nud = rr % 2 ? (ih(j, rr + s) < .5 ? -1 : 1) : 0; put(x + nud, ry, C === TCOL.tip || C === TCOL.lit ? TCOL.rl : t < .35 ? TCOL.rb : TCOL.rm, 200 - rr * 14); } } } } yield; }
+    k.putImageData(img, 0, 0); cx.drawImage(c, 0, 0, 1, 1); yield; }
+  // draw the tufts of the near planted plots, far to near (each line's reflection lies under the nearer lines, which cover it)
+  function tuftPass(now){ if(!TAT || !TY.length || PDX.includes('tuft')) return; const wmin = TTH[0] / .04 * PX * .85, fr = reduce ? 1 : -1;
+    for(let n = NQ - 1; n >= 0; n--){ const q = Q[n]; if(q.aw < wmin || q.fog > .3) continue; const i = q.s.index; if(isRail(i) || jRail(i)) continue;
+      const ia = 1 / q.aw, ib = 1 / q.bw, f = Math.floor(i / FL), d0 = i - f * FL;
+      // hill lines in this segment: depth (10 + 3j + .5) / 4 segments into the field
+      const jA = Math.max(0, Math.ceil((d0 * 4 - 10.5) / 3)), jB = Math.min(46, Math.ceil(((d0 + 1) * 4 - 10.5) / 3) - 1);
+      for(let j = jB; j >= jA; j--){ const dl = (10.5 + 3 * j) / 4, fr0 = dl - d0, w = 1 / (ia + (ib - ia) * fr0), u = (w - q.aw) / (q.bw - q.aw || 1);
+        const y = q.ay + (q.by - q.ay) * u, xc = q.ax + (q.bx - q.ax) * u, thi = .04 * w / PX; if(thi < TTH[0] * .85) continue;
+        let s = 0; while(s < TTH.length - 1 && TTH[s + 1] <= thi * 1.08) s++;
+        const lh = ih(f * 64 + j, 5), fi = fr >= 0 ? fr : TSW[(Math.floor(now / 520 + lh * 4) % 4 + 4) % 4], yr = snap(y);
+        for(let si = 0; si < 2; si++){ const sd = si ? 1 : -1; if(!ok(q, sd)) continue; const slot = fslot(f, sd), row = PTY[(sd > 0 ? NSLOT : 0) + slot];
+          for(let c = 0; c + 1 < PB.length; c++){ const pt = row[c]; if(pt !== 2 && pt !== 4 && pt !== 1 && pt !== 5) continue;
+            const X0 = WX + PB[c] + 16 / 128, X1 = WX + PB[c + 1] - 8 / 128; if(X0 < q.xw) continue; const ss = pt === 1 || pt === 5 ? Math.max(0, s - 2) : s;
+            if(pt === 5 && j < 30 && X0 < WX + PB[c] + 1.3) continue;   // (the nursery's trays: no tufts on them)
+            const pitch = w * TRW, xa = xc + sd * X0 * w; let ja = 0, jb = Math.floor((X1 - X0) / TRW);
+            // keep only the tufts on screen
+            if(sd > 0){ if(xa > W) break; ja = Math.max(0, Math.ceil((0 - xa) / pitch)); jb = Math.min(jb, Math.floor((W - xa) / pitch) + 1); }
+            else { if(xa < 0) break; ja = Math.max(0, Math.ceil((xa - W) / pitch)); jb = Math.min(jb, Math.floor(xa / pitch) + 1); }
+            if(jb < ja) continue; const th = TTH[ss], P = TP[ss], top = TY[ss][pt === 4 ? 1 : 0][fi], hgt = th + 1 + TRH[ss];
+            let jj = ja, off = Math.floor(ih(f * 7 + c, j) * TN);
+            while(jj <= jb){ const k0 = (jj + off) % TN, cnt = Math.min(jb - jj + 1, TN - k0), x0 = sd > 0 ? xa + (jj - .5) * pitch : xa - (jj + cnt - .5) * pitch;
+              cx.drawImage(TAT, k0 * P, top, cnt * P, hgt, snap(x0), yr - th * PX, snap(cnt * pitch), hgt * PX); jj += cnt; } } } } } }
 
   // ---------------------------------------------------------------- the water pass
   // may this gathered segment draw on side sd? Outside a fork, both sides; on a fork branch only its outer side (its inner side meets the
   // other branch, the gore and the island: no fields detail, no kerb, as the engine's fork inner-side rule)
   const ok = (q, sd) => !q.cq || q.cq === sd;
+  const SHW = [.3, .18, .09, .04], SHA = [.03, .045, .06, .08];
   function waterPass(now){
     if(!NQ || !SK) return;
     const hzr = Math.floor(HZ / PX) * PX, t = MOON.t, dawn = clamp((t - .7) / .3, 0, 1), moonCol = mixc('#f4f0e2', '#ffb070', dawn), mx = MOON.x;
@@ -479,6 +538,11 @@
       if(TR){ const [tx, ty, len] = TR, ry = snap(2 * HZ - ty - PX * 4); cx.fillStyle = '#080c10'; FR(tx, ry, len, PX * 4); cx.fillStyle = '#c8b088'; cx.globalAlpha = .7;
         for(let j = 0; j < 20; j += 1){ if(j === 9 || j === 10 || j % 3 === 2) continue; FR(tx + PX * (2 + j * 2.2 | 0), ry + PX, PX, PX); } cx.globalAlpha = 1; } }
     MOK = false;
+    // the moon's sheen: the low sky round the moon gives back a broad soft column on the water under it, brightest toward the horizon, in hard
+    // stepped bands; the planted rows, drawn over it later, cut it into lines (as the sun's path in photographs of planted paddies at sunrise)
+    if(mvis > 0){ cx.globalCompositeOperation = 'lighter'; cx.fillStyle = moonCol; const hh = Math.max(PX * 8, H - hzr);
+      for(let j = 0; j < 4; j++){ const fw = SHW[j], fa = SHA[j]; for(let b = 0; b < 5; b++){ const y0 = hzr + snap(hh * Math.pow(b / 5, 1.6)), y1 = hzr + snap(hh * Math.pow((b + 1) / 5, 1.6)); cx.globalAlpha = fa * mvis * (1 - b / 5.5); FR(snap(mx - W * fw / 2), y0, snap(W * fw), y1 - y0); } }
+      cx.globalAlpha = 1; cx.globalCompositeOperation = 'source-over'; }
     // moonlight catching wavelets: short pale dashes fixed to the field grid, brightest toward the moon's side
     cx.globalCompositeOperation = 'lighter'; cx.fillStyle = moonCol;
     for(let n = 0; n < NQ; n++){ const q = Q[n], i = q.s.index; if(q.fog > .85) break; if(hash(i * 1.93) > .45) continue;
@@ -513,7 +577,7 @@
       if(x < -r || x > W + r) continue; cx.fillStyle = mixc('#8aa4b8', moonCol, .3); cx.globalAlpha = al;
       for(let j = 0; j < 12; j++){ const an = j / 12 * 6.283; FR(snap(x + Math.cos(an) * r), snap(q.ay + Math.sin(an) * r * .22), PX, PX); } cx.globalAlpha = 1; }
     // the plots themselves: seedlings, levees, ripples, nurseries and dry plots, texture-mapped (fieldPass)
-    fieldPass();
+    fieldPass(); tuftPass(now);
     // ridges (aze) running beside the road: a dark band, a lit grassy top edge, a darker mirror band under it
     // each ridge is one strip polygon per unbroken run of segments: x(q, end) gives its centre, w and h its width and lift
     const strip = (path, X, wf, wmin, hf, off) => { for(const sd of [-1, 1]){ let L = [], Rr = [];
@@ -677,6 +741,9 @@
     { D:.55, hW:.3, hR:.56, ov:.1, roof:'gab', wall:'#5a2a20', top:['#141a28', '#1a2232', '#20293c', '#283248'], rib:'#0c1018', rim:'#6a7894', hip:0 },     // 4 hokora (shrine hall)
     { D:.14, hW:.36, hR:.38, ov:.02, roof:'flat', wall:'#d8dce4', top:['#9aa0ac', '#9aa0ac', '#9aa0ac', '#9aa0ac'], rib:'#6a7080', rim:'#e8ecf4', hip:0 }   // 5 vending machines (3 in a row)
   ];
+  // the thatched farmhouse (kayabuki): the minka's frame under a thick straw roof, moss on it, a deeper eave
+  const BKT = Object.assign({}, BK[0], { ov:.38, hR:1.72, top:['#16120e', '#1e1914', '#28211a', '#322a20'], rib:'#0a0806', rim:'#8a7e60', thatch:true });
+  let MA = 1, MU0 = 0;   // the current slice's material overlay strength (fades out with distance) and its texture offset in segments
   // a colour sunk toward the night's ink, cached (one map per amount): the slices ask for these every frame
   const DKQ = new Map(); function dkc(c, t){ let m = DKQ.get(t); if(!m){ m = new Map(); DKQ.set(t, m); } let v = m.get(c); if(v === undefined){ v = mixc(c, '#05070c', t); m.set(c, v); } return v; }
   const BSPAN = f => f > .45 ? 8 : f > .26 ? 6 : f > .14 ? 4 : f > .05 ? 2 : 1;
@@ -696,11 +763,130 @@
   function cone(L, h, t, spread, rgb, a){ if(a <= .01 || SU0 < W * .03) return; cx.globalCompositeOperation = 'lighter'; const x = px_(L, h, t), y = py_(L, h, t), u = pu_(t), gx = px_(L, 0, t), gy = py_(L, 0, t);
     poly(x - u * .02, y, x + u * .02, y, gx + u * spread, gy, gx - u * spread, gy, add(rgb, a)); poly(gx - u * spread * 1.3, gy - u * .02, gx + u * spread * 1.3, gy - u * .02, gx + u * spread, gy + u * .03, gx - u * spread, gy + u * .03, add(rgb, a * 1.4)); cx.globalCompositeOperation = 'source-over'; }
 
+  // ---------------------------------------------------------------- surface materials (2026-11-23, Kellan: "the textures / lack of textures on the buildings")
+  /* Every wall, roof and footing of the projected buildings gets a detail overlay: a small tile of pixel art (transparent ground, dark and
+     light marks) baked at warm-up in three sizes (96, 48 and 24 texels per half-road width), made a repeating pattern once, and laid on each
+     slice with that slice's own pattern transform, so the texture is fixed to the building (it rides with it, it never swims) and keeps one
+     texel at least an art pixel tall. The base colours, value bands and lines of the slices stay as they were; the overlay only adds the
+     material. Studied at pixel zoom (Commons): a moss-grown kayabuki roof at Shirakawa (bundled straw in courses, lime moss in streaks down
+     the slope, a heavy cut eave), a thatched farmhouse near Iiyama in 1971 (plaster panels between dark timbers, a splash band of mud at the
+     foot, a stone footing), Setouchi yakisugi (charred sugi boards cracked into an alligator crust with a silver sheen on the scales), a
+     boarded kura (vertical boards and battens, weathered paler at the foot), rusty corrugated tin (ribs lit and shaded in turn, rust running
+     down from the nail rows and pooling at the eave).
+     Wall tiles: u along the wall (1.6 half-roads a repeat), v down from 0.8 half-roads above the ground to the ground. Roof tiles: u along
+     the eave, v from the ridge (0) to the eave (the tile's last row). */
+  const MLOD = [96, 48, 24], MU = 1.6, MV = .8, RNV = [64, 32, 16];
+  const MAT = {}, MOFF = PDX.includes('mat');   // name -> [{ cv, pat, k, nv }] per LOD
+  const MM = (typeof DOMMatrix !== 'undefined') ? new DOMMatrix() : null;   // one matrix, rewritten for every slice (no allocation per frame)
+  const vnz = (x, y, s) => { const xi = Math.floor(x), yi = Math.floor(y), fx = x - xi, fy = y - yi, h = (a, b) => ih(a * 7 + s, b * 13 + s * 3);
+    const u = fx * fx * (3 - 2 * fx), v = fy * fy * (3 - 2 * fy); return (h(xi, yi) * (1 - u) + h(xi + 1, yi) * u) * (1 - v) + (h(xi, yi + 1) * (1 - u) + h(xi + 1, yi + 1) * u) * v; };
+  // the painters: (x, y, k, w, h) -> [r, g, b, a] or null; k is texels per half-road width; for roofs h is the slope's rows
+  const DK = [6, 6, 10], LT = [176, 182, 198];
+  const PAINT = {
+    // plaster: low mottling, rain stains running down from the eave, a few hairline cracks, the splash band of mud at the foot
+    plaster(x, y, k, w, h){ const hh = MV - (y + .5) / k, X = x / k;
+      if(hh < .075){ const g = ih(x, y + 7); if(g < .45 - hh * 3) return [24, 18, 14, 70 + (g * 90 | 0)]; }
+      const st = vnz(X * 9, 0, 3), run = (MV - hh) * 1.8; if(st > .72 && ih(x >> 1, 91) < .8 && run < (st - .7) * 4) return [...DK, 34 + (st * 40 | 0)];
+      const m = vnz(X * 14, hh * 14, 5); if(m < .3) return [...DK, (.3 - m) * 160 | 0]; if(m > .82 && ih(x, y) > .7) return [...LT, 26];
+      if(ih(x * 3 + (y >> 2), 17) > .9975) return [...DK, 120];
+      return null; },
+    // vertical boards with battens: a dark joint, the batten's moonlit edge, grain, knots, nails at the girts, paler where the rain splashes
+    boards(x, y, k, w, h){ const bw = Math.max(3, Math.round(.075 * k)), bx = x % bw, b = (x / bw) | 0, hh = MV - (y + .5) / k;
+      if(bx === 0) return [4, 3, 3, 170]; if(bx === 1) return [...LT, 38]; if(bx === bw - 1) return [...DK, 60];
+      if(Math.abs(hh - .34) < .5 / k && bx === 2) return [190, 190, 196, 120];
+      const gr = ih(b * 31 + bx, 5); if(gr > .8 && ih(x, (y / 3) | 0) > .25) return [...DK, 46];
+      const kn = ih(b, ((hh * 9) | 0) + 3); if(kn > .93 && Math.abs(bx - bw / 2) < 1.2 && ((hh * 9) % 1) < .12) return [8, 6, 6, 120];
+      if(hh < .1) return [...LT, 20 + (ih(x, y) * 26 | 0)];
+      return null; },
+    // yakisugi: charred boards cracked into a crust of small scales, their tops catching the moon in a silver sheen
+    yaki(x, y, k, w, h){ const bw = Math.max(3, Math.round(.075 * k)), bx = x % bw, b = (x / bw) | 0;
+      if(bx === 0) return [0, 0, 0, 200]; if(bx === 1) return [150, 158, 176, 30];
+      const cw = Math.max(2, Math.round(k / 40)), ch = Math.max(2, Math.round(k / 32)), ry = (y + (ih(b, (x / cw) | 0) * ch | 0));
+      const cy = ry % ch, cx0 = (x + ((ry / ch | 0) % 2) * (cw >> 1)) % cw;
+      if(cy === 0 || cx0 === 0) return [0, 0, 0, 150]; if(cy === 1 && ih(x, y) > .35) return [168, 176, 196, 40 + (ih(x * 3, y) * 30 | 0)];
+      return null; },
+    // corrugated tin on a wall: ribs lit and shaded in turn, rust running down from the nail rows, a rusted foot
+    tinw(x, y, k, w, h){ const p = Math.max(3, Math.round(.035 * k)), rx = x % p, hh = MV - (y + .5) / k;
+      const rs = vnz(x / p * .7, 0, 11), nail = Math.abs(((hh * 3) % 1) - .5) < .6 / k * 3;
+      if(hh < .06 + rs * .05) return [128, 58, 26, 120];
+      if(rs > .62 && ih((x / p) | 0, 3) > .4){ const len = (rs - .6) * 2.2; if(((MV - hh) % .33) < len) return [140, 64, 28, 90 + (rs * 60 | 0)]; }
+      if(nail && rx === 1) return [200, 196, 190, 110];
+      return rx === 0 ? [...LT, 46] : rx === p - 1 ? [...DK, 80] : null; },
+    // concrete: form-panel joints, pour lines, rain-black streaks from the top, rust bled from the bolts
+    concrete(x, y, k, w, h){ const X = x / k, hh = MV - (y + .5) / k;
+      if(x % Math.round(.42 * k) === 0) return [...DK, 110]; if(Math.abs(((hh * 4) % 1)) < .5 / k * 4) return [...DK, 40];
+      const st = vnz(X * 7, 0, 21); if(st > .6 && (MV - hh) < (st - .55) * 2.5) return [...DK, 40 + (st * 50 | 0)];
+      if(ih(x >> 2, y >> 2) > .992) return [120, 60, 30, 90];
+      const m = vnz(X * 20, hh * 20, 23); return m < .25 ? [...DK, (.25 - m) * 140 | 0] : null; },
+    // a stone footing: rows of rough stones, dark mortar, a moonlit top edge on each stone
+    stone(x, y, k, w, h){ const sh = Math.max(3, Math.round(.034 * k)), row = (y / sh) | 0, ry = y % sh, sw = Math.max(4, Math.round((.05 + ih(row, 3) * .05) * k)), off = (ih(row, 7) * sw) | 0;
+      const sx = (x + off) % sw, si = ((x + off) / sw) | 0; if(ry === sh - 1 || sx === 0) return [2, 2, 4, 190];
+      if(ry === 0) return [...LT, 60]; const g = ih(si * 17 + row, 9); if(ih(x, y) > .8) return g > .5 ? [...LT, 24] : [...DK, 50]; return g > .7 ? [...DK, 40] : null; },
+    // shoji paper over a lit room: the kumiko grid, frame shadows, a few panes re-papered whiter, faint stains
+    shoji(x, y, k, w, h){ const gx = Math.max(3, Math.round(.05 * k)), gy = Math.max(3, Math.round(.06 * k));
+      if(x % gx === 0 || y % gy === 0) return [70, 40, 18, 200]; if(x % gx === 1 || y % gy === 1) return [40, 20, 8, 50];
+      const pn = ih((x / gx) | 0, (y / gy) | 0); if(pn > .86) return [255, 250, 230, 60]; if(pn < .08) return [90, 60, 30, 40]; return null; },
+    // kawara: courses with the shadow under each lip and the moonlit lip, round tiles up the slope, a stray paler tile
+    kawara(x, y, k, w, h){ const cs = Math.max(3, Math.round(h / 13)), cy = y % cs, p = Math.max(3, Math.round(.036 * k)), rx = x % p;
+      if(cy === cs - 1) return [0, 0, 2, 170]; if(cy === 0) return [150, 160, 186, 46];
+      if(rx === 0) return [...DK, 90]; if(rx === 1) return [130, 140, 170, 30];
+      if(ih(((x / p) | 0), (y / cs) | 0) > .96) return [120, 126, 150, 40]; return null; },
+    // thatch: bundled straw laid in courses, strands down the slope, dark gaps, moss in patches and streaks
+    thatch(x, y, k, w, h){ const cs = Math.max(4, Math.round(h / 7)), cy = y % cs, mo = vnz(x / k * 9, y / h * 3, 31), st = vnz(x / k * 6, 0, 33);   // moss grows in streaks down the slope
+      if(mo > .62 || st > .7 && mo > .45){ const g = ih(x, y); return g > .7 ? [96, 120, 52, 150] : g > .35 ? [62, 84, 36, 150] : [40, 56, 26, 140]; }
+      if(cy === cs - 1) return [4, 3, 2, 120];
+      const sl = ih(x, (y + (ih(x, 1) * 5 | 0)) / 4 | 0); if(sl > .78) return [150, 130, 90, 46]; if(sl < .26) return [6, 4, 2, 90];
+      return null; },
+    // corrugated tin roof: ribs up the slope, rust from the ridge down and pooled along the eave
+    tinr(x, y, k, w, h){ const p = Math.max(3, Math.round(.035 * k)), rx = x % p, f = y / h, rs = vnz(x / p * .5, 0, 41);
+      if(f > .9 - rs * .1) return [130, 60, 28, 120]; if(rs > .6 && f < (rs - .55) * 3) return [140, 66, 30, 100];
+      return rx === 0 ? [180, 170, 170, 40] : rx === p - 1 ? [...DK, 90] : null; }
+  };
+  // the minka's whole face in one tile (one overlay a slice, not three): the stone footing, a gap, the wainscot (charred or plain boards), plaster
+  const wallOf = wain => (x, y, k, w, h) => { const hh = MV - (y + .5) / k; return hh < .08 ? PAINT.stone(x, y, k, w, h) : hh < .1 ? null : hh < .22 ? PAINT[wain](x, y, k, w, h) : PAINT.plaster(x, y, k, w, h); };
+  PAINT.minkaY = wallOf('yaki'); PAINT.minkaB = wallOf('boards');
+  const ROOFM = { kawara:1, thatch:1, tinr:1 };
+  function* matBake(){ for(const name in PAINT){ const L = MAT[name] = [], fn = PAINT[name], roof = !!ROOFM[name];
+      for(let li = 0; li < MLOD.length; li++){ const k = MLOD[li], w = Math.round(MU * k), h = roof ? RNV[li] : Math.round(MV * k), c = document.createElement('canvas'); c.width = w; c.height = h;
+        const g = c.getContext('2d'), img = g.createImageData(w, h), d = img.data;
+        for(let y = 0; y < h; y++) for(let x = 0; x < w; x++){ const v = fn(x, y, k, w, h); if(!v) continue; const o = (y * w + x) * 4; d[o] = v[0]; d[o + 1] = v[1]; d[o + 2] = v[2]; d[o + 3] = Math.min(255, v[3]); }
+        g.putImageData(img, 0, 0); cx.drawImage(c, 0, 0, 1, 1); L.push({ cv:c, pat:cx.createPattern(c, 'repeat'), k, nv:h }); }
+      yield; } }
+  // the LOD whose texel stays at least ~an art pixel for a scale of s screen units per half-road (or per slope, for roofs)
+  const mlod = (name, s, roof) => { const L = MAT[name]; if(!L || !MM || MOFF) return null; for(let i = 0; i < L.length; i++){ const t = roof ? s / L[i].nv : s / L[i].k; if(t >= PX * .8) return L[i]; } return null; };
+  /* (perf) the tile is drawn, not filled: one drawImage of the tile's rectangle (u0..u1 along, v0..v1 down) under the slice's own affine
+     transform (MM: tile texels to screen units), split where u wraps the tile. A pattern fill of the same quad cost the GPU a path and a
+     pattern shader per call (about 3 ms a frame beside a hamlet); this is a textured quad. */
+  function TDRAW(T, u0, u1, v0, v1, a){ const tw = T.cv.width, th = T.cv.height; v0 = Math.max(0, v0); v1 = Math.min(th, v1); if(v1 - v0 < .5 || u1 - u0 < .01) return;
+    const ga = cx.globalAlpha; cx.save(); cx.globalAlpha = ga * a; cx.transform(MM.a, MM.b, MM.c, MM.d, MM.e, MM.f);
+    let u = u0; while(u < u1 - .001){ const su = ((u % tw) + tw) % tw, len = Math.min(u1 - u, tw - su); cx.drawImage(T.cv, su, v0, len, v1 - v0, u, v0, len, v1 - v0); u += len; }
+    cx.restore(); }
+  // overlay a wall material on the slice's face plane at lateral L, heights h0..h1, fractions ta..tb along the slice; u0: world offset in segments
+  function OV(name, L, h0, h1, ta, tb, u0, a){ const uM = (SU0 + SU1) / 2, T = mlod(name, uM, false); if(!T || a <= .02) return;
+    const k = T.k, x0 = px_(L, 0, 0), x1 = px_(L, 0, 1), y0 = py_(L, 0, 0), y1 = py_(L, 0, 1), n = BLM * k * .1, tu0 = u0 * k * .1;
+    MM.a = (x1 - x0) / n; MM.b = (y1 - y0) / n; MM.c = 0; MM.d = uM / k; MM.e = x0 - MM.a * tu0; MM.f = y0 - MM.b * tu0 - MV * uM;
+    TDRAW(T, tu0 + n * ta, tu0 + n * tb, (MV - h1) * k, (MV - h0) * k, a); }
+  // on the end plane (the run's first segment, facing the camera): lateral L0..L1, heights h0..h1
+  function OVE(name, L0, L1, h0, h1, a){ const T = mlod(name, SU0, false); if(!T || a <= .02) return; const k = T.k;
+    MM.a = SSD * SU0 / k; MM.b = 0; MM.c = 0; MM.d = SU0 / k; MM.e = SX0; MM.f = SY0 - MV * SU0;
+    TDRAW(T, L0 * k, L1 * k, (MV - h1) * k, (MV - h0) * k, a); }
+  // on a roof slope: the eave at (eL, hW), the ridge at (rid, hR) scaled by tp (a hip's slices rise toward the ridge), poly corners given
+  function OVR(name, eL, hW, rid, hR, tp, u0, a, q){ const uM = (SU0 + SU1) / 2, Rx = SSD * uM * (rid - eL) * tp, Ry = -uM * (hR - hW) * tp, T = mlod(name, Math.hypot(Rx, Ry), true); if(!T || a <= .02) return;
+    const k = T.k, ex0 = px_(eL, hW, 0), ey0 = py_(eL, hW, 0), ex1 = px_(eL, hW, 1), ey1 = py_(eL, hW, 1), n = BLM * k * .1, tu0 = u0 * k * .1, nv = T.nv;
+    MM.a = (ex1 - ex0) / n; MM.b = (ey1 - ey0) / n; MM.c = -Rx / nv; MM.d = -Ry / nv; MM.e = ex0 + Rx - MM.a * tu0; MM.f = ey0 + Ry - MM.b * tu0;
+    TDRAW(T, tu0, tu0 + n, 0, nv, a); }
+  let BLM = 1;   // the current slice's length in segments (set by bldSlice0)
+  // a roof material on any camera-facing face (a hip): o the ridge-side corner over the eave's left end, (ux, uy) one half-road along the
+  // eave on screen, (vx, vy) from the ridge line down to the eave; q the face's corners
+  function OVQ(name, ox, oy, ux, uy, vx, vy, a, q){ const T = mlod(name, Math.hypot(vx, vy), true); if(!T || a <= .02) return; const k = T.k, nv = T.nv;
+    MM.a = ux / k; MM.b = uy / k; MM.c = vx / nv; MM.d = vy / nv; MM.e = ox; MM.f = oy; T.pat.setTransform(MM);
+    const ga = cx.globalAlpha; cx.globalAlpha = ga * a; poly(q[0], q[1], q[2], q[3], q[4], q[5], q[6], q[7], T.pat); cx.globalAlpha = ga; }
+
   // far buildings fade out over the last tenth before their limit (no pop), then are left to the backdrop's farm band
   function bldSlice(sp, x, y, uw, fog, now){ const lim = .55; if(fog > lim) return; const a0 = cx.globalAlpha; if(fog > lim - .1) cx.globalAlpha = a0 * (lim - fog) / .1; bldSlice0(sp, x, y, uw, fog, now); cx.globalAlpha = a0; }
   function bldSlice0(sp, x, y, uw, fog, now){
     const i = sp.k, rel = i - sp.b0, n = BSPAN(fog); if(rel % n) return; const m = Math.min(n, sp.b0 + sp.len - i), t = segs[i + m - 1]; if(!t || !t.p2.screen.w) return;
-    const B = BK[sp.kind], sd = sp.side, X = sp.X, p = t.p2.screen; SSD = sd; SX0 = x - sp.x * uw; SY0 = y; SU0 = uw; SX1 = p.x; SY1 = p.y; SU1 = p.w;
+    const B = sp.kind === 0 && hash(sp.n * 2.71 + .3) < .45 ? BKT : BK[sp.kind], sd = sp.side, X = sp.X, p = t.p2.screen; BLM = m; MA = clamp(1 - (fog - .06) * 7, 0, 1); MU0 = rel + (sp.n * 5) % 16; SSD = sd; SX0 = x - sp.x * uw; SY0 = y; SU0 = uw; SX1 = p.x; SY1 = p.y; SU1 = p.w;
     const xa = px_(X - .7, 0, 0), xb = px_(X, 0, 1), xe = px_(X + B.D, 0, 0); if(Math.max(xa, xb, xe) < -PX || Math.min(xa, xb, xe) > W + PX) return;
     const F = c => fc(c, fog), near = fog < .1 && n === 1, mid = fog < .3, lit = hash(sp.n * 7.7) > .2, rid = X + B.D / 2, eL = X - B.ov, last = rel + m >= sp.len;
     // far tier: the wall, a lit band if anyone is home, the roof slope, the end gable; three or four quads
@@ -716,6 +902,7 @@
   // ---- the roof: eave fascia and its shadow on the wall, the slope in stepped tones (darkest at the eave, moonlit at the ridge), tile
   // courses along it and kawara columns (or tin ribs, with rust streaks) up it, a lit lip of tile ends along the eave, a heavy ridge
   // with its moonlit top and an onigawara at the end; the near end is a hip with its small gable (irimoya) or a gable with bargeboards
+  const RQ = new Float32Array(8);
   function roof(sp, B, X, rel, m, F, near, fog, last){
     const hipN = Math.min(B.hip, sp.len - 1), rid = X + B.D / 2, eL = X - B.ov, tin = sp.kind === 1 || sp.kind === 3;
     const topAt = r => B.hip && r < hipN ? r / hipN : 1, ta0 = topAt(rel), ta1 = topAt(rel + m);
@@ -725,8 +912,13 @@
     BQ(eL, B.hW - .045, eL, B.hW + .01, 0, 1, F(tin ? '#1a1416' : '#2a2228'));
     // the slope in four bands (eave to ridge)
     { const nb = near ? 4 : 2; for(let b = 0; b < nb; b++){ const f0 = b / nb, f1 = (b + 1) / nb + .002; poly(Px(f0, 0), Py(f0, 0), Px(f0, 1), Py(f0, 1), Px(f1, 1), Py(f1, 1), Px(f1, 0), Py(f1, 0), F(B.top[near ? b : b * 2 + 1])); } }
+    // the material: kawara courses, thatch bundles and moss, or ribbed tin with its rust, fixed to the roof
+    RQ[0] = Px(0, 0); RQ[1] = Py(0, 0); RQ[2] = Px(0, 1); RQ[3] = Py(0, 1); RQ[4] = Px(1, 1); RQ[5] = Py(1, 1); RQ[6] = Px(1, 0); RQ[7] = Py(1, 0);
+    OVR(tin ? 'tinr' : B.thatch ? 'thatch' : 'kawara', eL, B.hW, rid, B.hR, (ta0 + ta1) / 2, MU0, MA, RQ);
     if(near){
-      if(!tin){   // tile courses along the slope, kawara columns up it
+      if(B.thatch){   // the thatch's cut eave: a thick lip of straw ends, its moonlit edge
+        BQ(eL, B.hW - .05, eL, B.hW + .03, 0, 1, F('#2a2218')); BQ(eL, B.hW + .02, eL, B.hW + .035, 0, 1, F(B.rim)); }
+      else if(!tin){   // tile courses along the slope, kawara columns up it
         for(let c = 1; c < 6; c++){ const f = c / 6, x0 = Px(f, 0), y0 = Py(f, 0), x1 = Px(f, 1), y1 = Py(f, 1); poly(x0, y0, x1, y1, x1, y1 + PX, x0, y0 + PX, F(B.rib)); }
         for(let c = 0; c < 2; c++){ const tt = (c + .5) / 2, tp = topAt(rel + m * tt), hh = B.hW + (B.hR - B.hW) * tp, ll = eL + (rid - eL) * tp, ax = px_(eL, B.hW, tt), ay = py_(eL, B.hW, tt), bx = px_(ll, hh, tt), by = py_(ll, hh, tt);
           poly(ax, ay, bx, by, bx + PX, by, ax + PX, ay, F(B.top[3])); }
@@ -743,6 +935,8 @@
     const D = B.D;
     if(B.roof === 'gab'){   // a gable end: the triangle (plaster or tin), bargeboards, a ridge cap end
       cx.fillStyle = F(tin ? B.top[1] : dkc(B.wall, .25)); poly(px_(X, B.hW, 0), py_(X, B.hW, 0), px_(X + D, B.hW, 0), py_(X + D, B.hW, 0), px_(rid, B.hR, 0), py_(rid, B.hR, 0), px_(rid, B.hR, 0), py_(rid, B.hR, 0), cx.fillStyle);
+      { const T = MA > .02 ? mlod(tin ? 'tinw' : sp.kind === 2 ? 'concrete' : 'boards', SU0, false) : null; if(T){ MM.a = SSD * SU0 / T.k; MM.b = 0; MM.c = 0; MM.d = SU0 / T.k; MM.e = SX0; MM.f = SY0 - MV * SU0; T.pat.setTransform(MM);
+        const ga = cx.globalAlpha; cx.globalAlpha = ga * MA; poly(px_(X, B.hW, 0), py_(X, B.hW, 0), px_(X + D, B.hW, 0), py_(X + D, B.hW, 0), px_(rid, B.hR, 0), py_(rid, B.hR, 0), px_(rid, B.hR, 0), py_(rid, B.hR, 0), T.pat); cx.globalAlpha = ga; } }   // the gable's material
       if(tin && near) for(let c = 1; c < 6; c++){ const L = X + D * c / 6, hh = B.hW + (B.hR - B.hW) * (1 - Math.abs(L - rid) / (D / 2)); BE(L, B.hW, L + .012, hh, F(c % 2 ? B.rib : B.top[3])); }
       const bw = .045; poly(px_(eL, B.hW - .03, 0), py_(eL, B.hW - .03, 0), px_(rid, B.hR + .03, 0), py_(rid, B.hR + .03, 0), px_(rid, B.hR + .03 + bw, 0), py_(rid, B.hR + .03 + bw, 0), px_(eL, B.hW - .03 + bw, 0), py_(eL, B.hW - .03 + bw, 0), F(B.rim));
       poly(px_(X + D + B.ov, B.hW - .03, 0), py_(X + D + B.ov, B.hW - .03, 0), px_(rid, B.hR + .03, 0), py_(rid, B.hR + .03, 0), px_(rid, B.hR + .03 + bw, 0), py_(rid, B.hR + .03 + bw, 0), px_(X + D + B.ov, B.hW - .03 + bw, 0), py_(X + D + B.ov, B.hW - .03 + bw, 0), F(B.rib));
@@ -752,7 +946,11 @@
     const gL = rid - .32, gR = rid + .32, gh = B.hR - .34;
     { const ex0 = px_(eL, B.hW, 0), ey0 = py_(eL, B.hW, 0), ex1 = px_(X + D + B.ov, B.hW, 0), ey1 = ey0, lx = hx(gL, gh), rx = hx(gR, gh), ty = hy(gh);
       for(let b = 0; b < 4; b++){ const f0 = b / 4, f1 = (b + 1) / 4 + .004, a1 = ex0 + (lx - ex0) * f0, a2 = ey0 + (ty - ey0) * f0, b1 = ex1 + (rx - ex1) * f0, b2 = ey1 + (ty - ey1) * f0, c1 = ex1 + (rx - ex1) * f1, c2 = ey1 + (ty - ey1) * f1, d1 = ex0 + (lx - ex0) * f1, d2 = ey0 + (ty - ey0) * f1;
-        poly(a1, a2, b1, b2, c1, c2, d1, d2, F(B.top[b])); if(near && b) poly(a1, a2, b1, b2, b1, b2 + PX, a1, a2 + PX, F(B.rib)); } }
+        poly(a1, a2, b1, b2, c1, c2, d1, d2, F(B.top[b])); if(near && b && !B.thatch) poly(a1, a2, b1, b2, b1, b2 + PX, a1, a2 + PX, F(B.rib)); }
+      // the hip's material, its courses parallel to the eave
+      const mx0 = (ex0 + ex1) / 2, my0 = ey0, mx1 = (lx + rx) / 2, vx = mx0 - mx1, vy = my0 - ty, uL = (ex1 - ex0) / (D + 2 * B.ov);
+      RQ[0] = ex0; RQ[1] = ey0; RQ[2] = ex1; RQ[3] = ey1; RQ[4] = rx; RQ[5] = ty; RQ[6] = lx; RQ[7] = ty;
+      OVQ(B.thatch ? 'thatch' : 'kawara', ex0 - vx, ey0 - vy, uL, 0, vx, vy, MA, RQ); }
     poly(px_(eL, B.hW, 0), py_(eL, B.hW, 0), hx(gL, gh), hy(gh), hx(gL, gh) + PX, hy(gh), px_(eL, B.hW, 0) + PX, py_(eL, B.hW, 0), F(B.rim));
     poly(px_(X + D + B.ov, B.hW, 0), py_(X + D + B.ov, B.hW, 0), hx(gR, gh), hy(gh), hx(gR, gh) - PX, hy(gh), px_(X + D + B.ov, B.hW, 0) - PX, py_(X + D + B.ov, B.hW, 0), F(B.rib));
     BE(eL, B.hW - .045, X + D + B.ov, B.hW + .01, F('#2a2228')); if(near) for(let c = 0; c < 8; c++) BE(eL + (D + 2 * B.ov) * (c + .2) / 8, B.hW + .005, eL + (D + 2 * B.ov) * (c + .6) / 8, B.hW + .03, F(B.rim));
@@ -776,9 +974,9 @@
       BQ(X, 0, X, .08, 0, 1, F('#3c3e46')); if(near) BV(X, 0, .08, .3 + hash(sp.k) * .4, .01, F('#22242a'));
       BQ(X - .24, .1, X, .1, 0, 1, F(lit ? '#4a3a2c' : '#2e2622')); BQ(X - .24, .075, X - .24, .1, 0, 1, F('#1a1412'));
       BQ(X, .1, X, .22, 0, 1, F('#221a1c')); if(near) BV(X, .1, .22, .5, .006, F('#140e10'));
-      BQ(X, .22, X, B.hW, 0, 1, F(B.wall));
+      BQ(X, .22, X, B.hW, 0, 1, F(B.wall)); OV(sp.n % 3 ? 'minkaY' : 'minkaB', X, 0, B.hW, 0, 1, MU0, MA);
       for(let r = rel; r < rel + m; r++){ if(r % 3) continue; const tb0 = (r - rel) / m, tb1 = Math.min(1, (r + 3 - rel) / m), bay = hash(sp.n * 3.3 + r), on = lit && bay > .3, lo = .24, hi = .5;
-        if(on){ BQ(X, lo, X, hi, tb0 + .03, tb1 - .03, fc(bay > .75 ? WIN2 : WIN, fog * .5)); BQ(X, lo, X, lo + .05, tb0 + .03, tb1 - .03, F('#6a4428'));
+        if(on){ BQ(X, lo, X, hi, tb0 + .03, tb1 - .03, fc(bay > .75 ? WIN2 : WIN, fog * .5)); if(near) OV('shoji', X, lo + .05, hi, tb0 + .03, tb1 - .03, MU0, MA * .9); BQ(X, lo, X, lo + .05, tb0 + .03, tb1 - .03, F('#6a4428'));
           if(near){ for(const g of [.31, .37, .44]) BQ(X, g, X, g + .008, tb0 + .03, tb1 - .03, F('#a06a38')); for(let c = 1; c < 3; c++) BV(X, lo + .05, hi, tb0 + (tb1 - tb0) * c / 3, .006, F('#a06a38'));
             if(bay > .86){ const tc = (tb0 + tb1) / 2, hx = px_(X, 0, tc), u = pu_(tc), hy = py_(X, .43, tc); cx.fillStyle = fc('#6a4026', fog * .5); cx.fillRect(snap(hx - u * .03), snap(hy), Math.max(PX, snap(u * .06)), Math.max(PX, snap(u * .06))); cx.fillRect(snap(hx - u * .06), snap(hy + u * .06), Math.max(PX, snap(u * .12)), Math.max(PX, snap(u * .13))); } } }
         else { BQ(X, lo - .02, X, hi + .02, tb0 + .02, tb1 - .02, F('#2a2024')); if(near) for(let c = 1; c < 5; c++) BV(X, lo, hi, tb0 + (tb1 - tb0) * c / 5, .005, F('#1a1418')); }
@@ -793,7 +991,7 @@
       if(lit && rel <= 5 && rel + m > 5){ const tc = (5 - rel) / m; const bx = px_(X, 0, tc), by = py_(X, B.hW - .2, tc), u = pu_(tc); cx.fillStyle = '#fff0c8'; cx.fillRect(snap(bx), snap(by), Math.max(PX, snap(u * .03)), Math.max(PX, snap(u * .03))); gl(bx, by, u * .4, '#ffc070', .4 * (1 - fog)); cone(X - .05, B.hW - .2, tc, .3, '255,190,110', .06 * (1 - fog)); }
       if(rel !== 0) return;
       // the end wall: wainscot, plaster, corner posts, a lit window with its grid
-      BE(X, 0, X + B.D, .08, F('#34363e')); BE(X, .08, X + B.D, .22, F('#1c1618')); BE(X, .22, X + B.D, B.hW, F(dkc(B.wall, .3)));
+      BE(X, 0, X + B.D, .08, F('#34363e')); BE(X, .08, X + B.D, .22, F('#1c1618')); BE(X, .22, X + B.D, B.hW, F(dkc(B.wall, .3))); OVE('minkaB', X, X + B.D, 0, B.hW, MA);
       BE(X, .08, X + .04, B.hW, F('#140e12')); BE(X + B.D - .04, .08, X + B.D, B.hW, F('#140e12'));
       if(lit){ BE(X + B.D * .35, .28, X + B.D * .65, .48, fc(WIN2, fog * .5)); if(near){ BE(X + B.D * .35, .375, X + B.D * .65, .385, F('#a06a38')); BE(X + B.D * .495, .28, X + B.D * .505, .48, F('#a06a38')); } }
       // the kei truck parked in the yard, seen from behind: tailgate, tail lamps, the cab and its rear window, wheels
@@ -804,7 +1002,7 @@
     // of light and moths, crates and a straw bale by the door
     (sp, B, X, rel, m, F, near, lit, fog, now, last) => {
       if(fog < .2) BQ(X - .5, 0, X + B.D + .3, 0, 0, 1, F('#121410'));
-      BQ(X, 0, X, B.hW, 0, 1, F(rel % 2 ? '#2a2026' : '#30262a')); if(near) for(let c = 1; c < 3; c++) BV(X, .02, B.hW, c / 3, .006, F('#150f12'));
+      BQ(X, 0, X, B.hW, 0, 1, F(rel % 2 ? '#2a2026' : '#30262a')); OV(sp.n % 2 ? 'yaki' : 'boards', X, 0, B.hW, 0, 1, MU0, MA); if(near) for(let c = 1; c < 3; c++) BV(X, .02, B.hW, c / 3, .006, F('#150f12'));
       BQ(X, .34, X, .36, 0, 1, F('#1a1216')); BQ(X, 0, X, .03, 0, 1, F('#22242a'));
       const d0 = 2, d1 = 6; if(rel < d1 && rel + m > d0){ const ta = Math.max(0, (d0 - rel) / m), tb = Math.min(1, (d1 - rel) / m); BQ(X, .03, X, .5, ta, tb, F('#4a3c32')); BQ(X, .5, X, .53, ta, tb, F('#1a1216'));
         if(near){ for(let d = 0; d < 2; d++){ const h0 = d ? .46 : .06, h1 = d ? .06 : .46, a1 = px_(X, h0, ta), a2 = py_(X, h0, ta), b1 = px_(X, h1, tb), b2 = py_(X, h1, tb); poly(a1, a2, b1, b2, b1, b2 + PX, a1, a2 + PX, F('#2a2018')); } BV(X, .03, .5, ta, .01, F('#2a2018')); BV(X, .03, .5, tb, .01, F('#2a2018')); }
@@ -812,13 +1010,13 @@
           cx.fillStyle = '#fff4cc'; cx.fillRect(snap(bx - u * .01), snap(by), Math.max(PX, snap(u * .02)), Math.max(PX, snap(u * .025))); gl(bx, by, u * .35, '#ffc070', .45 * (1 - fog)); cone(X - .04, .6, tc, .28, '255,200,120', .07 * (1 - fog));
           if(!reduce && fog < .25) for(let j = 0; j < 4; j++){ const ph = now / (420 + j * 110) + j * 1.7; cx.fillStyle = '#f4f0e0'; cx.fillRect(snap(bx + Math.sin(ph) * u * .08), snap(by + Math.cos(ph * 1.3) * u * .05), PX, PX); } } }
       if(rel <= 1 && rel + m > 0 && fog < .25){ const tc = .3; BQ(X - .16, 0, X - .02, .1, tc, Math.min(1, tc + 1.5 / m), F('#5a4630')); BQ(X - .16, .1, X - .16, .11, tc, Math.min(1, tc + 1.5 / m), F('#7a6040')); }
-      if(rel === 0){ BE(X, 0, X + B.D, B.hW, F(B.top[1])); if(near) for(let c = 1; c < 6; c++) BE(X + B.D * c / 6, 0, X + B.D * c / 6 + .012, B.hW, F(c % 2 ? B.rib : B.top[3]));
+      if(rel === 0){ BE(X, 0, X + B.D, B.hW, F(B.top[1])); OVE('tinw', X, X + B.D, 0, B.hW, MA); if(near) for(let c = 1; c < 6; c++) BE(X + B.D * c / 6, 0, X + B.D * c / 6 + .012, B.hW, F(c % 2 ? B.rib : B.top[3]));
         if(fog < .25){ BR(X - .3, .14, .24, .14, F('#9a8048')); BR(X - .3, .14, .24, .02, F('#c0a060')); BR(X - .3, .06, .2, .02, F('#6a5430')); } } },
     // co-op warehouse: a concrete apron, panel joints, roller shutters with slats, their boxes and a lit bottom edge (one half up, the
     // light inside and rice sacks), the green sign band with its name and a leaf mark, sodium lamps on brackets with cones; a forklift
     // and pallets by the near end
     (sp, B, X, rel, m, F, near, lit, fog, now, last) => {
-      if(fog < .2) BQ(X - .8, 0, X + B.D + .2, 0, 0, 1, F('#24262a')); BQ(X, 0, X, B.hW, 0, 1, F(B.wall)); BQ(X, 0, X, .03, 0, 1, F('#2a2e38'));
+      if(fog < .2) BQ(X - .8, 0, X + B.D + .2, 0, 0, 1, F('#24262a')); BQ(X, 0, X, B.hW, 0, 1, F(B.wall)); OV('concrete', X, 0, B.hW, 0, 1, MU0, MA); BQ(X, 0, X, .03, 0, 1, F('#2a2e38'));
       for(let r = rel; r < rel + m; r++){ if(r % 4) continue; const tb0 = (r - rel) / m, tb1 = Math.min(1, (r + 4 - rel) / m), open = hash(sp.n * 5.1 + r) > .8 && lit;
         BQ(X, .03, X, .64, tb0 + .06, tb1 - .06, F(open ? '#ffb860' : '#4a5264')); BQ(X, .64, X, .7, tb0 + .04, tb1 - .04, F('#2e3440'));
         if(open){ BQ(X, .03, X, .26, tb0 + .06, tb1 - .06, F('#ffd890')); if(near) for(let c = 0; c < 3; c++) BQ(X, .03, X, .12 + (c % 2) * .05, tb0 + .1 + c * .08, tb0 + .17 + c * .08, F('#c8b890')); BQ(X - .5, 0, X - .02, 0, tb0, tb1, add('255,180,90', .07)); }
@@ -828,14 +1026,14 @@
       if(rel === 0 && fog < .5){ const ts = sign('農業倉庫'); if(ts){ const tc = Math.min(1, 2.5 / m), sx = px_(X, 0, tc), sy = py_(X, .82, tc), w = pu_(tc) * .55; const ga = cx.globalAlpha; cx.globalAlpha = ga * (1 - fog * 1.6); blit(ts, sx, sy + ts.height * w / ts.width / 2, w / ts.width); cx.globalAlpha = ga; } }
       for(let r = rel; r < rel + m; r++){ if(r % 4 !== 2) continue; const tc = (r - rel + .5) / m, bx = px_(X, 0, tc), by = py_(X, .7, tc), u = pu_(tc); cx.fillStyle = F('#1a1c22'); cx.fillRect(snap(bx - u * .05), snap(by - u * .02), Math.max(PX, snap(u * .1)), Math.max(PX, snap(u * .03)));
         cx.fillStyle = '#ffb04a'; cx.fillRect(snap(bx - u * .03), snap(by + u * .01), Math.max(PX, snap(u * .06)), Math.max(PX, snap(u * .015))); gl(bx, by, u * .45, '#ff9a30', .4 * (1 - fog)); cone(X - .06, .7, tc, .4, '255,150,60', .06 * (1 - fog)); }
-      if(rel === 0){ BE(X, 0, X + B.D, B.hW, F(dkc(B.wall, .3))); BE(X, .74, X + B.D, .9, F('#145a2e'));
+      if(rel === 0){ BE(X, 0, X + B.D, B.hW, F(dkc(B.wall, .3))); OVE('concrete', X, X + B.D, 0, B.hW, MA); BE(X, .74, X + B.D, .9, F('#145a2e'));
         if(fog < .3){ const L = X - .45; BR(L, .02, .2, .14, F('#e8a020')); BR(L, .16, .14, .1, F('#16181e')); BR(L - .12, .02, .02, .34, F('#2a2a30')); BR(L - .17, .02, .1, .015, F('#8a8e98')); BR(L + .07, .03, .06, .06, '#0a0a0c'); BR(L - .06, .03, .06, .06, '#0a0a0c');
           for(let c = 0; c < 3; c++){ BR(X - .82, .02 + c * .07, .2, .018, F('#7a5a34')); BR(X - .82, .045 + c * .07, .18, .045, F(c % 2 ? '#d8d0b8' : '#c8c0a4')); } } } },
     // station shelter: the platform with its yellow tactile line, the dark back wall, a bench, a timetable board, a poster, the tube light
     // under the eave with its pool; on the end, the white name board on two posts
     (sp, B, X, rel, m, F, near, lit, fog, now, last) => {
       BQ(X - .55, .06, X + B.D, .06, 0, 1, F('#3a3c42')); BQ(X - .55, 0, X - .55, .06, 0, 1, F('#24262c')); BQ(X - .5, .06, X - .45, .06, 0, 1, F('#c8a020'));
-      BQ(X, .06, X, B.hW, 0, 1, F('#2a201c')); BQ(X, .06, X, .1, 0, 1, F('#1a1412'));
+      BQ(X, .06, X, B.hW, 0, 1, F('#2a201c')); OV('boards', X, .06, B.hW, 0, 1, MU0, MA); BQ(X, .06, X, .1, 0, 1, F('#1a1412'));
       BQ(X - .14, .17, X - .02, .17, .1, .9, F('#6a5240')); BQ(X - .14, .155, X - .14, .17, .1, .9, F('#3a2a20')); BV(X - .12, .06, .17, .15, .02, F('#1a1412')); BV(X - .12, .06, .17, .85, .02, F('#1a1412'));
       if(rel % 3 === 1 && fog < .25){ BQ(X, .26, X, .42, .2, .8, F('#e8ecf0')); if(near) for(let c = 0; c < 5; c++) BQ(X, .29 + c * .025, X, .3 + c * .025, .28, .72, F('#3a4050')); }
       if(rel % 3 === 2 && fog < .25){ BQ(X, .24, X, .4, .25, .75, F('#3a6aa8')); BQ(X, .3, X, .34, .3, .7, F('#e8c040')); }
@@ -848,7 +1046,7 @@
     // hokora: on a stone base, a small hall with lattice doors faintly lit, a shimenawa rope with paper shide across the front
     (sp, B, X, rel, m, F, near, lit, fog, now, last) => {
       BQ(X - .25, 0, X + B.D + .2, 0, 0, 1, F('#1a1e1a')); BQ(X - .04, 0, X - .04, .07, 0, 1, F('#4a4e58')); BQ(X - .04, .07, X, .07, 0, 1, F('#5a5e68'));
-      BQ(X, .07, X, B.hW, 0, 1, F(B.wall)); BQ(X, .1, X, .26, .15, .85, F('#1a0e0c')); if(lit) BQ(X, .12, X, .24, .2, .8, fc('#c87a40', fog * .6));
+      BQ(X, .07, X, B.hW, 0, 1, F(B.wall)); OV('boards', X, .07, B.hW, 0, 1, MU0, MA * .7); BQ(X, .1, X, .26, .15, .85, F('#1a0e0c')); if(lit) BQ(X, .12, X, .24, .2, .8, fc('#c87a40', fog * .6));
       if(near){ for(let c = 1; c < 4; c++) BV(X, .1, .26, .15 + .7 * c / 4, .006, F('#2a1410')); BQ(X, .17, X, .176, .15, .85, F('#2a1410')); }
       BQ(X - .02, B.hW - .05, X - .02, B.hW - .03, 0, 1, F('#d8c890')); if(near) for(let c = 0; c < 3; c++){ BQ(X - .02, B.hW - .1, X - .02, B.hW - .05, .2 + c * .3, .26 + c * .3, '#f4f4ec'); }
       if(rel === 0) BE(X, .07, X + B.D, B.hW, F(dkc(B.wall, .35))); },
@@ -979,7 +1177,7 @@
       up(bus(d)); up(xing(d)); yield; up(xingHi(d, 2)); yield; up(xingHi(d, 4)); yield; up(shrine(d)); up(reflOf(shrine(d), 'pad_rshrine' + d)); yield; up(crow(d)); up(reflOf(crow(d), 'pad_rcrow' + d)); up(jizo(d));
       for(let v = 0; v < 2; v++){ up(hasa(v, d)); up(reflOf(hasa(v, d), 'pad_rhasa' + v + d)); } yield; }
     up(pylonSpr()); warmSigns(); for(const k in SIGNS) up(SIGNS[k]); cx.clearRect(0, 0, W, H); yield;
-    yield* fieldBake(); cx.clearRect(0, 0, W, H); }
+    yield* matBake(); yield* tuftBake(); yield* fieldBake(); cx.clearRect(0, 0, W, H); }
 
   ENV.paddies = {
     barrier:1.12,
@@ -1001,7 +1199,7 @@
       const f = DRAW[sp.type]; if(f) f(sp, x, y, uw, fog, now); },
     warm(){ for(const _ of warmSteps()); },
     warmSteps,
-    _fdbg:() => ({ ok:FAOK, l0:FL0, h:FAT[0] && FAT[0].height, nq:NQ, rows:FDC }), _fat:FAT,   // (tests: the field atlases' state)
+    _fdbg:() => ({ ok:FAOK, l0:FL0, h:FAT[0] && FAT[0].height, nq:NQ, rows:FDC }), _fat:FAT, _tat:() => TAT,   // (tests: the field atlases' state)
     // (the old one-piece warm() took 114 ms in a single step; now each step is one sprite family or a slice of the field atlases)
   };
 })();

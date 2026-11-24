@@ -453,7 +453,10 @@ const RV = { x:null, w:null, p:null, v:null, f:null, n:null, mask:(T, u, v) => m
 const PLM = 1024, PLX = new Float32Array(PLM), PLB = new Float32Array(PLM), PLU = new Float32Array(PLM), PLH0 = new Float32Array(PLM), PLH1 = new Float32Array(PLM), PLW = new Float32Array(PLM), PLA = new Float32Array(PLM), PLL = new Float32Array(PLM), PLYA = new Int16Array(PLM), PLYB = new Int16Array(PLM), PLC = new Array(PLM).fill(''), PLT = new Array(PLM).fill(null);
 let PLN = 0;
 const PLF = new Uint8Array(PLM), PLG = new Float32Array(PLM), PLP = new Array(PLM).fill(null); let PLHOT = 0, PLLG = 0;   // hot roads: flags (1 hot, 2 late, 4 long), the ground band's strength, a facade's profile
-function POOL(lx, by, uw, h0, h1, w0, col, al, prof, gi){ al *= PK.rf; if(PLN >= PLM || al < .02 || !(w0 >= PX * .6) || !(uw > 0) || !(lx === lx) || !(by === by)) return;
+/* Occlusion (Kellan 2026-11-24: tail lights and the dark under cars showed before the cars crested the hill). A light's image lies on the rows
+   below its base, which belong to nearer segments and are drawn by them, outside the source segment's clip. So a light whose base is hidden
+   behind the road in front (by below its own segment's clip, SCLIP) records nothing: its image is behind that crest too, as its car is. */
+function POOL(lx, by, uw, h0, h1, w0, col, al, prof, gi){ al *= PK.rf; if(PLN >= PLM || al < .02 || !(w0 >= PX * .6) || !(uw > 0) || !(lx === lx) || !(by === by) || by > SCLIP + .5) return;
   if(PK.hot){ if(!(by < H)) return; w0 = Math.min(w0, W * .16); const top = prof ? prof.top : h1, lg = !prof && PK.n < 60 && PLLG < 40 && al >= HOT_LONG && w0 <= uw * .95 && w0 < W * .1 ? 4 : 0, ya = Math.max(0, Math.ceil((by + h0 * HOT_S * uw) / PX)), yb = lg ? RN - 1 : Math.min(RN - 1, Math.floor((by + (top * HOT_S + .25) * uw) / PX)); if(yb < ya) return; const k = PLN++;
     PLX[k] = lx; PLB[k] = by; PLU[k] = uw; PLH0[k] = h0; PLH1[k] = h1; PLW[k] = w0; PLA[k] = al; PLL[k] = PK.lim; PLYA[k] = ya; PLYB[k] = yb; PLC[k] = col; PLT[k] = PK.T; PLF[k] = 1 | (PK.late ? 2 : 0) | lg; if(lg) PLLG++; PLP[k] = prof || null; PLG[k] = gi === undefined ? 1 : gi; PLHOT = 1; return; }
   w0 = Math.min(w0, W * .12); const ya = Math.max(0, Math.ceil((by + h0 * uw * .9) / PX)), yb = Math.min(RN - 1, Math.floor((by + (h1 * 1.9 + .25) * uw) / PX)); if(yb < ya) return; const k = PLN++;
@@ -461,7 +464,7 @@ function POOL(lx, by, uw, h0, h1, w0, col, al, prof, gi){ al *= PK.rf; if(PLN >=
 /* Dark breaks (hot roads): what stands between a light and the water (a car, a pole, a pedestrian) mirrors as a dark upright that cuts the
    columns behind it. DARK records one (base at screen (lx, by), h half-road widths tall, w px wide); drawPools lays it after the columns. */
 const DKM = 256, DKX = new Float32Array(DKM), DKB = new Float32Array(DKM), DKW = new Float32Array(DKM), DKA = new Float32Array(DKM), DKYA = new Int16Array(DKM), DKYB = new Int16Array(DKM); let DKN = 0;
-function DARK(lx, by, uw, h, w, al){ if(!PK.hot || DKN >= DKM || !(uw > 0) || !(lx === lx) || !(by === by) || by >= H) return; const ya = Math.max(0, Math.ceil(by / PX)), yb = Math.min(RN - 1, Math.floor((by + h * HOT_S * uw) / PX)); if(yb < ya) return;
+function DARK(lx, by, uw, h, w, al){ if(!PK.hot || DKN >= DKM || !(uw > 0) || !(lx === lx) || !(by === by) || by >= H || by > SCLIP + .5) return; const ya = Math.max(0, Math.ceil(by / PX)), yb = Math.min(RN - 1, Math.floor((by + h * HOT_S * uw) / PX)); if(yb < ya) return;
   const k = DKN++; DKX[k] = lx; DKB[k] = by; DKW[k] = Math.max(PX, Math.round(Math.min(w, W * .1) / PX) * PX); DKA[k] = al; DKYA[k] = ya; DKYB[k] = yb; PLHOT = 1; }
 POOL.dark = DARK;
 let PL_rs = -1, PL_I = 0, PL_W = 0, PL_X = 0, PL_lx = 0, PL_a = 0;

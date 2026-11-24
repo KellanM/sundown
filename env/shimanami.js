@@ -785,9 +785,9 @@
        nights are clear and dry (wetK 0, so roadmat skips all of it); only the Naruto storm wets it. The images in the water: each parapet
        lamp as a short warm column near the rail, the tower legs' floodlit feet as long pale columns, the island street lamps as cool ones. */
     wetK(){ const N = MECH.sp_naruto; return N && N.wet ? N.wet() : 0; },
-    wetSrc(s, n, a, P){ if(n > 70 || s.smU === undefined) return; const u = s.smU, uw = a.w; if(!(uw > .5)) return; const fa = 1 - n / 80;
-      if(s.smK > 0 && u % 4 === 0 && s.smR > .3) for(let sd = -1; sd <= 1; sd += 2) P(a.x + sd * (RAILX - .03) * uw, a.y, uw, .04, .09, Math.max(PX, uw * .025), '#ffb050', .5 * fa);   // (under roadmat's long-column threshold: a low lamp's image stays near its foot)
-      if(s.smK === 1 && KB.some(b => b[1] === u || b[2] === u)) for(let sd = -1; sd <= 1; sd += 2){ P(a.x + sd * CABX * uw, a.y, uw, 0, 1.4, uw * .11, '#9eb4d8', .55 * fa); P(a.x + sd * CABX * uw, a.y, uw, 0, .5, uw * .07, '#e2ecf8', .5 * fa); }
+    wetSrc(s, n, a, P){ if(n > 50 || s.smU === undefined) return; const u = s.smU, uw = a.w; if(!(uw > .5)) return; const fa = 1 - n / 56;
+      if(s.smK > 0 && u % (n < 16 ? 4 : 8) === 0 && n < 36 && s.smR > .3) for(let sd = -1; sd <= 1; sd += 2) P(a.x + sd * (RAILX - .03) * uw, a.y, uw, .04, .09, Math.max(PX, uw * .025), '#ffb050', .5 * fa);   // (under roadmat's long-column threshold: a low lamp's image stays near its foot)
+      if(s.smK === 1 && KB.some(b => b[1] === u || b[2] === u)) for(let sd = -1; sd <= 1; sd += 2){ P(a.x + sd * CABX * uw, a.y, uw, 0, 1.4, uw * .085, '#8a9ec8', .5 * fa); P(a.x + sd * CABX * uw, a.y, uw, 0, .5, uw * .05, '#e2ecf8', .45 * fa); }
       if(s.smK === 0 && u % 12 === 0) P(a.x + (RAILX + .1 - .39) * uw, a.y, uw, 1.27, 1.35, Math.max(PX, uw * .07), '#e8f6ff', .85 * fa); },
     wetFX(s, n, r0, r1, RV, wet, T){ const N = MECH.sp_naruto; if(N && N.wetFX) N.wetFX(s, n, r0, r1, RV, wet, T); },
     // for set pieces: what the road is doing at segment i ('island', 'suspension' or 'stayed')

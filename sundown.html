@@ -3,7 +3,8 @@
 <head>
 <script>/* Embedded in the review player (an iframe, or ?review=1): hide the "← Arcade" exit so the game can't navigate away. Standalone play keeps it. */
 try{ if(window.top !== window || /[?&]review=1(&|$)/.test(location.search)) document.documentElement.classList.add('embedded'); }catch(e){ document.documentElement.classList.add('embedded'); }</script>
-<style>html.embedded .top a.home{display:none!important}</style>
+<style>html.embedded .top a.home{display:none!important}
+.top a.home,#infoBtn{display:none!important}   /* Kellan 2026-11-24: no "← Arcade" link and no ? button anywhere in the game */</style>
 <meta charset="utf-8">
 <meta name="theme-color" content="#0a0810">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -132,8 +133,8 @@ body:has(#attract) .home,body:has(#attract) .info{box-shadow:inset 2px 2px 0 #3a
   color:#fff6ea;background:#c8102a;box-shadow:inset 0 0 0 2px #ff3b4a,2px 2px 0 #000;text-shadow:none}
 @media (max-height:600px){ .vcol{display:none} }
 /* PRESS START (research/sundown-craft/title-start.md): the event cards' language, not a web button. A 1-bit canvas (PSTART, #startArt) at whole
-   device pixels: スタート in Dela Gothic One (keyline, hot shadow, a crack) over PRESS START on the cards' slanted off-white tape, on a slab of hot
-   screentone. The canvas overhangs the button by negative margins (set in PSTART.fit), so the button's box, and its gold focus ring
+   device pixels: スタート in Dela Gothic One set as the AVALANCHE card sets 雪崩, in the wordmark's colours (chrome face, black rim, wine drop,
+   a crack) over PRESS START in 夜走 red on AVALANCHE's slanted label, on a slab of red screentone. The canvas overhangs the button by negative margins (set in PSTART.fit), so the button's box, and its gold focus ring
    (.attract :focus-visible), is the lockup itself. */
 .btn.press{position:relative;height:auto;display:block;padding:4px;border:0;background:none;box-shadow:none;line-height:0;color:#f4ecdf}
 .press canvas{display:block;image-rendering:pixelated}
@@ -931,9 +932,15 @@ function fkTraffic(dt){ if(SPLIT_LOCK && SPLIT_CLK - SPLIT_LOCK.t > SPLIT_FADE +
 // null outside a fork): a roadFX that gathers geometry for a later pass (Paddies' water) must apply it itself, and before the lock it is
 // called twice per segment, once per branch.
 const FX_CLIP_V = { q:0, x:0 }; let FX_CLIP = null;
-function fkRoadFX(ER, s, a, b, o1, o2, q, fog, now, m1, m2){ const ax = a.x, bx = b.x, xa = ax + Math.round(a.w * (m1 || 0)), xb = bx + Math.round(b.w * (m2 || 0)), xm = q < 0 ? Math.min(xa, xb) : Math.max(xa, xb);
-  if(q < 0 ? xm <= 0 : xm >= W) return; const all = q < 0 ? xm >= W : xm <= 0;   // all on screen is on this side: no clip needed
-  if(!all){ cx.save(); cx.beginPath(); if(q < 0) cx.rect(-W, -H, xm + W, 3 * H); else cx.rect(xm, -H, 2 * W, 3 * H); cx.clip(); }
+/* (sundown-akigaps) The clip follows the gore centre down the segment, stepped per pixel row (no antialiased edge): a single vertical line at the
+   nearer end (min / max of the two ends, as before) left a sliver beside the centre unpainted by either branch on every curved segment, a
+   staircase of bare ground between the carriageways; and a branch whose centre crossed the screen's edge inside the segment was skipped whole. */
+function fkRoadFX(ER, s, a, b, o1, o2, q, fog, now, m1, m2){ const ax = a.x, bx = b.x, xa = ax + Math.round(a.w * (m1 || 0)), xb = bx + Math.round(b.w * (m2 || 0)), xm = q < 0 ? Math.min(xa, xb) : Math.max(xa, xb), xo = q < 0 ? Math.max(xa, xb) : Math.min(xa, xb);
+  if(q < 0 ? xo <= 0 : xo >= W) return; const all = q < 0 ? xm >= W : xm <= 0;   // all on screen is on this side: no clip needed
+  if(!all){ cx.save(); cx.beginPath(); const e = q < 0 ? -2 * W : 3 * W, ra = Math.max(0, Math.ceil(b.y / PX - .5)), rb = Math.min(Math.ceil(H / PX), Math.ceil(a.y / PX - .5)), dy = a.y - b.y;
+    cx.moveTo(e, -H); cx.lineTo(Math.round(xb / PX) * PX, -H); cx.lineTo(Math.round(xb / PX) * PX, ra * PX);
+    for(let r = ra; r < rb; r++){ const t = dy > 0 ? clamp(((r + .5) * PX - b.y) / dy, 0, 1) : 1, x = Math.round((xb + (xa - xb) * t) / PX) * PX; cx.lineTo(x, r * PX); cx.lineTo(x, (r + 1) * PX); }
+    cx.lineTo(Math.round(xa / PX) * PX, Math.max(rb * PX, ra * PX)); cx.lineTo(Math.round(xa / PX) * PX, 2 * H); cx.lineTo(e, 2 * H); cx.closePath(); cx.clip(); }
   FX_CLIP_V.q = q; FX_CLIP_V.x = all ? (q < 0 ? W * 4 : -W * 4) : xm; FX_CLIP = FX_CLIP_V;
   a.x = ax + Math.round(a.w * o1); b.x = bx + Math.round(b.w * o2); try{ ER.roadFX(s, a, b, fog, fogF, now); } finally { a.x = ax; b.x = bx; FX_CLIP = null; if(!all) cx.restore(); } }
 // the cars on one segment of a branch (oth: the ones left on the branch you didn't take), o half-road widths across
@@ -3066,7 +3073,7 @@ if(!/[?&]con=off(&|$)/.test(location.search)){   /* Kellan 2026-11-23: the in-ga
    A new version downloads in the background and waits. It is applied only on the title (never mid-ride): by itself once
    the title has sat untouched for a few seconds, or at once when the player taps "Update ready". Tap the version to check now. */
 (() => {
-  const VER = 'v54 · 9603b4', $id = (i) => document.getElementById(i);
+  const VER = 'v55 · 6bbc15', $id = (i) => document.getElementById(i);
   const SDU = window.SDUPDATE = { version: VER, waiting: null, applied: false, checks: 0 };
   let reg = null, applying = false, asked = false, needReload = false, note = '', noteT = 0, lastInput = performance.now();
   ['keydown', 'pointerdown', 'touchstart', 'wheel'].forEach((t) => addEventListener(t, () => { lastInput = performance.now(); }, { capture: true, passive: true }));
@@ -3128,5 +3135,5 @@ if(!/[?&]con=off(&|$)/.test(location.search)){   /* Kellan 2026-11-23: the in-ga
   }, 1000);
 })();
 </script>
-<!-- __sdbuild:54 9603b4ed2f93 --></body>
+<!-- __sdbuild:55 6bbc15640f44 --></body>
 </html>

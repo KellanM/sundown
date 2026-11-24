@@ -2,10 +2,12 @@
 
    Two summer-festival set pieces, both placed by world position and driven by the rider's distance to them:
 
-   1. HANABI (Rice Paddies, Shonan Coast): a fireworks display on the horizon that builds over ~750 segments to a finale as you pass the
-      launch site. Shells are launched so they BURST ON THE BEAT of the live music (the beat is read from M's scheduler: M.step, M.next and
-      M.ac.currentTime; without audio an own clock at BPM stands in). The deep boom arrives after the flash (sound is slower than light),
-      kamuro shells crackle. On the paddies the bursts are mirrored in the flooded fields by an own pass, clipped to the water.
+   1. HANABI (Rice Paddies, Shonan Coast): a fireworks display in the sky ahead. From the 花火 card it plays a programme timed in the
+      music's beats (~15 s of build, then the finale, then the sky hangs and fades: ~27 s card to dark, whatever the rider's speed; only
+      a fast rider is caught by distance, see FIN_D). Shells are launched so they BURST ON THE BEAT of the live music (the beat is read
+      from M's scheduler: M.step, M.next and M.ac.currentTime, kept continuous across a song change or a pause; without audio an own
+      clock at BPM stands in). The deep boom arrives after the flash (sound is slower than light), kamuro shells crackle. On the paddies
+      the bursts are mirrored in the flooded fields by an own pass, clipped to the water.
    2. MATSURI (Neon Ward): a nebuta-style lantern float, a taiko drum cart, lantern bearers and haneto dancers cross an intersection ahead.
       Telegraphed by lantern strings, a crowd at the kerb, a zebra crossing, traffic queueing at the stop line, and taiko drums in time with
       the music that get louder as you close in. The procession moves with your distance, so it always arrives in the same shape: the
@@ -36,7 +38,13 @@
   const DIR = MECH.director; if(DIR){ DIR.register('hanabi'); DIR.register('matsuri'); }
   const sn = v => Math.round(v / PX) * PX;
   const H1 = n => { const s = Math.sin(n * 78.233 + 12.9898) * 43758.5453; return s - Math.floor(s); };
-  let SPB = .476;   // seconds per beat; set from BPM once the game script has run (it loads after this file)
+  let SPB = .476;   // seconds per beat on the 126 grid M.step/M.next are published on (BPM; set once the game script has run: it loads after this file)
+  /* the audible beat. M.step counts the playing song's own sixteenths (audio/music.js publishClock), so `beat` is in that song's beats
+     (Rice Paddies 156 BPM, Shonan Coast 160), and a shell's age in seconds is (beat - tb) * SPBA, read from MUSIC.clock() once a second.
+     (It was * SPB, the 126 grid: every shell lived and fell ~25% fast.) BOFF keeps `beat` continuous when the song changes or the game
+     pauses: the new song's count restarts at 0, which stalled the planner (lastHB far ahead of the beat) and hid every shell in flight
+     for the rest of the road. BOFF is whole beats, so shells still burst on the new song's beats; PH is the bar phase that leaves. */
+  let SPBA = .476, BOFF = 0, PH = 0, spbT = 0;
   const C = {};
   const cache = (k, fn) => C[k] || (C[k] = fn());
   const canvas = (w, h) => { const c = document.createElement('canvas'); c.width = w; c.height = h; return [c, c.getContext('2d')]; };
@@ -230,43 +238,70 @@
   const skyX = (S, dt) => { if(S.sk0 === undefined) S.sk0 = skyOff; else S.sk0 += (skyOff - S.sk0) * Math.min(1, dt / 5); const A = W * .15 * NARW(); SKX = -A * Math.tanh((skyOff - S.sk0) * 200 / A); };
   function unitC(){ return H / PX / 253; }
   const NARW = () => clamp(W / H * 1.1, .5, 1);   // portrait phones: shells are sized by H, so the venue and its spread pull in toward the middle
-  const band = S => (S.key === 'coast' ? -.2 : .2) * NARW();   // the venue: between the vanishing point and one side (paddies: right, coast: the sea, left)
-  function addShell(type, S, D, tb, opt = {}){
-    if(bursts.length >= (reduce ? 8 : 20)) return;
-    const u = unitC(), seed = H1(tb * 13.7 + bursts.length * 3.1 + S.start), dz = opt.dz !== undefined ? opt.dz : H1(seed * 4.9), sc = .62 + .48 * clamp(1 - D / 660, 0, 1);
-    const base = { kiku:lerp(54, 18, dz), botan:lerp(44, 16, dz), ring:lerp(40, 16, dz), heart:26, smile:26, kamuro:lerp(50, 32, dz), shaku:58 }[type];
-    const R = base * u * sc * (opt.big || 1), spread = lerp(.34, .14, dz), bx = clamp(opt.bx !== undefined ? opt.bx : band(S) + (seed - .5) * spread * NARW(), -.3 * NARW(), .3 * NARW());
+  // the venue: a little to one side of the vanishing point (paddies: right, coast: the sea, left); near shells spread across the sky ahead
+  const band = S => (S.key === 'coast' ? -.12 : .12) * NARW();
+  // shells come from a pool of NB, made at load with every field (one shape, nothing allocated per launch); when the pool is out, the oldest
+  // shell whose stars are gone gives up the rest of its smoke; a finale shell (opt.must) takes the oldest whatever it is
+  const NB = 32, POOL = [], NOOPT = {}, LIFE = { kamuro:4.6, shaku:5.4, heart:2.6, smile:2.6 }, BASE = { kiku:[54, 18], botan:[44, 16], ring:[40, 16], heart:[26, 26], smile:[26, 26], kamuro:[50, 32], shaku:[58, 58] };
+  for(let i = 0; i < NB; i++) POOL.push({ type:'', tb:0, rise:2, seed:0, bx:0, h:0, R:0, dz:0, life:3.2, fired:false, launched:false, D:0, pal:null, pal2:null, pistil:false, tint:false, mx:0, mxOK:false });
+  const smokeEnd = b => Math.min(7, b.life + 2.5);
+  function addShell(type, S, D, tb, opt){ const o = opt || NOOPT;
+    if(bursts.length >= (reduce ? 12 : NB) || !POOL.length){ const q = bursts[0]; if(!q || !((beat - q.tb) * SPBA > q.life || o.must)) return; bursts.shift(); POOL.push(q); }
+    const u = unitC(), seed = H1(tb * 13.7 + bursts.length * 3.1 + S.start), dz = o.dz !== undefined ? o.dz : H1(seed * 4.9), sc = .62 + .48 * clamp(1 - D / 660, 0, 1);
+    const R = lerp(BASE[type][0], BASE[type][1], dz) * u * sc * (o.big || 1), spread = lerp(.62, .2, dz), bx = clamp(o.bx !== undefined ? o.bx : band(S) + (seed - .5) * spread * NARW(), -.36 * NARW(), .36 * NARW());
     const h = Math.max(R * 1.15 + 10 * u, Math.min(118 * u - R * .95, R * 1.1 + lerp(22, 4, dz) * u + H1(seed * 9) * 12 * u * (1 - dz)));
-    const b = { type, tb, rise:opt.rise || (type === 'shaku' ? 3 : 2), seed, bx, h, R, dz, life:{ kamuro:4.6, shaku:5.4, heart:2.6, smile:2.6 }[type] || 3.2, fired:false, D };
+    const b = POOL.pop(); b.type = type; b.tb = tb; b.rise = o.rise || (type === 'shaku' ? 3 : 2); b.seed = seed; b.bx = bx; b.h = h; b.R = R; b.dz = dz;
+    b.life = (LIFE[type] || 3.2) * (reduce ? 1.25 : 1); b.fired = false; b.launched = false; b.D = D; b.tint = !!o.tint; b.mxOK = false;
     b.pal = type === 'kamuro' || type === 'shaku' || type === 'smile' ? FP.gold : type === 'heart' ? FP.pink : FP[PK[Math.floor(H1(seed * 5.3) * PK.length)]];
     b.pal2 = FP[PK[Math.floor(H1(seed * 8.1) * PK.length)]]; if(b.pal2 === b.pal) b.pal2 = FP.silver;
     b.pistil = (type === 'kiku' && H1(seed * 2.2) < .55) || type === 'shaku';
-    if(reduce) b.life *= 1.25;
     bursts.push(b); }
-  // what launches on each half beat, by distance to the launch site. The finale is scripted from the first beat at D <= 120:
-  // twelve chrysanthemums half a beat apart, each nearer and bigger, then a gold kamuro curtain, then one big shell.
-  function plan(h, S, D){ const onBeat = h % 2 === 0, bib = (h >> 1) % 4, bar = h >> 3, tb = h / 2, r = H1(h * 1.37 + S.start);
-    if(D > 640) return;
-    const pick = a => a[Math.floor(H1(h * 2.71 + S.start) * a.length)];
-    if(D <= 120 && S.f0 === undefined) S.f0 = h + (h % 2);
-    // the opening salvo: the 花火 card (update) sets S.op, and five shells launch on its beats so they bloom while the card holds and
-    // hang after it goes (before, the card came at D 420, where the build had one small low shell every bar: hidden by the viaduct). Mid
-    // height (dz .4-.5), below the card's poster band at the top of the screen; either side of the venue, then a ring over it
-    if(S.op !== undefined && S.f0 === undefined){ const k = h - S.op;
-      if(reduce){ if(k === 0 || k === 4) addShell('kiku', S, D, tb + 2, { dz:.45, bx:band(S) + (k ? .1 : -.1) }); }
-      else if(k === 0 || k === 1 || k === 3) addShell('kiku', S, D, tb + 2, { dz:.4 + k * .03, bx:band(S) + [-.17, .05, 0, -.08][k] });
-      else if(k === 4) addShell('ring', S, D, tb + 2, { dz:.5, bx:band(S) - .03 });
-      else if(k === 6) addShell('kamuro', S, D, tb + 2, { dz:.45, bx:band(S) - .02 }); }
-    if(S.f0 !== undefined){ const k = h - S.f0; if(k < 0) return;
-      if(reduce){ if(k <= 12 && k % 4 === 0) addShell('kiku', S, D, tb + 2, { dz:.55 - k * .03 }); else if(k === 16) for(const o of [-.12, 0, .12]) addShell('kamuro', S, D, tb + 2, { bx:band(S) + o, dz:.25 }); else if(k === 28) addShell('shaku', S, D, tb + 3, { bx:band(S), dz:0 }); return; }
-      if(k < 12) addShell('kiku', S, D, tb + 2, { dz:clamp(.78 - k * .07 + (r - .5) * .16, 0, 1) });
-      else if(k === 14) for(let q = 0; q < 5; q++) addShell('kamuro', S, D, tb + 2, { bx:band(S) + (q - 2) * .1, dz:.2 + Math.abs(q - 2) * .12 });
-      else if(k === 24) addShell('shaku', S, D, tb + 3, { bx:band(S), dz:0 });
+  /* what launches on each half beat h. Kellan, 2026-11-24 (second report): "the summer fireworks event is still not appearing in the sky
+     after the title card plays". Every phase was a band of distance to the venue (build at D 640-120, finale from D 120, nothing past the
+     venue), so at top speed (55-75 segments a second) the card, the build and the finale went by in ~8 s, a slow rider got one shell a
+     bar, and in normal play a song change at the road's border stalled the planner outright (see SPBA). Now the card starts a programme
+     on the beat (S.g0) that runs in time, not distance:
+       the salvo   five shells on the card's beats, mid height under its poster band (k 0-7)
+       the build   S.bh half-beats (~15 s of the song's beats, whole bars) rising through three densities: two shells a bar, then a pair
+                   either side of the venue on each downbeat with a shell on every beat, then every beat plus starmine fans on the
+                   off-beats; the last bar is left empty (ma), so the cascade opens on a clearing sky
+       the finale  on a downbeat: twelve chrysanthemums half a beat apart, each nearer and bigger; a gold kamuro curtain; one shakudama
+       the hang    the shakudama's willow and the smoke fade on their own (~6 s)
+     A fast rider is caught by distance: the finale starts on the next downbeat once the venue is FIN_D segments behind, or once the
+     road's end (S.endZ, found when the card plays) is nearer than ~6.5 s at the current speed (S.rem, S.need: the cascade and the
+     shakudama must burst over this road's sky, not in the next road's tunnel), whatever the build has left. Before the card, one small
+     far shell every two bars warms the sky. */
+  const FIN_D = 360, BUILD_S = 15, K3 = ['kiku', 'kiku', 'botan'], RED = ['kiku', 'botan', 'ring', 'heart', 'smile'], B1 = ['kiku', 'botan', 'ring'], B2 = ['kiku', 'botan', 'ring', 'kiku'], SHP = ['heart', 'smile'];
+  function plan(h, S, D){ const hb = h - PH * 2, onBeat = (hb & 1) === 0, bib = (hb >> 1) & 3, bar = hb >> 3, tb = h / 2, r = H1(h * 1.37 + S.start), pk = H1(h * 2.71 + S.start);
+    const pick = a => a[Math.floor(pk * a.length)];
+    if(S.g0 === undefined){ if(D <= 640 && onBeat && bib === 0 && (bar & 1) === 0) addShell(pick(K3), S, D, tb + 2, { dz:.55 + r * .45 }); return; }
+    const k = h - S.g0;
+    if(S.f0 === undefined && (k >= S.bh || D <= -FIN_D || S.rem <= S.need) && (hb & 7) === 0) S.f0 = h;
+    if(S.f0 !== undefined){ const f = h - S.f0;
+      if(reduce){ if(f <= 12 && f % 4 === 0) addShell('kiku', S, D, tb + 2, { dz:.55 - f * .03 }); else if(f === 16) for(let q = -1; q <= 1; q++) addShell('kamuro', S, D, tb + 2, { bx:band(S) + q * .12, dz:.25, must:true }); else if(f === 28) addShell('shaku', S, D, tb + 3, { bx:band(S), dz:0, must:true }); return; }
+      if(f < 12) addShell('kiku', S, D, tb + 2, { dz:clamp(.78 - f * .07 + (r - .5) * .16, 0, 1), bx:band(S) + (f % 2 ? 1 : -1) * (.04 + (f % 5) * .035) * NARW(), must:true });
+      else if(f === 14) for(let q = 0; q < 5; q++) addShell('kamuro', S, D, tb + 2, { bx:band(S) + (q - 2) * .1 * NARW(), dz:.2 + Math.abs(q - 2) * .12, must:true, tint:q === 2 });
+      else if(f === 24) addShell('shaku', S, D, tb + 3, { bx:band(S), dz:0, must:true, tint:true });
       return; }
-    if(reduce){ if(onBeat && bib === 0 && bar % 2 === 0) addShell(pick(['kiku', 'botan', 'ring', 'heart', 'smile']), S, D, tb + 2); return; }
-    if(D > 420){ if(onBeat && bib === 0 && bar % 2 === 0) addShell(pick(['kiku', 'kiku', 'botan']), S, D, tb + 2, { dz:.55 + r * .45 }); }
-    else if(D > 240){ if(onBeat && bib === 0) addShell(pick(['kiku', 'kiku', 'botan', 'ring']), S, D, tb + 2); if(onBeat && bib === 2 && r < .45) addShell(pick(['heart', 'smile', 'botan']), S, D, tb + 2, { dz:.4 }); }
-    else { if(onBeat && (bib === 0 || bib === 2)) addShell(bib === 0 ? 'kiku' : pick(['kiku', 'botan', 'ring']), S, D, tb + 2); else if(onBeat && r < .35) addShell('botan', S, D, tb + 2, { dz:.7 + r * .3 }); } }
+    // the opening salvo: on the card's beats (S.op), either side of the venue then a ring over it; mid height (dz .4-.5), under the poster band
+    if(S.op !== undefined && k < 8){
+      if(reduce){ if(k === 0 || k === 4) addShell('kiku', S, D, tb + 2, { dz:.45, bx:band(S) + (k ? .1 : -.1) }); }
+      else if(k === 0 || k === 1 || k === 3) addShell('kiku', S, D, tb + 2, { dz:.4 + k * .03, bx:band(S) + (k === 0 ? -.17 : k === 1 ? .05 : -.08), tint:k === 0 });
+      else if(k === 4) addShell('ring', S, D, tb + 2, { dz:.5, bx:band(S) - .03 });
+      else if(k === 6) addShell('kamuro', S, D, tb + 2, { dz:.45, bx:band(S) - .02 });
+      return; }
+    if(k >= S.bh - 8) return;   // ma
+    const p = k / S.bh;
+    if(reduce){ if(onBeat && (bib === 0 || (p > .5 && bib === 2))) addShell(pick(RED), S, D, tb + 2); return; }
+    if(p < .35){ if(onBeat && (bib === 0 || bib === 2)) addShell(bib === 0 ? 'kiku' : pick(B1), S, D, tb + 2);
+      else if(onBeat && bib === 3 && r < .3) addShell('botan', S, D, tb + 2, { dz:.75 + r * .25 }); }
+    else if(p < .7){ if(!onBeat) return;
+      if(bib === 0){ const o = (.12 + r * .12) * NARW(), dz = .3 + r * .25; addShell('kiku', S, D, tb + 2, { bx:band(S) - o, dz }); addShell(bar & 1 ? 'ring' : 'kiku', S, D, tb + 2, { bx:band(S) + o, dz }); }
+      else if(bib === 2 && r < .18) addShell(pick(SHP), S, D, tb + 2, { dz:.4 });
+      else if(bib === 2 && (bar & 3) === 3) addShell('kamuro', S, D, tb + 2, { dz:.5 });
+      else addShell(pick(B2), S, D, tb + 2); }
+    else if(onBeat){ addShell(bib === 0 ? 'kiku' : pick(B2), S, D, tb + 2, bib === 0 ? { dz:.15 + r * .25 } : undefined); if(bib === 0 && r < .5) addShell('ring', S, D, tb + 2, { dz:.45 + r * .2 }); }
+    else if(r < .45) addShell('botan', S, D, tb + 2, { dz:.8 + r * .2, bx:band(S) + (pk - .5) * .3 * NARW() }); }
 
   // drawing in canvas-pixel units. MIRR draws into the flooded fields: mirrored about the horizon and squashed toward it, the way the
   // paddies artist puts the moon in every field rather than one physical reflection, so the reflections land on the water beside the road
@@ -279,7 +314,9 @@
   const stage = q => q < .05 ? 0 : q < .5 ? 1 : q < .74 ? 2 : q < .9 ? 3 : 4;
   const easeR = (a, k) => (1 - Math.exp(-a * k)) / (1 - Math.exp(-k * 1.2));
   let BY = 0;
-  function bxy(b, hz){ BY = hz / PX - b.h; return MIRR && b.mxOK ? b.mx : (W * (.5 + b.bx) + SKX) / PX; }   // X; sets BY (no array per call)
+  // (a shell never bursts above the screen: on a rise the horizon climbs, and on a phone (390x844, where shells are sized by the height)
+  // the build sat with its tops cut off by the screen's edge; it holds its top inside the screen and the hill covers its foot instead)
+  function bxy(b, hz){ BY = hz / PX - b.h; if(!MIRR) BY = Math.max(BY, b.R * .85 + 4 * unitC()); return MIRR && b.mxOK ? b.mx : (W * (.5 + b.bx) + SKX) / PX; }   // X; sets BY (no array per call)
   // halos: stepped discs (four flat alpha steps) cached per colour and size, drawn 1:1 on the pixel grid with 'lighter'
   const HALO_R = [8, 13, 20, 28, 38, 50, 64];
   function halo(col, n){ return cache('ha' + col + n, () => { const r0 = HALO_R[n], s = r0 * 2 + 2, [c, k] = canvas(s, s), [R, G, B] = hx(col);
@@ -315,19 +352,22 @@
     if(b.pistil){ const d2 = dirs(24, 1), r2 = rr * .45; col(b.pal2[Math.min(4, st + (q > .4 ? 1 : 0))]); for(let i = 0; i < 24; i++) if(show(i + 99)) px(X + d2[i * 2] * r2, Y + d2[i * 2 + 1] * r2 + fy * .8, 1, MIRR ? 2 : 1); } }
   // all shells: halos behind, stars, then the white-hot flash of each new burst
   function drawShells(hz, mirAl){ const tw = Math.floor(T * 11), u = unitC(); cx.beginPath(); CUR_COL = '';
-    for(const b of bursts){ const a = (beat - b.tb) * SPB, X = bxy(b, hz), Y = BY; if(a < 0 || a > b.life || X < -b.R * 2.5 || X > W / PX + b.R * 2.5) continue;
-      const al = reduce ? (a < b.life * .6 ? .32 : .16) : a < .35 ? .6 : a < 1.1 ? .4 : a < b.life * .6 ? .22 : .1; drawHalo(b.pal[1], X, Y + b.R * .1, b.R * 1.3, al * mirAl); }
-    for(const b of bursts){ const a = (beat - b.tb) * SPB, X = bxy(b, hz), Y = BY; if(X < -b.R * 2.5 || X > W / PX + b.R * 2.5) continue;
-      if(a < 0){ if(MIRR) continue; const rs = b.rise * SPB, p = 1 + a / rs; if(p < 0) continue;   // rising tail: a gold head and a wavering dotted trail
+    // the halos add up ('lighter'): with a shell on every beat and the finale's cascade, five or six young halos over one spot burnt to white
+    // (390x844, 2026-11-24). Past three young shells their halos share the light (1/sqrt of the count), so a crowded sky stays coloured
+    let ny = 0; for(const b of bursts){ const a = (beat - b.tb) * SPBA; if(a >= 0 && a < 1.1) ny++; } const hk = ny > 3 ? Math.sqrt(3 / ny) : 1;
+    for(const b of bursts){ const a = (beat - b.tb) * SPBA, X = bxy(b, hz), Y = BY; if(a < 0 || a > b.life || X < -b.R * 2.5 || X > W / PX + b.R * 2.5) continue;
+      const al = reduce ? (a < b.life * .6 ? .32 : .16) : a < .35 ? .6 : a < 1.1 ? .4 : a < b.life * .6 ? .22 : .1; drawHalo(b.pal[1], X, Y + b.R * .1, b.R * 1.3, al * mirAl * hk); }
+    for(const b of bursts){ const a = (beat - b.tb) * SPBA, X = bxy(b, hz), Y = BY; if(X < -b.R * 2.5 || X > W / PX + b.R * 2.5) continue;
+      if(a < 0){ if(MIRR) continue; const rs = b.rise * SPBA, p = 1 + a / rs; if(p < 0) continue;   // rising tail: a gold head and a wavering dotted trail
         const y0 = hz / PX - (S_KEY === 'coast' ? 1 : 8 * u), yy = y0 + (Y - y0) * (1 - (1 - p) * (1 - p));
         for(let j = 0; j < 7; j++){ const yj = yy + j * 2.2 * u, wig = Math.sin((yj + b.seed * 40) * .45) * .8; if(yj > y0) break; if(j > 1 && j % 2) continue; col(j === 0 ? '#fff6dc' : j < 3 ? '#ffd07a' : '#9a6228'); px(X + wig, yj, 1, 1); }
         continue; }
       if(a > b.life) continue; drawBurst(b, X, Y, a, tw);
       if(a < .3 && !reduce && !MIRR){ drawHalo('#ffffff', X, Y, b.R * .32, (a < .15 ? .6 : .3)); const gl = a < .15 ? 3 : 2; col(b.pal[0]); px(X - gl, Y, gl * 2 + 1, 1); px(X, Y - gl, 1, gl * 2 + 1); } }  cx.fill(); cx.beginPath(); }
-  function drawSmoke(hz){ for(const b of bursts){ const a = (beat - b.tb) * SPB; if(a < .25 || a > 7) continue; const X = bxy(b, hz), Y = BY, n = b.R > 34 * unitC() ? 2 : b.R > 18 * unitC() ? 1 : 0, s = smoke(n);
-      cx.globalAlpha = .22 * (a < .7 ? (a - .25) / .45 : 1) * (1 - a / 7); const dw = s.width * PX; cx.drawImage(s, sn(X * PX - dw / 2 + a * PX * 1.5), sn(Y * PX - dw / 2 + (b.type === 'kamuro' ? a * PX : -a * PX * .6)), dw, dw); } cx.globalAlpha = 1; }
+  function drawSmoke(hz){ for(const b of bursts){ const a = (beat - b.tb) * SPBA, se = smokeEnd(b); if(a < .25 || a > se) continue; const X = bxy(b, hz), Y = BY, n = b.R > 34 * unitC() ? 2 : b.R > 18 * unitC() ? 1 : 0, s = smoke(n);
+      cx.globalAlpha = .22 * (a < .7 ? (a - .25) / .45 : 1) * (1 - a / se); const dw = s.width * PX; cx.drawImage(s, sn(X * PX - dw / 2 + a * PX * 1.5), sn(Y * PX - dw / 2 + (b.type === 'kamuro' ? a * PX : -a * PX * .6)), dw, dw); } cx.globalAlpha = 1; }
 
-  function activeShow(ps){ for(const S of shows) if(ps >= S.start + 5 && ps <= S.peak + 260) return S; return null; }
+  function activeShow(ps){ for(const S of shows) if(ps >= S.start + 5 && (ps <= S.peak + 260 || (S.g0 !== undefined && !S.over && ps <= S.peak + 1800))) return S; return null; }
   function activePar(ps){ for(const P of parades) if(ps >= P.z - 340 && ps <= P.z + 30) return P; return null; }
 
   /* ================================================================ sound: built on M's context and output */
@@ -410,11 +450,13 @@
   // where each burst's reflection lies: under the burst, mirrored and squashed toward the horizon; if that is on the road, slide it out
   // into the field on the venue's side (the paddies rule: the moon is drawn again in each field, slid toward its column)
   function placeRefl(hz){ const base = segAt(position).index, sideV = CUR_SHOW && CUR_SHOW.key === 'coast' ? -1 : 1;
-    for(const b of bursts){ b.mxOK = false; const X = (W * (.5 + b.bx) + SKX) / PX, Y = hz / PX - b.h, yr = (HZC + (HZC - Y) * MSQ) * PX;
+    for(const b of bursts){ b.mxOK = false; const ag = (beat - b.tb) * SPBA; if(ag < 0 || ag > b.life) continue; const X = (W * (.5 + b.bx) + SKX) / PX, Y = hz / PX - b.h, yr = (HZC + (HZC - Y) * MSQ) * PX;
       for(let n = 1; n < DRAW; n++){ const s = segs[base + n]; if(!s || s.p1.camera.z <= DEPTH) continue; const a = s.p1.screen, q = s.p2.screen; if(!(q.y <= yr && a.y >= yr)) continue;
         const cxr = lerp(a.x, q.x, (a.y - yr) / Math.max(1, a.y - q.y)), wr = lerp(a.w, q.w, (a.y - yr) / Math.max(1, a.y - q.y)) * 1.42, need = wr + b.R * PX * .75;
         if(Math.abs(X * PX - cxr) < need){ const sd = X * PX === cxr ? sideV : Math.sign(X * PX - cxr) || sideV; b.mx = (cxr + sd * need) / PX; b.mxOK = true; } break; } } }
-  function mirrorPass(s){ if(!CUR_SHOW || CUR_SHOW.key !== 'paddies' || !bursts.some(b => { const a2 = (beat - b.tb) * SPB; return a2 >= 0 && a2 < b.life; })) return; const hz = HZ;
+  const anyLit = () => { for(const b of bursts){ const a2 = (beat - b.tb) * SPBA; if(a2 >= 0 && a2 < b.life) return true; } return false; };
+  const onPad = sp => sp.env === 'paddies';
+  function mirrorPass(s){ if(!CUR_SHOW || CUR_SHOW.key !== 'paddies' || !anyLit()) return; const hz = HZ;
     cx.restore(); cx.save(); STAT.mc++; if(clipWater()){ STAT.mw++; cx.clip(); cx.beginPath(); HZC = Math.floor(hz / PX); placeRefl(hz); MIRR = true; S_KEY = 'paddies'; cx.globalCompositeOperation = 'lighter'; drawShells(hz, 1); cx.globalCompositeOperation = 'source-over'; MIRR = false; }
     cx.restore(); cx.save(); cx.beginPath(); cx.rect(0, 0, W, s.clip); cx.clip(); }
   let CUR_SHOW = null; const STAT = { mc:0, mw:0 };
@@ -423,8 +465,10 @@
   MECH.sp_festival = {
     sprites:() => C,
     anchors:() => ({ stat:STAT, shows:shows.map(S => ({ key:S.key, start:S.start, peak:S.peak })), parades:parades.map(P => ({ z:P.z, dir:P.dir })), beat, cur:CUR_SHOW ? CUR_SHOW.peak : null,
-      bursts:bursts.map(b => ({ type:b.type, a:+((beat - b.tb) * SPB).toFixed(2), life:b.life, x:Math.round(W * (.5 + b.bx) + SKX), y:Math.round(HZ - b.h * PX), R:Math.round(b.R * PX) })) }),   // (tests: every shell's age in seconds and its screen spot)
-    reset(){ SPB = 60 / BPM; bursts.length = 0; beat = 0; lastHB = -1; T = 0; lastPos = 0; drumStep = -1; CUR_SHOW = null; SKX = 0; for(const S of shows){ S.big = false; S.f0 = undefined; S.cut = false; S.op = undefined; S.sk0 = undefined; } for(const P of parades) P.cut = false; },
+      spba:SPBA, prog:CUR_SHOW ? { g0:CUR_SHOW.g0, bh:CUR_SHOW.bh, f0:CUR_SHOW.f0, op:CUR_SHOW.op, over:!!CUR_SHOW.over, lastHB, endZ:CUR_SHOW.endZ, rem:CUR_SHOW.rem, need:CUR_SHOW.need } : null,
+      bursts:bursts.map(b => ({ type:b.type, a:+((beat - b.tb) * SPBA).toFixed(2), life:b.life, x:Math.round(W * (.5 + b.bx) + SKX), y:Math.round(HZ - b.h * PX), R:Math.round(b.R * PX) })) }),   // (tests: every shell's age in seconds and its screen spot)
+    reset(){ SPB = SPBA = 60 / BPM; BOFF = 0; PH = 0; spbT = 0; for(const b of bursts) POOL.push(b); bursts.length = 0; beat = 0; lastHB = -1; T = 0; lastPos = 0; drumStep = -1; CUR_SHOW = null; SKX = 0;
+      for(const S of shows){ S.big = false; S.f0 = undefined; S.cut = false; S.op = undefined; S.sk0 = undefined; S.g0 = undefined; S.bh = 0; S.over = false; S.endZ = Infinity; S.rem = Infinity; S.need = 0; } for(const P of parades) P.cut = false; },
     place(i, s, L){
       if(i === 0 || !segs[i - 1] || segs[i - 1].land !== s.land){
         for(let k = shows.length - 1; k >= 0; k--) if(shows[k].start >= i) shows.splice(k, 1);
@@ -444,15 +488,24 @@
         if((k >= -42 && k <= -7 && (k + 42) % 3 === 0) || (k >= 7 && k <= 10 && k % 3 === 0)) s.fx_sp = 1; } },
     update(dt){
       if(state !== 'play'){ lastPos = position; return; }
-      T += dt; const ba = beatAudio(); if(ba !== null) beat = Math.abs(ba - beat) > 4 ? ba : Math.max(beat, ba); else beat += dt / SPB;
+      T += dt; spbT -= dt; const ba = beatAudio();
+      if(ba !== null){ if(spbT <= 0){ spbT = 1; const mc = window.MUSIC && MUSIC.clock ? MUSIC.clock() : null; SPBA = mc && mc.bpm > 40 ? 60 / mc.bpm : SPB; }   // (once a second: clock() makes an object)
+        let c = ba + BOFF; const ex = beat + dt / SPBA; if(c < beat - 1 || c > ex + 4){ BOFF = Math.ceil(ex - ba); PH = ((BOFF % 4) + 4) % 4; c = ba + BOFF; }   // a new song or a pause: rebase
+        beat = Math.max(beat, c); }
+      else { SPBA = SPB; beat += dt / SPB; }
       const ps = Math.floor((position + PZ) / SEG), S = activeShow(ps); CUR_SHOW = S;
       if(S){ skyX(S, dt); const D = S.peak - ps, hb = Math.floor(beat * 2); if(lastHB < 0 || hb - lastHB > 8) lastHB = hb; while(lastHB < hb){ lastHB++; plan(lastHB, S, D); } S_KEY = S.key;
         // the 花火 title card (ui/cutin.js) as the show builds; never over a landmark jump's approach or flight (the paddies RAILWAY JUMP
         // sits right here): it waits until the bike has landed, and is dropped if that leaves the show too close to its peak
-        if(D <= 420 && !S.cut && !(segs[ps] && segs[ps].spjP) && !(MECH.sp_jump && MECH.sp_jump.flying && MECH.sp_jump.flying())){ S.cut = true; if(D > 200){ S.op = lastHB + 1; if(MECH.cutin) MECH.cutin.show('hanabi'); } }
+        // the programme starts here either way (the card dropped: no salvo, straight into the build)
+        if(D <= 420 && !S.cut && !(segs[ps] && segs[ps].spjP) && !(MECH.sp_jump && MECH.sp_jump.flying && MECH.sp_jump.flying())){ S.cut = true; S.g0 = lastHB + 1; S.bh = 8 * clamp(Math.round(BUILD_S / (4 * SPBA)), 6, 12);
+          { const ld = segs[ps] ? segs[ps].land : -1; let z = ps; while(z < segs.length && segs[z].land === ld) z++; S.endZ = z < segs.length ? z : Infinity; }   // (once, at the card: where this road ends)
+          if(D > 200){ S.op = S.g0; if(MECH.cutin) MECH.cutin.show('hanabi'); } }
+        if(S.g0 !== undefined){ S.rem = S.endZ - ps; S.need = Math.max(250, speed / SEG * 6.5); }
+        if(S.f0 !== undefined && !S.over && lastHB - S.f0 > 26 && !bursts.length) S.over = true;   // played out: the show lets go of the sky
         for(const b of bursts){ if(!b.fired && beat >= b.tb){ b.fired = true; boomFor(b, D); }
-          if(!b.launched && beat >= b.tb - b.rise){ b.launched = true; const a = AC(); if(a){ const v = clamp(1 - D / 700, .2, 1); M.noise(.1, 380, .05 * v, a.currentTime); thump(a.currentTime, 170, 80, .16, .05 * v); if(H1(b.seed * 3) < .3 && b.type !== 'star') whistle(a.currentTime + .05, b.rise * SPB * .9, .012 * v); } } } }
-      for(let k = bursts.length - 1; k >= 0; k--) if((beat - bursts[k].tb) * SPB > Math.max(bursts[k].life, 7)) bursts.splice(k, 1);
+          if(!b.launched && beat >= b.tb - b.rise){ b.launched = true; const a = AC(); if(a){ const v = clamp(1 - D / 700, .2, 1); M.noise(.1, 380, .05 * v, a.currentTime); thump(a.currentTime, 170, 80, .16, .05 * v); if(H1(b.seed * 3) < .3 && b.type !== 'star') whistle(a.currentTime + .05, b.rise * SPBA * .9, .012 * v); } } } }
+      for(let k = bursts.length - 1; k >= 0; k--){ const b = bursts[k]; if((beat - b.tb) * SPBA > smokeEnd(b)){ bursts.splice(k, 1); POOL.push(b); } }
       // the parade: drums, queued traffic, and the crossing itself
       const P = activePar(ps);
       if(P){ const D = P.z + .5 - (position + PZ) / SEG, u = parU(D); drums(D);
@@ -481,10 +534,10 @@
         drawParade(s, P, sx0, sy0, uw, fog, now); if(near) cx.restore(); }
       if(s.fx_sp && uw > 1) for(const sd of [-1, 1]){ const spr = crowd((s.index + (sd > 0 ? 1 : 0)) % 2, reduce ? 0 : Math.floor(now / 520 + s.index) % 2), k = uw * .64 / spr.width, sf = scaleFade(k, 5, 8); if(sf <= 0) continue; cx.globalAlpha = (1 - fog * .7) * sf; blitF(spr, sx0 + sd * uw * 1.4, sy0, k, sd > 0); cx.globalAlpha = 1; }
       if(s.fx_ls) drawString(s, sx0, sy0, uw, fog, now);
-      if(now !== fstFrame && CUR_SHOW && CUR_SHOW.key === 'paddies' && s.sprites.some(sp => sp.env === 'paddies')){ fstFrame = now; mirrorPass(s); } },
+      if(now !== fstFrame && CUR_SHOW && CUR_SHOW.key === 'paddies' && s.sprites.some(onPad)){ fstFrame = now; mirrorPass(s); } },
     overlay(now, sk){ // a new burst tints sky and land in its colour for a moment, in two flat steps (never with reduce)
-      if(reduce || !CUR_SHOW) return; let best = null, br = 0; for(const b of bursts){ const a = (beat - b.tb) * SPB; if(a >= 0 && a < .3 && b.R > br){ br = b.R; best = b; } }
-      if(!best) return; const a = (beat - best.tb) * SPB; cx.globalCompositeOperation = 'lighter'; cx.fillStyle = best.pal[1]; cx.globalAlpha = (a < .1 ? .08 : .04) * clamp(best.R / (40 * unitC()), .3, 1); cx.fillRect(0, 0, W, H); cx.globalAlpha = 1; cx.globalCompositeOperation = 'source-over'; },
+      if(reduce || !CUR_SHOW) return; let best = null, br = 0; for(const b of bursts){ if(!b.tint) continue; const a = (beat - b.tb) * SPBA; if(a >= 0 && a < .3 && b.R > br){ br = b.R; best = b; } }   // (only shells marked tint: with a shell on every beat a tint per burst would strobe)
+      if(!best) return; const a = (beat - best.tb) * SPBA; cx.globalCompositeOperation = 'lighter'; cx.fillStyle = best.pal[1]; cx.globalAlpha = (a < .1 ? .08 : .04) * clamp(best.R / (40 * unitC()), .3, 1); cx.fillRect(0, 0, W, H); cx.globalAlpha = 1; cx.globalCompositeOperation = 'source-over'; },
     warm(){ SPB = 60 / BPM; for(let f = 0; f < 2; f++){ nebuta(f); bearers(f); haneto(f); for(let v = 0; v < 4; v++) crowd(v, f); farWall(f); chochin(f); }
       lanternChains(); for(const ch of LCH){ C['lch' + LCH.indexOf(ch)] = ch.body.cv; C['lchg' + LCH.indexOf(ch)] = ch.glow; }   // (in C, so the upload pass below draws them once)
       for(let f = 0; f < 3; f++){ taiko(f); smoke(f); } cache('nebR', () => reflOf(nebuta(0)));

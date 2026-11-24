@@ -139,6 +139,138 @@
   function evacLight(x0, y0, d){ if(d < PX * 2.5){ pxRect(x0, y0, d, d); return; } const o = PX, w = d * 1.4, xa = x0 + d / 2 - w / 2;
     const c = cx.fillStyle; cx.fillStyle = '#10141a'; pxRect(xa - o, y0 - o, w + 2 * o, d + 2 * o); cx.fillStyle = c; pxRect(xa, y0, w, d); cx.fillStyle = '#c8ffd8'; pxRect(xa, y0, w, o); cx.fillStyle = '#1a9a48'; pxRect(xa, y0 + d - o, w, o); }
 
+  /* ---- the lining's material (polish pass 2, research/sundown-craft/tunnels.md). Studied at pixel zoom: the Hikone-oshiro bore (long white
+     tiles to ~2.5 m, grime darkest at their foot, bare concrete above with a cable on hooks along the tile top), an old sodium-lit arch (water
+     streaks from the crown, pale crust where the water dried), the Wangan bore (panel seams as long converging lines, a scallop of light on
+     the wall under every lamp, a near-black ceiling) and the Kanmon bore. Each ring's visible wall band is one slice of the bore, ~35 cm deep,
+     so its texture is a single column, stretched across the band: what varies along a band is depth, what varies down it is the material.
+     Baked once at warm-up, per palette, as an overlay (dark grime and joints, pale crust, lamp-coloured lips and scallops; transparent where
+     the ring's own fill should show), at a ladder of heights 1.15x apart so one texel is one canvas pixel give or take 15 % (never an
+     upscaled block). 24 slices (stains, crusts, seeps on some) x lit/unlit. Sodium bores (the older ones) are tiled; LED bores carry enamel
+     panels. The ceiling is the same idea turned sideways: one row per ring band, stretched down it, holding the cable trays, the crown joint
+     and the exhaust soot over the lanes. */
+  const NSL = 24, NSC = 16;
+  // ablation switches for tests: ?tunx=tex,ceil,item,wet,out (each part off)
+  const TUNX = (/[?&]tunx=([^&]*)/.exec(location.search) || ['', ''])[1].split(','), TX = k => TUNX.includes(k), TX_TEX = TX('tex'), TX_CEIL = TX('ceil'), TX_ITEM = TX('item'), TX_WET = TX('wet'), TX_OUT = TX('out');
+  const MAT = { s:{ dk:'#0a0402', st:'#1c0e04', ef:'#f6e2c4', wet:'#050302', g:'#ff9a30', lip:'#ffd08a' }, l:{ dk:'#04060a', st:'#0c1a1c', ef:'#e6f2f6', wet:'#020306', g:'#8ac8ff', lip:'#d8f0ff' } };
+  const ATW = {}, ATC = {};   // per palette id: { cv, L:[{ h|w, x, y }] }
+  const hexMix = (a, b, t) => '#' + rgbH(a).map((v, n) => Math.round(v + (rgbH(b)[n] - v) * t).toString(16).padStart(2, '0')).join('');   // (warm-up only)
+  const rgbH = c => [parseInt(c.slice(1, 3), 16), parseInt(c.slice(3, 5), 16), parseInt(c.slice(5, 7), 16)];
+  // one column (or row) of RGBA, composited "over" in place (warm-up only)
+  const ACC = new Float32Array(4 * 1100);
+  function over(n, rgb, a){ if(n < 0 || a <= 0) return; const o = n * 4, A = ACC[o + 3], oa = a + A * (1 - a); if(oa <= 0) return; const t = a / oa;
+    ACC[o] = rgb[0] * t + ACC[o] * (1 - t); ACC[o + 1] = rgb[1] * t + ACC[o + 1] * (1 - t); ACC[o + 2] = rgb[2] * t + ACC[o + 2] * (1 - t); ACC[o + 3] = oa; }
+  function wallCol(P, s, lit, Hh){ ACC.fill(0, 0, Hh * 4); const M = MAT[P.id], DK = rgbH(M.dk), ST = rgbH(M.st), EF = rgbH(M.ef), WE = rgbH(M.wet), G = rgbH(M.g), LP = rgbH(M.lip), sod = P.id === 's';
+    const T = Hh / WT, R = h => clamp(Math.round((WT - h) * T), 0, Hh), band = (h0, h1, c, a) => { for(let r = R(h1); r < R(h0); r++) over(r, c, a); }, line = (h, c, a, n = 1) => { const r = Math.min(Hh - 1, R(h)); for(let m = 0; m < n; m++) over(r + m, c, a); };
+    const Hs = n => hash(s * 13.7 + n * 3.1 + (sod ? 0 : 50));
+    // upper wall (bare concrete, PT..WT): exhaust soot thickest under the haunch, three hard steps with a one-row checker between them
+    const soot = [[WT - .07, .2], [WT - .15, .12], [WT - .26, .055]]; let top = WT;
+    for(const [h, a] of soot){ band(h, top, DK, a); if(T > 40){ const r = R(h); over(r, DK, a * .6); } top = h; }
+    if(.16 * T >= 5) for(let h = PT + .16; h < WT - .03; h += .16) line(h, DK, .14);                               // formwork lift lines
+    if(!sod && T > 24) for(let r = R(WT); r < R(PT + .06); r += 2){ const v = hash(s * 5.3 + r * .71); if(v < .18) over(r, DK, .06); else if(v > .86) over(r, EF, .035); }   // shotcrete mottle
+    // the cable on hooks along the top of the lining, lit along its top
+    const cb = PT + .045, cn = Math.max(1, Math.round(.011 * T)); line(cb, DK, .62, cn); if(T > 30) line(cb + 1 / T, LP, .22);
+    if(s % 3 === 0 && T > 50) for(let m = 1; m <= Math.max(1, Math.round(.01 * T)); m++) over(R(cb) + cn - 1 + m, DK, .5);
+    // the lining (KB..PT): long tiles under sodium (a joint every 5 cm of height, each tile a shade off its neighbour), enamel panels under LED
+    if(sod){ const th = .05; let j = 0; for(let h = KB; h < PT - .005; h += th, j++){ const v = Hs(20 + j);
+        if(v < .22) band(h, Math.min(PT, h + th), DK, .045); else if(v > .86) band(h, Math.min(PT, h + th), EF, .035);
+        if(th * T >= 3 && h > KB) line(h + 1 / T * .5, DK, .3); } }
+    else { const ph = .15; let j = 0; for(let h = KB; h < PT - .005; h += ph, j++){ const v = Hs(20 + j); if(v < .3) band(h, Math.min(PT, h + ph), DK, .05); else if(v > .8) band(h, Math.min(PT, h + ph), EF, .04);
+        if(h > KB){ line(h, DK, .42); if(T > 30) line(h - 1 / T, LP, .2); } } }
+    // tyre spray: the lining's foot is darkest, three steps up; the skirt below it darker still, with a weep hole now and then
+    const gk = sod ? 1.25 : .8; band(KB, KB + .045, DK, .2 * gk); band(KB + .045, KB + .095, DK, .11 * gk); band(KB + .095, KB + .15, DK, .05 * gk);
+    band(0, KB, DK, .14); if(s % 5 === 2 && T > 40) band(.03, .05, DK, .55);
+    // water: a stain down from the crown joint (darker, a pale crust where it dried at its foot), a crust line with drips, a seep reaching the floor
+    if(Hs(91) < (sod ? .3 : .16)){ const bot = PT - .04 - Hs(92) * .32, a = .12 + Hs(93) * .1, m1 = bot + (WT - bot) * .66, m2 = bot + (WT - bot) * .33;   // darkest at the joint it leaks from, three steps down
+      band(m1, WT, ST, a * 1.25); band(m2, m1, ST, a * .8); band(bot, m2, ST, a * .45); line(bot, EF, .26, T > 60 ? 2 : 1); }
+    if(Hs(94) > (sod ? .8 : .88)){ const hj = PT + .08 + Hs(95) * .28, r0 = R(hj); line(hj, EF, .4); if(T > 30) for(let m = 0; m < 4; m++) over(r0 + 2 + m * 2, EF, .26 - m * .05); }
+    if(Hs(96) > .92){ band(0, PT + .12, WE, .3); line(.055, LP, .5); }
+    // under a lamp: the scallop of light on the upper wall (Wangan), and the lining's top catching it
+    if(lit){ band(WT - .1, WT, G, .2); band(WT - .22, WT - .1, G, .12); band(PT + .06, WT - .22, G, .05); band(PT - .12, PT, G, .06); } }
+  function ceilRow(P, s, Wc){ ACC.fill(0, 0, Wc * 4); const M = MAT[P.id], DK = rgbH(M.dk), ST = rgbH(M.st), EF = rgbH(M.ef), LP = rgbH(M.lip), U = u => clamp(Math.round(u * Wc), 0, Wc);
+    const band = (u0, u1, c, a) => { for(let n = U(u0); n < Math.max(U(u0) + 1, U(u1)); n++) if(n < Wc) over(n, c, a); };
+    band(.3, .7, DK, .12); band(.24, .3, DK, .06); band(.7, .76, DK, .06);                         // exhaust soot over the lanes
+    band(.497, .503, DK, .3);                                                                       // the crown joint
+    for(const c of [.1, .9]){ band(c - .035, c + .035, DK, .62); band(c + (c < .5 ? .035 : -.045), c + (c < .5 ? .045 : -.035), LP, .4);   // the cable trays, lit on the side toward the lamps' throw
+      if(s % 4 === 0) band(c - .06, c + .06, DK, .5); }                                              // a hanger every fourth ring
+    if(s % 5 === 3){ const u = .2 + hash(s * 3.7) * .6; band(u, u + .05, ST, .22); band(u - .006, u, EF, .2); }   // a drip stain with a dried rim
+    if(s % 7 === 1){ band(.16, .2, DK, .25); band(.8, .84, DK, .25); } }                             // lamp conduits' junction boxes
+  // build one palette's wall atlas (a step per LOD) and ceiling atlas (a step per few LODs)
+  function* buildMat(P){ const CW = NSL * 2, MAXH = 2040, L = []; for(let h = 4; ; h = Math.ceil(h * 1.15)){ L.push({ h }); if(h >= 520) break; }
+    let x = 0, y = 0, ah = 0; for(const l of L){ if(y + l.h > MAXH){ x += CW; y = 0; } l.x = x; l.y = y; y += l.h + 1; ah = Math.max(ah, y); }
+    const cv = document.createElement('canvas'); cv.width = x + CW; cv.height = ah; const k = cv.getContext('2d'), img = k.createImageData(cv.width, ah), d = img.data;
+    for(const l of L){ for(let c = 0; c < CW; c++){ wallCol(P, c % NSL, c >= NSL, l.h); for(let r = 0; r < l.h; r++){ const o = ((l.y + r) * cv.width + l.x + c) * 4, a = ACC[r * 4 + 3];
+          d[o] = ACC[r * 4]; d[o + 1] = ACC[r * 4 + 1]; d[o + 2] = ACC[r * 4 + 2]; d[o + 3] = Math.round(a * 255); } } yield; }
+    k.putImageData(img, 0, 0); ATW[P.id] = { cv, L }; yield;
+    const C = []; for(let w = 6; ; w = Math.ceil(w * 1.15)){ C.push({ w }); if(w >= 1040) break; }
+    const MAXW = 2048; x = 0; y = 0; let aw = 0; for(const l of C){ if(x + l.w > MAXW){ y += NSC + 1; x = 0; } l.x = x; l.y = y; x += l.w + 1; aw = Math.max(aw, x); }
+    const cc = document.createElement('canvas'); cc.width = aw; cc.height = y + NSC; const kc = cc.getContext('2d'), ic = kc.createImageData(aw, y + NSC), dc = ic.data; let n = 0;
+    for(const l of C){ for(let s = 0; s < NSC; s++){ ceilRow(P, s, l.w); for(let u = 0; u < l.w; u++){ const o = ((l.y + s) * aw + l.x + u) * 4; dc[o] = ACC[u * 4]; dc[o + 1] = ACC[u * 4 + 1]; dc[o + 2] = ACC[u * 4 + 2]; dc[o + 3] = Math.round(ACC[u * 4 + 3] * 255); } }
+      if(++n % 6 === 0) yield; }
+    kc.putImageData(ic, 0, 0); ATC[P.id] = { cv:cc, L:C }; }
+  // the LOD at or below a size (canvas px), stretched by under 15 %; the largest when the size is bigger still
+  const lodOf = (L, v, key) => { let best = null; for(const l of L){ if(l[key] <= v) best = l; else break; } return best; };
+  // one wall band: the column for (slice, lit) of the LOD for its height, stretched across the band (dx..dx+dw), from the wall top yw to the floor qy
+  function wallTex(A, s, lit, dx, dw, yw, qy, ct){ const dh = qy - yw; if(dw < PX || dh < PX * 4) return; const l = lodOf(A.L, dh / PX, 'h'); if(!l) return;
+    let sy = l.y, sh = l.h, y0 = yw; if(ct > yw){ const cut = Math.floor((ct - yw) / dh * l.h); if(cut >= l.h) return; sy += cut; sh -= cut; y0 = yw + cut * dh / l.h; }
+    cx.drawImage(A.cv, l.x + s + (lit ? NSL : 0), sy, 1, sh, dx, q(y0), dw, qy - q(y0)); }
+  function ceilTex(A, s, x0, x1, y0, y1){ const dw = x1 - x0, dh = y1 - y0; if(dh < PX || dw < PX * 6) return; const l = lodOf(A.L, dw / PX, 'w'); if(!l) return;
+    cx.drawImage(A.cv, l.x, l.y + s, l.w, 1, x0, y0, dw, dh); }
+
+  /* ---- the equipment deck. Studied: the Hikone-oshiro bore's hydrant bank (a red 消火栓 cabinet recessed in a tiled niche, the grey 非常電話
+     box with its green panel beside it, a red indicator lamp over them), Japanese tunnel practice (hydrants and extinguishers every ~50 m, phones
+     every ~200 m, evacuation signs between, jet fans hung in groups near the portals), and Akihabara's sign deck (never the same module twice in
+     a row). Per bore: a deck of stations shuffled by hash, spaced 10-21 rings apart, sides mostly alternating; jet-fan groups at uneven gaps as
+     pairs, triples or a single fan. Wall items are drawn on the wall plane, part by part in each ring's own band (one ring ~35 cm), so they sit in
+     the lining's perspective and never turn into upscaled sprites. */
+  const K_BANK = 1, K_EXT = 2, K_EXIT = 3, K_PLATE = 4, K_DOOR = 5, K_HYD = 6, LEN = [0, 6, 2, 1, 1, 4, 3];
+  const DECK = [K_BANK, K_EXT, K_EXIT, K_PLATE, K_EXT, K_DOOR, K_HYD, K_EXIT, K_EXT, K_PLATE, K_BANK, K_HYD], DK_S = new Int8Array(DECK.length);
+  const FANS = [null, [-.48, .48], [-.62, 0, .62], [-.48], [.48]];
+  const EQ = [0, 1, 2, 3].map(() => ({ b:-1, kind:new Int8Array(200), side:new Int8Array(200), part:new Int8Array(200), fan:new Int8Array(200) }));
+  function eqOf(b){ const E = EQ[b & 3]; if(E.b === b) return E; E.b = b; E.kind.fill(0); E.fan.fill(0);
+    for(let n = 0; n < DECK.length; n++) DK_S[n] = DECK[n];
+    for(let n = DECK.length - 1; n > 0; n--){ const m = Math.floor(hash(b * 7.31 + n * 1.73) * (n + 1)), t = DK_S[n]; DK_S[n] = DK_S[m]; DK_S[m] = t; }
+    let k = 22 + Math.floor(hash(b * 3.1) * 8), n = 0, prev = 0, sd = hash(b * 5.5) < .5 ? -1 : 1;
+    while(k < 186){ let kd = DK_S[n % DECK.length]; n++; if(kd === prev) kd = DK_S[n % DECK.length]; prev = kd; const len = LEN[kd];
+      if(k + len > 46 && k < 54) k = 54;   // (clear of the lane-control gantry at 50)
+      if(k + len > 190) break;
+      for(let m = 0; m < len; m++){ E.kind[k + m] = kd; E.side[k + m] = sd; E.part[k + m] = m; }
+      if(hash(b * 9.1 + n * 2.3) < .7) sd = -sd; k += len + 10 + Math.floor(hash(b * 4.7 + n * 3.9) * 12); }
+    // fans: the first pair just inside the mouth (it shows from the approach), then groups 26-44 rings apart, none by the gantries
+    let f = 15, g = 0; while(f < 186){ const v = hash(b * 6.7 + g * 5.1), t = g === 0 ? 1 : v < .5 ? 1 : v < .72 ? 2 : v < .86 ? 3 : 4; const clear = (f % 80) < 46 || (f % 80) > 54;
+      if(clear) E.fan[f] = t;
+      if(clear && t >= 3 && f + 5 < 190) E.fan[f + 5] = 7 - t;   // a single fan is the first of a staggered pair
+      g++; f += 26 + Math.floor(hash(b * 2.9 + g * 7.7) * 19); }
+    return E; }
+  // the nearer face ring's screen point (the outer edge of this ring's visible band), or null when it is behind the camera. Inside cavein's
+  // joined bore the ring handed in is a stand-in with a remapped index, so the nearer ring is extrapolated from this one's own two ends
+  // (1/w is linear in depth).
+  const PN = { x:0, y:0, w:0 };
+  function nearer(s, i, st){ if(segs[i] === s){ const t = segs[i - st]; return t && t.p1.screen.scale && t.p1.camera.z > DEPTH ? t.p1.screen : null; }
+    const a = s.p1.screen, b = s.p2 && s.p2.screen; if(!a || !b || !(a.w > 0) || !(b.w > 0)) return null; const iw = (1 + st) / a.w - st / b.w; if(!(iw > 0)) return null;
+    const w = 1 / iw, f = (w - a.w) / Math.max(1e-6, a.w - b.w); PN.w = w; PN.x = a.x + (a.x - b.x) * f; PN.y = a.y + (a.y - b.y) * f; return PN; }
+  /* the items, in item space: u 0..len along the wall from the end nearest the camera, h in half-road widths above the walkway; [u0, u1, h0, h1, colour]
+     (colour 'N' is the niche's shadow, 'L' its lit lip: both from the palette). Sources: the Hikone-oshiro hydrant bank and phone box (Commons). */
+  const IT = [];
+  IT[K_HYD] = [[0, 3, .08, .6, 'N'], [0, 3, .6, .615, 'L'], [.15, 2.85, .12, .55, '#b41a22', 1], [.15, 2.85, .53, .55, '#ff6a58'], [.15, 2.85, .12, .14, '#640a10'], [1.47, 1.53, .14, .53, '#640a10'],
+    [.45, 1.25, .37, .47, '#f2eee6', 1], [.6, 1.1, .41, .43, '#c41e26'], [1.8, 2.55, .2, .3, '#f2eee6', 1], [1.95, 2.4, .24, .26, '#c41e26'], [2.7, 2.85, .14, .53, '#7a1018'], [1.32, 1.68, .64, .7, '#ff2a1a']];
+  IT[K_BANK] = IT[K_HYD].concat([[3, 6, .08, .6, 'N'], [3, 6, .6, .615, 'L'], [3.6, 5.6, .2, .52, '#b4aea2', 1], [3.6, 5.6, .5, .52, '#ece6da'], [3.6, 5.6, .2, .22, '#6a665e'], [5.45, 5.6, .22, .5, '#7a766c'],
+    [3.9, 4.9, .27, .46, '#1c8a4c', 1], [4.1, 4.7, .33, .36, '#f4fff4'], [4.1, 4.25, .31, .4, '#f4fff4'], [4.55, 4.7, .31, .4, '#f4fff4'], [4.98, 5.12, .3, .42, '#d8d2c6']]);
+  IT[K_EXT] = [[0, 2, .1, .4, 'N'], [0, 2, .4, .415, 'L'], [.2, 1.8, .12, .37, '#b41a22', 1], [.2, 1.8, .35, .37, '#ff6a58'], [.5, 1.5, .19, .31, '#f0e8e0', 1], [.8, 1.2, .2, .3, '#d02a2a'], [.88, 1.12, .3, .32, '#2a2a2a']];
+  IT[K_PLATE] = [[.15, .85, .62, .75, '#1a1a1e'], [.2, .8, .63, .74, '#e6e6de'], [.3, .7, .67, .68, '#202024'], [.3, .58, .7, .71, '#202024']];
+  IT[K_DOOR] = [[0, 4, 0, .68, 'N'], [0, 4, .68, .695, 'L'], [.25, 3.75, 0, .63, '#56625e'], [.45, 3.55, 0, .59, '#3a4846', 1], [.45, 3.55, .57, .59, '#8aa09a'], [1.97, 2.03, 0, .57, '#222c2a'],
+    [1.55, 1.8, .27, .3, '#c8d0cc'], [2.2, 2.45, .27, .3, '#c8d0cc'], [1.5, 2.5, .64, .675, '#3aff7a']];
+  const LAMPI = []; LAMPI[K_HYD] = LAMPI[K_BANK] = [1.5, .67, '#ff3a2a']; LAMPI[K_DOOR] = [2, .66, '#3aff7a'];
+  function wallItem(E, k, kd, sd, x0, x1, y, uw, P, a){ const pt = E.part[k], bw = x1 - x0; if(bw <= 0) return;
+    if(bw < PX * 3 || uw < W * .025){ const mk = kd === K_DOOR ? '#3aff7a' : kd === K_PLATE ? '#c8c8c0' : '#c41e26'; cx.fillStyle = C(mk); pxRect(sd < 0 ? x1 - PX : x0, q(y - (kd === K_PLATE ? .68 : .32) * uw), PX, PX); return; }
+    if(a < 1) cx.globalAlpha = a;
+    for(const e of IT[kd]){ const ua = Math.max(0, e[0] - pt), ub = Math.min(1, e[1] - pt); if(ub <= ua) continue;
+      const xa = sd < 0 ? x0 + bw * (1 - ub) : x0 + bw * ua, xb = sd < 0 ? x0 + bw * (1 - ua) : x0 + bw * ub, ya = q(y - e[3] * uw), yb = q(y - e[2] * uw);
+      const rw = Math.max(PX, q(xb) - q(xa)), rh = Math.max(PX, yb - ya); cx.fillStyle = e[4] === 'N' ? C(P.line) : e[4] === 'L' ? C(P.panel[3]) : C(e[4]); R(q(xa), ya, rw, rh);
+      if(e[5] && rh > PX * 6 && rw > PX * 3){ cx.fillStyle = C(e[6]); R(q(xa), ya, rw, PX); cx.fillStyle = C(e[7]); R(q(xa), yb - PX, rw, PX); } }   // near: a lit top edge and a shadowed foot, one canvas pixel each
+    if(a < 1) cx.globalAlpha = 1;
+    const lm = LAMPI[kd]; if(lm && lm[0] >= pt && lm[0] < pt + 1){ const lx = sd < 0 ? x0 + bw * (1 - (lm[0] - pt)) : x0 + bw * (lm[0] - pt), gi = gIn(uw, .03); if(gi > 0) glow(lx, y - lm[1] * uw, Math.min(uw * .2, H * .06), lm[2], .35 * a * gi); } }
+
   // ---- the portal. Studied from Japanese road and expressway portals (Wikimedia Commons, "Road tunnel portals in Japan": Enasan, Tennozan,
   // Shin-Kuwadai, Kan-etsu Yuzawa side, Ken-O Sagamihara-Hachioji, Kamura): a bell-mouth hood projects from a concrete headwall; its front
   // is cut on a slant, so the sides reach out further than the crown and the cut face reads as a thick pale band round a dark, warm mouth;
@@ -207,6 +339,7 @@
     const l = x - OW * uw, r = x + OW * uw, fl = x - 4.4 * uw, fr = x + 4.4 * uw, ft = y - 3.6 * uw, yW = y - WT * uw, yC = y - CH * uw, yP = y - PT * uw, yK = y - KB * uw;
     const ql = q(l), qr = q(r), qfl = Math.max(-PX, Math.floor(fl), q(cl)), qfr = Math.min(W + PX, Math.ceil(fr), q(cr)), qy = q(y), qft = Math.max(-PX, ft, q(ct)), hh = (CH - WT) / 3 * uw;
     const qL = Math.min(ql, qfr), qR = Math.max(qr, qfl);   // (a cropped ring may not reach its own opening)
+    const pn = far ? null : nearer(s, i, stride);   // the nearer face ring (this ring's visible band ends at its opening)
     if(face){
     // ceiling and haunch (three steps), upper wall, lower panel, walkway kerb
     cx.fillStyle = CC(P.ceil[L]); R(qfl, qft, qfr - qfl, q(yC) - qft + 1);
@@ -224,6 +357,14 @@
       // the lining's ring joint every 4 rings: the seam runs round the whole section (walls, haunch steps, crown), so the bore reads as rings
       if(i % 4 === 0 && uw > W * .035 && cl < l){ const ci = q(HI * uw); R(ql + ci, q(yC), qr - ql - 2 * ci, PX); for(let n = 0; n < 3; n++){ const ya = q(yW - (n + 1) * hh), ins = q((n + 1) * HI / 3 * uw), i0 = q(n * HI / 3 * uw); R(ql + i0 - PX, ya, ins - i0 + PX, PX); R(qr - ins, ya, ins - i0 + PX, PX); } }
       if(L === 3){ cx.fillStyle = C(P.wall[4]); R(qfl, yw, qL - qfl, PX); R(qR, yw, qfr - qR, PX); } }
+    // the material: each wall's visible band (out to the nearer face ring's opening) and the crown's band, from the warm-up atlases
+    const AW = TX_TEX ? null : ATW[P.id]; if(uw > W * .03 && AW && fog < .6){
+      const fa = fog < .08 ? 1 : 1 - (fog - .08) / .52; if(fa < 1) cx.globalAlpha = fa;
+      const lt = lampAt(i), b = Math.floor(i / 320), sl = (i * 7 + Math.floor(i / NSL) * 5 + b * 11) % NSL, sr = (i * 7 + Math.floor(i / NSL) * 5 + b * 11 + 13) % NSL, yW0 = q(yW);
+      const xl = Math.max(-PX, q(cl), pn ? q(pn.x - OW * pn.w) : -PX), xr = Math.min(W + PX, q(cr), pn ? q(pn.x + OW * pn.w) : W + PX), cT = ct > -1e8 ? q(ct) : -1e9;
+      if(ql > xl) wallTex(AW, sl, lt, xl, ql - xl, yW0, qy, cT); if(xr > qr) wallTex(AW, sr, lt, qr, xr - qr, yW0, qy, cT);
+      const AC = TX_CEIL ? null : ATC[P.id]; if(AC && pn && !out){ const cw = (OW - HI) * pn.w, y0 = q(pn.y - CH * pn.w); if(q(yC) > y0) ceilTex(AC, (i * 5 + b * 3) % NSC, Math.max(-PX, q(pn.x - cw)), Math.min(W + PX, q(pn.x + cw)), y0, q(yC)); }
+      if(fa < 1) cx.globalAlpha = 1; }
     }
     if(head){ drawHead(s, x, y, uw, fog, P, M, now); return; }
     // luminaires in both upper corners: dark housing, hot core, stepped halo; in the threshold zone by the mouth a second, lower row too
@@ -237,12 +378,14 @@
     if(i % 8 === 4 && (face || i % 4 === 0)){ const d = Math.max(PX, q(uw * .04)); cx.fillStyle = C('#3aff7a'); evacLight(ql - d - PX, q(y - .2 * uw), d); cx.fillStyle = C('#3aff7a'); evacLight(qr + PX, q(y - .2 * uw), d); }
     if(uw < 3) return;
     const a = 1 - fog * .7;
-    // emergency-exit sign (left) and emergency phone (right), every 40 rings
-    if(k % 40 === 20){ const sk = Math.max(1, uw * .24 / 12), nr = sk > PX * 2; cx.globalAlpha = a; blit(nr ? exitNear() : exitSprite(), l + 6 * sk + PX, q(y - .62 * uw), nr ? sk / 3 : sk); cx.globalAlpha = 1; const gi = gIn(uw, .05); if(gi > 0) glow(l + 6 * sk, y - .62 * uw - 3 * sk, uw * .3, '#2aff6a', .25 * a * gi); }
-    if(k % 40 === 10){ const sk = Math.max(1, uw * .2 / 10), on = reduce || Math.floor(now / 500) % 2; cx.globalAlpha = a; if(sk > PX * 2) sosNear(r - 7.5 * sk - PX, q(y - .1 * uw), sk, on); else blit(sosSprite(), r - 4 * sk - PX, q(y - .1 * uw), sk); cx.globalAlpha = 1;
-      const gi = gIn(uw, .05); if(on && gi > 0) glow(r - 4 * sk, y - .1 * uw - 9 * sk, uw * .18, '#ff3a2a', .4 * a * gi); }
-    // jet fans hung in pairs from the crown (the first pair just inside the mouth, so it shows from the approach)
-    if(k % 30 === 15 && k > 10 && k < 190) for(const fx of FANX) jetFan(s, x, y, uw, fx, P, fog, a);
+    // the equipment deck (no repeated module: a shuffled deck per bore, stations at uneven spacing, sides mostly alternating)
+    const E = eqOf(Math.floor(i / 320)), kd = TX_ITEM ? 0 : E.kind[k];
+    if(kd){ const sd = E.side[k], x0 = sd < 0 ? Math.max(-PX, q(cl), pn ? q(pn.x - OW * pn.w) : -PX) : qr, x1 = sd < 0 ? ql : Math.min(W + PX, q(cr), pn ? q(pn.x + OW * pn.w) : W + PX);
+      if(kd === K_EXIT){ if(E.part[k] === 0){ const sk = Math.max(1, uw * .24 / 12), nr = sk > PX * 2, ex = sd < 0 ? l + 6 * sk + PX : r - 6 * sk - PX; cx.globalAlpha = a; blit(nr ? exitNear() : exitSprite(), ex, q(y - .62 * uw), nr ? sk / 3 : sk); cx.globalAlpha = 1;
+          const gi = gIn(uw, .05); if(gi > 0) glow(ex, y - .62 * uw - 3 * sk, uw * .3, '#2aff6a', .25 * a * gi); } }
+      else wallItem(E, k, kd, sd, x0, x1, y, uw, P, a); }
+    // jet fans from the crown: groups at uneven spacing, pairs, triples or a single offset fan (inside cavein's joined bore, it draws its own)
+    const fk = E.fan[k]; if(fk && segs[i] === s) for(const fx of FANS[fk]) jetFan(s, x, y, uw, fx, P, fog, a);
     // lane-control gantry: a beam under the crown with a signal over each lane
     if(k % 80 === 50){ const by = q(yC + uw * .12), bh = Math.max(PX, q(uw * .05)); cx.fillStyle = C(P.metal[1]); pxRect(q(l + HI * uw), by, q(r - l - 2 * HI * uw), bh); cx.fillStyle = C(P.metal[3]); pxRect(q(l + HI * uw), by, q(r - l - 2 * HI * uw), PX);
       const sk = Math.max(1, uw * .16 / 9); for(const lx of SIGX){ const red = lx > 0 && Math.floor(i / 320) % 3 === 0; blit(arrowSprite(red), x + lx * uw, by + bh + 9 * sk, sk); const gi = gIn(uw, .05); if(gi > 0) glow(x + lx * uw, by + bh + 4.5 * sk, uw * .16, red ? '#ff3030' : '#4aff7a', .3 * a * gi); } }
@@ -269,6 +412,21 @@
     if(k === 3 && uw > W * .015) slabs(x, y, uw, h => openW(h) + TH * .4, h => openW(h) + TH * .4 + pu * (uw > W * .05 ? 2 : 1), WT * .2, CH + TH * .4 + pu * 2, () => fog > .6 ? CC(P.lamp) : P.lamp);
   }
 
+  // the headwall's face detail between the hood's outline and the wing walls, course by course (one rect per joint or block: one headwall in view)
+  function headFace(kind, id, x, y, u, M){ const ch = kind === 1 ? .26 : .5; let n = 0;
+    for(let h = .14; h < EH - .04; h += ch, n++){ const h1 = Math.min(EH - .02, h + ch), wi = Math.max(growW(h + .01), growW(h1 - .01)), ya = q(y - h1 * u), yb = q(y - h * u); if(yb <= ya) continue;
+      if(kind === 0){ cx.fillStyle = M('#2a2f44'); R(q(x - EW * u), yb - PX, q(x - wi * u) - q(x - EW * u), PX); R(q(x + wi * u), yb - PX, q(x + EW * u) - q(x + wi * u), PX); continue; }
+      if(kind === 2){ for(let d = wi + .12; d < EW - .05; d += .3) for(let sd = -1; sd <= 1; sd += 2){ const xa = q(x + sd * d * u), rw = Math.max(PX, q(u * .05));
+          cx.fillStyle = M('#4a5272'); R(sd < 0 ? xa - rw : xa, ya, rw, yb - ya); cx.fillStyle = M('#20243a'); R(sd < 0 ? xa : xa - PX, ya, PX, yb - ya); }
+        cx.fillStyle = M('#1a1e2e'); R(q(x - EW * u), yb - PX, q(x - wi * u) - q(x - EW * u), PX); R(q(x + wi * u), yb - PX, q(x + EW * u) - q(x + wi * u), PX); continue; }
+      // ashlar: blocks .54 long, every other course offset half a block; a few blocks lighter or darker; a bed joint under each course
+      const off = n & 1 ? .27 : 0;
+      for(let sd = -1; sd <= 1; sd += 2) for(let d = wi, m = 0; d < EW - .02; m++){ const d1 = Math.min(EW, m === 0 ? wi + .54 - ((wi - off) % .54 + .54) % .54 : d + .54), v = hash(id * 5.1 + n * 7.3 + m * 1.9 + sd);
+        const xa = q(x + sd * d * u), xb = q(x + sd * d1 * u), l0 = Math.min(xa, xb), w0 = Math.abs(xb - xa);
+        if(v < .22 || v > .8){ cx.fillStyle = M(v < .22 ? '#2c2a38' : '#48465a'); R(l0, ya, w0, yb - ya); }
+        cx.fillStyle = M('#1a1824'); R(sd < 0 ? l0 : l0 + w0 - PX, ya, PX, yb - ya); if(v > .8){ cx.fillStyle = M('#5c5a70'); R(l0, ya, w0, PX); }
+        d = d1; }
+      cx.fillStyle = M('#1a1824'); R(q(x - EW * u), yb - PX, q(x - wi * u) - q(x - EW * u), PX); R(q(x + wi * u), yb - PX, q(x + EW * u) - q(x + wi * u), PX); } }
   // ---- the headwall at ring HL: the hill and the towers on its ridge behind, the lattice slopes either side, the concrete face with its
   // coping, joints and form-tie rows, the lit name plate over the hood, a pair of floodlights; then the approach's signal gantry is a sprite
   const HILL = { leaf:['#08120e', '#0c1814', '#0f1d17'], rim:'#2e4a3c', tower:['#0c101c', '#121828'], win:['#ffd890', '#c8dcff', '#ffb860'] };
@@ -291,10 +449,15 @@
       cx.fillStyle = M(CUTC.beam); const bw = Math.max(PX, q(u * .06)); for(let h = .3; h < EH + 1.4; h += .5) R(q(lo), q(y - h * u), q(hi) - q(lo), bw);
       for(let d = 0; d <= 3; d += .6) R(q(x + sd * (EW + d) * u), q(top), bw, q(y) - q(top)); }
     // the headwall: face round the hood's outline, a darker plinth, the coping (lit), panel joints, rows of form ties
-    slabs(x, y, u, growW, () => EW, 0, EH, h => h < .14 ? M('#1c2030') : M('#343a52'));
+    /* three faces, by bore (studied: Tegata's plain cast face, Sekinotsu's precast relief panels, the Yanagase portal's coursed stone):
+       formwork concrete (lift lines and form ties), precast relief (vertical ribs, each with a lit edge and a shadow), or coursed ashlar
+       (staggered blocks, each a shade off its neighbours, dark bed joints) */
+    const hk = hash(id * 3.7 + .5), kind = hk < .34 ? 1 : hk < .67 ? 2 : 0, face = kind === 1 ? '#3a3848' : kind === 2 ? '#30364c' : '#343a52';
+    slabs(x, y, u, growW, () => EW, 0, EH, h => h < .14 ? M('#1c2030') : M(face));
+    if(u > W * .012) headFace(kind, id, x, y, u, M);
     cx.fillStyle = M('#8890b0'); R(q(x - (EW + .06) * u), q(yT - u * .08), q(2 * (EW + .06) * u), Math.max(PX, q(u * .08)));
     cx.fillStyle = M('#151826'); R(q(x - EW * u), q(yT), q(2 * EW * u), Math.max(PX, q(u * .07)));
-    if(u > W * .008){ cx.fillStyle = M('#262a3e'); for(let n = 1; n < 4; n++){ const jx = (OW + TH + n * .8) * u; if(jx > EW * u) break; R(q(x - jx), q(yT + u * .07), PX, q(y) - q(yT + u * .07)); R(q(x + jx), q(yT + u * .07), PX, q(y) - q(yT + u * .07)); }
+    if(u > W * .008 && kind === 0){ cx.fillStyle = M('#262a3e'); for(let n = 1; n < 4; n++){ const jx = (OW + TH + n * .8) * u; if(jx > EW * u) break; R(q(x - jx), q(yT + u * .07), PX, q(y) - q(yT + u * .07)); R(q(x + jx), q(yT + u * .07), PX, q(y) - q(yT + u * .07)); }
       if(u > W * .03){ cx.fillStyle = M('#1e2232'); for(let h = .45; h < EH - .1; h += .5) for(let d = OW + TH + .3; d < EW; d += .45){ R(q(x - d * u), q(y - h * u), PX, PX); R(q(x + d * u), q(y - h * u), PX, PX); } } }
     // name plate over the hood: a dark slab in a pale frame, warm lit characters
     const pw = 2.0 * u, ph = .36 * u, px = x - pw / 2, py = y - (CH + TH + .14) * u - ph;
@@ -308,16 +471,22 @@
 
   // ---- road surface inside: the road takes the tunnel's ramp, solid no-passing lines, a concrete walkway, lamp sheen
   function roadFX(s, a, b, fog, f, now){
-    if(!s.tunnel) return;
+    if(!s.tunnel) return outFX(s, a, b, fog, f);
     /* The road in the bore is one smooth tone of wet asphalt. (It used to take the lamp ramp per segment, tone 3-2-1-2 by the distance to the
        nearest luminaire: near the camera each segment is tens of pixels deep, so the road read as hard brown bands across it, every ring;
        Kellan: "strange brown lines covering the road horizontally".) The light now lies along the road, where the luminaires are: a soft pool
        on each side under every lamp, one step brighter than the road, fading over the next segment. Ring seams stay on the walls.
        The lane dashes are the engine's own (laneMark, drawn after this), as on every road; this file draws the solid edge lines. */
-    const i = s.index, P = palOf(i), thin = a.y - b.y < PX * .6, yb = b.y - 1; cP = P; cF = fog; cS = 0;
-    const rd = C(P.road[2]); cx.fillStyle = rd; quad(a.x - a.w, a.y, a.x + a.w, a.y, b.x + b.w, yb, b.x - b.w, yb);
-    cx.fillStyle = C(P.kerb[2]); quad(a.x - a.w * OW, a.y, a.x - a.w, a.y, b.x - b.w, yb, b.x - b.w * OW, yb); quad(a.x + a.w, a.y, a.x + a.w * OW, a.y, b.x + b.w * OW, yb, b.x + b.w, yb);
-    cx.fillStyle = C(P.line); const e1 = a.w * .03, e2 = b.w * .03; quad(a.x - a.w - e1, a.y, a.x - a.w + e1, a.y, b.x - b.w + e2, yb, b.x - b.w - e2, yb); quad(a.x + a.w - e1, a.y, a.x + a.w + e1, a.y, b.x + b.w + e2, yb, b.x + b.w - e2, yb);
+    const i = s.index, P = palOf(i), thin = a.y - b.y < PX * .6, yb = b.y - 1, wet = wetAt(i); cP = P; cF = fog; cS = 0;
+    // a wet stretch (water carried in at the mouths, or seeping through the lining) is darker asphalt that mirrors the lamp row: each lamp's
+    // reflection is registered once with the engine's wet-road columns (addReflection, drawn after the road, shimmering; steady under reduced motion)
+    if(wet && s.twet === undefined && segs[i] === s){ s.twet = 1; const k = i % 320; if(i % 4 === 0 && k > 2 && k < 197) for(const sd of SX) addReflection(s, sd * .8, .07, .85, P.hot, .3, P.glow); }
+    const rd = C(P.road[wet ? 1 : 2]); cx.fillStyle = rd; quad(a.x - a.w, a.y, a.x + a.w, a.y, b.x + b.w, yb, b.x - b.w, yb);
+    // the inspection walkway: concrete, a joint every 4 rings, the light pooled on it under each lamp
+    cx.fillStyle = C(P.kerb[i % 4 === 0 ? 1 : lampAt(i) ? 3 : 2]); quad(a.x - a.w * OW, a.y, a.x - a.w, a.y, b.x - b.w, yb, b.x - b.w * OW, yb); quad(a.x + a.w, a.y, a.x + a.w * OW, a.y, b.x + b.w * OW, yb, b.x + b.w, yb);
+    // the drainage gutter at the walkway's foot: a dark slot, its grating catching the light every third ring
+    cx.fillStyle = C(i % 3 === 0 ? P.metal[1] : P.line); const e1 = a.w * .02, e2 = b.w * .02, g1 = a.w * .065, g2 = b.w * .065;
+    quad(a.x - a.w - g1, a.y, a.x - a.w + e1, a.y, b.x - b.w + e2, yb, b.x - b.w - g2, yb); quad(a.x + a.w - e1, a.y, a.x + a.w + g1, a.y, b.x + b.w + g2, yb, b.x + b.w - e2, yb);
     // far away a segment is under a pixel deep: the edge lines run on to the far end of the bore as steady one-pixel lines (poly: each pixel
     // row belongs to exactly one segment), mixed toward the road by how much of the pixel they cover; no pools (they would flicker row to row)
     const ec = C(P.id === 's' ? '#d8b070' : '#d8dce0');
@@ -325,11 +494,23 @@
       for(const lx of EDGE) poly(a.x + a.w * lx - l1, a.y, a.x + a.w * lx + l1, a.y, b.x + b.w * lx + l2, yb, b.x + b.w * lx - l2, yb, ed); return; }
     // the lamp pools: under a lamp ring and the one after it, a soft band along each side of the road (one tone up, then half a tone)
     const lp = lampAt(i) ? 1 : lampAt(i - 1) ? .5 : 0;
-    if(lp > 0){ cx.fillStyle = lp >= 1 ? C(P.road[3]) : mixc(rd, C(P.road[3]), .5); for(const sd of SX){ const o1 = .55, o2 = .92; quad(a.x + sd * a.w * o1, a.y, a.x + sd * a.w * o2, a.y, b.x + sd * b.w * o2, yb, b.x + sd * b.w * o1, yb); } }
+    if(lp > 0){ cx.fillStyle = wet ? (lp >= 1 ? C(P.road[4]) : C(P.road[2])) : lp >= 1 ? C(P.road[3]) : mixc(rd, C(P.road[3]), .5); for(const sd of SX){ const o1 = .55, o2 = .92; quad(a.x + sd * a.w * o1, a.y, a.x + sd * a.w * o2, a.y, b.x + sd * b.w * o2, yb, b.x + sd * b.w * o1, yb); } }
     // solid edge lines
     const l1 = Math.max(.6, a.w / 44), l2 = Math.max(.6, b.w / 44); cx.fillStyle = ec;
     for(const lx of EDGE) quad(a.x + a.w * lx - l1, a.y, a.x + a.w * lx + l1, a.y, b.x + b.w * lx + l2, yb, b.x + b.w * lx - l2, yb);
   }
+  // wet stretches in the bores: by both mouths (rain carried in on the tyres) and now and then a seep through the lining (a 14-ring block)
+  const wetAt = i => { if(TX_WET) return false; const k = i % 320; return k < 26 || k > 174 || (k > 30 && k < 170 && hash(Math.floor(i / 14) * 1.37) < .16); };
+  /* ---- the ground beside the road between the bores (gapviz: the bare ground showed from the kerb to the walls and shop fronts). In the
+     cutting, a concrete U-gutter by the kerb and an apron of slabs to the retaining wall's foot (the Tegata and Sekinotsu approaches); in the
+     street, kerb stones and a tiled pavement out under the shop fronts, a joint every 4 segments, lit where the street lamps stand. */
+  const OUTC = { pave:['#211f2a', '#2b2836', '#191720'], kerb:['#45435a', '#3a384c'], apron:['#2a2e40', '#30354a', '#1f2230'], slot:'#0a0b12' };
+  function outFX(s, a, b, fog, f){ if(TX_OUT) return; if(a.y - b.y < .5 || fog > .92) return; const L = LANDS[s.land]; if(!L || L.key !== 'tunnels' || (s.bm < 1 && s.bA !== s.bB)) return;
+    const i = s.index, cut = cutOf(i);
+    if(cut > 0){ const X = cutX(cut) + .25; if(fog < .35) sideQ(a, b, 1.1, 1.22, f(OUTC.slot)); sideQ(a, b, fog < .35 ? 1.22 : 1.1, X, f(OUTC.apron[i % 4 === 0 ? 2 : lit(i) > .5 ? 1 : 0])); return; }
+    if(fog < .35) sideQ(a, b, 1.1, 1.18, f(OUTC.kerb[i & 1])); sideQ(a, b, fog < .35 ? 1.18 : 1.1, 3.6, f(OUTC.pave[i % 4 === 0 ? 2 : lit(i) > .5 ? 1 : 0])); }
+  // a band x0..x1 (half-road widths) along the segment on both sides of the road
+  function sideQ(a, b, x0, x1, col){ const yb = b.y - 1; for(let sd = -1; sd <= 1; sd += 2){ const p = sd * x0, r = sd * x1; poly(a.x + a.w * p, a.y, a.x + a.w * r, a.y, b.x + b.w * r, yb, b.x + b.w * p, yb, col); } }
   // fills land on the pixel grid (the engine's poly: whole-pixel spans, shared edges tile exactly); a line narrower than a canvas pixel keeps
   // the antialiased path, so far away it reads as a faint tint instead of a 1-pixel line that blinks in and out
   function quad(x1, y1, x2, y2, x3, y3, x4, y4){ if(Math.abs(x2 - x1) >= PX) return poly(x1, y1, x2, y2, x3, y3, x4, y4, cx.fillStyle); cx.beginPath(); cx.moveTo(x1, y1); cx.lineTo(x2, y2); cx.lineTo(x3, y3); cx.lineTo(x4, y4); cx.closePath(); cx.fill(); }
@@ -521,8 +702,11 @@
   }
 
   // build every sprite and colour table up front so nothing is made mid-ride
-  function warm(){
-    for(const P of [SOD, LED]){ fanSprite(P); for(const key of ['ceil', 'wall', 'panel', 'kerb', 'road', 'metal']) for(const c of P[key]){ fc(P, c, 0); for(let cs = 1; cs < 6; cs++) fcc(P, c, cs, 0); } for(const c of [P.line, P.lamp, P.lane, '#3aff7a', '#d8b070', '#d8dce0']) fc(P, c, 0); }
+  // stepped (a lining LOD per step, each well under 8 ms): the material atlases first, then the colour tables and sprites
+  function* warmSteps(){ for(const P of [SOD, LED]) if(!ATW[P.id]) yield* buildMat(P); warm0(); }
+  function warm(){ for(const _ of warmSteps()); }
+  function warm0(){
+    for(const P of [SOD, LED]){ fanSprite(P); for(const key of ['ceil', 'wall', 'panel', 'kerb', 'road', 'metal']) for(const c of P[key]){ fc(P, c, 0); for(let cs = 1; cs < 6; cs++) fcc(P, c, cs, 0); } for(const c of [P.line, P.lamp, P.lane, '#3aff7a', '#d8b070', '#d8dce0', '#c8c8c0', '#c41e26']) fc(P, c, 0); for(const t of IT) if(t) for(const e of t) if(e[4][0] === '#'){ if(e[5] && !e[6]){ e[6] = hexMix(e[4], '#ffffff', .38); e[7] = hexMix(e[4], '#000000', .42); } fc(P, e[4], 0); if(e[6]){ fc(P, e[6], 0); fc(P, e[7], 0); } } }
     exitSprite(); exitNear(); sosSprite(); arrowSprite(true); arrowSprite(false);
     if(!GATL){ GATL = document.createElement('canvas'); GATL.width = 1024; GATL.height = 160; GSC = document.createElement('canvas'); GSC.width = GSC.height = 64; }   // the blade atlas (filled once the font is in)
     const txt = () => { buildGlyphs(); for(const z of TZ){ for(const n of NAMES){ textSprite(n, '#ffe2a8', z); textSprite(n, '#ffffff', z); } textSprite('全長 4 km', '#ffffff', z); textSprite('トンネル情報', '#ffb030', z); textSprite('点灯', '#ffb030', z); textSprite('点灯', '#14100a', z); } };
@@ -531,7 +715,7 @@
   // inside a bore the lane lines are solid no-overtaking lines (Japanese tunnels: no lane changes), amber under sodium, pale under LED: the
   // engine draws them through its lane path (laneMark), so they run to the far end of the bore like every road's dashes
   const laneSolid = s => palOf(s.index).lane;
-  ENV.tunnels = { warm, drawTunnel, roadFX, place, draw, lit, overlay, laneSolid, lampCol:'#8a5a2a', road:['#1e1c26', '#22202b'],
+  ENV.tunnels = { _mat:{ ATW, ATC }, warm, warmSteps, drawTunnel, roadFX, place, draw, lit, overlay, laneSolid, lampCol:'#8a5a2a', road:['#1e1c26', '#22202b'],
     /* the interchange jump (setpiece/jump.js, research/sundown-craft/jumpsides.md): the gap is a sunken expressway slot as wide as the
        road and its pavements, walled by the jump's parapets (a Shuto cutting between the blocks); both street rows carry on beside it. The
        alley signals hang their heads over the carriageway, which the ramp and the slot replace, so none stand along the jump. */

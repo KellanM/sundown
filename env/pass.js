@@ -285,6 +285,7 @@
   // the slope above the cut: summit height over the crest (x the cliff profile h, in half-road widths), smooth along the road
   const HD = 2.2, hillS = k => .5 + .8 * vn(k * .022 + 3.7) + .3 * vn(k * .061 + 9.1);
   const HILL = { d:'#071012', m:'#0b181b', l:'#112326', rims:['#1c3234', '#2c4648', '#456a6a', '#6a9294'] };
+  const HQ = [], hillTone = q => HQ[q] || (HQ[q] = [mixc(HILL.m, HILL.d, q / 4), mixc(HILL.m, HILL.l, q / 4)]);   // the slope's underside and lit top, q/4 of the way out of the mid tone
   // huge off-screen coordinates (slices right beside the camera) push the canvas onto its slow path renderer, so clamp them well outside the view
   const CL = (v, lo, hi) => v < lo ? lo : v > hi ? hi : v;
   function poly(x1, y1, x2, y2, x3, y3, x4, y4, col){ const a = -W, b = 2 * W, c = -H, d = 2 * H; window.poly(CL(x1, a, b), CL(y1, c, d), CL(x2, a, b), CL(y2, c, d), CL(x3, a, b), CL(y3, c, d), CL(x4, a, b), CL(y4, c, d), col); }
@@ -320,12 +321,15 @@
     // one continuous ridge that grows out of the shoulder where the cliff starts and sinks back where it ends. Shaded like the backdrop
     // ridges: a dark underside by the crest, a mid slope, a lit top and a moon rim along the skyline. Drawn at every distance (no pop).
     { const s1 = uw * hillS(k) * sh, s2 = u2 * hillS(k + n) * sh2, e1 = tx1 + side * uw * HD, e2 = tx2 + side * u2 * HD;
-      if(fog > .3) hillQ(tx1, ty1, tx2, ty2, e1, e2, s1, s2, 0, 1, HILL.m, fog, low); else { hillQ(tx1, ty1, tx2, ty2, e1, e2, s1, s2, 0, .3, HILL.d, fog, low); hillQ(tx1, ty1, tx2, ty2, e1, e2, s1, s2, .3, .74, HILL.m, fog, low); hillQ(tx1, ty1, tx2, ty2, e1, e2, s1, s2, .74, 1, HILL.l, fog, low); }
+      // (the dark underside and lit top grow out of the mid tone over fog .3 to .22 in four steps (hillTone), instead of switching on at once
+      // across the whole slope as each slice crossed fog .3: far slopes changed shade in blocks as you rode)
+      if(fog > .3) hillQ(tx1, ty1, tx2, ty2, e1, e2, s1, s2, 0, 1, HILL.m, fog, low); else { const T = hillTone(Math.min(4, Math.round((.3 - fog) * 50))); hillQ(tx1, ty1, tx2, ty2, e1, e2, s1, s2, 0, .3, T[0], fog, low); hillQ(tx1, ty1, tx2, ty2, e1, e2, s1, s2, .3, .74, HILL.m, fog, low); hillQ(tx1, ty1, tx2, ty2, e1, e2, s1, s2, .74, 1, T[1], fog, low); }
       if(fog < .7 && sh > .04){ const o1 = ty1 - s1, o2 = ty2 - s2, fall = Math.floor(clamp(1.15 - Math.abs((e1 + e2) / 2 - MOON.x) / (W * .55), 0, 1) * 3);
         const rc = fc(HILL.rims[fall], fog, low); poly(e1, o1, e2, o2, e2, o2 + PX, e1, o1 + PX, rc);
         // near by, the skyline breaks into cedar tips (two per segment, world-anchored): a forest edge, not a cut-out slab
-        if(fog < .14 && sh > .2){ const bc = fc(HILL.l, fog, low), m = n * 2;
-          for(let j = 0; j < m; j++){ const g = k * 2 + j, f = (j + .2 + .6 * hash(g * 1.9)) / m, u = uw + (u2 - uw) * f, th = u * (.1 + .16 * hash(g * 3.3)) * Math.min(1, sh * 1.5), tw = u * (.05 + .03 * hash(g * 5.7));
+        // (they grow out of the ridge over fog .14 to .1 (grow) instead of popping up at full height, a row of them at once, as a slice crossed .14)
+        if(fog < .14 && sh > .2){ const bc = fc(HILL.l, fog, low), m = n * 2, grow = Math.min(1, (.14 - fog) * 25);
+          for(let j = 0; j < m; j++){ const g = k * 2 + j, f = (j + .2 + .6 * hash(g * 1.9)) / m, u = uw + (u2 - uw) * f, th = u * (.1 + .16 * hash(g * 3.3)) * Math.min(1, sh * 1.5) * grow, tw = u * (.05 + .03 * hash(g * 5.7));
             if(th < PX * 3) continue; const ex = e1 + (e2 - e1) * f, ey = o1 + (o2 - o1) * f + PX;
             cx.fillStyle = bc; pxRect(ex - tw / 2, ey - th * .45, tw, th * .45); pxRect(ex - tw * .32, ey - th * .8, tw * .64, th * .35); pxRect(ex - tw * .14, ey - th, tw * .28, th * .2);
             cx.fillStyle = rc; pxRect(ex - tw * .14, ey - th, tw * .28, PX); } } } }

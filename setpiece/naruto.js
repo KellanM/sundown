@@ -427,8 +427,10 @@
     hits(){ let n = 0; for(const p of plans) n += p.hits; return n; },
     gust(){ const p = cur; return p ? gustAt(p, pSeg()) : 0; },
     // how wet the deck is at the rider (0..1): it wets as the rain comes and stays wet to the end of the event (env/shimanami.js wetK -> roadmat)
-    wet(){ const p = cur; if(!p) return 0; const s = pSeg() - p.B; return sm((s + PRE - 15) / 70) * (1 - sm((s - END + 50) / 60)); },
-    wetFX(s, n, r0, r1, RV, wet, T){ const p = cur; if(!p) return; wetDeck(p, s, n, r0, r1, RV, wet, T); },
+    wet(){ const p = cur; if(!p || MECH.sp_naruto.wetOff) return 0; const s = pSeg() - p.B; return sm((s + PRE - 15) / 70) * (1 - sm((s - END + 50) / 60)); },
+    _own(){ return OWN; },
+    wetOff:false,   // (tests: the water pass off, for A/B timing: no wet deck, flat flood sheets)
+    wetFX(s, n, r0, r1, RV, wet, T){ const p = cur; if(!p || MECH.sp_naruto.fxOff) return; wetDeck(p, s, n, r0, r1, RV, wet, T); },
     report(){ return plans.map(p => ({ B:p.B, off:p.off, hits:p.hits, hit:p.hz.filter(h => h.hit).map(h => h.id), gmax:+p.gmax.toFixed(3) })); },
     dbg(B){ const p = build(B); for(let j = B - PRE - 10; j <= B + END && j < segs.length; j++) if(segs[j]) segs[j].nrP = p; plans.push(p); return p; },
     warm(){ for(const N of DS) for(let f = 0; f < 4; f++) S['sp' + N + '_' + f] = spraySpr(N, f);
@@ -452,7 +454,7 @@
       if(play && X(B + T_CARD)) showCard();
       const I = stormI(p, ps);
       // the wet deck's puddles flare with the lightning: roadmat's sky sheen (the lit cloud deck in the water) for its strokes, in hard steps
-      { const R = MECH.roadmat && MECH.roadmat.RP && MECH.roadmat.RP.shimanami; if(R){ let fl = 0; for(const q of p.st){ const f = flashLv(q) * (q.k === 'far' ? .5 : 1); if(f > fl) fl = f; } R.sheen = .75 + (fl > .66 ? 1.1 : fl > .33 ? .6 : fl > .1 ? .25 : 0); } }
+      { const R = MECH.roadmat && MECH.roadmat.RP && MECH.roadmat.RP.shimanami; if(R){ let fl = 0; for(const q of p.st){ const f = flashLv(q) * (q.k === 'far' ? .5 : 1); if(f > fl) fl = f; } R.sheen = .95 + (fl > .66 ? 1.1 : fl > .33 ? .6 : fl > .1 ? .25 : 0); } }
       // strikes
       for(const q of p.st){ if(!X(q.at)) continue; q.t = Tg; const dist = Math.max(0, q.Z - ps), near = clamp(1.2 - dist / 300, .25, 1); thunder(near, q.k === 'far' ? 1.2 : clamp(dist / 220, .05, .9));
         if(q.k === 'gantry'){ p.gt.st = 1; p.gt.t = Tg; zap(); drops(q.Z, q.X, 1.5, reduce ? 6 : 22, .6, 1.2, 1); }
@@ -566,10 +568,12 @@
         for(let oy = -1; oy <= 1; oy++) for(let ox = -1; ox <= 1; ox++){ const cxg = ((gx + ox) % NPX + NPX) % NPX, cyg = ((gy + oy) % NPY + NPY) % NPY, k = cyg * NPX + cxg;
           const px = PXs[k] + (gx + ox - cxg) * cw, py = PYs[k] + (gy + oy - cyg) * ch, dx = wx - px, dy = (wy - py) * 2.6, d = Math.sqrt(dx * dx + dy * dy); if(d < f1){ f2 = f1; f1 = d; } else if(d < f2) f2 = d; }
         E[y * W0 + x] = f2 - f1; }
-      for(let dn = 0; dn < FT_ND; dn++){ const th = TH[dn], oy = (dn * FT_NF + f) * H0;
-        for(let y = 0; y < H0; y++) for(let x = 0; x < W0; x++){ const e = E[y * W0 + x], up = E[((y + H0 - 1) % H0) * W0 + x], dnn = E[((y + 1) % H0) * W0 + x], j = ((oy + y) * W0 + x) * 4;
+      for(let dn = 0; dn < FT_ND; dn++){ const oy = (dn * FT_NF + f) * H0;
+        // patchiness (lace is never even): a low, periodic field thickens the strands into rafts in places and frays them to nothing in others
+        const thA = (x, y) => { const lf = .5 + .28 * Math.sin(TAU * (x / W0 + y / H0 * 2) + .7) + .22 * Math.sin(TAU * (x / W0 * 3 - y / H0) + 2.1 + ph * .15); return TH[dn] * (.4 + 1.6 * lf * lf); };
+        for(let y = 0; y < H0; y++) for(let x = 0; x < W0; x++){ const th = thA(x, y), e = E[y * W0 + x], up = E[((y + H0 - 1) % H0) * W0 + x], dnn = E[((y + 1) % H0) * W0 + x], j = ((oy + y) * W0 + x) * 4;
           let c; const n = .5 + .3 * Math.sin(TAU * (x / W0 * 2 + y / H0)) + .2 * Math.sin(TAU * (y / H0 * 3 - x / W0 * 2));
-          if(e < th){ const m = 1 - e / th; c = up >= th ? F_HI : dnn >= th ? F_SH : m > .5 ? F_MD : F_LO; if(dn === 2 && c === F_MD) c = F_LO; }
+          if(e < th){ const m = 1 - e / th, thin = th < 4.6; c = up >= thA(x, y - 1) ? (thin ? F_LO : F_HI) : dnn >= thA(x, y + 1) ? F_SH : m > .5 ? F_MD : F_LO; if(dn === 2 && c === F_MD) c = F_LO; }
           else if(e < th + (dn === 0 ? 3 : 2.2)) c = (x + y) & 1 && dn < 2 ? SUBM : SUB2;   // submerged foam: a halo under the surface beside each strand
           else { c = WAT[Math.min(3, Math.floor(n * 4))]; if(HS(x * 7 + f, y * 13 + dn) < .006) c = GLT; }
           D[j] = c[0]; D[j + 1] = c[1]; D[j + 2] = c[2]; D[j + 3] = 255; } } }
@@ -583,15 +587,17 @@
   function foamRow(lv, dn, fr, u0, du, v, x0, x1, y){ const C = FTX[lv]; if(!C || x1 - x0 < .5) return; const tw = FT_W >> lv, th = FT_H >> lv, sy = (dn * FT_NF + fr) * th + (((v >> lv) % th) + th) % th;
     let u = ((u0 / (1 << lv)) % tw + tw) % tw, left = du / (1 << lv), x = x0; const k = (x1 - x0) / left;
     for(let g = 0; g < 4 && left > .01; g++){ const n = Math.min(left, tw - u), xe = g === 3 ? x1 : x + n * k; cx.drawImage(C, u, sy, Math.max(.01, n), 1, Math.round(x / PX) * PX, y, Math.max(PX, Math.round(xe / PX) * PX - Math.round(x / PX) * PX), PX); x = xe; left -= n; u = 0; } }
-  function flood(p, h, s, sx0, sy0, uw, fog, i){ const t = Tg - h.t, grow = sm(t / .35), a = s.p1.screen, b = s.p2.screen, sd = h.sd, T = Tg * (reduce ? .5 : 1);
+  const OWN = { wet:0, flood:0 };   // (tests: ms spent in the water pass's own hooks, summed)
+  function flood(p, h, s, sx0, sy0, uw, fog, i){ const t0 = performance.now(); try{ flood2(p, h, s, sx0, sy0, uw, fog, i); } finally { OWN.flood += performance.now() - t0; } }
+  function flood2(p, h, s, sx0, sy0, uw, fog, i){ const t = Tg - h.t, grow = sm(t / .35), a = s.p1.screen, b = s.p2.screen, sd = h.sd, T = Tg * (reduce ? .5 : 1);
     const xr = sd * 1.1, xi = sd > 0 ? h.x0 : h.x1, e0 = (i - (h.Z - 4)) / 8, taper = sm(Math.min(e0, 1 - e0) * 4);   // the sheet's ends taper along the road
     const wob = (k) => .05 * Math.sin(k * 1.7 + T * 5) + .03 * Math.sin(k * 4.1 - T * 7), xin0 = xr + (xi + wob(i) * -sd - xr) * grow * taper, xin1 = xr + (xi + wob(i + 1) * -sd - xr) * grow * taper;
     if(a.y - b.y >= .2 && Math.abs(xin0 - xr) > .02){
       const ax0 = a.x + a.w * xr, ax1 = a.x + a.w * xin0, bx0 = b.x + b.w * xr, bx1 = b.x + b.w * xin1;
-      if(!FTX.length || !(a.scale > 0) || !(b.scale > 0)){ poly(ax0, a.y, ax1, a.y, bx1, b.y, bx0, b.y, fc2('#1d3c50', fog)); }
+      if(!FTX.length || MECH.sp_naruto.wetOff || !(a.scale > 0) || !(b.scale > 0)){ poly(ax0, a.y, ax1, a.y, bx1, b.y, bx0, b.y, fc2('#1d3c50', fog)); }
       else { const sa = a.scale, sb = b.scale, dy = a.y - b.y, r0 = Math.max(0, Math.ceil(b.y / PX - .5)), r1 = Math.ceil(Math.min(a.y, H) / PX - .5) - 1;
         const fr = (reduce ? Math.floor(T * 2) : Math.floor(T * 7.5)) % FT_NF, flow = T * (reduce ? 20 : 52), fresh = t < 1.4 ? 0 : 1;   // fresh: white water for its first 1.4 s (as it is first read, far ahead), then lace
-        const cut = sd > 0 ? 1.1 - .3 : -1.1 + .3;   // the broken-wave band at the rail (dense), lace inside it
+        const cut = sd > 0 ? 1.1 - .42 : -1.1 + .42;   // the broken-wave band at the rail (dense), lace inside it
         for(let r = r0; r <= r1; r++){ const yc = (r + .5) * PX, f = (a.y - yc) / dy, sc = sa + (sb - sa) * f, tq = Math.min(1, Math.max(0, (sa / sc - 1) / (sa / sb - 1))), x = a.x + (b.x - a.x) * f, w = a.w + (b.w - a.w) * f; if(!(w > .5)) continue;
           const xin = xin0 + (xin1 - xin0) * tq, lo = Math.min(xr, xin), hi = Math.max(xr, xin); if(hi - lo < .01) continue;
           const du = FT_U / w, dv = FT_V * PX * sa * sb / (sc * sc * dy), lv = Math.min(FT_NL - 1, Math.max(0, Math.ceil(Math.log2(Math.max(du, dv, 1e-3)) - .3))), v = Math.floor((i + tq) * FT_V);
@@ -621,7 +627,8 @@
      torn off the deck running sideways downwind in 1-px streaks just over the surface (spindrift). World-anchored: each drop's place
      belongs to its segment and its cycle, so nothing crawls. Lightning whitens the rings for its strokes. Reduced motion: still rings, no
      spindrift. */
-  function wetDeck(p, s, n, r0, r1, RV, wet, Tm){ if(n > 34 || r1 < r0) return; const a = s.p1.screen, b = s.p2.screen, uw = a.w; if(!(uw > 4)) return;
+  function wetDeck(p, s, n, r0, r1, RV, wet, Tm){ if(n > 28 || r1 < r0) return; const t0 = performance.now(); try{ wetDeck2(p, s, n, r0, r1, RV, wet, Tm); } finally { OWN.wet += performance.now() - t0; } }
+  function wetDeck2(p, s, n, r0, r1, RV, wet, Tm){ const a = s.p1.screen, b = s.p2.screen, uw = a.w; if(!(uw > 4)) return;
     const ps = pSeg(), I = stormI(p, ps) * Math.min(1, wet * 1.4); if(I < .05) return; const i = s.index, rows = r1 - r0 + 1, segH = (a.y - b.y) / PX, now = Tg;
     let fl = 0; for(const q of p.st){ const f = flashLv(q) * (q.k === 'far' ? .4 : 1); if(f > fl) fl = f; }
     const g = cx, a0 = g.globalAlpha; g.globalCompositeOperation = 'lighter';
@@ -642,9 +649,11 @@
         g.globalAlpha = a0 * .32 * sp * I; g.fillRect(snp(x - (d > 0 ? L : 0)), r * PX - lift, Math.max(PX, snp(L)), PX); g.globalAlpha = a0 * .55 * sp * I; g.fillRect(snp(x - (d > 0 ? PX * 2 : -PX)), r * PX - lift, PX * 2, PX); } }
     g.globalAlpha = a0; g.globalCompositeOperation = 'source-over'; }
   // a ring on the water: the far arc bright, the near arc dim, the ends a pixel each (pixel-stepped half-ellipses, no allocation)
-  function ring(x, y, rx, ry, al, col){ const g = cx; g.fillStyle = col; const nseg = Math.min(14, Math.max(4, Math.round(rx / PX)));
-    for(let h = 0; h < 2; h++){ g.globalAlpha = al * (h ? .45 : 1); const sg = h ? 1 : -1; let px0 = 1e9, py0 = 1e9;
-      for(let k = 0; k <= nseg; k++){ const th = k / nseg * Math.PI, xx = snp(x - Math.cos(th) * rx), yy = snp(y + sg * Math.sin(th) * ry); if(xx === px0 && yy === py0) continue; px0 = xx; py0 = yy; g.fillRect(xx, yy, PX, PX); } } }
+  function ring(x, y, rx, ry, al, col){ const g = cx; g.fillStyle = col; const nseg = Math.min(24, Math.max(4, Math.round(rx * 1.3 / PX)));   // (enough steps that a wide ring stays a line, not dots)
+    for(let h = 0; h < 2; h++){ g.globalAlpha = al * (h ? .45 : 1); const sg = h ? 1 : -1; let rx0 = 0, rx1 = -1, ry0 = 1e9;   // (pixels on one row merge into one run: the flat top of a flattened ring is one rect)
+      for(let k = 0; k <= nseg; k++){ const th = k / nseg * Math.PI, xx = snp(x - Math.cos(th) * rx), yy = snp(y + sg * Math.sin(th) * ry);
+        if(yy === ry0 && xx <= rx1 + PX){ if(xx > rx1) rx1 = xx; continue; } if(rx1 >= rx0) g.fillRect(rx0, ry0, rx1 - rx0 + PX, PX); rx0 = xx; rx1 = xx; ry0 = yy; }
+      if(rx1 >= rx0) g.fillRect(rx0, ry0, rx1 - rx0 + PX, PX); } }
 
   // ---------------------------------------------------------------- the wind-warning gantry: standing, struck, fallen across the left lanes
   // Galvanised steel (light, so it reads on the dark deck), a truss beam, an LED board over the left lanes reading 強風 50 (amber).
