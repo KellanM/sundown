@@ -153,6 +153,7 @@ body:has(#attract) .home,body:has(#attract) .info{box-shadow:inset 2px 2px 0 #3a
 .bikezone .arr[data-step="1"]:hover img,.bikezone .arr[data-step="1"]:focus-visible img{animation:arrR .5s steps(1) infinite}
 @keyframes arrL{50%{transform:translateX(-4px)}} @keyframes arrR{50%{transform:translateX(4px)}}
 .attract .bikezone .arr:focus-visible{outline:none!important}
+#goBtn:focus,#goBtn:focus-visible{outline:none!important}   /* Kellan 2026-11-24: no gold box round PRESS START; it is the only start and any key starts, so its own lift-and-speed-lines idle is the cue */
 .rm .bikezone .arr img,.rm #optBtn img{animation:none!important;transform:none!important}
 .lcd{display:flex;justify-content:space-between;gap:12px;align-self:stretch;padding:5px 8px 4px;font-size:13px;line-height:1.2;color:#4ff0ff;text-shadow:1px 1px 0 #0a3a48;
   background:repeating-linear-gradient(rgba(79,240,255,.06) 0 1px,transparent 1px 3px),#081016;border:2px solid #000;box-shadow:inset 2px 2px 0 #02060a,0 1px 0 #f2f4fa}
@@ -3073,7 +3074,7 @@ if(!/[?&]con=off(&|$)/.test(location.search)){   /* Kellan 2026-11-23: the in-ga
    A new version downloads in the background and waits. It is applied only on the title (never mid-ride): by itself once
    the title has sat untouched for a few seconds, or at once when the player taps "Update ready". Tap the version to check now. */
 (() => {
-  const VER = 'v69 · c276e2', $id = (i) => document.getElementById(i);
+  const VER = 'v70 · bf2b17', $id = (i) => document.getElementById(i);
   const SDU = window.SDUPDATE = { version: VER, waiting: null, applied: false, checks: 0 };
   let reg = null, applying = false, asked = false, needReload = false, note = '', noteT = 0, lastInput = performance.now();
   ['keydown', 'pointerdown', 'touchstart', 'wheel'].forEach((t) => addEventListener(t, () => { lastInput = performance.now(); }, { capture: true, passive: true }));
@@ -3135,5 +3136,5 @@ if(!/[?&]con=off(&|$)/.test(location.search)){   /* Kellan 2026-11-23: the in-ga
   }, 1000);
 })();
 </script>
-<!-- __sdbuild:69 c276e2c5756c --></body>
+<!-- __sdbuild:70 bf2b176a9949 --></body>
 </html>
