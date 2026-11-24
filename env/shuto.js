@@ -817,7 +817,7 @@
     s.shK = kid; s.shM = Z.m; s.shA = Z.a; s.shRS = rs; s.shB = Z.B; s.shOpen = 0;
     sp.push({ env:KEY, type:'bw', x:0, k:i });
     // buildings: back rows, then street rows (nearer draws over)
-    for(const row of [2, 1, 0]) for(const side of [-1, 1]){ const B = bldAt(i, side, row); if(B) sp.push({ env:KEY, type:'bld', x:side * B.x0, k:i, b:B }); }
+    for(const row of [2, 1, 0]) for(const side of [-1, 1]){ if(row === 2 && AB_R2) continue; const B = bldAt(i, side, row); if(B) sp.push({ env:KEY, type:'bld', x:side * B.x0, k:i, b:B }); }
     // the deck: parapets each side, lamps, gantries
     s.shPK = 0; for(const side of [-1, 1]){ const kd = parKind(i, side, Z); if(kd === 'rail') s.shOpen |= side < 0 ? 1 : 2; s.shPK |= (kd === 'rail' ? 3 : kd === 'snd' ? 2 : 1) << (side < 0 ? 0 : 2);
       const o = { env:KEY, type:'par', x:side * PAR_X, k:i, s, side, kd };
@@ -851,22 +851,25 @@
   const ROOFC = ['#1a1822', '#201c28', '#17161f', '#1d1f27', '#231d22'], VOIDC = ['#0c0a12', '#0e0b14'];
   function bq(a, b, sd, X1, X2, col){ poly(a.x + sd * X1 * a.w, a.y, a.x + sd * X2 * a.w, a.y, b.x + sd * X2 * b.w, b.y, b.x + sd * X1 * b.w, b.y, col); }
   function belowDeck(s, a, b, fog, f, sd){ const i = s.index, XF = Math.max(60, W * 1.6 / Math.max(.5, b.w)), cl = Math.floor(i / 9), XV = 2.5;
-    if(fog > .16){ bq(a, b, sd, DECK_X, XF, f(ROOFC[Math.floor(hash(cl * 1.3 + sd) * 5)])); return; }
-    bq(a, b, sd, DECK_X, XV, f(VOIDC[(i >> 2) & 1]));   // the street below the deck's edge
+    const B0 = bldAt(i, sd, 0);   // (perf: behind a street-row building the ground plane is hidden from its face on: only the street below the deck is drawn)
+    if(B0){ bq(a, b, sd, DECK_X, B0.x0 + .05, f(fog > .16 ? '#0e0c14' : VOIDC[(i >> 2) & 1])); if(fog > .16 || !(i % 12 === 0 && a.w > 8)) return; }
+    else if(fog > .16){ bq(a, b, sd, DECK_X, XF, f(ROOFC[Math.floor(hash(cl * 1.3 + sd) * 5)])); return; }
+    else bq(a, b, sd, DECK_X, XV, f(VOIDC[(i >> 2) & 1]));   // the street below the deck's edge
     if(i % 12 === 0 && a.w > 8){ const lx = a.x + sd * 1.9 * a.w, sz = Math.max(PX, Math.min(PX * 2, snp(a.w * .025))); cx.fillStyle = f('#ffcf80'); pxRect(lx - sz / 2, a.y - sz, sz, sz); }   // its lamps, seen far below
+    if(B0) return;
     // the roofs: cells across, each its own tone, a parapet line on its near edge
     let X = XV; for(let k = 0; X < XF; k++){ const w = 2.2 + hash(cl * 3.7 + k * 1.9 + sd) * 2.4, X2 = Math.min(XF, X + w), hv = hash(cl * 5.1 + k * 2.3 + sd * 7);
       bq(a, b, sd, X, X2, f(ROOFC[Math.floor(hv * 5)]));
       if(fog < .06 && k < 6){ if(i % 9 === 0) bq(a, b, sd, X, X2, f('#2c2834'));   // the cell's parapet toward you
         bq(a, b, sd, X, X + .08, f('#2a2632'));
         if(hv > .7 && (i % 9) >= 3 && (i % 9) < 5) bq(a, b, sd, X + w * .3, X + w * .3 + .5, f(hv > .9 ? '#e8c890' : '#34303c')); }   // a plant box, or a lit stair hatch
-      X = X2; if(k > 14 || fog > .06 && k > 3){ if(X < XF) bq(a, b, sd, X, XF, f(ROOFC[Math.floor(hash(cl * 1.3 + sd) * 5)])); break; } } }
+      X = X2; if(k > 7 || fog > .06 && k > 2){ if(X < XF) bq(a, b, sd, X, XF, f(ROOFC[Math.floor(hash(cl * 1.3 + sd) * 5)])); break; } } }
   const RED = '#4e2624';
   function roadFX(s, a, b, fog, f, now){ if(a.y - b.y < .5) return;
     // the deck's margin beyond the road edge, out to the parapet foot (concrete, lit warm under the lamps)
     const mc = f(s.lit > .3 ? '#3a3238' : '#26252f');
     poly(a.x - a.w, a.y, a.x - a.w * DECK_X, a.y, b.x - b.w * DECK_X, b.y, b.x - b.w, b.y, mc); poly(a.x + a.w, a.y, a.x + a.w * DECK_X, a.y, b.x + b.w * DECK_X, b.y, b.x + b.w, b.y, mc);
-    belowDeck(s, a, b, fog, f, -1); belowDeck(s, a, b, fog, f, 1);
+    if(!AB_FL){ belowDeck(s, a, b, fog, f, -1); belowDeck(s, a, b, fog, f, 1); }
     // the red anti-skid paint on the sharp bends (and through the junction), eased in and out over the segments either side
     const c = Math.abs(s.curve), rw = s.shK === 1 && s.shM > 60 && s.shM < 140 ? 1 : clamp((c - 4.3) / .5, 0, 1);   // (only the sharpest bends: this road's curve scale runs to about 4.6)
     if(rw > .1){ const col = f(mixc(s.stripe ? '#26262f' : '#282832', RED, Math.round(rw * 4) / 4)); poly(a.x - a.w * .985, a.y, a.x + a.w * .985, a.y, b.x + b.w * .985, b.y, b.x - b.w * .985, b.y, col); }
@@ -961,7 +964,7 @@
     yield; }
 
   const FARPX = 4.5;   // the far/mid switch in storey px
-  const ABL = (new URLSearchParams(location.search).get('shutoabl') || '').split(','), AB_KB = ABL.includes('kb'), AB_RF = ABL.includes('roof'), AB_LN = ABL.includes('lines'), AB_IN = ABL.includes('int');   // dev: ?shutoabl=bld,par,... skips parts (perf ablation; read from the URL here: the engine's QS doesn't exist yet while env files load, so it never took effect)
+  const ABL = (new URLSearchParams(location.search).get('shutoabl') || '').split(','), AB_KB = ABL.includes('kb'), AB_RF = ABL.includes('roof'), AB_LN = ABL.includes('lines'), AB_IN = ABL.includes('int'), AB_R2 = ABL.includes('row2'), AB_FL = ABL.includes('floor');   // dev: ?shutoabl=bld,par,... skips parts (perf ablation; read from the URL here: the engine's QS doesn't exist yet while env files load, so it never took effect)
   function draw(sp, x, y, uw, fog, now, sk){ if(sk && sk.low) setLow(sk.low); if(ABL.length > 1 || ABL[0]) { if(ABL.includes(sp.type)) return; }
     switch(sp.type){
       case 'bw': if(HOST >= 0 && sp.k === HOST && BWF !== now){ BWF = now; // lift the engine's per-segment clip for the pass, then put it back as it was

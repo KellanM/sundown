@@ -358,12 +358,12 @@
     k.putImageData(img, 0, 0); GA2.ready = true; }
   const FACEK = ['kb', 'kd', 'mise', 'glass'];
   function* artSteps(){ if(GA2.ready) return; GPK.length = 0;
-    for(const rk of ROOMS) for(const lit of [1, 0]){ const Ls = roomLayers(rk, .3 + ROOMS.indexOf(rk) * .11); if(!lit) Ls.forEach(dimL); const C = aI(160, 36);
+    for(const rk of ROOMS) for(const lit of [1, 0]){ const Ls = roomLayers(rk, .3 + ROOMS.indexOf(rk) * .11); yield; if(!lit){ Ls.forEach(dimL); yield; } const C = aI(160, 36);   /* (a step each: build, dim, pack; each under ~8 ms) */
       for(let i = 0; i < C.c.length; i++) for(let k = 2; k >= 0; k--){ const c = Ls[k].c[i]; if(c){ C.c[i] = c; break; } }
       GA2.room[rk + lit] = { L:Ls.map(aPiece), C:aPiece(C) }; yield; }
     for(const fk of FACEK){ for(let nc = 0; nc < NOREN.length; nc++){ GA2.face[fk + nc + '1'] = aPiece(face(fk, NOREN[nc], true, .17 + nc * .23)); if(nc < 2) GA2.face[fk + nc + '0'] = aPiece(face(fk, NOREN[nc], false, .17 + nc * .23)); yield; } }
-    for(const uk of ['shoji', 'sudare']){ for(let f = 0; f < UPF; f++) GA2.up[uk + '1' + f] = aPiece(upperArt(uk, true, f, .37)); GA2.up[uk + '0'] = aPiece(upperArt(uk, false, 0, .37)); yield; }
-    GA2.up.mushi1 = aPiece(upperArt('mushi', true, 0, .51)); GA2.up.mushi0 = aPiece(upperArt('mushi', false, 0, .51)); GA2.up.koshi0 = aPiece(upperArt('koshi', false, 0, .61)); GA2.up.koshi1 = aPiece(upperArt('koshi', true, 0, .61)); yield;
+    for(const uk of ['shoji', 'sudare']){ for(let f = 0; f < UPF; f++){ GA2.up[uk + '1' + f] = aPiece(upperArt(uk, true, f, .37)); yield; } GA2.up[uk + '0'] = aPiece(upperArt(uk, false, 0, .37)); yield; }
+    GA2.up.mushi1 = aPiece(upperArt('mushi', true, 0, .51)); GA2.up.mushi0 = aPiece(upperArt('mushi', false, 0, .51)); yield; GA2.up.koshi0 = aPiece(upperArt('koshi', false, 0, .61)); GA2.up.koshi1 = aPiece(upperArt('koshi', true, 0, .61)); yield;
     for(let k = 0; k < KAN.length * 2; k++) GA2.kan.push(aPiece(kanArt(k))); GA2.sugi.push(aPiece(sugiArt(true)), aPiece(sugiArt(false)));
     for(const t of ['eave', 'ridge', 'stone', 'gable']) GA2.tex[t] = aPiece(texArt(t, .4)); yield;
     for(let q = 0; q < 3; q++) GA2.tex['shop' + q] = aPiece(texArt('shopwall', .3 + q * .27)); yield;

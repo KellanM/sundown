@@ -85,11 +85,18 @@
     const c = mk(8, 8), k = c.getContext('2d'); k.font = px + 'px DotGothic16, monospace'; c.width = Math.ceil(k.measureText(str).width) + 2; c.height = px + 4;
     k.font = px + 'px DotGothic16, monospace'; k.textBaseline = 'middle'; k.fillStyle = '#fff'; k.fillText(str, 1, c.height / 2);
     const im = k.getImageData(0, 0, c.width, c.height), d = im.data, th = px >= 16 ? 70 : 150; for(let n = 3; n < d.length; n += 4) d[n] = d[n] > th ? 255 : 0; k.putImageData(im, 0, 0); return TMK[key] = c; }   // (below its native size the font is cut harder, so strokes stay one pixel)
+  /* Tinted copies are kept (string -> size -> colour, nested maps, so a hit builds no key). Tinting the one scratch canvas every call
+     and drawing it straight back cost ~13 ms a frame for a single word (the tide gauge's 海面, measured 2026-11-24): the scratch is
+     redrawn and re-read by the GPU on every call. The colours are the fog steps of a few sign colours, so the set stays small; it is
+     emptied if it ever passes 600 (a long night's sky changes LOW and with it the fogged colours). */
+  const TTC = new Map(); let TTN = 0;
+  function tintText(m, str, px, col){ let a = TTC.get(str); if(!a){ a = new Map(); TTC.set(str, a); } let b = a.get(px); if(!b){ b = new Map(); a.set(px, b); } let t = b.get(col);
+    if(!t){ if(++TTN > 600){ TTC.clear(); TTN = 0; return null; } t = mk(m.width, m.height); const g = t.getContext('2d'); g.drawImage(m, 0, 0); g.globalCompositeOperation = 'source-in'; g.fillStyle = col; g.fillRect(0, 0, m.width, m.height); b.set(col, t); }
+    return t; }
   function liveText(str, x, yMid, maxW, maxH, col){ if(!TSC) return false;
-    for(const px of TSZ){ const m = textMask(str, px); if(!m) return false; const fit = Math.min(maxW / m.width, maxH / (m.height - 4)); if(fit < PX) continue;
-      const s = px === 16 ? Math.floor(fit / PX) * PX : PX, w = m.width, h = m.height; if(w > TSC.width || h > TSC.height) return false;
-      const g = TSC.getContext('2d'); g.clearRect(0, 0, w, h); g.globalCompositeOperation = 'source-over'; g.drawImage(m, 0, 0); g.globalCompositeOperation = 'source-in'; g.fillStyle = col; g.fillRect(0, 0, w, h); g.globalCompositeOperation = 'source-over';
-      cx.imageSmoothingEnabled = false; cx.drawImage(TSC, 0, 0, w, h, Math.round((x - w * s / 2) / PX) * PX, Math.round((yMid - h * s / 2) / PX) * PX, w * s, h * s); return true; }
+    for(let n = 0; n < TSZ.length; n++){ const px = TSZ[n], m = textMask(str, px); if(!m) return false; const fit = Math.min(maxW / m.width, maxH / (m.height - 4)); if(fit < PX) continue;
+      const s = px === 16 ? Math.floor(fit / PX) * PX : PX, w = m.width, h = m.height, t = tintText(m, str, px, col); if(!t) return false;
+      cx.imageSmoothingEnabled = false; cx.drawImage(t, 0, 0, w, h, Math.round((x - w * s / 2) / PX) * PX, Math.round((yMid - h * s / 2) / PX) * PX, w * s, h * s); return true; }
     return false; }
   const blitW = (c, x, yMid, w) => { const sc = w / c.width; blit(c, x, yMid + c.height * sc / 2, sc); };
   const gl = (x, y, r, col, a) => { if(a <= .01 || x + r < 0 || x - r > W || y + r < 0 || y - r > H) return; glow(x, y, Math.min(r, H * .3), col, a); };
@@ -777,9 +784,9 @@
     const i = sp.k, k = i % 320, a = s.p1.screen, b = s.p2.screen, f = H / (ROADW * W), kA = a.w * f, kB = b.w * f;
     const sA = a.y - (s.aqD1 || 0) * kA, sB = b.y - (s.aqD2 || 0) * kB, hA = wallH(s.aqD1 || 0), hB = wallH(s.aqD2 || 0), cA = a.y - hA * kA, cB = b.y - hB * kB;
     const camY = s.p1.world.y - s.p1.camera.y, above = camY > s.aqS1 + 30, ld = lampD(i), wc = wallC()[ld === 0 ? 3 : ld === 1 ? 2 : ld === 2 ? 1 : 0];
-    const __tw = performance.now(); const wA = wallX(s, 0), wB = wallX(s, 1);   // the walls' line: RAIL out on the ramp, flaring to the box's walls at a mouth
+    const wA = wallX(s, 0), wB = wallX(s, 1);   // the walls' line: RAIL out on the ramp, flaring to the box's walls at a mouth
     // the sea, seen over the walls while your eye is above it
-    const __ts = performance.now(); if(above && sA - sB > -PX) seaBand(i, k, sA, sB - 1, a, b, fog, now, Math.max(DECK, wA + .06)); if(window.__aqT) window.__aqT.sea = (window.__aqT.sea || 0) + performance.now() - __ts;
+    if(above && sA - sB > -PX) seaBand(i, k, sA, sB - 1, a, b, fog, now, Math.max(DECK, wA + .06));
     const swell = v => reduce ? 80 : 50 + 170 * Math.max(0, Math.sin(v * .45 - now / 2600)) * (.6 + .4 * H0(v * .7));
     for(let sd = -1; sd <= 1; sd += 2){ const xa = a.x + sd * a.w * wA, xb = b.x + sd * b.w * wB, oa = a.x + sd * a.w * Math.max(DECK, wA + .06), ob = b.x + sd * b.w * Math.max(DECK, wB + .06);
       // where the walls flare out past the deck: the walkway between the deck's edge and the wall's foot (else the ground showed there)
@@ -788,12 +795,12 @@
       // foam where the sea laps the wall (only seen from above it), shifting slowly
       if(above && fog < .85){ const fo = (i + (reduce ? 0 : Math.floor(now / 700))) % 3; if(fo) poly(oa, sA + 1, oa + sd * a.w * (fo === 1 ? .1 : .05), sA + 1, ob + sd * b.w * (fo === 1 ? .06 : .1), sB, ob, sB, fc(fo === 1 ? '#8ab8c8' : '#4a7a90', fog)); }
       // a swell crest showing just behind the coping (over the wall top once your eye is below the sea)
-      if(fog < .8 && (s.aqD1 || s.aqD2)){ const wA = swell(i) * kA, wB = swell(i + 1) * kB; poly(oa, cA, oa, cA - wA, ob, cB - wB, ob, cB, fc('#0e2a3e', fog));
+      if(fog < .8 && (s.aqD1 || s.aqD2) && a.w > W * .012){ const wA = swell(i) * kA, wB = swell(i + 1) * kB;   // (LOD: under ~15 px a half-width the crest is a pixel or two) poly(oa, cA, oa, cA - wA, ob, cB - wB, ob, cB, fc('#0e2a3e', fog));
         if(wA > PX * .6) poly(oa, cA - wA, oa, cA - wA - Math.max(PX * 2, wA * .3), ob, cB - wB - Math.max(PX * 1.2, wB * .3), ob, cB - wB, fc('#bfe2ee', fog)); }
       // the coping's top, then the face: base kerb, concrete, a wet band under the lip, the pale lip
       poly(xa, cA, oa, cA, ob, cB, xb, cB, fc(wc.top, fog));
       const band = (h0, h1, col) => poly(xa, a.y - h0(hA) * kA, xa, a.y - h1(hA) * kA, xb, b.y - h1(hB) * kB, xb, b.y - h0(hB) * kB, col);
-      if(fog > .6) band(() => 0, h => h, fc(wc.face, fog));
+      if(fog > .6 || a.w < W * .03) band(() => 0, h => h, fc(fog > .6 ? wc.face : wc.face, fog));   // (LOD: far, one band; its four would each be a row or two)
       else { band(() => 0, () => 60, fc('#1e2430', fog)); band(() => 60, h => h - 150, fc(wc.face, fog)); band(h => h - 150, h => h - 45, fc('#2c3646', fog)); band(h => h - 45, h => h, fc(wc.lip, fog));
         // panel joints, and a row of cyan delineators leading into the portal
         if(uw > W * .04 && i % 3 === 0){ cx.fillStyle = fc('#323a4c', fog); pxRect(q(xa), q(cA + 45 * kA), PX, q((hA - 105) * kA)); }
@@ -803,7 +810,6 @@
       if(fog <= .8){ const gA = a.w * .08, gB = b.w * .08, t = Math.max(PX * .7, a.w * .014), ft = Math.max(PX * .4, b.w * .014);
         poly(xa, cA - gA, xa, cA - gA - t, xb, cB - gB - ft, xb, cB - gB, fc(wc.rail, fog));
         if(i % 4 === 0){ cx.fillStyle = fc('#4a5468', fog); pxRect(Math.round(xa), cA - gA, Math.max(PX * .7, a.w * .014), gA); } } }
-    if(window.__aqT) window.__aqT.walls = (window.__aqT.walls || 0) + performance.now() - __tw; const __tl = performance.now();
     // sodium lamps on the wall faces (the cutting has no poles, so the sky over the walls stays open), the sea's glitter and spray
     if(i % LAMP === 4 && fog < .9) for(const sd of [-1, 1]){ const lx = a.x + sd * a.w * (wA - .01), ly = a.y - Math.min(hA - 120, 900) * kA, lw = Math.max(PX, q(uw * .09)), lh = Math.max(PX, q(uw * .035));
       cx.fillStyle = fc('#0e1220', fog); pxRect(q(lx - (sd > 0 ? lw : 0)) - PX, q(ly) - PX, lw + PX * 2, lh + PX * 2); cx.fillStyle = '#ffd890'; pxRect(q(lx - (sd > 0 ? lw : 0)), q(ly + lh * .4), lw, Math.max(PX, q(lh * .6)));
@@ -814,14 +820,13 @@
       // spray: now and then a wave bursts on the outer face and its spray stands over the coping for a moment
       if(!reduce && (s.aqD1 || 0) > 300 && uw > W * .03 && uw < W * .9){ const T = now / 1700, slot = Math.floor(T), t = T - slot; if(H0(i * 3.31 + slot * 7.13 + sd * 1.7) < .045){ const hh = Math.sin(t * Math.PI) * 420 * kA, wd = a.w * .22, cs = fc('#cfe6f0', fog), cs2 = fc('#7aa8bc', fog);
           for(let c = 0; c < 5; c++){ const px0 = q(oa - sd * a.w * .04 + sd * (c - 1) * wd / 4), top = Math.max(-PX * 2, q(cA - hh * (.55 + .45 * H0(c * 3.1 + i)))); const c0 = q(cA); for(let j = 1, yy = c0 - PX * 2; yy >= top; j++, yy -= PX * 2){ if(yy >= H) continue; cx.fillStyle = (yy - top) < hh * .3 ? cs : cs2; pxRect(px0 + (j & 1) * PX, yy, PX, PX); }   /* rows fixed to the coping: the plume grows and falls, its dots never jitter */ } } } }
-    if(window.__aqT) window.__aqT.lamps = (window.__aqT.lamps || 0) + performance.now() - __tl;
     // a tide gauge on the left wall near the portal: red and white staff, the sea-level mark lit level with the water outside
     if(k === 300 && uw > W * .03 && fog < .7){ const gx = a.x - a.w * (wA - .03), gw = Math.max(PX * 2, q(uw * .07)), st = 200;
       for(let h = 0; h < hA - 60; h += st){ cx.fillStyle = fc((h / st) % 2 ? '#e8e4dc' : '#c82a2a', fog); pxRect(q(gx), q(a.y - (h + st) * kA), gw, Math.max(PX, q(st * kA))); }
       cx.fillStyle = '#7af0ff'; pxRect(q(gx - gw), q(sA), gw * 3, PX); gl(gx, sA, uw * .2, '#4ad8ff', .25 * (1 - fog));
       if(uw > W * .1 && uw < W * .35) liveText('海面', gx + gw * 2.6, sA - uw * .05, uw * .25, uw * .09, fc('#c8f4ff', fog)); }
     // the approach's furniture, counted from the portal: the PA ramp's flyover crossing the cutting, then the signal gantry
-    const __t0 = performance.now(); const dP = portalDist(s); if(dP === FLY_D) drawFly(s, a, b, cA, fog, now); else if(dP === GAN_D) drawGantry(a, wA, fog, now); if(window.__aqT) window.__aqT.furn = (window.__aqT.furn || 0) + performance.now() - __t0; }
+    const dP = portalDist(s); if(dP === FLY_D) drawFly(s, a, b, cA, fog, now); else if(dP === GAN_D) drawGantry(a, wA, fog, now); }
 
   // ---- the approach to a portal (r6: the lane signals and message boards on a gantry before the mouth; r21 at night: the PA ramp's flyover
   // with its warm light strip crossing the main line). Both stand in the cutting, drawn by its segment after its walls, world-anchored.

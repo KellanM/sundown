@@ -747,6 +747,13 @@
   // a colour sunk toward the night's ink, cached (one map per amount): the slices ask for these every frame
   const DKQ = new Map(); function dkc(c, t){ let m = DKQ.get(t); if(!m){ m = new Map(); DKQ.set(t, m); } let v = m.get(c); if(v === undefined){ v = mixc(c, '#05070c', t); m.set(c, v); } return v; }
   const BSPAN = f => f > .45 ? 8 : f > .26 ? 6 : f > .14 ? 4 : f > .05 ? 2 : 1;
+  /* Span LOD without holes (the scheme of env/snow.js and env/pass.js, after the hills agent's RCA, 2026-11-24): every segment's span comes
+     from its own distance (b0, the camera's segment, recovered from this segment's fog); a slice starts where its own span divides its place
+     in the run and runs on to the next start. It used to run to the next multiple of the start's own span: where the tiers change, a nearer
+     start's short span stopped one to four segments before the next start, and that gap in the buildings and racks slid with the camera.
+     Returns the slice's length in segments, or 0 if this segment is not a start. */
+  function spanRun(sp, fog){ const i = sp.k, b0 = i - Math.round(DRAW_N * Math.pow(fog, 1 / 1.6)), at = j => BSPAN(clamp(Math.pow((j - b0) / DRAW_N, 1.6), 0, 1)), end = sp.b0 + sp.len;
+    if((i - sp.b0) % at(i)) return 0; let e = i + 1; while(e < i + 8 && e < end && (e - sp.b0) % at(e)) e++; return Math.min(e, end) - i; }
   // a point at lateral offset L (half-road widths, outward from the road centre) and height h, a fraction t along a slice
   let SX0 = 0, SY0 = 0, SU0 = 0, SX1 = 0, SY1 = 0, SU1 = 0, SSD = 1;
   const px_ = (L, h, t) => SX0 + (SX1 - SX0) * t + SSD * L * (SU0 + (SU1 - SU0) * t), py_ = (L, h, t) => SY0 + (SY1 - SY0) * t - h * (SU0 + (SU1 - SU0) * t), pu_ = t => SU0 + (SU1 - SU0) * t;
@@ -885,7 +892,7 @@
   // far buildings fade out over the last tenth before their limit (no pop), then are left to the backdrop's farm band
   function bldSlice(sp, x, y, uw, fog, now){ const lim = .55; if(fog > lim) return; const a0 = cx.globalAlpha; if(fog > lim - .1) cx.globalAlpha = a0 * (lim - fog) / .1; bldSlice0(sp, x, y, uw, fog, now); cx.globalAlpha = a0; }
   function bldSlice0(sp, x, y, uw, fog, now){
-    const i = sp.k, rel = i - sp.b0, n = BSPAN(fog); if(rel % n) return; const m = Math.min(n, sp.b0 + sp.len - i), t = segs[i + m - 1]; if(!t || !t.p2.screen.w) return;
+    const i = sp.k, rel = i - sp.b0, m = spanRun(sp, fog), n = BSPAN(fog); if(!m) return; const t = segs[i + m - 1]; if(!t || !t.p2.screen.w) return;
     const B = sp.kind === 0 && hash(sp.n * 2.71 + .3) < .45 ? BKT : BK[sp.kind], sd = sp.side, X = sp.X, p = t.p2.screen; BLM = m; MA = clamp(1 - (fog - .06) * 7, 0, 1); MU0 = rel + (sp.n * 5) % 16; SSD = sd; SX0 = x - sp.x * uw; SY0 = y; SU0 = uw; SX1 = p.x; SY1 = p.y; SU1 = p.w;
     const xa = px_(X - .7, 0, 0), xb = px_(X, 0, 1), xe = px_(X + B.D, 0, 0); if(Math.max(xa, xb, xe) < -PX || Math.min(xa, xb, xe) > W + PX) return;
     const F = c => fc(c, fog), near = fog < .1 && n === 1, mid = fog < .3, lit = hash(sp.n * 7.7) > .2, rid = X + B.D / 2, eL = X - B.ov, last = rel + m >= sp.len;
@@ -1073,7 +1080,7 @@
   function warmSigns(){ const go = () => { makeSign('農業倉庫', '#f4f8f0'); makeSign('いなだ', '#14181e'); }; go(); try{ document.fonts.load('16px DotGothic16').then(go, go); }catch(e){} }
 
   // hasa-kake: a drying rack of poles on a ridge parallel to the road, three rails, a few sheaves of last year's straw left hanging
-  function rackSlice(sp, x, y, uw, fog, now){ const i = sp.k, rel = i - sp.b0, n = BSPAN(fog); if(rel % n) return; const m = Math.min(n, sp.b0 + sp.len - i), t = segs[i + m - 1]; if(!t || !t.p2.screen.w) return;
+  function rackSlice(sp, x, y, uw, fog, now){ const i = sp.k, rel = i - sp.b0, m = spanRun(sp, fog); if(!m) return; const t = segs[i + m - 1]; if(!t || !t.p2.screen.w) return;
     const p = t.p2.screen, X = sp.X; SSD = sp.side; SX0 = x - sp.x * uw; SY0 = y; SU0 = uw; SX1 = p.x; SY1 = p.y; SU1 = p.w; const F = c => fc(c, fog);
     if(Math.max(px_(X, 0, 0), px_(X, 0, 1)) < -PX || Math.min(px_(X, 0, 0), px_(X, 0, 1)) > W + PX) return;
     for(const h of [.3, .5, .7]) BQ(X, h, X, h + .02, 0, 1, F('#2a2420'));
