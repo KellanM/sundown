@@ -137,8 +137,8 @@
   /* The rows (2026-11-24, Kellan: "we want to make it so the buildings look layered and you can't see the ground texture"): the street
      row and the back row keep their approved rhythm, and a deep row of mid-rise blocks (row 2) runs unbroken behind them, so every gap
      between near buildings opens onto deeper buildings, and below them onto the street and the low roofs (belowDeck), never onto ground
-     (the C1 from its deck at night: Route 5 / Ginza / Kyobashi photos, a carpet of blocks with no street showing). Measured: an
-     abutting street row cost 3x the street row's fills (+12k canvas ops a frame) for no gain once the floor covers the ground. */
+     (the C1 from its deck at night: Route 5 / Ginza / Kyobashi photos, a carpet of blocks with no street showing). (An abutting street
+     row was tried and dropped: once the floor covers the ground plane it adds cost without hiding anything more.) */
   const RUN2 = new Map();
   function runAt(i, side, row){ const per = row === 2 ? 40 : row ? 46 : 34, c = Math.floor(i / per), h = k => hash(c * 7.31 + side * 13.7 + row * 31.1 + k);
     if(row === 0){ const L = run0(c, side); for(let q = 0; q < L.length; q++){ const r = L[q]; if(i >= r.b0 && i < r.b0 + r.len) return r; } return null; }
@@ -312,7 +312,7 @@
   let BCUR = 0, BHV = 0, BFCOL = '';
   function bandB(a, b, col){ if(b > BHV) b = BHV; if(b <= a) return; if(a > BCUR) FQ(BCUR, a, BFCOL); FQ(a, b, col); BCUR = b; }
   function flushB(f0, st0, f1, S, wb0, wb1){ if(st0 > 0 && f0 >= 0){ const col = st0 === 1 ? S.lit[0] : st0 === 2 ? S.warm : S.dim; bandB(f0 * FH + wb0, (f1 - 1) * FH + wb1, F0(col)); } }   // a run of same-state floors f0..f1 as one band
-  function drawBld(sp, x, y, uw, fog, now){ const B = sp.b, j = sp.k, end = B.b0 + B.len, n = spanOf(j, B.b0, end, fog, B.deep ? 8 : 1);   // (the deep row, seen only through gaps, never slices finer than 8 segments) if(!n) return; if(hidden(B, j, n)) return;
+  function drawBld(sp, x, y, uw, fog, now){ const B = sp.b, j = sp.k, end = B.b0 + B.len, n = spanOf(j, B.b0, end, fog, B.deep ? 16 : 1); if(!n) return; if(hidden(B, j, n)) return;   // (the deep row, seen only through gaps, never slices finer than 16 segments)
     FX1 = x; FY1 = y; FU1 = uw; if(!farEnd(j, n, sp.x)) return; KBD = -1;
     if(B.side < 0 ? Math.max(FX1, FX2) < -PX * 2 : Math.min(FX1, FX2) > W + PX * 2){ if(B.kbs.length) kbSlice(B, j, n, fog, now); if(!(j === B.b0)) return; KBD = j; }   // beside the camera, off the screen edge (its signs and the end wall may still show)
     const S = B.S, K = B.k, side = B.side, fq = fog; FF = fq; const F = F0;
@@ -327,7 +327,7 @@
     if(K === 'capsule' && !far) capFace(B, j, n, nf, hv, F, fpx);
     else if(far){   // far: the lit floors only, runs of the same state merged into one band
       let f0 = -1, st0 = -1;
-      const merge = fpx < 2.5 || lo && fpx < 4 || B.deep; for(let f = 0; f < nf; f++){ let st = floorState(B, f, sec); if(merge && st > 0 && st0 > 0) st = st0; if(st !== st0 || (st > 0 && !merge)){ flushB(f0, st0, f, S, wb0, wb1); f0 = f; st0 = st; } }
+      const merge = fpx < 2.5 || lo && fpx < 8 || B.deep; for(let f = 0; f < nf; f++){ let st = floorState(B, f, sec); if(merge && st > 0 && st0 > 0) st = st0; if(st !== st0 || (st > 0 && !merge)){ flushB(f0, st0, f, S, wb0, wb1); f0 = f; st0 = st; } }   // (perf 2026-11-24: the back rows merge their lit runs up to 8 px storeys)
       flushB(f0, st0, nf, S, wb0, wb1); if(BCUR < hv) FQ(BCUR, hv, fcol); }
     else {
       const near = fpx >= 15 && n === 1, mid = fpx >= 7, P = B.P, b0 = B.b0, ba = Math.floor((j - b0) / P), bz = Math.floor((j + n - 1 - b0) / P);   // the bays this slice crosses
@@ -359,7 +359,7 @@
     // roof: cornice, the roof clutter, a lit crown, aviation lights, a billboard
     if(hv >= B.h){ const h = B.h; FQ(h - .06, h, F(S.face[2]));
       if(B.crown){ FQ(h - .45, h - .06, F(B.ph < .5 ? '#cfe2ff' : '#ffe6c4')); FQ(h, h + .4, F(S.face[0])); FQ(h + .36, h + .4, F('#9ab8e0')); }   // a glass tower's crown: its top floor lit, the screen wall above
-      if(B.roof.length && !AB_RF) roofItems(B, j, n, h, fog, now, F, fpx);
+      if(B.roof.length && !AB_RF && !(B.deep && fpx < 3)) roofItems(B, j, n, h, fog, now, F, fpx);
       if(B.av && fog < .92){ const on = reduce || ((now / 1000) * .55 + B.ph) % 1 < .55, a = on ? 1 : .18, hc = h + (B.crown ? .4 : 0);
         for(let ei = 0; ei < 2; ei++){ const e = ei ? end - 1 : B.b0; if(!(e >= j && e < j + n)) continue; const [px, py, u] = fpt((e - j + (e === B.b0 ? .1 : .9)) / n, hc + (lo ? 0 : .08)), s = Math.max(PX, Math.min(PX * 2, snp(u * .05)));
           R(px - s / 2, py - s, s, s, on ? AVL : '#5a1414'); if(on && fog < .45 && u > 6) glow(px, py - s / 2, Math.min(H * .05, Math.max(PX * 2.5, u * .35)), '#ff2020', .5 * a * (1 - fog * .5)); } }
@@ -847,10 +847,16 @@
      row, the street far below the deck's edge: a dark slot with its lamps; beyond it the flat roofs of the low blocks between the rows, in
      world-anchored cells (9 segments by ~3 half-road widths) of five roof tones, their parapet lines, plant boxes and a lit stair hatch
      now and then, all coarser with distance (one band per side far away). On an open side the view down is drawn over it. */
+  let EYE = .3;   // the camera's height over the deck in prop units (half-road widths), measured each frame in backdrop()
   const ROOFC = ['#1a1822', '#201c28', '#17161f', '#1d1f27', '#231d22'], VOIDC = ['#0c0a12', '#0e0b14'];
   function bq(a, b, sd, X1, X2, col){ poly(a.x + sd * X1 * a.w, a.y, a.x + sd * X2 * a.w, a.y, b.x + sd * X2 * b.w, b.y, b.x + sd * X1 * b.w, b.y, col); }
   function belowDeck(s, a, b, fog, f, sd){ const i = s.index, XF = Math.max(60, W * 1.6 / Math.max(.5, b.w)), cl = Math.floor(i / 9), XV = 2.5;
-    const B0 = bldAt(i, sd, 0);   // (perf: behind a street-row building the ground plane is hidden from its face on: only the street below the deck is drawn)
+    // (perf) the parapet hides the ground plane out to Xh (the eye's ray over its top; the eye height EYE is measured each frame: low at
+    // desktop, high in portrait). The band just behind the parapet is always drawn (the parapet's slices leave pixel seams, which must show
+    // the street's dark, not ground); the roofs beyond are drawn only where the eye can reach them
+    const pk = sd < 0 ? s.shPK & 3 : s.shPK >> 2, ph = pk === 2 ? PH.snd : pk === 3 ? PH.rail : PH.con, Xh = s.shPK === undefined ? 0 : EYE > ph + .01 ? PAR_X * EYE / (EYE - ph) * .9 : 1e9;
+    const B0 = bldAt(i, sd, 0);   // (behind a street-row building the ground plane is hidden from its face on: only the street below the deck is drawn)
+    if(!B0 && Xh >= XF){ bq(a, b, sd, DECK_X, XF, f(fog > .16 ? '#0e0c14' : VOIDC[(i >> 2) & 1])); return; }   // all hidden but the parapet's seams: one band
     if(B0){ bq(a, b, sd, DECK_X, B0.x0 + .05, f(fog > .16 ? '#0e0c14' : VOIDC[(i >> 2) & 1])); if(fog > .16 || !(i % 12 === 0 && a.w > 8)) return; }
     else if(fog > .16){ bq(a, b, sd, DECK_X, XF, f(ROOFC[Math.floor(hash(cl * 1.3 + sd) * 5)])); return; }
     else bq(a, b, sd, DECK_X, XV, f(VOIDC[(i >> 2) & 1]));   // the street below the deck's edge
@@ -986,7 +992,7 @@
     lit,
     draw,
     roadFX,
-    backdrop(o){ if(!ABL.includes('sky')) backdrop(o); if(FR !== DRAWN){ FR = DRAWN; hostPrep(); } },
+    backdrop(o){ if(!ABL.includes('sky')) backdrop(o); if(FR !== DRAWN){ FR = DRAWN; hostPrep(); const e = segs[segAt(position).index + 40]; if(e && e.p1.screen.w) EYE = Math.max(.05, (e.p1.screen.y - HZ) / e.p1.screen.w); } },
     overlay,
     // for setpiece/screenfall.js and tests
     zoneAt, claim, bldAt, mkBld, riverSide, wetVisit, DBG, PANELS, SIGN, face, FQ, fpt, FPT, fc, KBT, KBC, _parSpan:parSpan

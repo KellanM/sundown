@@ -66,7 +66,7 @@ const ROADS = {
   harbour:{ mat:'asphalt', str:.9, wet:.3, sheen:.35, marks:'expressway', speed:60 },
   bay:{ mat:'concrete', str:.9, wet:1, sheen:.55, road:['#1a1e30', '#1c2134'], marks:'expressway', speed:60 },
   neon:{ mat:'wet', str:1, wet:1, sheen:.6, refl:.7, tails:true, sheenCol:'#7a3a8a', marks:'city', speed:40 },
-  tunnels:{ mat:'asphalt', str:.85, marks:'rural', speed:60 },
+  tunnels:{ mat:'asphalt', str:.85, marks:'rural', speed:60, tunnel:true },   // (in the bores too: tyre polish, patches, cracks, seams; no sheen there: the bores' wet stretches and lamp reflections are env/tunnels.js's own)
   pass:{ mat:'asphalt', str:1.05, marks:'rural', speed:40 },
   refinery:{ mat:'asphalt', str:1, wet:.35, sheen:.4, sheenCol:'#8a5a3a', marks:'none' },
   coast:{ mat:'sand', str:1, marks:'rural', speed:50 },

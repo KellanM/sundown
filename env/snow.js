@@ -560,6 +560,21 @@
       else { const t = (R0 - ra) / (rb - ra), yc = ay + (by - ay) * t; if(ra > R0){ cx.moveTo(R0, yc); cx.lineTo(Math.max(rb, L0), by); cx.lineTo(R0, by); } else { cx.moveTo(R0, ay); cx.lineTo(Math.max(ra, L0), ay); cx.lineTo(R0, yc); } } cx.closePath(); }
     cx.fill(); }
   const RC = new Map(); const roadCol = (st, lit, f, fog) => { const k = st + ':' + Math.round(lit * 20) + ':' + Math.round(fog * 60) + fogLow; let c = RC.get(k); if(!c){ if(RC.size > 400) RC.clear(); c = f(mixc(ENV.snow.road[st], ENV.snow.lampCol, Math.round(lit * 20) / 20 * .5)); RC.set(k, c); } return c; };
+  /* The snow beyond the banks (Kellan, 2026-11-24: no flat ground should show). The engine's ground is one flat snow colour; over it, on the
+     rows the nearer road leaves open, wind-packed drifts: every third segment a drift crest catching the moon with its blue shadow at the foot,
+     and near by world-anchored drift mounds; in the onsen street a trodden path of footprints along the verge (Ginzan and Nozawa at night:
+     the snow between the plough wall and the inns is walked, not smooth). Drawn in the road pass, under every prop. */
+  const VC = new Map(); const vcol = (c, k) => { const q = c + k; let v = VC.get(q); if(!v){ v = mixc(c, k > 0 ? SN.L : SN.O, Math.abs(k)); VC.set(q, v); } return v; };
+  function verge(s, a, b, so, lit, fog){ let ax = a.x, ay = a.y, aw = a.w; const bx = b.x, by = b.y, bw = b.w, cl = s.clip, i = s.index, g = GROUND[s.stripe];
+    if(ay > cl){ const t = (ay - cl) / (ay - by); ax += (bx - ax) * t; aw += (bw - aw) * t; ay = cl; }   // (only the rows the nearer road left open, as the ground fill)
+    if(!(ay - by >= .5) || fog > .8) return; const m = ((i % PER) + PER) % PER, town = isTown(m);
+    for(let sd = -1; sd <= 1; sd += 2){ const ex = sd < 0 ? -4 : W + 4, x0a = ax + sd * so * aw, x0b = bx + sd * so * bw; if(sd < 0 ? x0a < ex && x0b < ex : x0a > ex && x0b > ex) continue;
+      poly(x0a, ay, ex, ay, ex, by, x0b, by, fcw(g, lit, fog));   // the field itself, so it is ours and not the engine's bare ground
+      if(i % 3 === 0){ const ya = ay + (by - ay) * .55; poly(x0a, ay, ex, ay, ex, ya, x0a + (x0b - x0a) * .55, ya, fcw(vcol(g, -.18), lit, fog)); poly(x0a + (x0b - x0a) * .55, ya, ex, ya, ex, by, x0b, by, fcw(vcol(g, .2), lit, fog)); }
+      if(fog > .15 || aw < 30) continue;
+      for(let j = 0; j < 2; j++){ const X = so + .25 + H0(i * 2.3 + j * 5.1 + sd) * 2.6, t = H0(i * 4.1 + j * 1.7 + sd * 2), w = aw + (bw - aw) * t, x = ax + (bx - ax) * t + sd * X * w, y = ay + (by - ay) * t, u = w * (.18 + .14 * H0(i * 1.3 + j + sd * 7));
+        if(u < PX * 4 || (town && X > 1.4)) continue; cx.fillStyle = fcw(vcol(g, .12), lit, fog); pxRect(x - u / 2, y - u * .1, u, u * .1); pxRect(x - u * .3, y - u * .16, u * .6, u * .06); cx.fillStyle = fcw(vcol(g, .4), lit, fog); pxRect(x - u * .22, y - u * .16, u * .44, PX); cx.fillStyle = fcw(vcol(g, -.25), lit, fog); pxRect(x - u / 2, y, u, PX); }
+      if(town && aw > 60){ cx.fillStyle = fcw(vcol(g, -.3), lit, fog); for(let j = 0; j < 2; j++){ const t = (j + .25 + .5 * H0(i * 3.3 + sd)) / 2, w = aw + (bw - aw) * t, x = ax + (bx - ax) * t + sd * (1.27 + (j % 2) * .05) * w, y = ay + (by - ay) * t, u = Math.max(PX, w * .025); pxRect(x - u, y - u * .4, u * 2, Math.max(PX, u * .8)); } } } }
   ENV.snow = {
     ownsRain:true,
     barrier:BANKX,
@@ -594,6 +609,7 @@
       // ground beyond the shoulders: snow fields, or the river under the bridge
       const gcol = br ? fc(RIVER[st], fog) : fcw(GROUND[st], lit, fog);
       if(br) fields(a.x - a.w * so, b.x - b.w * so, a.x + a.w * so, b.x + b.w * so, ay, by, gcol);   // the snow fields are the engine's own ground now; only the river is ours
+      else verge(s, a, b, so, lit, fog);
       // shoulders: packed grey snow over the rumble, with the slush edge biting into the asphalt
       const shc = br ? fc('#2a1418', fog) : fcw(SHOULDER[st], lit, fog);
       for(const sd of [-1, 1]){ poly(a.x + sd * a.w * e1, ay, a.x + sd * a.w * so, ay, b.x + sd * b.w * so, by, b.x + sd * b.w * e2, by, shc);

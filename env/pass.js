@@ -283,7 +283,7 @@
   // the cliff is one continuous wall: every segment draws a slice whose height follows the smoothed profile, so it rises out of a low bank
   // and tapers away. Behind and above each slice a dark forest mass runs to the screen edge, so nothing can be seen through or past it.
   // the slope above the cut: summit height over the crest (x the cliff profile h, in half-road widths), smooth along the road
-  const HD = 2.2, hillS = k => .5 + .8 * vn(k * .022 + 3.7) + .3 * vn(k * .061 + 9.1);
+  const HD = 2.2, HB = 4, hillS = k => .5 + .8 * vn(k * .022 + 3.7) + .3 * vn(k * .061 + 9.1);
   const HILL = { d:'#071012', m:'#0b181b', l:'#112326', rims:['#1c3234', '#2c4648', '#456a6a', '#6a9294'] };
   const HQ = [], hillTone = q => HQ[q] || (HQ[q] = [mixc(HILL.m, HILL.d, q / 4), mixc(HILL.m, HILL.l, q / 4)]);   // the slope's underside and lit top, q/4 of the way out of the mid tone
   // huge off-screen coordinates (slices right beside the camera) push the canvas onto its slow path renderer, so clamp them well outside the view
@@ -321,10 +321,11 @@
     // one continuous ridge that grows out of the shoulder where the cliff starts and sinks back where it ends. Shaded like the backdrop
     // ridges: a dark underside by the crest, a mid slope, a lit top and a moon rim along the skyline. Drawn at every distance (no pop).
     { const s1 = uw * hillS(k) * sh, s2 = u2 * hillS(k + n) * sh2, e1 = tx1 + side * uw * HD, e2 = tx2 + side * u2 * HD;
-      // the forest beyond the summit line, out to the screen edge, wherever we look down onto it (the road climbs, or the slope rises away from us
-      // out of the ravine's lip): it used to stop at the summit line, so the ground (or the sky, above the farthest road) showed through past
-      // the slope's front top (Kellan, 2026-11-23: hills missing geometry in the front top parts, after the pass's jump)
-      { const o1 = ty1 - s1, o2 = ty2 - s2; if(o1 > o2 + .5){ const ex = side < 0 ? -4 : W + 4; poly(e1, o1, e2, o2, ex, o2, ex, o1, fc(HILL.m, fog, low)); } }
+      // the forest beyond the summit line, wherever we look down onto it (the road climbs, or the slope rises away from us out of the ravine's
+      // lip): a wooded shoulder HB road half-widths deeper (near by that is past the screen edge). It used to stop at the summit line, so the
+      // ground (or the sky, above the farthest road) showed through past the slope's front top (Kellan, 2026-11-23: hills missing geometry in the
+      // front top parts, after the pass's jump). Not to the screen edge at every distance: a far ridge's shoulder would hide the ranges behind it.
+      { const o1 = ty1 - s1, o2 = ty2 - s2; if(o1 > o2 + .5) poly(e1, o1, e2, o2, e2 + side * u2 * HB, o2, e1 + side * uw * HB, o1, fc(HILL.m, fog, low)); }
       // (the dark underside and lit top grow out of the mid tone over fog .3 to .22 in four steps (hillTone), instead of switching on at once
       // across the whole slope as each slice crossed fog .3: far slopes changed shade in blocks as you rode)
       if(fog > .3) hillQ(tx1, ty1, tx2, ty2, e1, e2, s1, s2, 0, 1, HILL.m, fog, low); else { const T = hillTone(Math.min(4, Math.round((.3 - fog) * 50))); hillQ(tx1, ty1, tx2, ty2, e1, e2, s1, s2, 0, .3, T[0], fog, low); hillQ(tx1, ty1, tx2, ty2, e1, e2, s1, s2, .3, .74, HILL.m, fog, low); hillQ(tx1, ty1, tx2, ty2, e1, e2, s1, s2, .74, 1, T[1], fog, low); }
@@ -564,8 +565,8 @@
   const CAN = { a:'#0c1816', b:'#0a1414', c:'#070e10', crown:'#12221f', cap:'#24403e' };
   function canopy(s, a, b, fog){ if(!a.w || !b.w) return; let ax = a.x, ay = a.y, aw = a.w; const by = b.y, bx = b.x, bw = b.w, cl = s.clip;
     if(ay > cl){ const t = (ay - cl) / (ay - by); ax += (bx - ax) * t; aw += (bw - aw) * t; ay = cl; }   // (only the rows the nearer road left open, as the ground fill)
-    if(!(ay - by >= .5)) return; const low = fogLow, i = s.index, fm = Math.max(fog, .3);
-    for(let sd = -1; sd <= 1; sd += 2){ const ex = sd < 0 ? -4 : W + 4, x0a = ax + sd * 1.2 * aw, x0b = bx + sd * 1.2 * bw; if(sd < 0 ? x0a < ex && x0b < ex : x0a > ex && x0b > ex) continue;
+    if(!(ay - by >= .5)) return; const low = FOG_COL || fogLow, i = s.index, fm = Math.max(fog, .3); if(!low) return;   // (the road pass's haze colour, sk.low: set before the road is drawn)
+    for(let sd = -1; sd <= 1; sd += 2){ const ex = sd < 0 ? -4 : W + 4, x0a = ax + sd * 1.12 * aw, x0b = bx + sd * 1.12 * bw; if(sd < 0 ? x0a < ex && x0b < ex : x0a > ex && x0b > ex) continue;
       if(fog > .35){ poly(x0a, ay, ex, ay, ex, by, x0b, by, fc(CAN.b, fm, low)); continue; }
       const x1a = ax + sd * 2.1 * aw, x1b = bx + sd * 2.1 * bw, x2a = ax + sd * 3.6 * aw, x2b = bx + sd * 3.6 * bw;
       poly(x0a, ay, x1a, ay, x1b, by, x0b, by, fc(CAN.a, fog, low)); poly(x1a, ay, x2a, ay, x2b, by, x1b, by, fc(CAN.b, fog, low)); poly(x2a, ay, ex, ay, ex, by, x2b, by, fc(CAN.c, fm, low));

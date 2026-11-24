@@ -533,19 +533,24 @@
   // ---- road surface inside: cold concrete, two sheen lines under the LED strips, solid lines (no lane changes), a raised walkway
   function tunnelRoad(s, a, b, fog, now){
     const i = s.index, yb = b.y - 1, k = kOf(i), edge = Math.min(k, kLen(i) - 1 - k), cs = edge < 6 ? (6 - edge) >> 1 : 0, C = c => tc(c, fog, cs), bk = boxD(k, kLen(i)), ow = bk >= 0 ? BOXW : OW;   // (in the box the walkway runs out to its walls)
+    // seen from outside, behind the portal: the core paints each ring's own pixel rows full width with ground; where the headwall's slab
+    // stands in front of those rows only its sides can show, so the sea goes in there as two rects on exactly those rows (the core's
+    // rule). Far rings too: the deep bore's far end lies on rows beside the next portal, and its bare ground showed as a line along the
+    // horizon (?gapviz=1). Rows outside the slab's height get the sea full width (the ring's road is drawn over it).
+    { const pa = portalAhead(now); if(pa >= 0 && i >= pa){ const r0 = Math.ceil(b.y / PX - .5), r1 = Math.ceil(Math.min(a.y, s.clip) / PX - .5);
+      if(r1 > r0){ const water = fc(s.stripe ? '#081a28' : '#0a1d2c', fog * .9), P = segs[pa].p1.screen; cx.fillStyle = water;
+        if(P.w && b.y >= P.y - 3.45 * P.w && a.y <= P.y + 1){ const sl = Math.min(q(P.x - 6.9 * P.w), q(a.x - a.w * ow)), sr = Math.max(q(P.x + 3.1 * P.w), q(a.x + a.w * ow));
+          if(sl > -PX * 4) pxRect(-PX * 4, r0 * PX, sl + PX * 4, (r1 - r0) * PX); if(sr < W + PX * 4) pxRect(sr, r0 * PX, W + PX * 4 - sr, (r1 - r0) * PX); }
+        else pxRect(-PX * 4, r0 * PX, W + PX * 8, (r1 - r0) * PX); } } }   /* (rows below the portal's own floor: the deep bore beyond it, which nothing in front covers: the sea, full width, the road over it) */
     // far away (a segment under half a pixel deep) the edge lines still run to the far end as steady one-pixel lines (poly: each row
     // belongs to one segment), mixed toward the road by how much of the pixel they cover; they used to stop ~35 segments out
     if(a.y - b.y < PX * .5){ const rd = C(T.road[0]); poly(a.x - a.w * OW, a.y, a.x + a.w * OW, a.y, b.x + b.w * OW, yb, b.x - b.w * OW, yb, rd);
       const cv = Math.max(.35, Math.min(1, (a.w + b.w) / 46 / PX)), l1 = a.w / 46, l2 = b.w / 46, ed = mixc(rd, C(T.edge), cv);
       for(const lx of [-.95, .95]) poly(a.x + a.w * lx - l1, a.y, a.x + a.w * lx + l1, a.y, b.x + b.w * lx + l2, yb, b.x + b.w * lx - l2, yb, ed); return; }
-    { const pa = portalAhead(now); if(pa >= 0){ const water = fc(s.stripe ? '#081a28' : '#0a1d2c', fog * .9), P = segs[pa].p1.screen;
-      /* seen from outside, behind the portal: where the headwall's slab stands in front of these rows only its sides can show water (two
-         rects, not two full-width polys a ring: those were ~7,000 canvas ops a frame from the top of the dive, all hidden by the slab) */
-      if(i > pa && P.w && b.y >= P.y - 3.45 * P.w && a.y <= P.y + 1){ const sl = Math.min(q(P.x - 6.9 * P.w), q(a.x - a.w * ow)), sr = Math.max(q(P.x + 3.1 * P.w), q(a.x + a.w * ow)), r0 = q(b.y), r1 = q(a.y) + PX;
-        if(r1 > r0){ cx.fillStyle = water; if(sl > -PX * 4) pxRect(-PX * 4, r0, sl + PX * 4, r1 - r0); if(sr < W + PX * 4) pxRect(sr, r0, W + PX * 4 - sr, r1 - r0); } }
-      else { poly(-PX * 4, a.y + 1, a.x - a.w * ow, a.y + 1, b.x - b.w * ow, yb, -PX * 4, yb, water); poly(a.x + a.w * ow, a.y + 1, W + PX * 4, a.y + 1, W + PX * 4, yb, b.x + b.w * ow, yb, water); } } }
     poly(a.x - a.w, a.y, a.x + a.w, a.y, b.x + b.w, yb, b.x - b.w, yb, bk >= 2 && i % 2 === 0 ? C(BX.roadLit[s.stripe]) : C(T.road[s.stripe]));   // (under the box's luminaires, a paler band)
-    poly(a.x - a.w * ow, a.y, a.x - a.w, a.y, b.x - b.w, yb, b.x - b.w * ow, yb, C(bk >= 0 ? BX.walk : T.kerb)); poly(a.x + a.w, a.y, a.x + a.w * ow, a.y, b.x + b.w * ow, yb, b.x + b.w, yb, C(bk >= 0 ? BX.walk : T.kerb));
+    // the walkway runs on a little under the wall's foot (ow + .12; the ring faces and box walls, drawn later as sprites, cover it): its edge
+    // stopping exactly at the wall left a dashed line of bare ground along both feet (?gapviz=1 shows it, before this pass too)
+    { const wo = ow + .12, wc = C(bk >= 0 ? BX.walk : T.kerb); poly(a.x - a.w * wo, a.y, a.x - a.w, a.y, b.x - b.w, yb, b.x - b.w * wo, yb, wc); poly(a.x + a.w, a.y, a.x + a.w * wo, a.y, b.x + b.w * wo, yb, b.x + b.w, yb, wc); }
     QTHIN = a.y - b.y < PX * 6;   /* (a thin far ring: its strips go on the pixel grid as a row or two of rects, not as path fills: ~40 canvas ops a ring fewer) */
     const e1 = a.w * .03, e2 = b.w * .03; const kh = C(T.kerbHi); tq(kh, a.x - a.w - e1, a.y, a.x - a.w + e1, a.y, b.x - b.w + e2, yb, b.x - b.w - e2, yb); tq(kh, a.x + a.w - e1, a.y, a.x + a.w + e1, a.y, b.x + b.w + e2, yb, b.x + b.w - e2, yb);
     // the LED strips mirrored softly in the polished concrete: two continuous pale bands
@@ -797,7 +802,9 @@
     const camY = s.p1.world.y - s.p1.camera.y, above = camY > s.aqS1 + 30, ld = lampD(i), wc = wallC()[ld === 0 ? 3 : ld === 1 ? 2 : ld === 2 ? 1 : 0];
     const wA = wallX(s, 0), wB = wallX(s, 1);   // the walls' line: RAIL out on the ramp, flaring to the box's walls at a mouth
     // the sea, seen over the walls while your eye is above it
-    if(above && sA - sB > -PX) seaBand(i, k, sA, sB - 1, a, b, fog, now, Math.max(DECK, wA + .06));
+    // (down to the segment's own road rows, not only its sea rows: from above, those rows outside the walls are the open sea over the bore
+    // ahead, which nothing else paints; the core's bare ground showed there as a line at the horizon, ?gapviz=1)
+    if(above && sA - sB > -PX) seaBand(i, k, Math.max(sA, a.y), sB - 1, a, b, fog, now, Math.max(DECK, wA + .06));
     const swell = v => reduce ? 80 : 50 + 170 * Math.max(0, Math.sin(v * .45 - now / 2600)) * (.6 + .4 * H0(v * .7));
     // far away the walls go in runs of 2 or 4 segments, one poly per band for the run (as env/harbour.js does its walls): the cutting's
     // walls were ~2,400 canvas ops a frame from the dive's top. A run is drawn by its first segment only when all of it is cutting and
@@ -807,7 +814,7 @@
     { const b = e.p2.screen, kB = b.w * f, hB = wallH(e.aqD2 || 0), cB = b.y - hB * kB, wB = wallX(e, 1), sB = b.y - (e.aqD2 || 0) * kB, i1 = e.index + 1;
     for(let sd = -1; sd <= 1; sd += 2){ const xa = a.x + sd * a.w * wA, xb = b.x + sd * b.w * wB, oa = a.x + sd * a.w * Math.max(DECK, wA + .06), ob = b.x + sd * b.w * Math.max(DECK, wB + .06);
       // where the walls flare out past the deck: the walkway between the deck's edge and the wall's foot (else the ground showed there)
-      if(wA > DECK + .01 || wB > DECK + .01){ const dA = a.x + sd * a.w * DECK, dB = b.x + sd * b.w * DECK; poly(dA, a.y + 1, xa, a.y + 1, xb, b.y - 1, dB, b.y - 1, fc(BX.walk, fog));
+      if(wA > DECK + .01 || wB > DECK + .01){ const dA = a.x + sd * a.w * (DECK - .02), dB = b.x + sd * b.w * (DECK - .02); poly(dA, a.y + 1, xa + sd * a.w * .03, a.y + 1, xb + sd * b.w * .03, b.y - 1, dB, b.y - 1, fc(BX.walk, fog));   /* (overlapping the deck and the wall's foot a little: no pixel seam) */
         if(a.w > 14) poly(dA, a.y + 1, dA + sd * a.w * .03, a.y + 1, dB + sd * b.w * .03, b.y - 1, dB, b.y - 1, fc(BX.walkHi, fog)); }
       // foam where the sea laps the wall (only seen from above it), shifting slowly
       if(above && fog < .85){ const fo = (i + (reduce ? 0 : Math.floor(now / 700))) % 3; if(fo) poly(oa, sA + 1, oa + sd * a.w * (fo === 1 ? .1 : .05), sA + 1, ob + sd * b.w * (fo === 1 ? .06 : .1), sB, ob, sB, fc(fo === 1 ? '#8ab8c8' : '#4a7a90', fog)); }

@@ -211,14 +211,14 @@
     cx.globalCompositeOperation = 'source-over'; }
   const gl = (x, y, r, col, a) => { if(x + r < 0 || x - r > W || y + r < 0 || y - r > H) return; glow(x, y, Math.min(r, H * .25), col, a); };
   // a reflected light: a vertical column of hard dashes below the light's mirror point, world-anchored (no per-frame randomness)
-  function streak(x, y0, len, wd, col, a, seed){ if(a < .02 || len < PX * 2) return; const n = Math.max(2, Math.min(10, Math.round(len / (PX * 3)))), st = len / n;
+  function streak(x, y0, len, wd, col, a, seed){ if(a < .02 || len < PX * 2) return; if(column(x, y0, len * 2.2, wd * 1.3, col, a * 1.15)) return;   // (round 2: the palette-cycled shimmer column; the dashes below are the fallback without ui/cycle.js) const n = Math.max(2, Math.min(10, Math.round(len / (PX * 3)))), st = len / n;
     cx.globalCompositeOperation = 'lighter'; cx.fillStyle = col;
     for(let j = 0; j < n; j++){ if(j > 1 && hash(seed * 7.3 + j * 3.1) < .25) continue; const m = j / n, ww = Math.max(PX, snap(wd * (1 - m * .6)));
       cx.globalAlpha = a * (1 - m * .8); FR(snap(x - ww / 2), snap(y0 + j * st), ww, Math.max(PX, snap(st * .55))); }
     cx.globalAlpha = 1; cx.globalCompositeOperation = 'source-over'; }
 
   // ---------------------------------------------------------------- the field layout (world-anchored)
-  const SHO = 1.16, WX = 1.42, KB = [1.07, 1.14];                 // shoulder edge, bank foot (water starts) in half-road widths
+  const SHO = 1.16, WX = 1.32, KB = [1.07, 1.14];                 // shoulder edge, bank foot (water starts) in half-road widths (round 2: the bank narrowed from 1.42 to a verge and the channel, so more of the plots show, most of all on a phone where the road fills the width)
   const COLS = [0, 5.2, 10.8, 17.5, 25.5, 35];  // ridge (aze) offsets beyond the bank foot
   const FL = 40;                              // a field is FL segments long; a cross ridge at every multiple
   const CR = 520, CROSS = 300;                // the level crossing: rails at CROSS and CROSS + 3 of every CR
@@ -277,11 +277,24 @@
     if(i % 64 === 21 && !nearRail){ const side = hash(i * 3.3) < .5 ? -1 : 1; P({ type:'crow', x:side * (3 + hash(i * 1.1) * 2.5), k:i }); }
     // a row of ridge trees along some cross ridges
     if(i % FL === 0 && hash(i * .77) < .45 && !nearRail){ const side = hash(i * .13) < .5 ? -1 : 1, n = 4 + (hash(i) * 4 | 0); for(let j = 0; j < n; j++) P({ type:'hasa', x:side * (WX + COLS[1] + .8 + j * 1.35), k:i * 8 + j }); }
-    if(i % 3 === 0 && !nearRail && hash(i * .91) < .5){ const side = hash(i * 2.2) < .5 ? -1 : 1; P({ type:'ff', x:side * (WX + .2 + hash(i * 4.4) * 2.4), k:i }); }
+    // fireflies over the levees (round 2: they keep to the grass of the aze, where they rest in June), now and then over open water
+    if(i % 3 === 0 && !nearRail && hash(i * .91) < .5){ const side = hash(i * 2.2) < .5 ? -1 : 1, c = 1 + (hash(i * 4.4) * 3 | 0); P({ type:'ff', x:side * (hash(i * 6.1) < .75 ? WX + PB[c] + .05 : WX + .3 + hash(i * 4.4) * 2.4), k:i }); }
+    // round 2 dressing (each from a hashed cell, so no two stretches repeat): egrets standing in the plots, alone or in pairs; bird-scare
+    // balloons on bamboo poles; kira-kira tape strung over a levee; a kei truck parked on the farm lane; a shrine grove of sugi behind
+    // each hokora; a pair of jizo by its torii
+    if(!nearRail){
+      if(i % 29 === 11 && hash(i * 1.37) < .6){ const side = hash(i * .71) < .5 ? -1 : 1, X = WX + .7 + hash(i * 2.9) * 9; P({ type:'heron', x:side * X, v:hash(i * 5.3) < .35 ? 1 : 0, k:i });
+        if(hash(i * 8.1) < .35) P({ type:'heron', x:side * (X + .35 + hash(i * 9.7) * .5), v:hash(i * 6.6) < .5 ? 1 : 0, k:i + 1 }); }
+      if(i % 47 === 19 && hash(i * 2.13) < .7){ const side = hash(i * 3.9) < .5 ? -1 : 1; P({ type:'ball', x:side * (WX + 1.2 + hash(i * 1.9) * 6), k:i }); }
+      if(((i % FL) + FL) % FL === 0 && hash(i * .53 + 4) < .22){ const side = hash(i * 1.21) < .5 ? -1 : 1, X0 = WX + .6 + hash(i * 3.3) * 3; P({ type:'tape', x:side * X0, X0, X1:X0 + 2 + hash(i * 4.1) * 2.5, side, k:i }); } }
+    if(rl === LANE && !nearRail){ const side = hash(i * 1.77) < .5 ? -1 : 1; P({ type:'kei', x:side * (3.4 + hash(i * 2.3) * 4), k:i }); }
+    for(const side of [-1, 1]){ const st = siteAt(i, side); if(st && st.kind === 4 && i === st.b0) for(let j = 0; j < 4; j++) P({ type:'sugi', x:side * (st.X + .75 + j * .42 + hash(i * 3 + j) * .2), k:i * 4 + j }); }
+    { const tb = toriiAt(i); if(tb){ P({ type:'jizo', x:tb.side * (tb.X + .1), k:i }); P({ type:'jizo', x:tb.side * (tb.X - .05), k:i + 1 }); } }
     // light on the road
     const L = (n, v) => { const t = segs[n]; if(t) t.padLit = Math.max(t.padLit || 0, v); };
     if(rb === BUSAT) for(let d = -4; d <= 3; d++) L(i + d, .7 * (1 - Math.abs(d + .5) / 5));
     if(i % POLE === 0 && !nearRail && (i / POLE) % 3 === 1) for(let d = -2; d <= 1; d++) L(i + d, .45 * (1 - Math.abs(d + .5) / 3));
+    if(i % 6 === 0 && !nearRail) L(i, .2);   // (round 2) the lit delineator posts: a faint peak each, so roadmat's dew carries their line of reflections
   }
 
   // ---------------------------------------------------------------- per-frame state: water geometry gathered in roadFX, drawn once at the first sprite
@@ -303,7 +316,7 @@
     const T = hx(sk.top), M = hx(sk.mid), L = hx(sk.low), INK = T.map((v, i) => v + ([8, 14, 46][i] - v) * .6), D = [3, 6, 10], NB = 16;
     const mix3 = (a, b, t) => a.map((v, i) => v + (b[i] - v) * t);
     const sky = SC || (u => u < .1 ? INK : u < .3 ? mix3(INK, T, (u - .1) / .2) : u < .7 ? mix3(T, M, (u - .3) / .4) : mix3(M, L, (u - .7) / .3));   // u: 0 zenith .. 1 horizon
-    const band = []; for(let b = 0; b <= NB; b++){ const r = Math.pow(b / NB, 1.5) * hzRows, u = 1 - Math.min(1, r / hzRows), c = mix3(mix3(sky(u), [176, 188, 228], .16 * Math.pow(u, 6)), D, .14 + .5 * Math.pow(1 - u, 1.3)); band.push(c.map(Math.round)); }
+    const band = []; for(let b = 0; b <= NB; b++){ const r = Math.pow(b / NB, 1.5) * hzRows, u = 1 - Math.min(1, r / hzRows), c = mix3(mix3(sky(u), [176, 188, 228], .24 * Math.pow(u, 5)), D, .06 + .46 * Math.pow(1 - u, 1.5)); band.push(c.map(Math.round)); }
     WTOP = '#' + band[0].map(v => Math.max(0, Math.min(255, v)).toString(16).padStart(2, '0')).join('');
     const c = WCV || (WCV = document.createElement('canvas')); if(c.width !== 4 || c.height !== rows){ c.width = 4; c.height = rows; } const k = c.getContext('2d'), img = k.createImageData(4, rows), d = img.data;   // one canvas, repainted (createPattern snapshots it)
     for(let y = 0; y < rows; y++){ const f = Math.pow(Math.min(1, y / hzRows), 1 / 1.5) * NB; for(let x = 0; x < 4; x++){ const b = Math.min(NB, Math.floor(f + BYF[(y & 3) * 4 + x] - .5) + 1), C = band[Math.max(0, b)], o = (y * 4 + x) * 4; d[o] = C[0]; d[o + 1] = C[1]; d[o + 2] = C[2]; d[o + 3] = 255; } }
@@ -360,7 +373,7 @@
   for(let i = 0, c = 0; i < PIDX.length; i++){ while(c + 1 < PB.length && PB[c + 1] * 32 <= i) c++; PIDX[i] = c; }
   // plot type per side, slot and plot: 0 bare water, 1 just planted, 2 established, 3 rows across, 4 machine rows with gaps, 5 nursery, 6 dry plot
   const PTY = []; for(let sd = 0; sd < 2; sd++) for(let sl = 0; sl < NSLOT; sl++){ const a = new Uint8Array(PB.length);
-    for(let c = 0; c < PB.length; c++){ const h = ih(c * 13 + sd * 7, sl + 11); a[c] = h < .22 ? 0 : h < .44 ? 1 : h < .7 ? 2 : h < .81 ? 3 : h < .92 ? 4 : h < .97 || c === 0 ? 5 : 6; } PTY.push(a); }
+    for(let c = 0; c < PB.length; c++){ const h = ih(c * 13 + sd * 7, sl + 11); a[c] = h < .3 ? 0 : h < .56 ? 1 : h < .78 ? 2 : h < .85 ? 3 : h < .95 ? 4 : h < .985 || c === 0 ? 5 : 6; } PTY.push(a); }
   const ptypeAt = (X, slot, sd) => { const ci = Math.max(0, Math.round((X - WX) * 128)); let c = PIDX[Math.min(PIDX.length - 1, ci >> 2)]; if(ci < PBT[c]) c--; return PTY[(sd > 0 ? NSLOT : 0) + slot][Math.max(0, c)]; };
   const fslot = (f, sd) => Math.floor(ih(f, sd + 3) * NSLOT);
   // the palette: [r, g, b, a]
@@ -368,8 +381,8 @@
     [16, 28, 20, 255], [62, 96, 70, 255], [26, 42, 31, 255], [40, 62, 46, 255], [6, 12, 8, 255],          // 1-5 levee: road face, moonlit edge, grass top, fleck, far edge
     [9, 16, 11, 255], [22, 36, 27, 255], [50, 78, 58, 255],                                                // 6-8 cross levee: face, top, lit top
     [3, 6, 9, 140],                                                                                          // 9 a levee's reflection
-    [8, 16, 14, 255], [18, 38, 30, 255], [11, 24, 20, 255], [52, 84, 70, 255], [100, 134, 108, 255],      // 10-14 seedlings (moonlight takes the green out): base, body, shade, tip, moonlit tip
-    [12, 22, 20, 255], [46, 74, 62, 255],                                                                   // 15-16 new seedlings: base, tip
+    [5, 10, 12, 255], [10, 20, 20, 235], [8, 15, 16, 200], [44, 70, 62, 255], [92, 122, 102, 255],        // 10-14 seedlings: against the mirror they are silhouettes, only the tips catch the moon
+    [8, 14, 16, 220], [40, 64, 58, 255],                                                                    // 15-16 new seedlings: base, tip
     [22, 52, 34, 255], [32, 70, 44, 255], [58, 104, 70, 255],                                               // 17-19 nursery mats
     [18, 15, 12, 255], [12, 13, 16, 255], [104, 112, 130, 255], [10, 8, 6, 255], [26, 58, 30, 255],        // 20-24 dry plot: soil, mulch, mulch gleam, furrow, leaves
     [150, 164, 210, 70], [2, 4, 9, 90], [106, 90, 52, 255], [92, 96, 104, 255], [4, 6, 9, 255]];             // 25-29 ripple light, ripple dark, straw, concrete inlet, inlet slot
@@ -392,12 +405,11 @@
     const ax = lx - 16, ay = rj - 10;
     if(pt === 5){ if(ax < 150 && ay < 96){ const bx = ax % 50, by = ay % 32; if(bx >= 40 || by >= 24) return 0; return by === 23 ? 19 : g > .93 ? 19 : g > .6 ? 18 : 17; } }   // a nursery: trays of seedling mats in the plot's near corner, the rest just planted
     if(pt === 5 || pt === 1){
-      const rx = ax % 8, hy = ay % 4; if(rx !== 0 || hy > 1 || ih((ax >> 3) * 131 + (ay >> 2), c + so) < .06) return 0; return hy === 0 ? 15 : 16; }
-    if(pt === 3){ const rx = ax % 4, hy = ay % 8; if(rx > 1 || hy > 2) return 0; return hy === 0 ? 10 : hy === 1 ? 11 : rx === 0 ? 13 : 12; }
-    const rx = ax % 8, hy = ay % 3, hid = (ax >> 3) * 131 + (ay / 3 | 0);
-    if(rx > 1 || pt === 4 && ih(hid, c + slot * 17 + so) < .2) return 0;
-    if(rx === 0) return hy === 0 ? 10 : hy === 1 ? 11 : ih(hid, 7 + c) > .8 ? 14 : 13;
-    return hy === 0 ? 10 : hy === 1 ? 12 : 0; }
+      const rx = ax % 10, hy = ay % 4; if(rx !== 0 || hy > 1 || ih((ax / 10 | 0) * 131 + (ay >> 2), c + so) < .06) return 0; return hy === 0 ? 15 : 16; }
+    if(pt === 3){ const rx = ax % 5, hy = ay % 10; if(rx > 0 || hy > 2) return 0; return hy === 0 ? 10 : hy === 1 ? 11 : rx === 0 ? 13 : 12; }
+    const rx = ax % 10, hy = ay % 4, hid = (ax / 10 | 0) * 131 + (ay >> 2);   // (round 2: rows a texel wide every 10, a hill every segment: mostly mirror between)
+    if(rx > 0 || hy > 2 || pt === 4 && ih(hid, c + slot * 17 + so) < .2) return 0;
+    return hy === 0 ? 10 : hy === 1 ? 11 : ih(hid, 7 + c) > .8 ? 14 : 13; }
   // the atlases (one per side; the left one mirrored) and their build, in warm-up steps
   const FAT = [null, null]; let FAOK = false, FL0 = true;
   function* fieldBake(){
@@ -409,13 +421,13 @@
       const avg = (n, k, col, row) => { const a = acc[3]; if(a <= 0) put(k, col, row, 0, 0, 0, 0); else put(k, col, row, acc[0] / a, acc[1] / a, acc[2] / a, a / n); };
       const add = p => { const P = FPAL[p], a = P[3]; acc[0] += P[0] * a; acc[1] += P[1] * a; acc[2] += P[2] * a; acc[3] += a; };
       // L0: the art itself; L1, L2: boxes of it (2x4, and 4x16 stratified to 2x8)
-      if(FL0){ const L = FLV[0]; for(let row = 0; row < L.rows; row++){ const sl = row / FR0 | 0, rj = row % FR0; for(let col = 0; col < L.w; col++){ const P = FPAL[fpx(col, rj, sl, sd)]; put(0, col, row, P[0], P[1], P[2], P[3]); } if(row % 160 === 159) yield; } }
+      if(FL0){ const L = FLV[0]; for(let row = 0; row < L.rows; row++){ const sl = row / FR0 | 0, rj = row % FR0; for(let col = 0; col < L.w; col++){ const P = FPAL[fpx(col, rj, sl, sd)]; put(0, col, row, P[0], P[1], P[2], P[3]); } if(row % 80 === 79) yield; } }
       { const L = FLV[1]; for(let row = 0; row < L.rows; row++){ const sl = row / FL | 0, r0 = (row % FL) * 4; for(let col = 0; col < L.w; col++){ acc.fill(0); for(let a = 0; a < 2; a++) for(let b = 0; b < 4; b++) add(fpx(col * 2 + a, r0 + b, sl, sd)); avg(8, 1, col, row); } if(row % 80 === 79) yield; } }
       { const L = FLV[2]; for(let row = 0; row < L.rows; row++){ const sl = row / 10 | 0, r0 = (row % 10) * 16; for(let col = 0; col < L.w; col++){ acc.fill(0); for(let a = 0; a < 4; a += 2) for(let b = 0; b < 16; b += 2) add(fpx(col * 4 + a + (b & 2 ? 1 : 0), r0 + b + (a ? 1 : 0), sl, sd)); avg(16, 2, col, row); } if(row % 20 === 19) yield; } }
       // L3: one row per field (8 columns x 24 stratified rows a texel)
       { const L = FLV[3]; for(let sl = 0; sl < NSLOT; sl++){ for(let col = 0; col < L.w; col++){ acc.fill(0); for(let a = 0; a < 8; a += 2) for(let b = 0; b < 24; b++) add(fpx(col * 8 + a + (b & 1), (b * 160 / 24 | 0) + (ih(col, b) * 6 | 0), sl, sd)); avg(96, 3, col, sl); } yield; } }
       // L4-6: every field averaged: a profile at 16 per half-road (4 columns x 6 slots x 8 rows a cell), then boxes of it
-      { const n16 = 4096, pr = new Float32Array(n16 * 4); for(let col = 0; col < n16; col++){ acc.fill(0); for(let a = 0; a < 8; a += 2) for(let sl = 0; sl < NSLOT; sl++) for(let b = 0; b < 8; b++) add(fpx(col * 8 + a + (b & 1), (b * 20 + (ih(col + sl * 7, b) * 20 | 0)), sl, sd)); pr.set(acc, col * 4); if(col % 1024 === 1023) yield; }
+      { const n16 = 4096, pr = new Float32Array(n16 * 4); for(let col = 0; col < n16; col++){ acc.fill(0); for(let a = 0; a < 8; a += 2) for(let sl = 0; sl < NSLOT; sl++) for(let b = 0; b < 8; b++) add(fpx(col * 8 + a + (b & 1), (b * 20 + (ih(col + sl * 7, b) * 20 | 0)), sl, sd)); pr.set(acc, col * 4); if(col % 256 === 255) yield; }
         for(let k = 4; k <= 6; k++){ const L = FLV[k], m = 1 << (k - 3); for(let col = 0; col < L.w; col++){ acc.fill(0); for(let j = 0; j < m; j++){ const o = (col * m + j) * 4; acc[0] += pr[o]; acc[1] += pr[o + 1]; acc[2] += pr[o + 2]; acc[3] += pr[o + 3]; } avg(m * 192, k, col, 0); } } }
       k2.putImageData(img, 0, 0); cx.drawImage(c, 0, 0, 1, 1); yield; }
     FAOK = true; }
@@ -428,7 +440,7 @@
       if(sd > 0) cx.drawImage(FAT[si], (Xa - WX) * L.tx, yy, sw, 1, xc + Xa * w, ry, (Xb - Xa) * w, rh);
       else cx.drawImage(FAT[si], L.w - (Xb - WX) * L.tx, yy, sw, 1, xc - Xb * w, ry, (Xb - Xa) * w, rh);
       Xa = Xb; } }
-  let FDC = 0;
+  let FDC = 0, VR0 = 0, VR1 = 0;
   function fieldPass(){ FDC = 0; if(!FAOK || PDX.includes('field')) return; cx.imageSmoothingEnabled = false; let maxr = Math.ceil(H / PX);
     for(let n = 0; n < NQ; n++){ const q = Q[n], dy = q.ay - q.by; if(dy <= .01) continue; if(q.fog > .92) break;
       const r0 = Math.ceil(q.by / PX - .5), r1 = Math.min(maxr, Math.ceil(q.ay / PX - .5)); if(r1 <= r0){ maxr = Math.min(maxr, Math.max(0, r0)); continue; } maxr = r0;
@@ -440,6 +452,11 @@
         for(let si = 0; si < 2; si++){ const sd = si ? 1 : -1; if(!ok(q, sd)) continue; const Xe = sd > 0 ? (W - xc) / w : xc / w; if(Xe <= q.xw) continue;
           FDC++; fieldRow(si, sd, fslot(f, sd), dz, xc, w, q.xw, Xe + .01, r * PX, far2 ? PX * 2 : PX); }
         if(far2) r++; } }
+    if(VR1 > VR0 && NQ){ const qt = Q[NQ - 1], xc = qt.bx, y0h = H / 2 - PITCH, KZ = ROADW * W / (CAMH * H), road = fc(ENV.paddies.road[0], .6);
+      for(let r = Math.max(0, VR0); r < VR1; r += 2){ const y = (r + 1) * PX, w = (y - y0h) * KZ; if(w <= .05) continue; const z = DEPTH * ROADW * W / (2 * w), fog = clamp(Math.pow(z / SEG / DRAW_N, 1.6), 0, 1); if(fog > .97) continue;
+        const d = position / SEG + z / SEG, f = Math.floor(d / FL), dz = d - f * FL, rh = Math.min(2, VR1 - r) * PX; cx.globalAlpha = 1 - fog * .85;
+        for(let si = 0; si < 2; si++){ const sd = si ? 1 : -1, Xe = sd > 0 ? (W - xc) / w : xc / w; if(Xe > WX) fieldRow(si, sd, fslot(f, sd), dz, xc, w, WX, Xe + .01, r * PX, rh); }
+        cx.globalAlpha = 1; cx.fillStyle = road; cx.fillRect(snap(xc - w * SHO), r * PX, Math.max(PX, snap(w * SHO * 2)), rh); } }
     cx.globalAlpha = 1; }
 
   // ---------------------------------------------------------------- rice tufts standing in the near plots, each doubled in the water (Kellan, 2026-11-23)
@@ -455,8 +472,8 @@
      under it, three sway frames, and a variant with machine gaps, all baked at warm-up into one atlas. A depth line of hills across a plot is
      then one drawImage of a run of that strip, stretched only by the few percent between the step's pitch and the line's true pitch. The
      tufts sit exactly on the texture's rows (one per row every 1/16 half-road, a hill every 3/4 segment from the field's tenth texel row). */
-  const TTH = [3, 4, 5, 6, 7, 9, 11, 14], TN = 48, TFR = 3, TRW = 1 / 16;   // tuft heights (art px), tufts a strip, sway frames, row spacing (half-roads)
-  const TP = TTH.map(h => Math.max(4, Math.round(h * 1.56))), TRH = TTH.map(h => Math.max(2, Math.round(h * .8)));
+  const TTH = [3, 4, 5, 6, 7, 9, 11, 14], TN = 48, TFR = 3, TRW = 10 / 128;   // tuft heights (art px), tufts a strip, sway frames, row spacing (half-roads)
+  const TP = TTH.map(h => Math.max(5, Math.round(h * 2.6))), TRH = TTH.map(h => Math.max(2, Math.round(h * .8)));
   let TAT = null; const TY = [], TSW = [0, 1, 2, 1];   // TSW: the sway cycle over the three lean frames   // the atlas, and per [step][gap][frame] the strip's top row
   const TCOL = { base:[12, 26, 20], mid:[28, 54, 40], lit:[70, 106, 80], tip:[116, 148, 110], rb:[16, 26, 44], rm:[30, 46, 70], rl:[66, 94, 124] };   // moonlight takes most of the green out; the reflections go bluer
   function* tuftBake(){ let H0 = 0; for(let s = 0; s < TTH.length; s++){ TY[s] = []; for(let g = 0; g < 2; g++){ TY[s][g] = []; for(let f = 0; f < TFR; f++){ TY[s][g][f] = H0; H0 += TTH[s] + 1 + TRH[s] + 1; } } }
@@ -474,19 +491,19 @@
               const nud = rr % 2 ? (ih(j, rr + s) < .5 ? -1 : 1) : 0; put(x + nud, ry, C === TCOL.tip || C === TCOL.lit ? TCOL.rl : t < .35 ? TCOL.rb : TCOL.rm, 200 - rr * 14); } } } } yield; }
     k.putImageData(img, 0, 0); cx.drawImage(c, 0, 0, 1, 1); yield; }
   // draw the tufts of the near planted plots, far to near (each line's reflection lies under the nearer lines, which cover it)
-  function tuftPass(now){ if(!TAT || !TY.length || PDX.includes('tuft')) return; const wmin = TTH[0] / .04 * PX * .85, fr = reduce ? 1 : -1;
+  function tuftPass(now){ if(!TAT || !TY.length || PDX.includes('tuft')) return; const TK = .03, wmin = 4 / TK * PX, fr = reduce ? 1 : -1;
     for(let n = NQ - 1; n >= 0; n--){ const q = Q[n]; if(q.aw < wmin || q.fog > .3) continue; const i = q.s.index; if(isRail(i) || jRail(i)) continue;
       const ia = 1 / q.aw, ib = 1 / q.bw, f = Math.floor(i / FL), d0 = i - f * FL;
       // hill lines in this segment: depth (10 + 3j + .5) / 4 segments into the field
-      const jA = Math.max(0, Math.ceil((d0 * 4 - 10.5) / 3)), jB = Math.min(46, Math.ceil(((d0 + 1) * 4 - 10.5) / 3) - 1);
-      for(let j = jB; j >= jA; j--){ const dl = (10.5 + 3 * j) / 4, fr0 = dl - d0, w = 1 / (ia + (ib - ia) * fr0), u = (w - q.aw) / (q.bw - q.aw || 1);
-        const y = q.ay + (q.by - q.ay) * u, xc = q.ax + (q.bx - q.ax) * u, thi = .04 * w / PX; if(thi < TTH[0] * .85) continue;
+      const jA = Math.max(0, Math.ceil((d0 * 4 - 10.5) / 4)), jB = Math.min(34, Math.ceil(((d0 + 1) * 4 - 10.5) / 4) - 1);
+      for(let j = jB; j >= jA; j--){ const dl = (10.5 + 4 * j) / 4, fr0 = dl - d0, w = 1 / (ia + (ib - ia) * fr0), u = (w - q.aw) / (q.bw - q.aw || 1);
+        const y = q.ay + (q.by - q.ay) * u, xc = q.ax + (q.bx - q.ax) * u, thi = TK * w / PX; if(thi < 4) continue;   // (round 2: only near, where clear water shows between tufts; further out the texture's dotted rows carry it)
         let s = 0; while(s < TTH.length - 1 && TTH[s + 1] <= thi * 1.08) s++;
         const lh = ih(f * 64 + j, 5), fi = fr >= 0 ? fr : TSW[(Math.floor(now / 520 + lh * 4) % 4 + 4) % 4], yr = snap(y);
         for(let si = 0; si < 2; si++){ const sd = si ? 1 : -1; if(!ok(q, sd)) continue; const slot = fslot(f, sd), row = PTY[(sd > 0 ? NSLOT : 0) + slot];
           for(let c = 0; c + 1 < PB.length; c++){ const pt = row[c]; if(pt !== 2 && pt !== 4 && pt !== 1 && pt !== 5) continue;
             const X0 = WX + PB[c] + 16 / 128, X1 = WX + PB[c + 1] - 8 / 128; if(X0 < q.xw) continue; const ss = pt === 1 || pt === 5 ? Math.max(0, s - 2) : s;
-            if(pt === 5 && j < 30 && X0 < WX + PB[c] + 1.3) continue;   // (the nursery's trays: no tufts on them)
+            if(pt === 5 && j < 23 && X0 < WX + PB[c] + 1.3) continue;   // (the nursery's trays: no tufts on them)
             const pitch = w * TRW, xa = xc + sd * X0 * w; let ja = 0, jb = Math.floor((X1 - X0) / TRW);
             // keep only the tufts on screen
             if(sd > 0){ if(xa > W) break; ja = Math.max(0, Math.ceil((0 - xa) / pitch)); jb = Math.min(jb, Math.floor((W - xa) / pitch) + 1); }
@@ -509,7 +526,13 @@
     // (the spans XL / XR cover the outer fields only: a fork branch's inner strip gets the mirror but none of the detail drawn through FR)
     for(let n = 0; n < NQ; n++){ const q = Q[n], dy = q.ay - q.by; if(dy <= 0) continue; const la = q.ax - q.aw * q.xw, lb = q.bx - q.bw * q.xw, ra = q.ax + q.aw * q.xw, rb = q.bx + q.bw * q.xw, oL = ok(q, -1), oR = ok(q, 1);
       for(let r = Math.max(0, Math.floor(q.by / PX)), r1 = Math.min(nr, Math.ceil(q.ay / PX)); r < r1; r++){ const t = clamp((q.ay - (r + .5) * PX) / dy, 0, 1); if(oL) XL[r] = la + (lb - la) * t; if(oR) XR[r] = ra + (rb - ra) * t; } }
-    cx.save(); cx.beginPath();
+    /* (round 2) The plain beyond a crest. The road humps over a flat plain, but the fields were only drawn beside visible segments, so on a
+       crest everything between the crest line and the horizon was the backdrop's flat fill (the fields "a thin band", worst on phones). Those
+       rows now take the plain itself: a flat ground at the camera's level, projected exactly (w = (y - horizon) * ROADW * W / (CAMH * H)),
+       mirror and field texture and all, the hidden road a dark strip down its middle. */
+    { let rt = nr; for(let n = 0; n < NQ; n++){ const q = Q[n]; if(q.ay - q.by > .01) rt = Math.min(rt, Math.ceil(q.by / PX - .5)); } VR0 = Math.ceil((H / 2 - PITCH) / PX + .5); VR1 = rt;
+      if(VR1 - VR0 < 2 || NQ === 0) VR1 = VR0; else for(let r = Math.max(0, VR0); r < VR1; r++){ XL[r] = 1e9; XR[r] = 1e9; } }
+    cx.save(); cx.beginPath(); if(VR1 > VR0) cx.rect(0, VR0 * PX, W, (VR1 - VR0) * PX);
     // per side, one polygon per unbroken run: between the bank foot and the screen edge (outer), or the fork's clip line (a branch's inner side).
     // Entries of the other branch are passed over, not run-breaking: before a fork's lock the two branches alternate segment by segment.
     for(const sd of [-1, 1]) for(let inner = 0; inner < 2; inner++){ const ex = sd < 0 ? -PX : W + PX; let E = [], O = [];
@@ -661,6 +684,8 @@
       if(sp.kind === 2 && rel % 4 === 0) streak(x - Math.sign(sp.x) * uw * .2, y + uw * .4, uw, Math.max(PX, uw * .08), '#ffb050', .45 * (1 - fog), sp.k); },
     vendp(sp, x, y, uw, fog){ streak(x - uw * .2, y + uw * .2, uw * 1.2, Math.max(PX, uw * .2), '#d8f0ff', .6 * (1 - fog), sp.k); },
     torii(sp, x, y, uw, fog){ streak(x + (sp.side < 0 ? -1 : 1) * uw * .81, y + uw * .3, uw * .7, Math.max(PX, uw * .05), '#ffc070', .5 * (1 - fog), sp.k); },
+    heron(sp, x, y, uw, fog){ const spr = heron(sp.v, sp.x > 0 ? -1 : 1), k = uw * .2 / spr.height, r = reflOf(spr, 'pad_rheron' + sp.v + (sp.x > 0 ? -1 : 1)); cx.globalAlpha = 1 - fog * .8; reflImg(r, x, y, k, 0, Math.sign(sp.x)); cx.globalAlpha = 1; },
+    ball(sp, x, y, uw, fog){ const dir = mdir(x), spr = balloon(dir), k = uw * .62 / spr.height, r = reflOf(spr, 'pad_rball' + dir); cx.globalAlpha = 1 - fog * .8; reflImg(r, x, y, k, 0, Math.sign(sp.x)); cx.globalAlpha = 1; },
     hasa(sp, x, y, uw, fog){ const dir = mdir(x), v = sp.k % 2, spr = hasa(v, dir), k = uw * 1.9 / 36, r = reflOf(spr, 'pad_rhasa' + v + dir); cx.globalAlpha = 1 - fog * .8; reflImg(r, x, y - k, k, 0, Math.sign(sp.x)); cx.globalAlpha = 1; }
   };
   // a sagging wire drawn as whole pixels (a catenary approximated by a parabola)
@@ -673,6 +698,57 @@
   const strokeW = col => { cx.fillStyle = col; for(let j = 0; j < WN; j += 4) FR(WQ[j], WQ[j + 1], WQ[j + 2], WQ[j + 3]); WN = 0; };
   // crossing lamps alternate, about 50 flashes a minute each; with reduced motion both glow steadily
   const xOn = now => reduce ? [1, 1] : (Math.floor(now / 600) % 2 ? [1, 0] : [0, 1]);
+
+  // ---------------------------------------------------------------- round 2 (2026-11-24): shimmer columns, the new dressing
+  /* Sprites authored as pixel grids (one letter a pixel), from the references at pixel zoom: a great egret (daisagi) standing in a planted
+     paddy (Commons, Niigata and Tsuruga paddies: white S-neck, yellow bill, black legs, the body held level); a medama bird-scare balloon on
+     a bamboo pole (yellow ball, a black, red and black target eye); a 1980s cab-over kei truck seen from the side, its side gates down and
+     sacks in the bed; a sugi cedar of a shrine grove (layered tiers, darkest under each). */
+  function grid(key, rows, map, dir){ const h = rows.length, w = rows[0].length; return procSprite('pad_' + key + (dir > 0 ? 'R' : 'L'), w, h, (x, y) => { const c = rows[y][dir > 0 ? x : w - 1 - x]; return c === '.' ? null : map[c] || null; }); }
+  const HERON = ['......WW....', '.....WWWyyy.', '......WW....', '......W.....', '.....W......', '.....W......', '......W.....', '......WW....', '....SWWWW...', '...SWWWWWW..',
+    '..SSWWWWWWW.', '..SSSWWWWWW.', '...SSSWWWW..', '....SSSSs...', '......L.L...', '......L.L...', '......L.L...', '......L.L...', '......L.L...', '.....LL.LL..'];
+  const HERON2 = ['............', '............', '.....WW.....', '....WWWW....', '....WWyyy...', '.....W......', '....SWWWW...', '...SWWWWWW..', '..SSWWWWWWW.', '..SSSWWWWWW.',
+    '...SSSWWWW..', '....SSSSs...', '.......L....', '.......L....', '.......L....', '.......L....', '.......L....', '.......L....', '.......L....', '......LL....'];   // the second pose: neck drawn in, on one leg
+  const HMAP = { W:'#d0d4e2', S:'#868ea6', s:'#5a6278', y:'#c8a038', L:'#202228' };
+  const heron = (v, dir) => grid('heron' + v, v ? HERON2 : HERON, HMAP, dir);
+  const BALL = ['..YYYYY..', '.YyKKKYY.', 'YyKRRRKYY', 'YKRKKKRKY', 'YKRKWKRKY', 'YKRKKKRKY', 'YYKRRRKYY', '.YYKKKYY.', '..YYYYY..', '....b....', '....B....', '....B....', '....b....', '....B....', '....B....',
+    '....B....', '....n....', '....B....', '....B....', '....B....', '....B....', '....n....', '....B....', '....B....', '....B....', '....B....', '....B....', '....n....', '....B....', '....B....'];
+  const BMAP = { Y:'#d8b830', y:'#fff0a0', K:'#121216', R:'#c02822', W:'#f0f0e8', B:'#5a6236', b:'#7a8048', n:'#2a2e1a' };
+  const balloon = dir => grid('ball', BALL, BMAP, dir);
+  const KEI = ['..WWWWW.....................', '.WGGgGWW....................', '.WGGGGWWW...................', 'WWWWWWWWWSSSSSSSSSSSSSSSSSS.', 'WWWWWWWWWSsKKsKKKssKKsssssS.',
+    'wWWWWWWWWSSSSSSSSSSSSSSSSSS.', 'DDDDDDDDDDDDDDDDDDDDDDDDDDDr', '...TTT..............TTT.....', '..TTtTT............TTtTT....', '...TTT..............TTT.....'];
+  const KMAP = { W:'#c4c8d2', G:'#18222e', g:'#8a9ab0', S:'#9aa0aa', s:'#646a76', K:'#b4a47c', D:'#18181c', T:'#0a0a0c', t:'#4a4a50', w:'#d8d8c4', r:'#a01818' };
+  const kei = dir => grid('kei', KEI, KMAP, dir);
+  // a sugi of the shrine grove: tiers of dark foliage, each lit along its top edge on the moon's side
+  const sugi = (v, dir) => bake('sugi' + v, 13, 44, (x, y) => { const c = 6.5 + (v ? .5 : 0), t = y % 6, tier = (y / 6) | 0; if(y >= 37) return Math.abs(x + .5 - c) < 1.1 ? 3 : 0;
+    const hw = 1 + y * .13 + t * .32 + (hash(tier * 3.1 + v) - .5) * .8; return Math.abs(x + .5 - c) < hw ? (hash(x * 1.7 + y * 3.1 + v) > .8 ? 104 : 4) : 0; }, dir);
+  // the shimmer columns: a light doubled in the water is a vertical column of short dashes running down it (palette cycling, ui/cycle.js:
+  // eight slots rotate a step every 110 ms, so the dashes flow; one drawImage of the frame a light). Four colours: warm windows, cool tubes,
+  // the crossing's red, sodium. A column narrows and dims with depth and breaks where a row of seedlings or a levee crosses it.
+  const SCW = 8, SCH = 128, SCOL = ['#ffb860', '#d8f0ff', '#ff3a30', '#ffb050'];
+  let SCY = null;
+  function shimmerBake(){ if(SCY || !window.CYCLE) return; SCY = [];
+    for(const col of SCOL){ const idx = new Uint8Array(SCW * SCH), [R, G, B] = hx(col);
+      for(let y = 0; y < SCH; y++){ const m = y / SCH, hw = (SCW / 2) * (1 - m * .55) * (.75 + hash(y * 1.7) * .35), slot = 1 + ((y + (hash(y >> 2) * 3 | 0)) % 8);
+        for(let x = 0; x < SCW; x++){ const dx = Math.abs(x + .5 - SCW / 2); if(dx > hw) continue; idx[y * SCW + x] = dx < hw * .45 ? slot : 8 + slot; } }
+      const pal = [null]; for(const k of [1, .75, .4, .15, 0, 0, .3, .6]) pal.push([R, G, B, Math.round(255 * k)]); for(const k of [.55, .35, .15, 0, 0, 0, .12, .3]) pal.push([R, G, B, Math.round(255 * k)]);
+      SCY.push(CYCLE.make({ w:SCW, h:SCH, idx, pal, ranges:[[1, 8, 1], [9, 16, 1]], ms:110, still:1 })); } }
+  const SCI = new Map([['#ffb860', 0], ['#ffc070', 0], ['#ffb050', 3], ['#c8f0e0', 1], ['#d8f0ff', 1], ['#ff3a30', 2]]);
+  // a shimmer column at x from y0 down, len long, wd wide (screen units); trimmed to the water under it
+  function column(x, y0, len, wd, col, a){ const c = SCY && SCY[SCI.has(col) ? SCI.get(col) : 0]; if(!c) return false;
+    const L = wetDepth(x, y0, Math.min(len, SCH * PX)); if(L < PX * 2) return true; const cols = Math.max(1, Math.min(SCW, Math.round(wd / PX))), rows = Math.max(2, Math.round(L / PX));
+    cx.globalCompositeOperation = 'lighter'; const ga = cx.globalAlpha; cx.globalAlpha = Math.min(1, a);
+    c.draw(cx, LNOW, snap(x - cols * PX / 2), snap(y0), cols * PX, rows * PX, (SCW - cols) >> 1, 0, cols, rows);
+    cx.globalAlpha = ga; cx.globalCompositeOperation = 'source-over'; return true; }
+  // fireflies: a swarm sprite whose points blink out of phase by palette cycling (each point its own place on a 12-slot ring); its
+  // reflection under it, dimmer. Two sizes: a near swarm spread wide, a far one tight. One drawImage a swarm.
+  let FFC = null;
+  function ffBake(){ if(FFC || !window.CYCLE) return; FFC = [];
+    for(const [w, h, n] of [[40, 28, 9], [14, 10, 4]]){ const idx = new Uint8Array(w * h), wl = (h * .62) | 0;
+      for(let j = 0; j < n; j++){ const x = (hash(j * 3.3 + w) * (w - 2) | 0) + 1, y = (hash(j * 5.7 + w) * (wl - 3) | 0) + 1, s = 1 + (j * 5) % 12; idx[y * w + x] = s;
+        const ry = wl + (wl - y) * .4 | 0; if(ry < h) idx[ry * w + x] = 12 + s; }
+      const pal = [null]; for(let k = 0; k < 12; k++) pal.push(k < 2 ? '#eaff9a' : k === 2 ? '#a8d870' : [0, 0, 0, 0]); for(let k = 0; k < 12; k++) pal.push(k < 2 ? [168, 216, 112, 110] : [0, 0, 0, 0]);
+      FFC.push(CYCLE.make({ w, h, idx, pal, ranges:[[1, 12, 1], [13, 24, 1]], ms:150, still:0 })); } }
 
   // ---------------------------------------------------------------- sprite drawing
   function drawDeli(sp, x, y, uw, fog){ if(fog > .8) return; const w = Math.max(PX, snap(uw * .022)), h = uw * .3, a = 1 - fog * .5;
@@ -715,10 +791,24 @@
       cx.globalAlpha = a * bl; cx.fillStyle = '#e6ff9a'; cx.fillRect(snap(fx), snap(y - ht), sz, sz);
       cx.globalAlpha = a * bl * .45; cx.fillStyle = '#a8d870'; cx.fillRect(snap(fx), snap(y + ht), sz, sz); cx.globalAlpha = 1;
       if(uw > 40) gl(fx, y - ht, uw * .05, '#b8ff60', .35 * a * bl); } }
-  const DRAW = { deli:drawDeli, tick:() => {}, pole:drawPole, bld:bldSlice, rack:rackSlice, torii:drawTorii, vendp:drawVendP, farm:drawFarm, bus:drawBus, xing:drawXing, shrine:drawShrine, ff:drawFF,
+  function drawTape(sp, x, y, uw, fog, now){ if(fog > .5) return; const a = 1 - fog * 1.6, xc = x - sp.x * uw, s = sp.side, h = uw * .5, pw = Math.max(PX, snap(uw * .018)), xa = xc + s * sp.X0 * uw, xb = xc + s * sp.X1 * uw;
+    if(Math.max(xa, xb) < -PX || Math.min(xa, xb) > W + PX) return; cx.globalAlpha = a; cx.fillStyle = fc('#5a6236', fog); cx.fillRect(snap(xa), snap(y - h), pw, snap(h)); cx.fillRect(snap(xb), snap(y - h), pw, snap(h));
+    // the kira-kira tape: a sagging line of silver and red, its pieces catching the moon in turn as it twists in the wind
+    const n = Math.max(4, Math.min(24, Math.round(Math.abs(xb - xa) / (PX * 3)))), tk = reduce ? 0 : Math.floor(now / 180), th = Math.max(PX, snap(uw * .008));
+    for(let j = 0; j < n; j++){ const t = (j + .5) / n, gx = xa + (xb - xa) * t, gy = y - h * .92 + h * .18 * 4 * t * (1 - t), g = hash(sp.k * 3.1 + j * 7.7 + tk * .37);
+      cx.fillStyle = g > .82 ? '#f4f8ff' : j % 2 ? '#b02a2a' : '#8a8e9c'; cx.fillRect(snap(gx), snap(gy), Math.max(PX, snap(Math.abs(xb - xa) / n * .8)), th); }
+    cx.globalAlpha = 1; }
+  function drawFF2(sp, x, y, uw, fog, now){ if(!FFC) return drawFF(sp, x, y, uw, fog, now); if(fog > .5 || uw < 5) return; const c = FFC[uw > 60 ? 0 : 1], k = uw > 60 ? Math.max(1, Math.round(uw / 160)) : 1;
+    const ga = cx.globalAlpha; cx.globalAlpha = ga * (1 - fog * 1.6); cx.globalCompositeOperation = 'lighter'; c.draw(cx, now + sp.k * 397, snap(x - c.w * PX * k / 2), snap(y - c.h * .62 * PX * k), c.w * PX * k, c.h * PX * k);
+    cx.globalCompositeOperation = 'source-over'; cx.globalAlpha = ga; }
+  const DRAW = { deli:drawDeli, tick:() => {}, pole:drawPole, bld:bldSlice, rack:rackSlice, torii:drawTorii, vendp:drawVendP, farm:drawFarm, bus:drawBus, xing:drawXing, shrine:drawShrine, ff:drawFF2, tape:drawTape,
     crow:(sp, x, y, uw, fog) => drawSmall(crow(mdir(x)), .7, sp, x, y, uw, fog),
     jizo:(sp, x, y, uw, fog) => drawSmall(jizo(mdir(x)), .22, sp, x, y, uw, fog),
-    hasa:(sp, x, y, uw, fog) => drawSmall(hasa(sp.k % 2, mdir(x)), 1.9, sp, x, y, uw, fog) };
+    hasa:(sp, x, y, uw, fog) => drawSmall(hasa(sp.k % 2, mdir(x)), 1.9, sp, x, y, uw, fog),
+    heron:(sp, x, y, uw, fog) => drawSmall(heron(sp.v, sp.x > 0 ? -1 : 1), .2, sp, x, y, uw, fog),
+    ball:(sp, x, y, uw, fog) => drawSmall(balloon(mdir(x)), .62, sp, x, y, uw, fog),
+    kei:(sp, x, y, uw, fog) => drawSmall(kei(sp.x > 0 ? 1 : -1), .3, sp, x, y, uw, fog),
+    sugi:(sp, x, y, uw, fog) => drawSmall(sugi(sp.k % 2, mdir(x)), 2.4, sp, x, y, uw, fog) };
 
   // ---------------------------------------------------------------- projected farm buildings (2026-11-19, biome polish)
   /* Snow Onsen's way, not billboards: each building is a run of road segments; every segment draws one slice of its face parallel to the
@@ -857,8 +947,7 @@
       for(let li = 0; li < MLOD.length; li++){ const k = MLOD[li], w = Math.round(MU * k), h = roof ? RNV[li] : Math.round(MV * k), c = document.createElement('canvas'); c.width = w; c.height = h;
         const g = c.getContext('2d'), img = g.createImageData(w, h), d = img.data;
         for(let y = 0; y < h; y++) for(let x = 0; x < w; x++){ const v = fn(x, y, k, w, h); if(!v) continue; const o = (y * w + x) * 4; d[o] = v[0]; d[o + 1] = v[1]; d[o + 2] = v[2]; d[o + 3] = Math.min(255, v[3]); }
-        g.putImageData(img, 0, 0); cx.drawImage(c, 0, 0, 1, 1); L.push({ cv:c, pat:cx.createPattern(c, 'repeat'), k, nv:h }); }
-      yield; } }
+        g.putImageData(img, 0, 0); cx.drawImage(c, 0, 0, 1, 1); L.push({ cv:c, pat:cx.createPattern(c, 'repeat'), k, nv:h }); yield; } } }
   // the LOD whose texel stays at least ~an art pixel for a scale of s screen units per half-road (or per slope, for roofs)
   const mlod = (name, s, roof) => { const L = MAT[name]; if(!L || !MM || MOFF) return null; for(let i = 0; i < L.length; i++){ const t = roof ? s / L[i].nv : s / L[i].k; if(t >= PX * .8) return L[i]; } return null; };
   /* (perf) the tile is drawn, not filled: one drawImage of the tile's rectangle (u0..u1 along, v0..v1 down) under the slice's own affine
@@ -1157,10 +1246,10 @@
     const step = PX * 2, toff = skyPar('edge'), o0 = ((toff % step) + step) % step, lit = []; BN = 0; BX0 = -step - o0; WLN = 0;
     cx.beginPath(); cx.moveTo(-step * 2, hz + PX);
     for(let x = -step - o0; x < W + step; x += step){ const wx = Math.round((x + toff) / step), grp = vn(wx * .045 + 3), row = vn(wx * .11 + 9);
-      let h = 0; if(grp > .6) h = PX * (2 + Math.round(hash(wx) * 3 + (grp - .6) * 10)); else if(row > .55 && wx % 3 !== 0) h = PX * (3 + Math.round(hash(wx * 1.3) * 2)); else h = hash(wx * 7) > .7 ? PX : 0;
+      let h = 0; if(grp > .6){ const hp = ((wx % 6) + 6) % 6; h = PX * (3 + Math.round((grp - .6) * 6) + (hp < 3 ? hp : 5 - hp)); }   // (round 2) the far village: gabled roofs, not a crenellation else if(row > .55 && wx % 3 !== 0) h = PX * (3 + Math.round(hash(wx * 1.3) * 2)); else h = hash(wx * 7) > .7 ? PX : 0;
       cx.lineTo(x, hz - h); cx.lineTo(x + step, hz - h); if(BN < BHT.length) BHT[BN++] = h;
       if(h && Math.abs(x - moonX) < W * .3) lit.push(x + (moonX > x ? PX : 0), hz - h);
-      if(grp > .66 && hash(wx * 3.7) > .55 && WLN < WLX.length) WLX[WLN++] = x; }
+      if(grp > .62 && hash(wx * 3.7) > .42 && (((wx % 6) + 6) % 6) !== 2 && WLN < WLX.length) WLX[WLN++] = x; }
     cx.lineTo(W + step * 2, hz + PX); cx.closePath(); cx.fillStyle = c2; cx.fill();
     cx.fillStyle = mixc(c2, moonCol, .3); for(let j = 0; j < lit.length; j += 2) cx.fillRect(lit[j], lit[j + 1], PX, PX);
     cx.fillStyle = '#ffc070'; for(let j = 0; j < WLN; j++) cx.fillRect(WLX[j], hz - PX * 2, PX, PX);
@@ -1184,6 +1273,8 @@
       up(bus(d)); up(xing(d)); yield; up(xingHi(d, 2)); yield; up(xingHi(d, 4)); yield; up(shrine(d)); up(reflOf(shrine(d), 'pad_rshrine' + d)); yield; up(crow(d)); up(reflOf(crow(d), 'pad_rcrow' + d)); up(jizo(d));
       for(let v = 0; v < 2; v++){ up(hasa(v, d)); up(reflOf(hasa(v, d), 'pad_rhasa' + v + d)); } yield; }
     up(pylonSpr()); warmSigns(); for(const k in SIGNS) up(SIGNS[k]); cx.clearRect(0, 0, W, H); yield;
+    for(const d of [-1, 1]){ for(let v = 0; v < 2; v++){ up(heron(v, d)); up(reflOf(heron(v, d), 'pad_rheron' + v + d)); up(sugi(v, d)); } up(balloon(d)); up(reflOf(balloon(d), 'pad_rball' + d)); up(kei(d)); } yield;
+    shimmerBake(); yield; ffBake(); cx.clearRect(0, 0, W, H); yield;
     yield* matBake(); yield* tuftBake(); yield* fieldBake(); cx.clearRect(0, 0, W, H); }
 
   ENV.paddies = {
@@ -1206,7 +1297,7 @@
       const f = DRAW[sp.type]; if(f) f(sp, x, y, uw, fog, now); },
     warm(){ for(const _ of warmSteps()); },
     warmSteps,
-    _fdbg:() => ({ ok:FAOK, l0:FL0, h:FAT[0] && FAT[0].height, nq:NQ, rows:FDC }), _fat:FAT, _tat:() => TAT,   // (tests: the field atlases' state)
+    _fdbg:() => ({ ok:FAOK, l0:FL0, h:FAT[0] && FAT[0].height, nq:NQ, rows:FDC, vr:[VR0, VR1] }), _fat:FAT, _tat:() => TAT,   // (tests: the field atlases' state)
     // (the old one-piece warm() took 114 ms in a single step; now each step is one sprite family or a slice of the field atlases)
   };
 })();

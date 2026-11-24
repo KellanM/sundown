@@ -118,7 +118,7 @@
   function fw(s, x, y, j, fx, h){ const t = segs[j]; if(!t || !(t.p1.screen.w > 0) || t.p1.camera.z <= DEPTH) return false; const p = t.p1.screen; FW.w = p.w; FW.x = p.x + (x - s.p1.screen.x) + fx * p.w; FW.y = p.y + (y - s.p1.screen.y) - h * p.w; return true; }
   function disc(x, y, r, col){ cx.fillStyle = col; if(r < PX * .6){ pxRect(x - PX / 2, y - PX / 2, PX, PX); return; } const n = Math.ceil(r / PX);
     for(let k = -n; k <= n; k++){ const yy = k * PX, ww = Math.sqrt(Math.max(0, r * r - yy * yy)); if(ww < PX * .5) continue; cx.fillRect(q(x - ww), q(y + yy), q(ww * 2), PX); } }
-  function jetFan(s, x, y, uw, fx, P, fog, a){ const T = P.metal, F = c => C(c);
+  function jetFan(s, x, y, uw, fx, P, fog, a, now){ const T = P.metal, F = c => C(c);
     const real = segs[s.index] === s, r0 = FRR * uw;
     if(!real || r0 < PX * 2.2 || !fw(s, x, y, s.index + FL, fx, FHC)){ const sp = fanSprite(P), sk = uw * .62 / 22; cx.globalAlpha = a; blit(sp, x + fx * uw, y - CH * uw + 11 * sk + uw * .02, sk); cx.globalAlpha = 1; return; }
     const ex = FW.x, ey = FW.y, r1 = FRR * FW.w, nx = x + fx * uw, ny = y - FHC * uw, al = a * clamp(1.4 - uw / (W * .55), 0, 1); if(al <= .02) return; cx.globalAlpha = al;
@@ -133,7 +133,11 @@
     disc(nx, ny, r0, F(T[3])); if(r0 < PX * 4){ disc(nx, ny, r0 - PX, F(T[2])); cx.globalAlpha = 1; return; }   // (small: a pale drum end, no intake ring; with one it read as a wheel)
     disc(nx, ny, r0 - Math.max(PX, r0 * .14), F(T[0])); disc(nx, ny, r0 * .62, F(T[1]));
     if(r0 > PX * 3){ disc(nx, ny, Math.max(PX, r0 * .32), F(T[2])); cx.fillStyle = F(T[3]); pxRect(nx - px * r0 * .1 - PX / 2, ny - py * r0 * .1 - PX, PX, PX); }
-    if(r0 > PX * 6){ cx.fillStyle = F(T[0]); pxRect(nx - r0 * .86, ny - PX * .5, r0 * .5, PX); pxRect(nx + r0 * .36, ny - PX * .5, r0 * .5, PX); }
+    if(r0 > PX * 6){ // the impeller behind the guard: five blades turning slowly (still under reduced motion), then the guard bar
+      const ang = reduce ? .4 : (now || 0) / 420, rb = r0 * .78, rh0 = Math.max(PX, r0 * .32); cx.fillStyle = F(T[2]);
+      for(let bl = 0; bl < 5; bl++){ const t = ang + bl * 1.2566, c1 = Math.cos(t), s1 = Math.sin(t), c2 = Math.cos(t + .38), s2 = Math.sin(t + .38);
+        poly(nx + c1 * rh0, ny + s1 * rh0, nx + c1 * rb, ny + s1 * rb, nx + c2 * rb, ny + s2 * rb, nx + c2 * rh0, ny + s2 * rh0, F(T[bl & 1 ? 1 : 2])); }
+      disc(nx, ny, Math.max(PX, r0 * .3), F(T[2])); cx.fillStyle = F(T[0]); pxRect(nx - r0 * .86, ny - PX * .5, r0 * .5, PX); pxRect(nx + r0 * .36, ny - PX * .5, r0 * .5, PX); }
     cx.globalAlpha = 1; }
   // the evacuation-route light: far away one green pixel; near, a lamp housing with a lit lens (bright top row) instead of a flat green block
   function evacLight(x0, y0, d){ if(d < PX * 2.5){ pxRect(x0, y0, d, d); return; } const o = PX, w = d * 1.4, xa = x0 + d / 2 - w / 2;
@@ -160,19 +164,27 @@
   const ACC = new Float32Array(4 * 1100);
   function over(n, rgb, a){ if(n < 0 || a <= 0) return; const o = n * 4, A = ACC[o + 3], oa = a + A * (1 - a); if(oa <= 0) return; const t = a / oa;
     ACC[o] = rgb[0] * t + ACC[o] * (1 - t); ACC[o + 1] = rgb[1] * t + ACC[o + 1] * (1 - t); ACC[o + 2] = rgb[2] * t + ACC[o + 2] * (1 - t); ACC[o + 3] = oa; }
-  function wallCol(P, s, lit, Hh){ ACC.fill(0, 0, Hh * 4); const M = MAT[P.id], DK = rgbH(M.dk), ST = rgbH(M.st), EF = rgbH(M.ef), WE = rgbH(M.wet), G = rgbH(M.g), LP = rgbH(M.lip), sod = P.id === 's';
-    const T = Hh / WT, R = h => clamp(Math.round((WT - h) * T), 0, Hh), band = (h0, h1, c, a) => { for(let r = R(h1); r < R(h0); r++) over(r, c, a); }, line = (h, c, a, n = 1) => { const r = Math.min(Hh - 1, R(h)); for(let m = 0; m < n; m++) over(r + m, c, a); };
-    const Hs = n => hash(s * 13.7 + n * 3.1 + (sod ? 0 : 50));
+  function wallCol(P, s, lit, Hh, mt){ ACC.fill(0, 0, Hh * 4); const M = MAT[P.id], DK = rgbH(M.dk), ST = rgbH(M.st), EF = rgbH(M.ef), WE = rgbH(M.wet), G = rgbH(M.g), LP = rgbH(M.lip), sod = P.id === 's' && !mt, shot = mt === 1;
+    const T = Hh / CH, R = h => clamp(Math.round((CH - h) * T), 0, Hh), band = (h0, h1, c, a) => { for(let r = R(h1); r < R(h0); r++) over(r, c, a); }, line = (h, c, a, n = 1) => { const r = Math.min(Hh - 1, R(h)); for(let m = 0; m < n; m++) over(r + m, c, a); };
+    const Hs = n => hash(s * 13.7 + n * 3.1 + (sod ? 0 : 50) + mt * 31);
+    // the haunch (WT..CH, the three steps): soot heaviest at the crown, a dark joint at each step's top edge, now and then a drip streak
+    // running down from the crown joint to the wall (the white-crust streaks of the sodium arch reference)
+    band(CH - .12, CH, DK, .26); band(WT + (CH - WT) * .45, CH - .12, DK, .15); band(WT, WT + (CH - WT) * .45, DK, .07);
+    for(let n = 1; n <= 3; n++){ const h = WT + n * (CH - WT) / 3; if(T > 20) line(h - .5 / T, DK, .45); }
+    if(Hs(97) < .3){ const bot = WT - .05 - Hs(98) * .2; band(bot, CH, ST, .2); line(bot, EF, .3); if(T > 50) line(CH - .02, EF, .22); }
     // upper wall (bare concrete, PT..WT): exhaust soot thickest under the haunch, three hard steps with a one-row checker between them
     const soot = [[WT - .07, .2], [WT - .15, .12], [WT - .26, .055]]; let top = WT;
     for(const [h, a] of soot){ band(h, top, DK, a); if(T > 40){ const r = R(h); over(r, DK, a * .6); } top = h; }
     if(.16 * T >= 5) for(let h = PT + .16; h < WT - .03; h += .16) line(h, DK, .14);                               // formwork lift lines
-    if(!sod && T > 24) for(let r = R(WT); r < R(PT + .06); r += 2){ const v = hash(s * 5.3 + r * .71); if(v < .18) over(r, DK, .06); else if(v > .86) over(r, EF, .035); }   // shotcrete mottle
+    if(!sod && T > 24) for(let r = R(WT); r < R(shot ? KB + .05 : PT + .06); r += 2){ const v = hash(s * 5.3 + r * .71); if(v < .18) over(r, DK, .06); else if(v > .86) over(r, EF, .035); }   // shotcrete mottle
     // the cable on hooks along the top of the lining, lit along its top
     const cb = PT + .045, cn = Math.max(1, Math.round(.011 * T)); line(cb, DK, .62, cn); if(T > 30) line(cb + 1 / T, LP, .22);
     if(s % 3 === 0 && T > 50) for(let m = 1; m <= Math.max(1, Math.round(.01 * T)); m++) over(R(cb) + cn - 1 + m, DK, .5);
     // the lining (KB..PT): long tiles under sodium (a joint every 5 cm of height, each tile a shade off its neighbour), enamel panels under LED
-    if(sod){ const th = .05; let j = 0; for(let h = KB; h < PT - .005; h += th, j++){ const v = Hs(20 + j);
+    if(shot){ // bare shotcrete, unlined: blotchy cure marks in two tones, rock-bolt plates in two rows (dark, a lit top), no tiles
+      for(let j = 0; j < 7; j++){ const h0 = KB + .06 + Hs(40 + j) * (WT - KB - .2), hh = .03 + Hs(50 + j) * .07; band(h0, h0 + hh, Hs(60 + j) < .6 ? DK : EF, Hs(60 + j) < .6 ? .07 : .04); }
+      if(s % 4 === 1 && T > 30) for(const hb of [.35, .78]){ band(hb - .025, hb + .025, DK, .55); line(hb + .025, LP, .3); } }
+    else if(sod){ const th = .05; let j = 0; for(let h = KB; h < PT - .005; h += th, j++){ const v = Hs(20 + j);
         if(v < .22) band(h, Math.min(PT, h + th), DK, .045); else if(v > .86) band(h, Math.min(PT, h + th), EF, .035);
         if(th * T >= 3 && h > KB) line(h + 1 / T * .5, DK, .3); } }
     else { const ph = .15; let j = 0; for(let h = KB; h < PT - .005; h += ph, j++){ const v = Hs(20 + j); if(v < .3) band(h, Math.min(PT, h + ph), DK, .05); else if(v > .8) band(h, Math.min(PT, h + ph), EF, .04);
@@ -182,7 +194,7 @@
     band(0, KB, DK, .14); if(s % 5 === 2 && T > 40) band(.03, .05, DK, .55);
     // water: a stain down from the crown joint (darker, a pale crust where it dried at its foot), a crust line with drips, a seep reaching the floor
     if(Hs(91) < (sod ? .3 : .16)){ const bot = PT - .04 - Hs(92) * .32, a = .12 + Hs(93) * .1, m1 = bot + (WT - bot) * .66, m2 = bot + (WT - bot) * .33;   // darkest at the joint it leaks from, three steps down
-      band(m1, WT, ST, a * 1.25); band(m2, m1, ST, a * .8); band(bot, m2, ST, a * .45); line(bot, EF, .26, T > 60 ? 2 : 1); }
+      band(m1, WT, ST, a * 1.25); band(m2, m1, ST, a * .8); band(bot, m2, ST, a * .45); line(bot, EF, .26, T > 60 ? 2 : 1); if(shot) band(bot, WT, ST, a * .4); }
     if(Hs(94) > (sod ? .8 : .88)){ const hj = PT + .08 + Hs(95) * .28, r0 = R(hj); line(hj, EF, .4); if(T > 30) for(let m = 0; m < 4; m++) over(r0 + 2 + m * 2, EF, .26 - m * .05); }
     if(Hs(96) > .92){ band(0, PT + .12, WE, .3); line(.055, LP, .5); }
     // under a lamp: the scallop of light on the upper wall (Wangan), and the lining's top catching it
@@ -191,17 +203,17 @@
     const band = (u0, u1, c, a) => { for(let n = U(u0); n < Math.max(U(u0) + 1, U(u1)); n++) if(n < Wc) over(n, c, a); };
     band(.3, .7, DK, .12); band(.24, .3, DK, .06); band(.7, .76, DK, .06);                         // exhaust soot over the lanes
     band(.497, .503, DK, .3);                                                                       // the crown joint
-    for(const c of [.1, .9]){ band(c - .035, c + .035, DK, .62); band(c + (c < .5 ? .035 : -.045), c + (c < .5 ? .045 : -.035), LP, .4);   // the cable trays, lit on the side toward the lamps' throw
-      if(s % 4 === 0) band(c - .06, c + .06, DK, .5); }                                              // a hanger every fourth ring
-    if(s % 5 === 3){ const u = .2 + hash(s * 3.7) * .6; band(u, u + .05, ST, .22); band(u - .006, u, EF, .2); }   // a drip stain with a dried rim
+    for(const c of [.1, .9]){ band(c - .04, c + .04, DK, .7); band(c + (c < .5 ? .04 : -.055), c + (c < .5 ? .055 : -.04), LP, .6); band(c - .025, c + .025, LP, .14);   // the cable trays: dark, a lit lip on the side toward the lamps' throw, the cables inside catching a little
+      if(s % 4 === 0){ band(c - .07, c + .07, DK, .55); band(c - .07, c + .07, LP, .22); } }       // a hanger every fourth ring (a lit bar across)
+    if(s % 5 === 3 || s % 7 === 5){ const u = .2 + hash(s * 3.7) * .6; band(u, u + .05, ST, .3); band(u - .008, u, EF, .3); band(u + .05, u + .058, EF, .18); }   // a drip stain with a dried rim
     if(s % 7 === 1){ band(.16, .2, DK, .25); band(.8, .84, DK, .25); } }                             // lamp conduits' junction boxes
   // build one palette's wall atlas (a step per LOD) and ceiling atlas (a step per few LODs)
-  function* buildMat(P){ const CW = NSL * 2, MAXH = 2040, L = []; for(let h = 4; ; h = Math.ceil(h * 1.15)){ L.push({ h }); if(h >= 520) break; }
+  function* buildMat(P, mt = 0){ const CW = NSL * 2, MAXH = 2040, L = []; for(let h = 6; ; h = Math.ceil(h * 1.15)){ L.push({ h }); if(h >= 460) break; }
     let x = 0, y = 0, ah = 0; for(const l of L){ if(y + l.h > MAXH){ x += CW; y = 0; } l.x = x; l.y = y; y += l.h + 1; ah = Math.max(ah, y); }
     const cv = document.createElement('canvas'); cv.width = x + CW; cv.height = ah; const k = cv.getContext('2d'), img = k.createImageData(cv.width, ah), d = img.data;
-    for(const l of L){ for(let c = 0; c < CW; c++){ wallCol(P, c % NSL, c >= NSL, l.h); for(let r = 0; r < l.h; r++){ const o = ((l.y + r) * cv.width + l.x + c) * 4, a = ACC[r * 4 + 3];
+    for(const l of L){ for(let c = 0; c < CW; c++){ wallCol(P, c % NSL, c >= NSL, l.h, mt); for(let r = 0; r < l.h; r++){ const o = ((l.y + r) * cv.width + l.x + c) * 4, a = ACC[r * 4 + 3];
           d[o] = ACC[r * 4]; d[o + 1] = ACC[r * 4 + 1]; d[o + 2] = ACC[r * 4 + 2]; d[o + 3] = Math.round(a * 255); } } yield; }
-    k.putImageData(img, 0, 0); ATW[P.id] = { cv, L }; yield;
+    k.putImageData(img, 0, 0); ATW[P.id + mt] = { cv, L }; if(mt) return; yield;
     const C = []; for(let w = 6; ; w = Math.ceil(w * 1.15)){ C.push({ w }); if(w >= 1040) break; }
     const MAXW = 2048; x = 0; y = 0; let aw = 0; for(const l of C){ if(x + l.w > MAXW){ y += NSC + 1; x = 0; } l.x = x; l.y = y; x += l.w + 1; aw = Math.max(aw, x); }
     const cc = document.createElement('canvas'); cc.width = aw; cc.height = y + NSC; const kc = cc.getContext('2d'), ic = kc.createImageData(aw, y + NSC), dc = ic.data; let n = 0;
@@ -209,6 +221,8 @@
       if(++n % 6 === 0) yield; }
     kc.putImageData(ic, 0, 0); ATC[P.id] = { cv:cc, L:C }; }
   // the LOD at or below a size (canvas px), stretched by under 15 %; the largest when the size is bigger still
+  // a bare-shotcrete stretch in half the bores (an unlined NATM section: 40-70 rings somewhere in the middle)
+  const shotAt = i => { const b = Math.floor(i / 320), k = i % 320, h = hash(b * 2.31 + .7); if(h > .5) return false; const s0 = 50 + Math.floor(hash(b * 4.1) * 70); return k >= s0 && k < s0 + 40 + Math.floor(h * 60); };
   const lodOf = (L, v, key) => { let best = null; for(const l of L){ if(l[key] <= v) best = l; else break; } return best; };
   // one wall band: the column for (slice, lit) of the LOD for its height, stretched across the band (dx..dx+dw), from the wall top yw to the floor qy
   function wallTex(A, s, lit, dx, dw, yw, qy, ct){ const dh = qy - yw; if(dw < PX || dh < PX * 4) return; const l = lodOf(A.L, dh / PX, 'h'); if(!l) return;
@@ -223,16 +237,20 @@
      a row). Per bore: a deck of stations shuffled by hash, spaced 10-21 rings apart, sides mostly alternating; jet-fan groups at uneven gaps as
      pairs, triples or a single fan. Wall items are drawn on the wall plane, part by part in each ring's own band (one ring ~35 cm), so they sit in
      the lining's perspective and never turn into upscaled sprites. */
-  const K_BANK = 1, K_EXT = 2, K_EXIT = 3, K_PLATE = 4, K_DOOR = 5, K_HYD = 6, LEN = [0, 6, 2, 1, 1, 4, 3];
-  const DECK = [K_BANK, K_EXT, K_EXIT, K_PLATE, K_EXT, K_DOOR, K_HYD, K_EXIT, K_EXT, K_PLATE, K_BANK, K_HYD], DK_S = new Int8Array(DECK.length);
+  const K_BANK = 1, K_EXT = 2, K_EXIT = 3, K_PLATE = 4, K_DOOR = 5, K_HYD = 6, K_ALC = 7, LEN = [0, 6, 2, 1, 1, 4, 3, 9];
+  const DECK = [K_BANK, K_EXT, K_EXIT, K_PLATE, K_EXT, K_DOOR, K_HYD, K_EXIT, K_ALC, K_EXT, K_PLATE, K_BANK, K_HYD, K_EXIT], DK_S = new Int8Array(DECK.length);
   const FANS = [null, [-.48, .48], [-.62, 0, .62], [-.48], [.48]];
-  const EQ = [0, 1, 2, 3].map(() => ({ b:-1, kind:new Int8Array(200), side:new Int8Array(200), part:new Int8Array(200), fan:new Int8Array(200) }));
-  function eqOf(b){ const E = EQ[b & 3]; if(E.b === b) return E; E.b = b; E.kind.fill(0); E.fan.fill(0);
+  const EQ = [0, 1, 2, 3].map(() => ({ b:-1, kind:new Int8Array(200), side:new Int8Array(200), part:new Int8Array(200), fan:new Int8Array(200), vms:new Int8Array(200), cctv:new Int8Array(200) }));
+  function eqOf(b){ const E = EQ[b & 3]; if(E.b === b) return E; E.b = b; E.kind.fill(0); E.fan.fill(0); E.vms.fill(0); E.cctv.fill(0);
+    // a message board over the lanes at one or two of 90 / 170 (clear of the gantries at 50 and 130); a CCTV camera or an emergency-light box
+    // on the upper wall every 24-40 rings, sides alternating
+    if(hash(b * 8.3) < .75) E.vms[90] = 1; if(hash(b * 8.9) < .5) E.vms[170] = 1;
+    for(let c = 12 + Math.floor(hash(b * 1.3) * 10), m = 0; c < 192; m++){ E.cctv[c] = (m & 1 ? 1 : -1) * (hash(b * 3.9 + m) < .6 ? 1 : 2); c += 24 + Math.floor(hash(b * 6.1 + m * 2.7) * 17); }
     for(let n = 0; n < DECK.length; n++) DK_S[n] = DECK[n];
     for(let n = DECK.length - 1; n > 0; n--){ const m = Math.floor(hash(b * 7.31 + n * 1.73) * (n + 1)), t = DK_S[n]; DK_S[n] = DK_S[m]; DK_S[m] = t; }
     let k = 22 + Math.floor(hash(b * 3.1) * 8), n = 0, prev = 0, sd = hash(b * 5.5) < .5 ? -1 : 1;
     while(k < 186){ let kd = DK_S[n % DECK.length]; n++; if(kd === prev) kd = DK_S[n % DECK.length]; prev = kd; const len = LEN[kd];
-      if(k + len > 46 && k < 54) k = 54;   // (clear of the lane-control gantry at 50)
+      if(k + len > 46 && k < 54) k = 54; if(k + len > 126 && k < 134) k = 134;   // (clear of the lane-control gantries at 50 and 130)
       if(k + len > 190) break;
       for(let m = 0; m < len; m++){ E.kind[k + m] = kd; E.side[k + m] = sd; E.part[k + m] = m; }
       if(hash(b * 9.1 + n * 2.3) < .7) sd = -sd; k += len + 10 + Math.floor(hash(b * 4.7 + n * 3.9) * 12); }
@@ -258,19 +276,78 @@
     [3.9, 4.9, .27, .46, '#1c8a4c', 1], [4.1, 4.7, .33, .36, '#f4fff4'], [4.1, 4.25, .31, .4, '#f4fff4'], [4.55, 4.7, .31, .4, '#f4fff4'], [4.98, 5.12, .3, .42, '#d8d2c6']]);
   IT[K_EXT] = [[0, 2, .1, .4, 'N'], [0, 2, .4, .415, 'L'], [.2, 1.8, .12, .37, '#b41a22', 1], [.2, 1.8, .35, .37, '#ff6a58'], [.5, 1.5, .19, .31, '#f0e8e0', 1], [.8, 1.2, .2, .3, '#d02a2a'], [.88, 1.12, .3, .32, '#2a2a2a']];
   IT[K_PLATE] = [[.15, .85, .62, .75, '#1a1a1e'], [.2, .8, .63, .74, '#e6e6de'], [.3, .7, .67, .68, '#202024'], [.3, .58, .7, .71, '#202024']];
+  // the maintenance alcove: a deep niche lit by one tube, a parked works cart with an amber beacon, two cones, a hazard-striped barrier across the mouth
+  IT[K_ALC] = [[0, 9, 0, .74, 'N'], [0, 9, .74, .755, 'L'], [.6, 8.4, .02, .72, '#1c1c22'], [1.2, 7.8, .66, .69, '#f4f8e8'], [2.2, 5.6, .06, .3, '#d8a020', 1], [2.4, 5.4, .3, .34, '#5a5a60'],
+    [2.5, 3.1, 0, .07, '#141418'], [4.7, 5.3, 0, .07, '#141418'], [3.7, 4.1, .34, .4, '#ffb020'], [6.3, 6.8, 0, .17, '#ff6a20', 1], [6.35, 6.75, .08, .11, '#f4f4f0'], [7.3, 7.8, 0, .17, '#ff6a20', 1], [7.35, 7.75, .08, .11, '#f4f4f0'],
+    [.3, .6, 0, .3, '#d8d8d0'], [8.4, 8.7, 0, .3, '#d8d8d0'], [.3, 8.7, .12, .22, 'H']];
   IT[K_DOOR] = [[0, 4, 0, .68, 'N'], [0, 4, .68, .695, 'L'], [.25, 3.75, 0, .63, '#56625e'], [.45, 3.55, 0, .59, '#3a4846', 1], [.45, 3.55, .57, .59, '#8aa09a'], [1.97, 2.03, 0, .57, '#222c2a'],
     [1.55, 1.8, .27, .3, '#c8d0cc'], [2.2, 2.45, .27, .3, '#c8d0cc'], [1.5, 2.5, .64, .675, '#3aff7a']];
-  const LAMPI = []; LAMPI[K_HYD] = LAMPI[K_BANK] = [1.5, .67, '#ff3a2a']; LAMPI[K_DOOR] = [2, .66, '#3aff7a'];
+  const LAMPI = []; LAMPI[K_HYD] = LAMPI[K_BANK] = [1.5, .67, '#ff3a2a']; LAMPI[K_DOOR] = [2, .66, '#3aff7a']; LAMPI[K_ALC] = [3.9, .37, '#ffb020'];
   function wallItem(E, k, kd, sd, x0, x1, y, uw, P, a){ const pt = E.part[k], bw = x1 - x0; if(bw <= 0) return;
     if(bw < PX * 3 || uw < W * .025){ const mk = kd === K_DOOR ? '#3aff7a' : kd === K_PLATE ? '#c8c8c0' : '#c41e26'; cx.fillStyle = C(mk); pxRect(sd < 0 ? x1 - PX : x0, q(y - (kd === K_PLATE ? .68 : .32) * uw), PX, PX); return; }
     if(a < 1) cx.globalAlpha = a;
     for(const e of IT[kd]){ const ua = Math.max(0, e[0] - pt), ub = Math.min(1, e[1] - pt); if(ub <= ua) continue;
       const xa = sd < 0 ? x0 + bw * (1 - ub) : x0 + bw * ua, xb = sd < 0 ? x0 + bw * (1 - ua) : x0 + bw * ub, ya = q(y - e[3] * uw), yb = q(y - e[2] * uw);
-      const rw = Math.max(PX, q(xb) - q(xa)), rh = Math.max(PX, yb - ya); cx.fillStyle = e[4] === 'N' ? C(P.line) : e[4] === 'L' ? C(P.panel[3]) : C(e[4]); R(q(xa), ya, rw, rh);
+      const rw = Math.max(PX, q(xb) - q(xa)), rh = Math.max(PX, yb - ya); cx.fillStyle = e[4] === 'N' ? C(P.line) : e[4] === 'L' ? C(P.panel[3]) : e[4] === 'H' ? C('#e8b818') : C(e[4]); R(q(xa), ya, rw, rh);
       if(e[5] && rh > PX * 6 && rw > PX * 3){ cx.fillStyle = C(e[6]); R(q(xa), ya, rw, PX); cx.fillStyle = C(e[7]); R(q(xa), yb - PX, rw, PX); } }   // near: a lit top edge and a shadowed foot, one canvas pixel each
     if(a < 1) cx.globalAlpha = 1;
     const lm = LAMPI[kd]; if(lm && lm[0] >= pt && lm[0] < pt + 1){ const lx = sd < 0 ? x0 + bw * (1 - (lm[0] - pt)) : x0 + bw * (lm[0] - pt), gi = gIn(uw, .03); if(gi > 0) glow(lx, y - lm[1] * uw, Math.min(uw * .2, H * .06), lm[2], .35 * a * gi); } }
 
+  /* ---- wall items drawn whole (round 2: near, the per-ring split cut the hydrant's labels into stepped pieces). Each kind is baked once
+     at warm-up per palette, per side (mirrored for the right wall) and at three sizes, from its element list; near, it is laid on the wall
+     plane between its near and far rings in a few vertical strips, each at its own depth (projective interpolation: 1/w is linear in depth),
+     so it keeps its perspective and stays whole. Far away it keeps the per-band path. */
+  const HMAX = .8, ARTV = [64, 128, 256], ART = {};   // ART[pal + kind + side][lod] = canvas (side 0 left, 1 right)
+  function artPaint(P, kd, V, mir){ const len = LEN[kd], wU = Math.round(V * .12), Wd = Math.max(1, len * wU), Hd = Math.round(HMAX * V), c = document.createElement('canvas'); c.width = Wd; c.height = Hd;
+    const g = c.getContext('2d'), X = u => mir ? Wd - Math.round(u * wU) : Math.round(u * wU), Y = h => Math.round((HMAX - h) * V);
+    const rect = (u0, u1, h0, h1, col) => { const xa = Math.min(X(u0), X(u1)), xb = Math.max(X(u0), X(u1)), ya = Y(h1), yb = Y(h0); g.fillStyle = col; g.fillRect(xa, ya, Math.max(1, xb - xa), Math.max(1, yb - ya)); };
+    for(const e of IT[kd]){ const col = e[4] === 'N' ? P.line : e[4] === 'L' ? P.panel[3] : e[4];
+      if(col === 'H'){ rect(e[0], e[1], e[2], e[3], '#e8b818'); const xa = Math.min(X(e[0]), X(e[1])), xb = Math.max(X(e[0]), X(e[1])), ya = Y(e[3]), yb = Y(e[2]), sw = Math.max(2, Math.round((yb - ya) * .7));   // hazard stripes: black diagonals
+          g.fillStyle = '#141414'; for(let y = ya; y < yb; y++) for(let x = xa; x < xb; x++) if(((x + (mir ? -y : y)) % (sw * 2) + sw * 2) % (sw * 2) < sw) g.fillRect(x, y, 1, 1); continue; }
+      rect(e[0], e[1], e[2], e[3], col);
+      if(e[5]){ const xa = Math.min(X(e[0]), X(e[1])), xb = Math.max(X(e[0]), X(e[1])), ya = Y(e[3]), yb = Y(e[2]); if(xb - xa > 3 && yb - ya > 3){ g.fillStyle = hexMix(col, '#ffffff', .38); g.fillRect(xa, ya, xb - xa, 1);
+          g.fillStyle = hexMix(col, '#000000', .42); g.fillRect(xa, yb - 1, xb - xa, 1); g.fillRect(mir ? xa : xb - 1, ya + 1, 1, yb - ya - 1); g.fillStyle = hexMix(col, '#000000', .2); g.fillRect(mir ? xb - 1 : xa, ya + 1, 1, yb - ya - 1); } } }
+    return c; }
+  function* buildArt(){ for(const P of [SOD, LED]) for(const kd of [K_HYD, K_BANK, K_EXT, K_PLATE, K_DOOR, K_ALC]){ for(let sd = 0; sd < 2; sd++){ const A = ART[P.id + kd + sd] = []; for(const V of ARTV) A.push(artPaint(P, kd, V, sd === 1)); } yield; }
+    if(!DOTS) buildDots(); }
+  // the item whose nearest ring is k0, laid whole on the wall (sd -1 left, 1 right); returns false when its ends can't be projected
+  const EN = { x:0, y:0, w:0 }, EF = { x:0, y:0, w:0 };
+  function ringPt(j, o){ const t = segs[j]; if(!t || !t.p1.screen.scale || !(t.p1.camera.z > DEPTH)) return false; o.x = t.p1.screen.x; o.y = t.p1.screen.y; o.w = t.p1.screen.w; return true; }
+  function itemWhole(P, kd, k0, sd, u0, fa, now, uw){ const len = LEN[kd], A = ART[P.id + kd + (sd > 0 ? 1 : 0)]; if(!A) return false;
+    if(!ringPt(k0 + len - 1, EF)) return false; if(!ringPt(k0 + u0 - 1, EN)){ if(!ringPt(k0 + u0, EN)) return false; u0++; } if(u0 >= len) return true;
+    IP.sd = sd; const at = atPT;
+    at(0); const xa = IP.wx, hN = HMAX * IP.w; at(1); const xb = IP.wx, n = clamp(Math.round(Math.abs(xb - xa) / (PX * 10)), 1, 10);
+    let lv = ARTV.length - 1; for(let m = 0; m < ARTV.length; m++) if(ARTV[m] * HMAX >= hN / PX * .87){ lv = m; break; } const C = A[lv], cw = C.width, ch = C.height;
+    if(fa < 1) cx.globalAlpha = fa; cx.imageSmoothingEnabled = false;
+    for(let m = 0; m < n; m++){ const t0 = m / n, t1 = (m + 1) / n; at(t0); const x0 = IP.wx; at(t1); const x1 = IP.wx; at((t0 + t1) / 2); const yb = q(IP.y), ya = q(IP.y - HMAX * IP.w);
+      const ua = (u0 + t0 * (len - u0)) / len, ub = (u0 + t1 * (len - u0)) / len, sxa = (sd > 0 ? 1 - ub : ua) * cw, sxb = (sd > 0 ? 1 - ua : ub) * cw, dx0 = q(Math.min(x0, x1)), dx1 = q(Math.max(x0, x1));
+      if(dx1 > dx0 && yb > ya && dx1 > -PX && dx0 < W + PX) cx.drawImage(C, sxa, 0, Math.max(.5, sxb - sxa), ch, dx0, ya, dx1 - dx0, yb - ya); }
+    if(fa < 1) cx.globalAlpha = 1;
+    const lm = LAMPI[kd]; if(lm && lm[0] >= u0){ at((lm[0] - u0) / (len - u0)); const gi = gIn(uw, .03), bl = kd === K_ALC && !reduce ? .55 + .45 * Math.abs(Math.sin(now / 260)) : 1;
+      if(gi > 0) glow(IP.wx, IP.y - lm[1] * IP.w, Math.min(IP.w * .2, H * .06), lm[2], .35 * fa * gi * bl); }
+    return true; }
+  const IP = { x:0, y:0, w:0, wx:0, sd:-1 };
+  // the point t (0 near .. 1 far) along the item, between EN and EF, into IP (module state: no closure per call)
+  function atPT(t){ const a = (1 - t) / EN.w, b = t / EF.w, s0 = a + b; IP.x = (a * EN.x + b * EF.x) / s0; IP.y = (a * EN.y + b * EF.y) / s0; IP.w = 1 / s0; IP.wx = IP.x + IP.sd * OW * IP.w; }
+  /* ---- overhead life: variable-message boards (generic amber dot matrix, kana-like strokes, no real text: a pre-baked dot strip that steps
+     along one dot at a time; still under reduced motion) and the CCTV and emergency-light boxes on the upper wall */
+  let DOTS = null; const DOTW = 192, DOTH = 9;
+  function buildDots(){ const c = document.createElement('canvas'); c.width = DOTW; c.height = DOTH; const g = c.getContext('2d'); g.fillStyle = '#2a1606'; g.fillRect(0, 0, DOTW, DOTH);
+    for(let gl = 0; gl < DOTW / 8; gl++){ const x0 = gl * 8 + 1; if(hash(gl * 3.3) < .18) continue;   // a gap now and then: words
+      for(let st = 0; st < 3; st++){ const v = hash(gl * 7.1 + st * 1.9), hz = v < .45, p = Math.floor(hash(gl * 5.7 + st) * 6), L = 2 + Math.floor(hash(gl * 2.3 + st * 3.1) * 4);   // strokes: a bar, a post, a hook
+        g.fillStyle = '#ffb428'; for(let m = 0; m < L; m++){ const x = hz ? x0 + Math.min(5, m + (p & 1)) : x0 + Math.min(5, p), y = hz ? 1 + Math.min(6, p) : 1 + Math.min(6, m + (p >> 1)); g.fillRect(x, y, 1, 1); } } }
+    DOTS = c; }
+  function drawVMS(x, yC, uw, fog, now, a){ if(!DOTS) return; const bw = uw * 1.5, bh = uw * .26, bx = x - bw / 2, by = yC + uw * .1; cx.globalAlpha = a;
+    cx.fillStyle = C('#3a3c48'); pxRect(x - bw * .3, yC, Math.max(PX, uw * .02), by - yC); pxRect(x + bw * .3, yC, Math.max(PX, uw * .02), by - yC);   // hangers
+    cx.fillStyle = C('#0c0c10'); pxRect(bx - PX, by - PX, bw + PX * 2, bh + PX * 2); cx.fillStyle = C('#5a5c68'); pxRect(bx - PX, by - PX, bw + PX * 2, PX);
+    const sc = Math.max(1, Math.floor(bh * .78 / DOTH / PX)) * PX, vw = Math.floor(bw / sc), off = reduce ? 0 : Math.floor(now / 140) % DOTW, dx = q(x - vw * sc / 2), dy = q(by + (bh - DOTH * sc) / 2);
+    if(vw >= 4){ cx.imageSmoothingEnabled = false; const w1 = Math.min(vw, DOTW - off); cx.drawImage(DOTS, off, 0, w1, DOTH, dx, dy, w1 * sc, DOTH * sc); if(w1 < vw) cx.drawImage(DOTS, 0, 0, vw - w1, DOTH, dx + w1 * sc, dy, (vw - w1) * sc, DOTH * sc); }
+    cx.globalAlpha = 1; const gi = gIn(uw, .04); if(gi > 0) glow(x, by + bh / 2, Math.min(bw * .5, H * .1), '#ff9a20', .18 * a * gi); }
+  function drawCCTV(l, r, yW, uw, sd, cam, a){ const bx = sd < 0 ? l + uw * .18 : r - uw * .18, by = yW - uw * .32, s0 = Math.max(PX, uw * .07); cx.globalAlpha = a;
+    cx.fillStyle = C('#2a2c34'); pxRect(sd < 0 ? Math.min(l, bx) : bx, by + s0 * .3, Math.abs(bx - (sd < 0 ? l : r)), Math.max(PX, s0 * .15));   // the bracket from the wall
+    if(cam){ cx.fillStyle = C('#d8dad4'); pxRect(bx - s0, by, s0 * 1.6, s0 * .7); cx.fillStyle = C('#ffffff'); pxRect(bx - s0, by, s0 * 1.6, PX); cx.fillStyle = C('#14161c'); pxRect(sd < 0 ? bx + s0 * .45 : bx - s0, by + s0 * .15, s0 * .2, s0 * .4); }
+    else { cx.fillStyle = C('#c8ccc4'); pxRect(bx - s0 * .7, by, s0 * 1.4, s0); cx.fillStyle = C('#f4fff8'); pxRect(bx - s0 * .5, by + s0 * .25, s0, s0 * .4); }
+    cx.globalAlpha = 1; }
   // ---- the portal. Studied from Japanese road and expressway portals (Wikimedia Commons, "Road tunnel portals in Japan": Enasan, Tennozan,
   // Shin-Kuwadai, Kan-etsu Yuzawa side, Ken-O Sagamihara-Hachioji, Kamura): a bell-mouth hood projects from a concrete headwall; its front
   // is cut on a slant, so the sides reach out further than the crown and the cut face reads as a thick pale band round a dark, warm mouth;
@@ -358,9 +435,9 @@
       if(i % 4 === 0 && uw > W * .035 && cl < l){ const ci = q(HI * uw); R(ql + ci, q(yC), qr - ql - 2 * ci, PX); for(let n = 0; n < 3; n++){ const ya = q(yW - (n + 1) * hh), ins = q((n + 1) * HI / 3 * uw), i0 = q(n * HI / 3 * uw); R(ql + i0 - PX, ya, ins - i0 + PX, PX); R(qr - ins, ya, ins - i0 + PX, PX); } }
       if(L === 3){ cx.fillStyle = C(P.wall[4]); R(qfl, yw, qL - qfl, PX); R(qR, yw, qfr - qR, PX); } }
     // the material: each wall's visible band (out to the nearer face ring's opening) and the crown's band, from the warm-up atlases
-    const AW = TX_TEX ? null : ATW[P.id]; if(uw > W * .03 && AW && fog < .6){
+    const AW = TX_TEX ? null : ATW[P.id + (shotAt(i) ? 1 : 0)]; if(uw > W * .03 && AW && fog < .6){
       const fa = fog < .08 ? 1 : 1 - (fog - .08) / .52; if(fa < 1) cx.globalAlpha = fa;
-      const lt = lampAt(i), b = Math.floor(i / 320), sl = (i * 7 + Math.floor(i / NSL) * 5 + b * 11) % NSL, sr = (i * 7 + Math.floor(i / NSL) * 5 + b * 11 + 13) % NSL, yW0 = q(yW);
+      const lt = lampAt(i), b = Math.floor(i / 320), sl = (i * 7 + Math.floor(i / NSL) * 5 + b * 11) % NSL, sr = (i * 7 + Math.floor(i / NSL) * 5 + b * 11 + 13) % NSL, yW0 = q(yC);
       const xl = Math.max(-PX, q(cl), pn ? q(pn.x - OW * pn.w) : -PX), xr = Math.min(W + PX, q(cr), pn ? q(pn.x + OW * pn.w) : W + PX), cT = ct > -1e8 ? q(ct) : -1e9;
       if(ql > xl) wallTex(AW, sl, lt, xl, ql - xl, yW0, qy, cT); if(xr > qr) wallTex(AW, sr, lt, qr, xr - qr, yW0, qy, cT);
       const AC = TX_CEIL ? null : ATC[P.id]; if(AC && pn && !out){ const cw = (OW - HI) * pn.w, y0 = q(pn.y - CH * pn.w); if(q(yC) > y0) ceilTex(AC, (i * 5 + b * 3) % NSC, Math.max(-PX, q(pn.x - cw)), Math.min(W + PX, q(pn.x + cw)), y0, q(yC)); }
@@ -372,6 +449,8 @@
       for(let rw = 0; rw < rows; rw++){ const ly = q(yW - hh * (rw ? -.15 : 1.5)), inn = rw ? .1 : HI * .5;
         for(let m = 0; m < 2; m++){ const lx = m ? q(r - inn * uw) : q(l + inn * uw); if(lx < cl || lx > cr || ly < ct) continue; cx.fillStyle = C(P.metal[0]); pxRect(lx - lw / 2 - PX, ly - PX, lw + PX * 2, lh + PX * 2);
           cx.fillStyle = fog > .6 ? C(P.lamp) : P.hot; pxRect(lx - lw / 2, ly, lw, lh);
+          if(lw >= PX * 6 && lh >= PX * 2){ cx.fillStyle = C(P.metal[2]); pxRect(lx - lw / 2 - PX, ly - PX, lw + PX * 2, PX); cx.fillStyle = C(P.lamp); pxRect(lx - lw / 2, ly + lh - PX, lw, PX); pxRect(lx - lw / 2, ly, PX, lh); pxRect(lx + lw / 2 - PX, ly, PX, lh);   // lens frame and its warmer rim
+            cx.fillStyle = C(P.metal[1]); pxRect(lx - PX / 2, ly - PX * 2 - Math.max(PX, lh * .4), PX, Math.max(PX, lh * .4) + PX); }   // the bracket
           const gi = gIn(uw, .06); if(gi > 0) glow(lx, ly + lh / 2, Math.min(uw * .55, H * .07), P.glow, .3 * (1 - fog) * gi * (rw ? .7 : 1)); } } }
     if(out && (l < cl || r > cr)) return;   // the rest only shows through the mouth
     // evacuation-route lights: a low green dot every 8 rings on both walls
@@ -383,9 +462,16 @@
     if(kd){ const sd = E.side[k], x0 = sd < 0 ? Math.max(-PX, q(cl), pn ? q(pn.x - OW * pn.w) : -PX) : qr, x1 = sd < 0 ? ql : Math.min(W + PX, q(cr), pn ? q(pn.x + OW * pn.w) : W + PX);
       if(kd === K_EXIT){ if(E.part[k] === 0){ const sk = Math.max(1, uw * .24 / 12), nr = sk > PX * 2, ex = sd < 0 ? l + 6 * sk + PX : r - 6 * sk - PX; cx.globalAlpha = a; blit(nr ? exitNear() : exitSprite(), ex, q(y - .62 * uw), nr ? sk / 3 : sk); cx.globalAlpha = 1;
           const gi = gIn(uw, .05); if(gi > 0) glow(ex, y - .62 * uw - 3 * sk, uw * .3, '#2aff6a', .25 * a * gi); } }
-      else wallItem(E, k, kd, sd, x0, x1, y, uw, P, a); }
+      else { const pt = E.part[k], real = segs[i] === s, big = uw > W * .025, n0 = real && segs[i - pt] && segs[i - pt].p1.screen.w > W * .025;
+        if(real && big && (pt === 0 || !pn)){ if(!itemWhole(P, kd, i - pt, sd, pt, a, now, uw)) wallItem(E, k, kd, sd, x0, x1, y, uw, P, a); }   // whole, from its nearest ring in view
+        else if(!real || (!big && !n0)) wallItem(E, k, kd, sd, x0, x1, y, uw, P, a); } }
     // jet fans from the crown: groups at uneven spacing, pairs, triples or a single offset fan (inside cavein's joined bore, it draws its own)
-    const fk = E.fan[k]; if(fk && segs[i] === s) for(const fx of FANS[fk]) jetFan(s, x, y, uw, fx, P, fog, a);
+    const fk = E.fan[k]; if(fk && segs[i] === s) for(const fx of FANS[fk]) jetFan(s, x, y, uw, fx, P, fog, a, now);
+    if(E.vms[k] && uw > W * .02) drawVMS(x, yC, uw, fog, now, a);
+    const cc = E.cctv[k]; if(cc && uw > W * .03) drawCCTV(l, r, yW, uw, cc < 0 ? -1 : 1, Math.abs(cc) === 1, a);
+    // a seep: a drop runs down the wall and glints as it falls (still under reduced motion: it hangs at the lining's top)
+    if(uw > W * .1 && wetAt(i) && i % 5 === 2 && k > 30 && k < 170){ const ph = reduce ? .3 : (now / 900 + hash(i * .37)) % 1, dy = yW + (y - yW) * ph, dxs = ql - Math.max(PX, uw * .05);
+      cx.fillStyle = C(P.lamp); pxRect(dxs, dy, PX, PX * 2); cx.fillStyle = P.hot; pxRect(dxs, dy + PX * 2, PX, PX); }
     // lane-control gantry: a beam under the crown with a signal over each lane
     if(k % 80 === 50){ const by = q(yC + uw * .12), bh = Math.max(PX, q(uw * .05)); cx.fillStyle = C(P.metal[1]); pxRect(q(l + HI * uw), by, q(r - l - 2 * HI * uw), bh); cx.fillStyle = C(P.metal[3]); pxRect(q(l + HI * uw), by, q(r - l - 2 * HI * uw), PX);
       const sk = Math.max(1, uw * .16 / 9); for(const lx of SIGX){ const red = lx > 0 && Math.floor(i / 320) % 3 === 0; blit(arrowSprite(red), x + lx * uw, by + bh + 9 * sk, sk); const gi = gIn(uw, .05); if(gi > 0) glow(x + lx * uw, by + bh + 4.5 * sk, uw * .16, red ? '#ff3030' : '#4aff7a', .3 * a * gi); } }
@@ -703,10 +789,10 @@
 
   // build every sprite and colour table up front so nothing is made mid-ride
   // stepped (a lining LOD per step, each well under 8 ms): the material atlases first, then the colour tables and sprites
-  function* warmSteps(){ for(const P of [SOD, LED]) if(!ATW[P.id]) yield* buildMat(P); warm0(); }
+  function* warmSteps(){ for(const P of [SOD, LED]){ if(!ATW[P.id + 0]) yield* buildMat(P); if(!ATW[P.id + 1]) yield* buildMat(P, 1); } yield* buildArt(); warm0(); }
   function warm(){ for(const _ of warmSteps()); }
   function warm0(){
-    for(const P of [SOD, LED]){ fanSprite(P); for(const key of ['ceil', 'wall', 'panel', 'kerb', 'road', 'metal']) for(const c of P[key]){ fc(P, c, 0); for(let cs = 1; cs < 6; cs++) fcc(P, c, cs, 0); } for(const c of [P.line, P.lamp, P.lane, '#3aff7a', '#d8b070', '#d8dce0', '#c8c8c0', '#c41e26']) fc(P, c, 0); for(const t of IT) if(t) for(const e of t) if(e[4][0] === '#'){ if(e[5] && !e[6]){ e[6] = hexMix(e[4], '#ffffff', .38); e[7] = hexMix(e[4], '#000000', .42); } fc(P, e[4], 0); if(e[6]){ fc(P, e[6], 0); fc(P, e[7], 0); } } }
+    for(const P of [SOD, LED]){ fanSprite(P); for(const key of ['ceil', 'wall', 'panel', 'kerb', 'road', 'metal']) for(const c of P[key]){ fc(P, c, 0); for(let cs = 1; cs < 6; cs++) fcc(P, c, cs, 0); } for(const c of [P.line, P.lamp, P.lane, '#3aff7a', '#d8b070', '#d8dce0', '#c8c8c0', '#c41e26']) fc(P, c, 0); for(const c of ['#e8b818', '#3a3c48', '#0c0c10', '#5a5c68', '#2a2c34', '#d8dad4', '#ffffff', '#14161c', '#c8ccc4', '#f4fff8', '#9ad0ff', '#fff4c8']) fc(P, c, 0); for(const t of IT) if(t) for(const e of t) if(e[4][0] === '#'){ if(e[5] && !e[6]){ e[6] = hexMix(e[4], '#ffffff', .38); e[7] = hexMix(e[4], '#000000', .42); } fc(P, e[4], 0); if(e[6]){ fc(P, e[6], 0); fc(P, e[7], 0); } } }
     exitSprite(); exitNear(); sosSprite(); arrowSprite(true); arrowSprite(false);
     if(!GATL){ GATL = document.createElement('canvas'); GATL.width = 1024; GATL.height = 160; GSC = document.createElement('canvas'); GSC.width = GSC.height = 64; }   // the blade atlas (filled once the font is in)
     const txt = () => { buildGlyphs(); for(const z of TZ){ for(const n of NAMES){ textSprite(n, '#ffe2a8', z); textSprite(n, '#ffffff', z); } textSprite('全長 4 km', '#ffffff', z); textSprite('トンネル情報', '#ffb030', z); textSprite('点灯', '#ffb030', z); textSprite('点灯', '#14100a', z); } };
