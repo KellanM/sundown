@@ -296,7 +296,7 @@
   const FPT = [0, 0, 0];   // a point on the face: FPT = [x, y, uw] at sub-span t, height h
   function fpt(t, h){ const u = FU1 + (FU2 - FU1) * t; FPT[0] = FX1 + (FX2 - FX1) * t; FPT[1] = FY1 + (FY2 - FY1) * t - u * h; FPT[2] = u; return FPT; }
   // the span a slice draws far away (1 near .. up to N), anchored to the run start; 0 if a nearer slice of the run covers this segment
-  const SPANF = f => { f = fogPx(f); return f < .022 ? 1 : f < .06 ? 2 : f < .14 ? 4 : f < .3 ? 8 : 16; };   // (measured: building slices were 6.8 ms a frame at the finer tiers)
+  const SPANF = f => { f = fogPx(f); return f < .02 ? 1 : f < .052 ? 2 : f < .125 ? 4 : f < .27 ? 8 : 16; };   // (round 2: a little coarser, for the ops gate)   // (measured: building slices were 6.8 ms a frame at the finer tiers)
   function spanOf(j, b0, end, fog, mn){ mn = mn || 1; const bse = j - Math.round(DRAW * Math.pow(fog, 1 / 1.6)), at = k => Math.max(mn, SPANF(clamp(Math.pow((k - bse) / DRAW, 1.6), 0, 1))), lx = laneDX(j), lcut = j > b0 && laneDX(j - 1) !== lx;
     if(j > b0 && !lcut && (j - b0) % at(j)) return 0; let n = 1; while(j + n < end && n < 16 && (j + n - b0) % at(j + n) && laneDX(j + n) === lx) n++; return n; }
   // the far end of a slice of n segments at lateral X: sets FX2/FY2/FU2 relative to the engine's projection of segment j + n - 1's far edge
@@ -536,7 +536,7 @@
     const a0 = cx.globalAlpha; cx.globalAlpha = a0 * (1 - fog * .6); blit(spr, px, py - hh * .1, k); cx.globalAlpha = a0; glow(px, py - hh * .6, Math.min(H * .08, spr.width * k * .6), BILLS[bi][2], .22 * (1 - fog)); }
 
   // ---------------------------------------------------------------- drawing: the deck's parapets
-  const WSP = f => { f = fogPx(f); return f < .03 ? 1 : f < .08 ? 2 : f < .2 ? 4 : f < .4 ? 8 : 16; };
+  const WSP = f => { f = fogPx(f); return f < .026 ? 1 : f < .07 ? 2 : f < .17 ? 4 : f < .36 ? 8 : 16; };   // (round 2: a little coarser, for the ops gate; parSpan keeps every segment covered)
   /* The parapet's slices (Kellan, 2026-11-23: "some of them disappear when they are between the farground and the foreground"). Each
      slice used to be drawn from a segment j only when j % WSP(fog at j) === 0, covering WSP segments. Where the tier changed (n 1 -> 2 at
      about 30 segments out, 2 -> 4 at 55, 4 -> 8 at 100) the first segments of the coarser tier were neither drawn by the finer slice
@@ -865,15 +865,16 @@
   let EYE = .3;   // the camera's height over the deck in prop units (half-road widths), measured each frame in backdrop()
   const ROOFC = ['#1a1822', '#201c28', '#17161f', '#1d1f27', '#231d22'], VOIDC = ['#0c0a12', '#0e0b14'];
   function bq(a, b, sd, X1, X2, col){ poly(a.x + sd * X1 * a.w, a.y, a.x + sd * X2 * a.w, a.y, b.x + sd * X2 * b.w, b.y, b.x + sd * X1 * b.w, b.y, col); }
-  function belowDeck(s, a, b, fog, f, sd){ const i = s.index, XF = Math.max(60, W * 1.6 / Math.max(.5, b.w)), cl = Math.floor(i / 9), XV = 2.5;
+  function belowDeck(s, a, b, fog, f, sd, mc){ const i = s.index, XF = Math.max(60, W * 1.6 / Math.max(.5, b.w)), cl = Math.floor(i / 9), XV = 2.5;
     // (perf) the parapet hides the ground plane out to Xh (the eye's ray over its top; the eye height EYE is measured each frame: low at
     // desktop, high in portrait). The band just behind the parapet is always drawn (the parapet's slices leave pixel seams, which must show
     // the street's dark, not ground); the roofs beyond are drawn only where the eye can reach them
     const pk = sd < 0 ? s.shPK & 3 : s.shPK >> 2, ph = pk === 2 ? PH.snd : pk === 3 ? PH.rail : PH.con, Xh = s.shPK === undefined ? 0 : EYE > ph + .01 ? PAR_X * EYE / (EYE - ph) * .9 : 1e9;
-    const B0 = bldAt(i, sd, 0);   // (behind a street-row building the ground plane is hidden from its face on: only the street below the deck is drawn)
+    const B0 = bldAt(i, sd, 0), mg = !!B0 && B0.x0 <= Xh;   // (behind a street-row building the ground plane is hidden from its face on: only the street below the deck is drawn)
+    bq(a, b, sd, 1, mg ? B0.x0 + .05 : DECK_X, mc);   // the deck's margin to the parapet foot (perf, round 2: on to the building's face where the parapet hides the street slot: it only ever shows in the parapet's seams)
     if(!B0 && Xh >= XF){ bq(a, b, sd, DECK_X, XF, f(fog > .16 ? '#0e0c14' : VOIDC[(i >> 2) & 1])); return; }   // all hidden but the parapet's seams: one band
     if(B0){ const rc = f(ROOFC[Math.floor(hash(cl * 1.3 + sd) * 5)]);   // (on a bend the eye sees behind a building's end: the roofs beyond it are drawn too, as one band)
-      if(fog > .16){ bq(a, b, sd, DECK_X, XF, f('#0e0c14')); return; } bq(a, b, sd, DECK_X, B0.x0 + .05, f(VOIDC[(i >> 2) & 1])); bq(a, b, sd, B0.x0 + .05, XF, rc); if(!(i % 12 === 0 && a.w > 8)) return; }
+      if(fog > .16){ bq(a, b, sd, DECK_X, XF, f('#0e0c14')); return; } if(!mg) bq(a, b, sd, DECK_X, B0.x0 + .05, f(VOIDC[(i >> 2) & 1])); bq(a, b, sd, B0.x0 + .05, XF, rc); if(!(i % 12 === 0 && a.w > 8)) return; }
     else if(fog > .16){ bq(a, b, sd, DECK_X, XF, f(ROOFC[Math.floor(hash(cl * 1.3 + sd) * 5)])); return; }
     else bq(a, b, sd, DECK_X, XV, f(VOIDC[(i >> 2) & 1]));   // the street below the deck's edge
     if(i % 12 === 0 && a.w > 8){ const lx = a.x + sd * 1.9 * a.w, sz = Math.max(PX, Math.min(PX * 2, snp(a.w * .025))); cx.fillStyle = f('#ffcf80'); pxRect(lx - sz / 2, a.y - sz, sz, sz); }   // its lamps, seen far below
@@ -925,8 +926,8 @@
     // the deck's margin beyond the road edge, out to the parapet foot (concrete, lit warm under the lamps)
     const mc = f(s.lit > .3 ? '#3a3238' : '#26252f');
     if(fog > .16 && !AB_FL){ const fc2 = f(s.lit > .3 ? '#221e26' : '#16141c'), XF = Math.max(60, W * 1.6 / Math.max(.5, b.w)); bq(a, b, -1, 1, XF, fc2); bq(a, b, 1, 1, XF, fc2); }   // (perf, round 2: far away the deck's margin, the street below and the roofs are one band each side)
-    else { poly(a.x - a.w, a.y, a.x - a.w * DECK_X, a.y, b.x - b.w * DECK_X, b.y, b.x - b.w, b.y, mc); poly(a.x + a.w, a.y, a.x + a.w * DECK_X, a.y, b.x + b.w * DECK_X, b.y, b.x + b.w, b.y, mc);
-      if(!AB_FL){ belowDeck(s, a, b, fog, f, -1); belowDeck(s, a, b, fog, f, 1); } }
+    else if(AB_FL){ poly(a.x - a.w, a.y, a.x - a.w * DECK_X, a.y, b.x - b.w * DECK_X, b.y, b.x - b.w, b.y, mc); poly(a.x + a.w, a.y, a.x + a.w * DECK_X, a.y, b.x + b.w * DECK_X, b.y, b.x + b.w, b.y, mc); }
+    else { belowDeck(s, a, b, fog, f, -1, mc); belowDeck(s, a, b, fog, f, 1, mc); }   // (the deck's margin is drawn by belowDeck: it runs on to a building's face where the street slot can't be seen)
     // the red anti-skid paint on the sharp bends (and through the junction), eased in and out over the segments either side
     const c = Math.abs(s.curve), rw = s.shK === 1 && s.shM > 60 && s.shM < 140 ? 1 : clamp((c - 4.3) / .5, 0, 1);   // (only the sharpest bends: this road's curve scale runs to about 4.6)
     if(rw > .1){ const col = f(mixc(s.stripe ? '#26262f' : '#282832', RED, Math.round(rw * 4) / 4)); poly(a.x - a.w * .985, a.y, a.x + a.w * .985, a.y, b.x + b.w * .985, b.y, b.x - b.w * .985, b.y, col); }
