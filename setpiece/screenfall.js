@@ -94,9 +94,9 @@
   const H2 = (a, b) => hash(a * 12.9898 + b * 78.233);
   const BAY4 = [0, .5, .125, .625, .75, .25, .875, .375, .1875, .6875, .0625, .5625, .9375, .4375, .8125, .3125];   // a 4x4 ordered dither
   // 1. late news: the red 速報 strip, a radar map with the typhoon turning, the forecast track, the ticker band (live, see drawPanel)
-  function pNews(f){ RF(0, 0, LW, LH, 1);
-    for(let y = 18; y < 64; y++) for(let x = 0; x < LW; x++){ if((x * 7 + y * 3) % 9 === 0) PS(x, y, 2); if(x % 16 === 8 && y % 2 === 0) PS(x, y, 2); if(y % 12 === 6 && x % 2 === 0) PS(x, y, 2); }   // sea, the grid of latitudes and longitudes
-    for(let y = 18; y < 64; y++) for(let x = 0; x < LW; x++){ const d = ((x - 4) * 42 + (y - 62) * 80) / 90.4, w = 5 + 3 * Math.sin(x * .21) + 2 * Math.sin(x * .07 + y * .1); if(Math.abs(d) < w && x < 84) PS(x, y, Math.abs(d) > w - 1.2 ? 13 : 14); }   // an island arc (generic, no real coast)
+  function pNews(f){ RF(0, 0, LW, LH, 2);   // (round 2: big colour fields that read at 1 px per LED: a bright blue sea, a green arc, a white storm, the red strip)
+    for(let y = 18; y < 64; y++) for(let x = 0; x < LW; x++){ if((x * 7 + y * 3) % 9 === 0) PS(x, y, 3); if(x % 16 === 8 && y % 2 === 0) PS(x, y, 3); if(y % 12 === 6 && x % 2 === 0) PS(x, y, 3); }   // sea, the grid of latitudes and longitudes
+    for(let y = 18; y < 64; y++) for(let x = 0; x < LW; x++){ const d = ((x - 4) * 42 + (y - 62) * 80) / 90.4, w = 5 + 3 * Math.sin(x * .21) + 2 * Math.sin(x * .07 + y * .1); if(Math.abs(d) < w && x < 84) PS(x, y, Math.abs(d) > w - 1.2 ? 17 : 13); }   // an island arc (generic, no real coast)
     const tx = 64 - f * .4, ty = 42 - f * .3, ph = f / 8 * Math.PI * 2;
     for(let y = 18; y < 64; y++) for(let x = 0; x < LW; x++){ const dx = x - tx, dy = y - ty, r = Math.hypot(dx, dy); if(r > 17) continue; const th = Math.atan2(dy, dx), v = Math.sin(2 * th - r * .42 + ph);
       if(r < 2.2) PS(x, y, 1); else if(v > .35) PS(x, y, r < 8 ? 6 : 20); else if(v > -.05 && r < 13) PS(x, y, r < 9 ? 4 : 3); }   // the typhoon: two arms turning round a clear eye
@@ -105,24 +105,24 @@
     RF(0, 0, LW, 17, 9); RF(0, 17, LW, 1, 10); RF(0, 0, LW, 1, 26); TXT('速報', 16, 3, 0, 6, 10); f3('LIVE', 44, 2, (f & 2) ? 6 : 26); f3('23:41', 72, 10, 7);   // the strip
     RF(0, 64, LW, 13, 25); RF(0, 64, LW, 1, 4); }
   // 2. a soda can turning in the dark, bubbles rising, its name; then the card
-  function pSoda(f){ for(let y = 0; y < LH; y++) RF(0, y, LW, 1, y < 22 ? 0 : y < 48 ? ((y & 1) && y < 26 ? 0 : 1) : 2);
+  function pSoda(f){ for(let y = 0; y < LH; y++) RF(0, y, LW, 1, y < 30 ? 15 : y < 34 ? ((y & 1) ? 15 : 4) : y < 58 ? 4 : 3);
     if(f < 12){ const ph = f / 12, x0 = 16, cw = 26, y0 = 12, y1 = 68;
       for(let x = 0; x < cw; x++){ const nx = (x + .5) / cw * 2 - 1, u = ((Math.asin(nx) / Math.PI + ph) % 1 + 1) % 1, lt = 1 - Math.abs(nx + .3);
         for(let y = y0; y < y1; y++){ let c;
           if(y < y0 + 4) c = y === y0 ? 18 : lt > .6 ? 20 : 18; else if(y > y1 - 4) c = lt > .6 ? 18 : 19;
           else if(Math.abs(y - (42 + 4 * Math.sin(u * Math.PI * 4))) < 2) c = 6;
-          else if(u > .08 && u < .3 && y > 18 && y < 36) c = (Math.abs(u - .19) < .03 && y > 21 && y < 33) || (y > 25 && y < 28 && u > .12 && u < .26) ? 6 : 11;
-          else c = lt > .86 ? 5 : lt > .45 ? 15 : 16;
+          else if(u > .08 && u < .3 && y > 18 && y < 36) c = (Math.abs(u - .19) < .03 && y > 21 && y < 33) || (y > 25 && y < 28 && u > .12 && u < .26) ? 9 : 7;
+          else c = lt > .86 ? 26 : lt > .45 ? 9 : 10;
           PS(x0 + x, y, c); } }
-      for(let k = 0; k < 14; k++){ const bx = 6 + (k * 37) % 84, by = 74 - ((f * 4 + k * 11) % 66); if(bx > 14 && bx < 44) continue; PS(bx, by, 4); PS(bx + 1, by, 15); PS(bx, by + 1, 15); }
-      TXT('アオイ', 16, 46, 14, 15, 16); f3('SODA', 50, 36, 6, 2); f3('¥100', 52, 52, 7); if(f % 6 < 2){ PS(23, 16, 6); PS(22, 17, 6); PS(24, 17, 6); PS(23, 18, 6); }
-    } else { RF(0, 0, LW, LH, f === 12 ? 26 : 0); if(f > 12){ TXT('アオイ', 16, 25, 18, 15, 16); f3('SODA', 32, 42, 6, 2); RF(18, 56, 60, 1, 11); const sp = f & 1; PS(20 + sp * 50, 14, 6); PS(76 - sp * 52, 50, 6); } } }
+      for(let k = 0; k < 14; k++){ const bx = 6 + (k * 37) % 84, by = 74 - ((f * 4 + k * 11) % 66); if(bx > 14 && bx < 44) continue; PS(bx, by, 6); PS(bx + 1, by, 5); PS(bx, by + 1, 5); }
+      TXT('アオイ', 16, 46, 14, 6, 2); f3('SODA', 50, 36, 9, 2); f3('¥100', 52, 52, 10); if(f % 6 < 2){ PS(23, 16, 6); PS(22, 17, 6); PS(24, 17, 6); PS(23, 18, 6); }
+    } else { RF(0, 0, LW, LH, f === 12 ? 6 : 9); if(f > 12){ TXT('アオイ', 16, 25, 18, 6, 10); f3('SODA', 32, 42, 7, 2); RF(18, 56, 60, 1, 6); const sp = f & 1; PS(20 + sp * 50, 14, 6); PS(76 - sp * 52, 50, 6); } } }
   // 3. a contact-lens advert: an eye in the dark, the city's lights in its iris; it blinks; the card
-  function pEye(f){ RF(0, 0, LW, LH, 0); if(f >= 15){ TXT('ミライ光学', 16, 8, 26, 6); RF(8, 46, 80, 1, 15); f3('MIRAI', 36, 52, 4); return; }
+  function pEye(f){ for(let y = 0; y < LH; y++) RF(0, y, LW, 1, y < 10 || y > 66 ? 12 : (y < 14 || y > 62) && (y & 1) ? 12 : 11); if(f >= 15){ RF(0, 0, LW, LH, 12); TXT('ミライ光学', 16, 8, 26, 6, 27); RF(8, 46, 80, 1, 26); f3('MIRAI', 36, 52, 26); return; }
     const cx0 = 48, cy0 = 38, open = f === 12 ? .45 : f === 13 ? .06 : f === 14 ? .5 : 1, pr = 4.4 + 1.2 * Math.sin(f / 15 * Math.PI * 2);
     for(let y = 0; y < LH; y++) for(let x = 0; x < LW; x++){ const ex = (x - cx0) / 47, ey = (y - cy0) / 26, e2 = ex * ex + ey * ey; if(e2 > 1) continue;
       const dx = x - cx0, q = 1 - (dx / 36) * (dx / 36), bay = BAY4[(y & 3) * 4 + (x & 3)], sk = (1 - e2) * 1.25 + dx / 47 * .35 - (y - cy0) / 26 * .12;   // the skin lit from the right, ordered-dithered into the dark
-      let c = sk + bay * .22 < .3 ? 0 : sk + bay * .22 < .62 ? 23 : sk + bay * .22 < 1.02 ? 22 : 21;
+      let c = sk + bay * .22 < .3 ? 27 : sk + bay * .22 < .62 ? 23 : sk + bay * .22 < 1.02 ? 22 : 21;
       { const yb = cy0 - 25 + 7 * (dx / 40) * (dx / 40) - dx * .04; if(y >= yb && y < yb + 3 + (dx < -10 ? 1 : 0) && Math.abs(dx) < 36 && (x + y) % 3 !== 0) c = (y === Math.floor(yb) && (x & 1)) ? 23 : 0; }   // the brow
       if(q > 0){ const yU = cy0 - 15 * q * open, yL = cy0 + 10 * q; if(y > yU && y < yL){ c = y < yU + 2 ? 19 : 20; if(Math.abs(dx) > 26) c = 18;
           const ix = x - cx0 - 2, iy = y - cy0, r = Math.hypot(ix, iy); if(r < 13){ const ang = Math.atan2(iy, ix); c = r > 11.5 ? 12 : r > 7 ? (H2(Math.floor(ang * 9), 3) < .4 ? 4 : 3) : r > pr ? 15 : 0;
@@ -131,9 +131,10 @@
         if(Math.abs(y - yU) < 1.2 && q > .05) c = 0; if(y < yU && y > yU - 3 && Math.abs(dx) < 30 && (x % 4 === 0) && y < yU - (x % 8 ? 1 : 2)) c = 0; } PS(x, y, c); }
     if(open > .9){ RF(cx0 - 3, cy0 - 6, 3, 2, 6); PS(cx0 + 7, cy0 + 4, 6); } f3('MIRAI', 72, 70, 19); }
   // 4. the net: a green wireframe flythrough over a perspective grid, towers rushing by, data falling at the edges, 電脳
-  function pNet(f){ RF(0, 0, LW, LH, 0); const hy = 30, ph = f / 12;
-    for(let k = 0; k < 22; k++){ const z = k + 1 - ph; if(z < .25) continue; const y = Math.round(hy + 44 / z); if(y < LH) RF(0, y, LW, 1, z < 4 ? 13 : 14); }
-    for(let k = -9; k <= 9; k++) for(let y = hy + 1; y < LH; y++) PS(48 + k * (y - hy) * 1.5, y, 14);
+  function pNet(f){ RF(0, 0, LW, LH, 24); const hy = 30, ph = f / 12;
+    for(let y = hy - 16; y < hy; y++) for(let x = 32; x < 64; x++){ const r = Math.hypot(x - 47.5, y - hy); if(r < 15 && !((hy - y) % 4 === 1 && y > hy - 9)) PS(x, y, r < 11 ? 26 : 11); }   // a sun setting into the net
+    for(let k = 0; k < 22; k++){ const z = k + 1 - ph; if(z < .25) continue; const y = Math.round(hy + 44 / z); if(y < LH) RF(0, y, LW, 1, z < 4 ? 17 : 13); }
+    for(let k = -9; k <= 9; k++) for(let y = hy + 1; y < LH; y++) PS(48 + k * (y - hy) * 1.5, y, 13);
     RF(0, hy, LW, 1, 17);
     for(let m = 0; m < 6; m++){ const z = ((m * 2.3 + 12 - ph * 4) % 12) + .6, lat = (m & 1 ? 1 : -1) * (3 + (m % 3) * 2), hgt = 3 + (m * 7) % 5, sx = 48 + lat * 30 / z, w = 10 / z, top = hy + 44 / z - hgt * 30 / z, bot = hy + 44 / z;
       if(bot > LH + 20) continue; const c = z < 3 ? 17 : 13; for(let y = Math.max(0, top); y <= Math.min(LH - 1, bot); y++){ PS(sx - w, y, c); PS(sx + w, y, c); } for(let x = sx - w; x <= sx + w; x++){ PS(x, top, c); if((Math.floor(x) & 1) === 0) PS(x, (top + bot) / 2, 14); } }
@@ -379,7 +380,7 @@
         for(let c = 0; c < str.length; c++){ const g = F3[str[c]]; for(let pp = 0; pp < 15; pp++) if(g[pp] === '1') cx.fillRect(Math.round((ox + (c * 4 + pp % 3) * k) / PX) * PX, Math.round((oy + ((pp / 3) | 0) * k) / PX) * PX, k, k); } } }
     // its light: the glow off the face and the pool it throws on the deck, in the picture's own colour, moving as it falls
     if(lit && w.fi !== undefined){ const rgb = FAVG[w.fi] || '90,110,255', fl = w.g === 1 ? (reduce ? .8 : .55 + .45 * hash(Math.floor(now / 90))) : w.g === 3 ? .6 : 1;
-      mp(0, SH * .5, FT); glow(QX, QY, Math.min(H * .32, uw * 2.6), '#' + rgb.split(',').map(v => (+v).toString(16).padStart(2, '0')).join(''), .12 * fl * (1 - fog));
+      mp(0, SH * .5, FT); glow(QX, QY, Math.min(H * .32, uw * 3), '#' + rgb.split(',').map(v => (+v).toString(16).padStart(2, '0')).join(''), .22 * fl * (1 - fog * .5));
       corners(F, w.a); const xa = Math.min(CN[4], CN[6]), xb = Math.max(CN[4], CN[6]), hb = Math.max(.05, Math.min(CN[5], CN[7])), a0 = .2 * fl * clamp(1.2 - hb / 7, .2, 1) * (1 - fog);
       if(a0 > .01){ cx.globalCompositeOperation = 'lighter'; for(let j = -10; j < 3; j++){ const g = segs[w.A + j]; if(!g || !g.p1.screen.w || !g.p2.screen.w || g.p1.camera.z <= DEPTH) continue; const A1 = g.p1.screen, B1 = g.p2.screen, fade = 1 - Math.abs(j + 2) / 11;
           cx.fillStyle = 'rgba(' + rgb + ',' + (a0 * fade * fade).toFixed(3) + ')'; poly(A1.x + xa * A1.w, A1.y, A1.x + xb * A1.w, A1.y, B1.x + xb * B1.w, B1.y, B1.x + xa * B1.w, B1.y, cx.fillStyle); }
@@ -392,7 +393,8 @@
     // the bounding box of the panel on screen, in game px
     let x0 = 1e9, y0 = 1e9, x1 = -1e9, y1 = -1e9; for(const [q, t] of [[-SW, 0], [SW, 0], [SW, SH], [-SW, SH]]){ mp(q, t, FT); x0 = Math.min(x0, QX); x1 = Math.max(x1, QX); y0 = Math.min(y0, QY); y1 = Math.max(y1, QY); }
     const gx0 = Math.max(0, Math.floor(x0 / PX) - 1), gy0 = Math.max(0, Math.floor(y0 / PX) - 1), gx1 = Math.min(SC.width, Math.ceil(x1 / PX) + 1), gy1 = Math.min(SC.height, Math.ceil(y1 / PX) + 1); if(gx1 <= gx0 || gy1 <= gy0) return;
-    const k = SK, px = -RF_ * SW; k.setTransform(1, 0, 0, 1, 0, 0); k.clearRect(gx0, gy0, gx1 - gx0, gy1 - gy0); k.imageSmoothingEnabled = false;
+    const k = SK, px = -RF_ * SW; k.setTransform(1, 0, 0, 1, 0, 0); k.clearRect(gx0, gy0, gx1 - gx0, gy1 - gy0); k.imageSmoothingEnabled = L < 1.2;   // (round 2: under ~1 game px per LED the picture is averaged, so at 40-200 segments it reads as glowing shapes, not noise)
+    const AV = MECH.arrival && (MECH.arrival.coAvoid || (MECH.arrival.coAvoid = { x0:0, y0:0, x1:0, y1:0, t:0 })); if(AV && w.g < 4){ const mx = (x1 - x0) * .12; AV.x0 = x0 - mx; AV.x1 = x1 + mx; AV.y0 = y0 - (y1 - y0) * .25; AV.y1 = y1; AV.t = performance.now(); }   // the callouts step clear of the screen (mech/arrival.js)
     // local (q, t) -> scratch px: d/dq = uw (c, F s), d/dt = uw (-F s, c), origin at (q, t) = (0, 0)
     const X0 = px * (1 - RC), h0 = HT - SW * RS; k.setTransform(uw * RC / PX, uw * RF_ * RS / PX, -uw * RF_ * RS / PX, uw * RC / PX, (FT[0] + X0 * uw) / PX, (FT[1] - h0 * uw) / PX);
     k.drawImage(PN, 0, 0, LW * n, LH * n, -SW, 0, 2 * SW, SH); k.setTransform(1, 0, 0, 1, 0, 0);

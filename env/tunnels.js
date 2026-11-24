@@ -595,7 +595,7 @@
     const L = LANDS[s.land]; if(!L || L.key !== 'tunnels' || (s.bm < 1 && s.bA !== s.bB)) return;
     const i = s.index, cut = cutOf(i);
     if(cut > 0){ const X = cutX(cut) + .25; if(fog < .35) sideQ(a, b, 1.1, 1.22, f(OUTC.slot)); sideQ(a, b, fog < .35 ? 1.22 : 1.1, X, f(OUTC.apron[i % 4 === 0 ? 2 : lit(i) > .5 ? 1 : 0])); return; }
-    if(fog < .35) sideQ(a, b, 1.1, 1.18, f(OUTC.kerb[i & 1])); sideQ(a, b, fog < .35 ? 1.18 : 1.1, 3.6, f(OUTC.pave[i % 4 === 0 ? 2 : lit(i) > .5 ? 1 : 0])); }
+    if(fog < .35) sideQ(a, b, 1.1, 1.18, f(OUTC.kerb[i & 1])); sideQ(a, b, fog < .35 ? 1.18 : 1.1, 4.6, f(OUTC.pave[i % 4 === 0 ? 2 : lit(i) > .5 ? 1 : 0])); }
   // a band x0..x1 (half-road widths) along the segment on both sides of the road
   function sideQ(a, b, x0, x1, col){ const yb = b.y - 1; for(let sd = -1; sd <= 1; sd += 2){ const p = sd * x0, r = sd * x1; poly(a.x + a.w * p, a.y, a.x + a.w * r, a.y, b.x + b.w * r, yb, b.x + b.w * p, yb, col); } }
   // fills land on the pixel grid (the engine's poly: whole-pixel spans, shared edges tile exactly); a line narrower than a canvas pixel keeps

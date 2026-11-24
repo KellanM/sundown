@@ -550,6 +550,7 @@
     const kd = pkOf(j, side), lx = laneDX(j); if(j % wsAt(j) && pkOf(j - 1, side) === kd && laneDX(j - 1) === lx) return 0;
     let n = 1; while(n < 16 && (j + n) % wsAt(j + n) && pkOf(j + n, side) === kd && laneDX(j + n) === lx && segs[j + n]) n++; return n; }
   function drawPar(sp, x, y, uw, fog, now){ const j = sp.k, side = sp.side, n = parSpan(j, side); if(!n) return; const s = sp.s, kd = sp.kd;
+    if(n <= 2 && kd !== 'rail' && uw > 5 && RFA) for(let m = 0; m < n; m++) roofProps(j + m, side, now);   // the low roofs' clutter beyond the parapet (drawn before it: the parapet covers their feet)
     const t = segs[j + n - 1] || s; const q = t.p2.screen; if(!q.w) return; const x2 = q.x + sp.x * q.w, y2 = q.y, u2 = q.w; face(x, y, uw, x2, y2, u2);
     if(side < 0 ? Math.max(x, x2) < -PX : Math.min(x, x2) > W + PX) return;
     FF = fog; const F = F0, near = uw > 26;
@@ -870,6 +871,32 @@
         bq(a, b, sd, X, X + .08, f('#2a2632'));
         if(hv > .7 && (i % 9) >= 3 && (i % 9) < 5) bq(a, b, sd, X + w * .3, X + w * .3 + .5, f(hv > .9 ? '#e8c890' : '#34303c')); }   // a plant box, or a lit stair hatch
       X = X2; if(k > 4 || fog > .06 && k > 1){ if(X < XF) bq(a, b, sd, X, XF, f(ROOFC[Math.floor(hash(cl * 1.3 + sd) * 5)])); break; } } }
+  /* The low roofs' clutter (round 2, Kellan via the coordinator: "make them real rooftops"): FRP water tanks on steel stands, condenser
+     rows, stair huts (some with a lit door), antenna masts with a red light, lit skylights; baked once into one atlas (RFA) as pixel
+     sprites in two or three variants each, then placed on the floor's roof cells world-anchored by hash (one chance per cell per 9
+     segments, its kind, variant and place in the cell all hashed: no two neighbouring roofs alike). Drawn in the parapet pass (near only,
+     never on an open side) and only short of the nearest building, so the sprite order hides them correctly. */
+  const RFS = 24;   // sprite px per half-road width
+  let RFA = null; const RFR = {};   // the atlas, and each sprite's rect { x, y, w, h }
+  function buildRoofAtlas(){ const c = can(160, 40), k = c.getContext('2d'); let cx0 = 0; const put = (id, w, h, fn) => { RFR[id] = { x:cx0, y:40 - h, w, h }; const R2 = (x, y, ww, hh, col) => { k.fillStyle = col; k.fillRect(cx0 + x, 40 - h + y, ww, hh); }; fn(R2, w, h); cx0 += w + 1; };
+    for(let v = 0; v < 2; v++) put('tank' + v, 12 + v * 2, 14, (R, w, h) => { const tw = w - 2; R(2, h - 5, 1, 5, '#2a2e38'); R(w - 3, h - 5, 1, 5, '#2a2e38'); R(1, h - 6, w - 2, 1, '#3a404c');   // the steel stand
+      R(1, 1, tw, h - 7, v ? '#6a7488' : '#5a6878'); R(1, 1, tw, 1, '#9aa6b8'); R(1 + tw - 2, 1, 2, h - 7, v ? '#4a5262' : '#424e5e');   // the FRP tank: lit top, its shaded end
+      for(let x = 4; x < tw; x += 3) R(1 + x, 2, 1, h - 9, v ? '#5a6476' : '#4c5868'); R(1, Math.floor((h - 6) / 2), tw, 1, '#4c5868'); R(3, 0, 3, 1, '#2a2e38'); });   // panel joints, the manhole
+    for(let v = 0; v < 2; v++) put('ac' + v, 9 + v * 6, 6, (R, w, h) => { R(0, 1, w, h - 1, '#4a4e5a'); R(0, 1, w, 1, '#7a7e8c'); for(let x = 1; x + 3 < w; x += 5){ R(x, 2, 3, 3, '#1c1e26'); R(x + 1, 3, 1, 1, '#5a5e6a'); } R(0, h - 1, w, 1, '#2a2c36'); });   // condensers, their fans
+    for(let v = 0; v < 3; v++) put('hut' + v, 14, 13, (R, w, h) => { R(0, 2, w, h - 2, v === 1 ? '#3e3844' : '#363a46'); R(0, 2, w, 1, '#5a5664'); R(-0, 0, w, 2, '#2a2830'); R(w - 3, 3, 3, h - 3, '#2a2e38');   // a stair hut: its roof slab, its shaded side
+      R(3, 6, 4, h - 6, v === 2 ? '#1a1820' : '#ffd890'); if(v !== 2){ R(3, 6, 4, 1, '#fff2c8'); R(8, 6, 2, 2, '#ffcf80'); } R(1, 4, 1, 1, '#2adf80'); });   // the door, lit (or not), a small window, the exit sign
+    put('mast', 5, 26, (R, w, h) => { R(2, 2, 1, h - 2, '#5a6070'); R(0, 6, 5, 1, '#5a6070'); R(1, 11, 3, 1, '#5a6070'); R(1, 16, 3, 1, '#4a5060'); R(1, h - 2, 3, 2, '#2a2e38'); });   // an antenna mast (its red light is drawn live)
+    put('sky', 10, 3, (R, w, h) => { R(0, 0, w, h, '#3a3440'); R(1, 1, w - 2, 1, '#e8c890'); });   // a lit skylight, edge on
+    RFA = c; }
+  const RFK = ['tank0', 'tank1', 'ac0', 'ac1', 'hut0', 'hut1', 'hut2', 'mast', 'sky', 'ac0', 'tank0', 'hut2'];
+  function roofProps(z, sd, now){ const sg = segs[z]; if(!sg || !sg.p1.screen.w) return; const p = sg.p1.screen, uw = p.w; if(uw < 5) return;
+    const cl = Math.floor(z / 9), slot = z - cl * 9; let lim = 99; for(let r = 0; r < 3; r++){ const B = bldAt(z, sd, r); if(B && B.x0 < lim) lim = B.x0; }   // nothing past the nearest building at this segment
+    let X = 2.5; for(let k = 0; k < 5 && X < lim; k++){ const w = 2.2 + hash(cl * 3.7 + k * 1.9 + sd) * 2.4, hv = hash(cl * 11.3 + k * 4.1 + sd * 2.7);   // (the floor's own cells: belowDeck)
+      if(hv < .62 && slot === Math.floor(hash(cl * 2.9 + k + sd) * 9)){ const id = RFK[Math.floor(hash(cl * 5.7 + k * 3.3 + sd) * RFK.length)], r = RFR[id], X0 = X + w * (.15 + hv * .9);
+        if(r && X0 + r.w / RFS < lim - .1){ const kk = uw / RFS, sx = Math.round((p.x + sd * X0 * uw) / PX) * PX, sy = Math.round(p.y / PX) * PX, dw = Math.max(PX, Math.round(r.w * kk / PX) * PX), dh = Math.max(PX, Math.round(r.h * kk / PX) * PX);
+          if(sx > -dw && sx < W + dw){ cx.imageSmoothingEnabled = false; cx.drawImage(RFA, r.x, r.y, r.w, r.h, sx - (sd < 0 ? dw : 0), sy - dh, dw, dh);
+            if(id === 'mast' && (reduce || ((now / 1000) * .55 + hv * 3) % 1 < .55)){ const ls = Math.max(PX, Math.min(PX * 2, snp(kk * 2))); R(sx - (sd < 0 ? dw : 0) + dw / 2 - ls / 2, sy - dh - ls, ls, ls, AVL); } } } }
+      X += w; } }
   const RED = '#4e2624';
   function roadFX(s, a, b, fog, f, now){ if(a.y - b.y < .5) return;
     // the deck's margin beyond the road edge, out to the parapet foot (concrete, lit warm under the lamps)
@@ -962,11 +989,11 @@
     for(let p = 0; p < PANELS.length; p++){ if(!SIGN[p]) SIGN[p] = [can(PW / 2, PHh / 2), can(PW, PHh)]; paintPanel(SIGN[p][1], PANELS[p], true); paintPanel(SIGN[p][0], PANELS[p], false); yield; }
     for(let b = 0; b < BILLS.length; b++){ const n = BILLS[b][0].length; if(!BILL[b]) BILL[b] = [can(n * 16 + 8, 22), can(n * 32 + 12, 40)]; paintBill(BILL[b][0], BILLS[b], 16); paintBill(BILL[b][1], BILLS[b], 32); yield; }
     for(let v = 0; v < VMS_T.length; v++){ if(!VMS[v]) VMS[v] = can(2, 2); paintVMS(VMS[v], VMS_T[v]); } yield;
-    yield; yield* buildKBG(); yield; if(!SKY) yield* buildSkyG(); yield;   // (stepped: first 60 s, research/sundown-craft/first60.md)
+    yield; yield* buildKBG(); yield; if(!RFA) buildRoofAtlas(); yield; if(!SKY) yield* buildSkyG(); yield;   // (stepped: first 60 s, research/sundown-craft/first60.md)
     if(document.fonts && document.fonts.ready && !warmSteps.fontHook){ warmSteps.fontHook = true; document.fonts.load('16px DotGothic16', '銀座新宿霞が関羽田江戸橋箱崎京橋渋谷神田上野電機カメラ時計洋酒真珠化粧品写真ホテル' + KBW.map(w => w[0]).join('') + KBV.map(w => w[0]).join('') + VMS_T.join('')).then(() => {
         try{ for(let p = 0; p < PANELS.length; p++){ paintPanel(SIGN[p][1], PANELS[p], true); paintPanel(SIGN[p][0], PANELS[p], false); } for(let b = 0; b < BILLS.length; b++){ paintBill(BILL[b][0], BILLS[b], 16); paintBill(BILL[b][1], BILLS[b], 32); } for(let v = 0; v < VMS.length; v++) paintVMS(VMS[v], VMS_T[v]); buildKB(); }catch(e){} }).catch(() => {}); }
     // upload every canvas once, and prime the patterns this road uses
-    try{ cx.save(); cx.globalAlpha = .004; for(const pr of SIGN) for(const c of pr) cx.drawImage(c, 0, 0, 1, 1); for(const pr of BILL) for(const c of pr) cx.drawImage(c, 0, 0, 1, 1); if(ATL) cx.drawImage(ATL, 0, 0, 1, 1); cx.drawImage(SKY.c0, 0, 0, 1, 1); cx.drawImage(SKY.c1, 0, 0, 1, 1); cx.drawImage(SKY.c2, 0, 0, 1, 1);
+    try{ cx.save(); cx.globalAlpha = .004; for(const pr of SIGN) for(const c of pr) cx.drawImage(c, 0, 0, 1, 1); for(const pr of BILL) for(const c of pr) cx.drawImage(c, 0, 0, 1, 1); if(ATL) cx.drawImage(ATL, 0, 0, 1, 1); if(RFA) cx.drawImage(RFA, 0, 0, 1, 1); cx.drawImage(SKY.c0, 0, 0, 1, 1); cx.drawImage(SKY.c1, 0, 0, 1, 1); cx.drawImage(SKY.c2, 0, 0, 1, 1);
       cx.fillStyle = ditherPat('#6a3a2a', .25); cx.fillRect(0, 0, PX, PX); cx.restore(); }catch(e){}
     yield; }
 

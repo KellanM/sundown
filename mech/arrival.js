@@ -1270,7 +1270,9 @@ function drawCallouts(now){ if(!CO.length) return; now = coClock(now); const cw 
   const sy = skyY(cw, ch);
   cx.save(); cx.setTransform(1, 0, 0, 1, 0, 0); cx.imageSmoothingEnabled = false;
   for(const c of [ou, cu]){ if(!c) continue; const b = c.b, W2 = b.w + 2, H2 = b.h + 2;
-    const x = Math.round(clamp(CO_POS.x - b.w / 2, 3, cw - b.w - 3)), y = sy;   // kodawari #1: the sky band under the HUD, never over the road ahead (it sat just above the road's top row: centre screen, on the riding line)
+    let x = Math.round(clamp(CO_POS.x - b.w / 2, 3, cw - b.w - 3)), y = sy;   // kodawari #1: the sky band under the HUD, never over the road ahead (it sat just above the road's top row: centre screen, on the riding line)
+    { const AV = A.coAvoid; if(AV && performance.now() - AV.t < 200){ const k = cw / W, ax0 = AV.x0 * k, ax1 = AV.x1 * k, ay0 = AV.y0 * k, ay1 = AV.y1 * k;   // a set piece's hazard on screen (A.coAvoid, game canvas px, refreshed each frame by its owner, setpiece/screenfall.js): the callout steps beside it, or under it, never over it
+        if(x < ax1 && x + b.w > ax0 && y < ay1 && y + b.h > ay0){ const xl = Math.round(ax0 - 4 - b.w), xr = Math.round(ax1 + 4); x = xl >= 3 && (ax0 >= cw - ax1 || xr + b.w > cw - 3) ? xl : xr + b.w <= cw - 3 ? xr : x; if(x < ax1 && x + b.w > ax0) y = Math.min(ch - b.h - 3, Math.round(ay1 + 4)); } } }
     if(c.st === 'out'){ const p = Math.min(1, (now - c.tOut) / 1000 / (reduce ? .15 : CO_OUT));
       // the exit (kodawari #1): the whole composed card steps out in two whole-card fades and a one-pixel rise along its slant, so no frame
       // ever shows a clipped word or a stamp block without its glyph (the old left-to-right bar wipe was caught as AXIWAY JUMP! in 1 still in 5)
