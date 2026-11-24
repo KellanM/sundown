@@ -568,8 +568,8 @@
     if(!(ay - by >= .5)) return; const low = FOG_COL || fogLow, i = s.index, fm = Math.max(fog, .3); if(!low) return;   // (the road pass's haze colour, sk.low: set before the road is drawn)
     for(let sd = -1; sd <= 1; sd += 2){ const ex = sd < 0 ? -4 : W + 4, x0a = ax + sd * 1.12 * aw, x0b = bx + sd * 1.12 * bw; if(sd < 0 ? x0a < ex && x0b < ex : x0a > ex && x0b > ex) continue;
       if(fog > .35){ poly(x0a, ay, ex, ay, ex, by, x0b, by, fc(CAN.b, fm, low)); continue; }
-      const x1a = ax + sd * 2.1 * aw, x1b = bx + sd * 2.1 * bw, x2a = ax + sd * 3.6 * aw, x2b = bx + sd * 3.6 * bw;
-      poly(x0a, ay, x1a, ay, x1b, by, x0b, by, fc(CAN.a, fog, low)); poly(x1a, ay, x2a, ay, x2b, by, x1b, by, fc(CAN.b, fog, low)); poly(x2a, ay, ex, ay, ex, by, x2b, by, fc(CAN.c, fm, low));
+      const x2a = ax + sd * 3.6 * aw, x2b = bx + sd * 3.6 * bw;   // (two bands: the canopy below the rail, and the hazed valley beyond)
+      poly(x0a, ay, x2a, ay, x2b, by, x0b, by, fc(i % 2 ? CAN.a : CAN.b, fog, low)); poly(x2a, ay, ex, ay, ex, by, x2b, by, fc(CAN.c, fm, low));
       if(fog > .2 || aw < 40) continue;
       for(let j = 0; j < 3; j++){ const h = hash(i * 3.7 + j * 1.31 + sd * .71), X = 1.35 + h * 3, t = hash(i * 5.3 + j * 2.9 + sd), w = aw + (bw - aw) * t, x = ax + (bx - ax) * t + sd * X * w, y = ay + (by - ay) * t, u = w * (.12 + .1 * hash(i * 1.9 + j + sd * 3));
         if(u < PX * 3) continue; cx.fillStyle = fc(CAN.crown, X > 3.6 ? fm : fog, low); pxRect(x - u / 2, y - u * .3, u, u * .3); pxRect(x - u * .32, y - u * .42, u * .64, u * .14); cx.fillStyle = fc(CAN.cap, X > 3.6 ? fm : fog, low); pxRect(x - u * .2, y - u * .42, u * .4, PX); } } }

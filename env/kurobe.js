@@ -543,7 +543,18 @@
       if(sz < 4 * PX) continue; const bx = BXs[d] + X * u, byy = BYs[d] - h * u + PX, hw = Math.max(PX, sz * .3);
       tri(bx - hw, byy, bx + hw, byy, bx, byy - sz * .62, F(FOR[1])); tri(bx - hw * .7, byy - sz * .42, bx + hw * .7, byy - sz * .42, bx, byy - sz, F(FOR[1]));
       if(sz > 6 * PX){ poly(bx, byy - sz, bx + PX, byy - sz + PX, bx + hw * .7, byy - sz * .42, bx + hw * .7 - PX, byy - sz * .42, F(FOR[3])); } } } }
-  function drawRail(sp, x, y, uw, fog){ const i = sp.k, m = strideOf(uw); if(i % m) return; const e = endPt(i, m); if(!e) return;
+  /* Runs that never leave a hole (Aqua-Line portal pass, 2026-11-24). A slice drawn in runs of m segments used to be skipped by every
+     segment off a multiple of m, trusting the run's first segment to draw it; but that segment chose its own m by its own (bigger) width,
+     or carried no such slice (inside a bore, past a gallery), or could not reach the run's end: the skipped segments then drew nothing.
+     A hole of up to m-1 segments at every stride boundary, moving with the camera, and right at each tunnel mouth (the rail's run starts
+     inside the bore). Now a segment skips only when its run's first segment will draw the whole run, and a first segment draws a run only
+     when every segment of it carries the same slice; otherwise each draws itself. */
+  function hasSl(t, type){ const L = t.sprites; for(let n = 0; n < L.length; n++){ const q = L[n]; if(q.env === KEY && q.type === type) return true; } return false; }
+  function fullRun(g, m, type){ for(let j = g; j < g + m; j++){ const t = segs[j]; if(!t || !hasSl(t, type)) return false; } const t = segs[g + m - 1]; return t.p2.screen.scale > 0 && t.p2.camera.z > 0 && g + m - baseIdx() < DRAW_N - 2; }
+  function runLen(i, m, type){ if(m === 1) return 1; const g = i - i % m;
+    if(g === i) return fullRun(i, m, type) ? m : 1;
+    const t = segs[g]; return t && t.p1.screen.scale > 0 && t.p1.camera.z > DEPTH && strideOf(t.p1.screen.scale * ROADW * W / 2) === m && fullRun(g, m, type) ? 0 : 1; }
+  function drawRail(sp, x, y, uw, fog){ const i = sp.k, m = runLen(i, strideOf(uw), sp.type); if(!m) return; const e = endPt(i, m); if(!e) return;
     const X = sp.x, x0 = x - X * uw, ax = x0 + X * uw, bx = e.x + X * e.w, ay = y, by = e.y, ua = uw, ub = e.w, F = c => fc(c, fog * .9);
     // the W-beam (white in moonlight), its lit top lip and dark lower edge
     poly(ax, ay - .2 * ua, bx, by - .2 * ub, bx, by - .33 * ub, ax, ay - .33 * ua, F('#8a90a6'));
@@ -579,7 +590,7 @@
       if(ts >= PX * 2) for(let k = 0; k < n; k++){ const tx = tx0 + k * gap - ts / 2, ty = fy + (fh - ts) / 2; R(tx - PX, ty - PX, ts + 2 * PX, ts + 2 * PX, F(CO[5])); R(tx, ty, ts, ts, F('#161822'));
         const gl = GLY[nm[k]]; if(gl && ts >= PX * 8){ const sc = Math.max(1, Math.floor(ts / PX / 13)); cx.imageSmoothingEnabled = false; cx.globalAlpha = 1 - fog * .7; cx.drawImage(gl, snp(tx + (ts - 12 * sc * PX) / 2), snp(ty + (ts - 13 * sc * PX) / 2), 12 * sc * PX, 14 * sc * PX); cx.globalAlpha = 1; } } } }
   // the crest: parapets both sides, lamps set in their inner faces every 6 segments, lamp standards every 24
-  function drawCrest(sp, x, y, uw, fog, now){ const i = sp.k, m = strideOf(uw); if(i % m) return; const e = endPt(i, m); if(!e) return;
+  function drawCrest(sp, x, y, uw, fog, now){ const i = sp.k, m = runLen(i, strideOf(uw), sp.type); if(!m) return; const e = endPt(i, m); if(!e) return;
     const X = sp.x, sd = X > 0 ? 1 : -1, x0 = x - X * uw, ax = x0 + X * uw, bx = e.x + X * e.w, ay = y, by = e.y, ua = uw, ub = e.w, F = c => fc(c, fog * .85);
     const L = visitOf(i), fon = lampOn(L), hw = sd > 0 ? .15 : .12;
     poly(ax, ay, bx, by, bx, by - hw * ub, ax, ay - hw * ua, F(CO[3]));

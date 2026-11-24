@@ -857,7 +857,8 @@
     const pk = sd < 0 ? s.shPK & 3 : s.shPK >> 2, ph = pk === 2 ? PH.snd : pk === 3 ? PH.rail : PH.con, Xh = s.shPK === undefined ? 0 : EYE > ph + .01 ? PAR_X * EYE / (EYE - ph) * .9 : 1e9;
     const B0 = bldAt(i, sd, 0);   // (behind a street-row building the ground plane is hidden from its face on: only the street below the deck is drawn)
     if(!B0 && Xh >= XF){ bq(a, b, sd, DECK_X, XF, f(fog > .16 ? '#0e0c14' : VOIDC[(i >> 2) & 1])); return; }   // all hidden but the parapet's seams: one band
-    if(B0){ bq(a, b, sd, DECK_X, B0.x0 + .05, f(fog > .16 ? '#0e0c14' : VOIDC[(i >> 2) & 1])); if(fog > .16 || !(i % 12 === 0 && a.w > 8)) return; }
+    if(B0){ const rc = f(ROOFC[Math.floor(hash(cl * 1.3 + sd) * 5)]);   // (on a bend the eye sees behind a building's end: the roofs beyond it are drawn too, as one band)
+      if(fog > .16){ bq(a, b, sd, DECK_X, XF, f('#0e0c14')); return; } bq(a, b, sd, DECK_X, B0.x0 + .05, f(VOIDC[(i >> 2) & 1])); bq(a, b, sd, B0.x0 + .05, XF, rc); if(!(i % 12 === 0 && a.w > 8)) return; }
     else if(fog > .16){ bq(a, b, sd, DECK_X, XF, f(ROOFC[Math.floor(hash(cl * 1.3 + sd) * 5)])); return; }
     else bq(a, b, sd, DECK_X, XV, f(VOIDC[(i >> 2) & 1]));   // the street below the deck's edge
     if(i % 12 === 0 && a.w > 8){ const lx = a.x + sd * 1.9 * a.w, sz = Math.max(PX, Math.min(PX * 2, snp(a.w * .025))); cx.fillStyle = f('#ffcf80'); pxRect(lx - sz / 2, a.y - sz, sz, sz); }   // its lamps, seen far below
