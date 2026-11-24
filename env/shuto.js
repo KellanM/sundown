@@ -312,7 +312,7 @@
   let BCUR = 0, BHV = 0, BFCOL = '';
   function bandB(a, b, col){ if(b > BHV) b = BHV; if(b <= a) return; if(a > BCUR) FQ(BCUR, a, BFCOL); FQ(a, b, col); BCUR = b; }
   function flushB(f0, st0, f1, S, wb0, wb1){ if(st0 > 0 && f0 >= 0){ const col = st0 === 1 ? S.lit[0] : st0 === 2 ? S.warm : S.dim; bandB(f0 * FH + wb0, (f1 - 1) * FH + wb1, F0(col)); } }   // a run of same-state floors f0..f1 as one band
-  function drawBld(sp, x, y, uw, fog, now){ const B = sp.b, j = sp.k, end = B.b0 + B.len, n = spanOf(j, B.b0, end, fog, B.deep ? 16 : 1); if(!n) return; if(hidden(B, j, n)) return;   // (the deep row, seen only through gaps, never slices finer than 16 segments)
+  function drawBld(sp, x, y, uw, fog, now){ const B = sp.b, j = sp.k, end = B.b0 + B.len, n = spanOf(j, B.b0, end, fog, B.deep ? 16 : 1); if(!n) return; if(B.deep && fog > .4) return; if(hidden(B, j, n)) return;   // (perf, round 2: past ~200 segments the backdrop's city wall stands in for the deep row)   // (the deep row, seen only through gaps, never slices finer than 16 segments)
     FX1 = x; FY1 = y; FU1 = uw; if(!farEnd(j, n, sp.x)) return; KBD = -1;
     if(B.side < 0 ? Math.max(FX1, FX2) < -PX * 2 : Math.min(FX1, FX2) > W + PX * 2){ if(B.kbs.length) kbSlice(B, j, n, fog, now); if(!(j === B.b0)) return; KBD = j; }   // beside the camera, off the screen edge (its signs and the end wall may still show)
     const S = B.S, K = B.k, side = B.side, fq = fog; FF = fq; const F = F0;
@@ -874,8 +874,9 @@
   function roadFX(s, a, b, fog, f, now){ if(a.y - b.y < .5) return;
     // the deck's margin beyond the road edge, out to the parapet foot (concrete, lit warm under the lamps)
     const mc = f(s.lit > .3 ? '#3a3238' : '#26252f');
-    poly(a.x - a.w, a.y, a.x - a.w * DECK_X, a.y, b.x - b.w * DECK_X, b.y, b.x - b.w, b.y, mc); poly(a.x + a.w, a.y, a.x + a.w * DECK_X, a.y, b.x + b.w * DECK_X, b.y, b.x + b.w, b.y, mc);
-    if(!AB_FL){ belowDeck(s, a, b, fog, f, -1); belowDeck(s, a, b, fog, f, 1); }
+    if(fog > .16 && !AB_FL){ const fc2 = f(s.lit > .3 ? '#221e26' : '#16141c'), XF = Math.max(60, W * 1.6 / Math.max(.5, b.w)); bq(a, b, -1, 1, XF, fc2); bq(a, b, 1, 1, XF, fc2); }   // (perf, round 2: far away the deck's margin, the street below and the roofs are one band each side)
+    else { poly(a.x - a.w, a.y, a.x - a.w * DECK_X, a.y, b.x - b.w * DECK_X, b.y, b.x - b.w, b.y, mc); poly(a.x + a.w, a.y, a.x + a.w * DECK_X, a.y, b.x + b.w * DECK_X, b.y, b.x + b.w, b.y, mc);
+      if(!AB_FL){ belowDeck(s, a, b, fog, f, -1); belowDeck(s, a, b, fog, f, 1); } }
     // the red anti-skid paint on the sharp bends (and through the junction), eased in and out over the segments either side
     const c = Math.abs(s.curve), rw = s.shK === 1 && s.shM > 60 && s.shM < 140 ? 1 : clamp((c - 4.3) / .5, 0, 1);   // (only the sharpest bends: this road's curve scale runs to about 4.6)
     if(rw > .1){ const col = f(mixc(s.stripe ? '#26262f' : '#282832', RED, Math.round(rw * 4) / 4)); poly(a.x - a.w * .985, a.y, a.x + a.w * .985, a.y, b.x + b.w * .985, b.y, b.x - b.w * .985, b.y, col); }

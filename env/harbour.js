@@ -145,7 +145,17 @@
   // were left out changed as you rode, so the far wall blinked. Its thin bands keep a whole pixel for the same reason.
   // far away one wall slice spans 2 (past ~145 segments) or 4 (past ~210) segments, anchored to the world (k % m), its far end the last
   // segment's: each is a fraction of a pixel deep there, so the merge never shows, and the far walls cost a half or a quarter of the quads
-  function drawWall(sp, x, y, uw, fog, now, sk){ const fp = fogPx(fog), m = fp > .7 ? 4 : fp > .4 ? 2 : 1; if(sp.k % m) return; const s = segs[sp.k + m - 1]; if(!s || !s.p2.screen.scale) return; const q = s.p2.screen, fx = q.x + sp.x * q.w, fy = q.y; if(fy > y + 1) return;
+  /* (2026-11-24, research/sundown-craft/aquaportal.md) A slice off a multiple of m used to skip itself, trusting its run's first segment;
+     but that one is nearer, so its fog can pick a smaller m (it then drew only itself), or it carries no such wall (a border blend, a
+     side lane), or its run's end is not in front of the camera: the skipped segments drew nothing, a hole of 1-3 segments at each tier
+     boundary that moved with the camera. Now a segment skips only when its run's first segment will draw the whole run. */
+  const wallM = fog => { const fp = fogPx(fog); return fp > .7 ? 4 : fp > .4 ? 2 : 1; };
+  function wallHas(t, x){ const L = t.sprites; for(let n = 0; n < L.length; n++){ const q = L[n]; if(q.type === 'wall' && q.x === x && !q.ls) return true; } return false; }
+  function wallFull(g, m, x){ for(let j = g; j < g + m; j++){ const t = segs[j]; if(!t || !wallHas(t, x)) return false; } const t = segs[g + m - 1]; return t.p2.screen.scale > 0 && t.p2.camera.z > 0; }
+  function wallRun(k, m, x){ if(m === 1) return 1; const g = k - k % m; if(g === k) return wallFull(k, m, x) ? m : 1;
+    const t = segs[g], n = g - segAt(position).index; if(!t || !(t.p1.screen.scale > 0) || t.p1.camera.z <= DEPTH || n < 1 || n > DRAW - 3) return 1;
+    return wallM(clamp(Math.pow(n / DRAW, 1.6), 0, 1)) === m && wallFull(g, m, x) ? 0 : 1; }
+  function drawWall(sp, x, y, uw, fog, now, sk){ const m = wallRun(sp.k, wallM(fog), sp.x); if(!m) return; const s = segs[sp.k + m - 1]; if(!s || !s.p2.screen.scale) return; const q = s.p2.screen, fx = q.x + sp.x * q.w, fy = q.y;   /* (no 'far end below the near end' early-out: over a crest seen from below it dropped walls whose tops stand above the crest, and a run's start dropping out left its whole run empty; the segment's clip hides what the crest covers) */
     const left = sp.x < 0, low = sk.low, warm = (s.lit || 0) * .5;
     if(left){ const h = uw * WALL_L, fh = q.w * WALL_L;
       const face = fc(mixc(CONC.M, '#8a5a3a', warm), fog, low), cap = fc(mixc(CONC.H, '#ffcf90', warm), fog, low), dark = fc(CONC.D, fog, low);

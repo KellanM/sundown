@@ -719,7 +719,7 @@
   // once a frame (the first, farthest wetFX call): where each car's image lies
   function carMirrors(){ WCAR.n = 0; const b0 = segAt(position).index;
     for(let k = 0; k < cars.length && WCAR.n < 64; k++){ const c = cars[k]; if(c.oth) continue; const s = segs[Math.floor(c.z / SEG)]; if(!s || s.index <= b0 || !s.p1.screen.scale || s.p1.camera.z <= DEPTH) continue;
-      const a = s.p1.screen, b = s.p2.screen, pct = (c.z % SEG) / SEG, w = a.w + (b.w - a.w) * pct, cw = w * .36; if(cw < PX * 3) continue; const j = WCAR.n++;
+      const a = s.p1.screen, b = s.p2.screen, pct = (c.z % SEG) / SEG, w = a.w + (b.w - a.w) * pct, cw = w * .36; if(cw < PX * 3) continue; if(a.y + (b.y - a.y) * pct > s.clip + .5) continue; const j = WCAR.n++;
       WCAR.x[j] = a.x + (b.x - a.x) * pct + c.x * w; WCAR.y[j] = a.y + (b.y - a.y) * pct; WCAR.w[j] = cw * .9; WCAR.d[j] = cw * .55; } }
   ENV.neon = {
     warm(){ for(const _ of ENV.neon.warmSteps()); },

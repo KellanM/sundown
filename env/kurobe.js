@@ -565,7 +565,7 @@
       if(ua > W * .05 && fog < .3) halo(ax, dy, ua * .12, '#ff9a30', .25); } }
   // a snow / rock-shed gallery: the back wall, the roof's soffit and beams, the valley pillars on a low wall; the fascia and plates at its mouth
   const HG = 1.36, HT = 1.86, XL = -1.32, XR = 1.32;
-  function drawGal(sp, x, y, uw, fog, now){ const i = sp.k, m = strideOf(uw), first = i === sp.a; if(i % m && !first) return; const e = endPt(i, first ? 1 : m); if(!e) return;
+  function drawGal(sp, x, y, uw, fog, now){ const i = sp.k, first = i === sp.a, m = runLen(i, strideOf(uw), 'gal'); if(!m) return; const e = endPt(i, m); if(!e) return;   /* (runLen: the gallery's first segment off a multiple of m used to draw itself only, and the rest of its run waited on a start outside the gallery) */
     const x0 = x - sp.x * uw, ay = y, by = e.y, ua = uw, ub = e.w, F = c => fc(c, fog * .9), lam = (i % 12) === 6, near = ua > W * .02;
     const aL = x0 + XL * ua, bL = e.x + XL * ub, aR = x0 + XR * ua, bR = e.x + XR * ub, lit = Math.max(0, 1 - Math.min(i % 12 >= 6 ? i % 12 - 6 : 6 - i % 12, 12) / 4);
     // the back wall (concrete, panel joints), its lamp

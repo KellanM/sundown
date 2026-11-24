@@ -190,7 +190,7 @@
     if(n >= 2){ k.fillStyle = '#000000'; k.globalAlpha = n >= 3 ? .55 : .3; for(let mx = 1; mx < NMX; mx++) k.fillRect(mx * MW * n - 1, 0, 1, ph); for(let my = 1; my < NMY; my++) k.fillRect(0, my * MH * n - 1, pw, 1); k.globalAlpha = 1;
       k.globalCompositeOperation = 'multiply'; k.globalAlpha = n >= 4 ? .8 : .6; k.fillStyle = GPAT[Math.min(NMAX, n)]; k.fillRect(0, 0, pw, ph); k.globalCompositeOperation = 'source-over'; k.globalAlpha = 1; }
     // the refresh roll: a faint bright band moving down (not on the dead wall)
-    if(w.g !== 4 && n >= 2){ const ry = Math.floor(((now / 2600) % 1) * LH) * n; k.globalAlpha = .06; k.fillStyle = '#ffffff'; k.fillRect(0, ry, pw, Math.min(ph - ry, 9 * n)); k.globalAlpha = 1; } }
+    if(w.g !== 4 && n >= 2 && !reduce){ const ry = Math.floor(((now / 2600) % 1) * LH) * n; k.globalAlpha = .06; k.fillStyle = '#ffffff'; k.fillRect(0, ry, pw, Math.min(ph - ry, 9 * n)); k.globalAlpha = 1; } }
 
   // ---------------------------------------------------------------- sound
   const ac = () => typeof M !== 'undefined' && M.ac && state === 'play';
@@ -213,7 +213,6 @@
     const ok = A => { if(A + 160 > zEnd - 40) return false; if(window.inForkWindow && inForkWindow(A + CRD - 20, A + 120)) return false;
       for(let k = 0; k < gates.length; k++){ const g = gates[k]; if(g >= A - 320 && g <= A + 90) return false; }
       for(let j = A - 170; j <= A + 60; j += 6) if(!plain(j)) return false;
-      for(let j = A - 345; j < A - 170; j += 6) if(E.zoneAt(j).k === 'jct') return false;   // the telegraph (d -335 .. -250) must be seen: no junction deck or ramp across the view (2026-11-24: in the demo the ramp hid the tear and the lurch)
       for(let j = A + CRD - 40; j <= A + 60; j += 4) if(segs[j] && segs[j].spjP) return false;   // no landmark jump (setpiece/jump.js) under the card or the fall
       return true; };
     const Ts = DIR && DIR.target ? DIR.target('screenfall', i) : null;   /* demo mode: the valid screen nearest the authored one */
@@ -264,6 +263,7 @@
           for(const B of w.tw) s.sprites.push({ env:'shuto', type:'bld', x:B.side * B.x0, k:i, b:B }); }
         if(i >= w.A - 8 && i < w.A + 8) s.hz = null;
         if(i >= w.A - 260 && i < w.A + 40) s.sprites = s.sprites.filter(sp => !(sp.env === 'shuto' && sp.type === 'gant' && sp.v >= 0));   // no sign gantry in front of the screen
+        if(i >= w.A - 345 && i < w.A - 160) s.sprites = s.sprites.filter(sp => !(sp.env === 'shuto' && (sp.type === 'ramp' || sp.type === 'xd')));   // the telegraph (d -335 .. -250) must be seen: no junction ramp or deck across the view there (2026-11-24: in the demo the ramp hid the tear and the lurch)
         if(i === w.A - BOARD && ENV.shuto.zoneAt(i).k !== 'jct' && !(window.inForkWindow && inForkWindow(i - 10, i + 10))){ s.sprites.push({ env:'shuto', type:'gant', x:0, k:i, v:-1 }); s.scBoard = w; } }
       plan(i, s, L); },
     hitCar(){ const w = active(pSeg()); if(!w) return false; const d = pSeg() - w.A; return d > CRD - 10 && d < 20; },
@@ -399,7 +399,7 @@
     const sm0 = cx.imageSmoothingEnabled; cx.imageSmoothingEnabled = false; cx.drawImage(SC, gx0, gy0, gx1 - gx0, gy1 - gy0, gx0 * PX, gy0 * PX, (gx1 - gx0) * PX, (gy1 - gy0) * PX); cx.imageSmoothingEnabled = sm0; }
   const SPC = ['#ff3a5a', '#2adf80', '#4ff0ff', '#ffd84a', '#ff4ad0'];
   function drawSparks(i, fog){ for(const p of SPK){ if(!p.on || Math.floor(p.z) !== i) continue; const s = segs[i]; if(!s || !s.p1.screen.w) continue; const a = s.p1.screen, u = a.w, x = a.x + p.x * u, y = a.y - p.h * u, life = 1 - p.t / p.life;
-      if(p.k === 1){ const r = Math.max(PX, p.sz * u), a0 = cx.globalAlpha; cx.globalAlpha = a0 * .3 * life * (1 - fog * .6); cx.fillStyle = '#8a8494'; pxRect(x - r, y - r * .8, r * 2, r * 1.6); cx.globalAlpha = a0 * .18 * life; pxRect(x - r * .6, y - r * 1.3, r * 1.2, r * .6); cx.globalAlpha = a0; continue; }
+      if(p.k === 1){ const r = Math.max(PX, Math.min(H * .03, p.sz * u)), a0 = cx.globalAlpha; cx.globalAlpha = a0 * .22 * life * (1 - fog * .6); cx.fillStyle = '#8a8494'; pxRect(x - r, y - r * .8, r * 2, r * 1.6); cx.globalAlpha = a0 * .18 * life; pxRect(x - r * .6, y - r * 1.3, r * 1.2, r * .6); cx.globalAlpha = a0; continue; }   // (dust: capped on screen, so a puff passing the camera never becomes a grey slab)
       if(p.k === 2){ const r = Math.max(PX, p.sz * u), ph = (p.t * 7 + p.c) % 2 < 1; cx.fillStyle = mixc('#161620', FOG_COL, fog * .6); pxRect(x - r, y - (ph ? r * .5 : r), r * 2, ph ? r : r * 2);
         if(r > PX * 2){ cx.fillStyle = SPC[p.c]; pxRect(x - r * .5, y - (ph ? r * .2 : r * .5), PX, PX); if(r > PX * 4){ cx.fillStyle = SPC[(p.c + 2) % 5]; pxRect(x + r * .3, y, PX, PX); } } continue; }
       const sz = Math.max(PX, Math.min(PX * 2, Math.round(u * .02 / PX) * PX)); cx.fillStyle = life > .6 ? '#fff8d0' : life > .3 ? '#ffd040' : '#ff7a20';

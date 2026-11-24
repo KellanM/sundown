@@ -591,7 +591,8 @@
      cutting, a concrete U-gutter by the kerb and an apron of slabs to the retaining wall's foot (the Tegata and Sekinotsu approaches); in the
      street, kerb stones and a tiled pavement out under the shop fronts, a joint every 4 segments, lit where the street lamps stand. */
   const OUTC = { pave:['#211f2a', '#2b2836', '#191720'], kerb:['#45435a', '#3a384c'], apron:['#2a2e40', '#30354a', '#1f2230'], slot:'#0a0b12' };
-  function outFX(s, a, b, fog, f){ if(TX_OUT) return; if(a.y - b.y < .5 || fog > .92) return; const L = LANDS[s.land]; if(!L || L.key !== 'tunnels' || (s.bm < 1 && s.bA !== s.bB)) return;
+  function outFX(s, a, b, fog, f){ if(TX_OUT) return; if(!(a.y > b.y) || fog > .98) return;   // (thin far segments too: poly gives each pixel row to one segment, as the ground's own rows are, so no row is left bare)
+    const L = LANDS[s.land]; if(!L || L.key !== 'tunnels' || (s.bm < 1 && s.bA !== s.bB)) return;
     const i = s.index, cut = cutOf(i);
     if(cut > 0){ const X = cutX(cut) + .25; if(fog < .35) sideQ(a, b, 1.1, 1.22, f(OUTC.slot)); sideQ(a, b, fog < .35 ? 1.22 : 1.1, X, f(OUTC.apron[i % 4 === 0 ? 2 : lit(i) > .5 ? 1 : 0])); return; }
     if(fog < .35) sideQ(a, b, 1.1, 1.18, f(OUTC.kerb[i & 1])); sideQ(a, b, fog < .35 ? 1.18 : 1.1, 3.6, f(OUTC.pave[i % 4 === 0 ? 2 : lit(i) > .5 ? 1 : 0])); }
@@ -737,12 +738,23 @@
     if(fog < .55) glow(hx + ls * (st + .5), hy + hh * .5, Math.min(uw * .25, H * .1), SIG[st], .4 * (1 - fog / .55));
     const walk = st === 2, py = y - uw * .78, ps = Math.max(PX * 2, uw * .09), bx = o > 0 ? x + pw / 2 : x - pw / 2 - ps; cx.fillStyle = F('#1a1c22'); pxRect(bx, py, ps, ps * 1.6);
     cx.fillStyle = walk ? SIG[0] : SIG[2]; pxRect(bx + ps * .3, py + ps * (walk ? .9 : .2), ps * .4, ps * .5); }
+  /* the cutting's slice length (run-hole fix, 2026-11-24): far away a slice spans 2 or 4 segments from a world-anchored start. A segment
+     inside a run skips only when the run's first segment really draws the whole run: that one is on screen, picks the same span from its
+     own distance, and every segment of the run is cutting. Otherwise it draws itself (a one-segment slice; an overlap is harmless, a hole
+     is not). Before, the skip trusted the first segment blindly, which left 1-7-segment holes that slid with the camera. */
+  const cutSpan = f => { const fp = fogPx(f); return fp > .7 ? 4 : fp > .3 ? 2 : 1; };
+  function cutFull(g, m){ for(let j = g; j < g + m; j++) if(!(cutOf(j) > 0)) return false; return true; }
+  function cutRun(k, fog){ const m = cutSpan(fog); if(m === 1) return 1; const g = k - k % m;
+    if(g === k) return cutFull(g, m) ? m : 1;
+    const n = Math.round(DRAW * Math.pow(fog, 1 / 1.6)), ng = n - (k - g), t = segs[g];
+    if(ng > 0 && t && t.p1.screen.scale > 0 && t.p1.camera.z > DEPTH && cutSpan(clamp(Math.pow(ng / DRAW, 1.6), 0, 1)) === m && cutFull(g, m)) return 0;
+    return 1; }
   function draw(sp, x, y, uw, fog, now, sk){
     const M = c => mq(c, sk.low, fog * .8);
     if(sp.type === 'front') return drawFront(sp, x, y, uw, fog, now); if(sp.type === 'blade') return drawBlade(sp, x, y, uw, fog, now); if(sp.type === 'vend') return drawVend(sp, x, y, uw, fog, now); if(sp.type === 'signal') return drawSignal(sp, x, y, uw, fog, now);
     // far away one slice of the cutting spans 2 (past ~120 segments) or 4 (past ~210) segments, anchored to the world (k % m), its far end the
     // last segment's: a tenth of a pixel deep each, so nothing shows the merge, and the far view costs a quarter of the quads
-    if(sp.type === 'cut'){ const fp = fogPx(fog), m = fp > .7 ? 4 : fp > .3 ? 2 : 1; if(sp.k % m) return;
+    if(sp.type === 'cut'){ const m = cutRun(sp.k, fog); if(!m) return;
       const sd = sp.x < 0 ? -1 : 1, ke = sp.k + m - 1, t0 = sp.h, t1 = m === 1 ? sp.t1 : ke % 320 === 319 ? 1 : cutOf(ke + 1), lit = sp.k % 12 < 2 || sp.k % 12 > 10;
       cutting(ke, x - sp.x * uw, y, uw, sd, cutX(t0), cutX(t1), cutH(t0), cutH(t1), cutS(t0), cutS(t1), M, lit); return; }
     if(sp.type === 'gant') return drawGant(sp, x, y, uw, fog, M, now);

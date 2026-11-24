@@ -567,6 +567,11 @@
      its lit crest and blue shadow, staggered so they read as drifts and not as stripes, a drift mound, and in the onsen street a trodden path
      of footprints along the verge (Ginzan and Nozawa at night: the snow between the plough wall and the inns is walked, not smooth). */
   const VC = new Map(); const vcol = (c, k) => { const q = c + k; let v = VC.get(q); if(!v){ v = mixc(c, k > 0 ? SN.L : SN.O, Math.abs(k)); VC.set(q, v); } return v; };
+  // a wind-packed drift (3 shapes) and a drift mound, baked once (warm) as pixel art: one drawImage each instead of a fill per screen row
+  const driftSpr = v => pix('drift' + v, 28, 6, P => { const g = GROUND[0], lt = mixc(g, SN.L, .22), cr = mixc(g, SN.L, .5), sh = mixc(g, SN.O, .22), sd = mixc(g, SN.O, .38);
+    for(let x = 0; x < 28; x++){ const u = x / 27, e = Math.sin(Math.PI * u), h = Math.round(e * (2.2 + 2.6 * H0(v * 7.1 + 1) * Math.sin(Math.PI * Math.pow(u, .6 + H0(v * 3.3) * .8))) + (H0(v * 13 + x * .37) - .5)); if(h < 1) continue;
+      const top = 5 - h; P.rect(x, top, 1, h, lt); P.px(x, top, cr); if(h > 2) P.px(x, 4, sh); if(x > 27 * (.3 + .3 * H0(v * 5.7)) && h > 1) P.px(x, 5, sd); } });
+  const moundSpr = () => pix('mound', 16, 5, P => { const g = GROUND[0]; for(let x = 0; x < 16; x++){ const h = Math.round(Math.sin(Math.PI * (x + .5) / 16) * 4.2); if(h < 1) continue; P.rect(x, 5 - h, 1, h, mixc(g, SN.L, .14)); P.px(x, 5 - h, mixc(g, SN.L, .45)); P.px(x, 4, mixc(g, SN.O, .28)); } });
   const RUN = [{ on:false }, { on:false }]; let RUNF = -1;
   function runEmit(R){ if(!R.on) return; R.on = false; poly(R.nx, R.ny, R.ex, R.ny, R.ex, R.fy, R.fx, R.fy, R.col); }
   function runQ(sd, col, xa, ya, xb, yb, ex, f){ if(f !== RUNF){ RUNF = f; RUN[0].on = RUN[1].on = false; } const R = RUN[sd < 0 ? 0 : 1];
@@ -579,21 +584,21 @@
     for(let sd = -1; sd <= 1; sd += 2){ const ex = sd < 0 ? -4 : W + 4, x0a = ax + sd * so * aw, x0b = bx + sd * so * bw; if(sd < 0 ? x0a < ex && x0b < ex : x0a > ex && x0b > ex) continue;
       if(far){ const col = fcw(GROUND[0], 0, fog); if(blend) poly(x0a, ay, ex, ay, ex, by, x0b, by, col); else runQ(sd, col, x0a, ay, x0b, by, ex, now); continue; }   // (far: one tone, so runs merge across the stripes)
       poly(x0a, ay, ex, ay, ex, by, x0b, by, fcw(g, lit, fog));   // the field itself, so it is ours and not the engine's bare ground
-      // drift patches: a hashed stretch [X0, X1] of this segment's field, its far half the moonlit crest and its near half the shadow; the
-      // crest's outer end is pulled in by a hashed amount, so neighbouring patches never line up into a band
-      for(let j = 0; j < 2; j++){ const hk = H0(i * 1.73 + j * 4.31 + sd * 2.9); if(hk < .4) continue; const X0 = so + .12 + H0(i * 2.71 + j * 1.9 + sd) * 2.6, X1 = X0 + .3 + H0(i * .93 + j * 3.3 + sd * 5) * 1.2, X2 = X1 - (X1 - X0) * (.2 + .5 * H0(i * 5.9 + j + sd)), ym = ay + (by - ay) * (.35 + .3 * hk);
-        const xm = (X, t) => ax + (bx - ax) * t + sd * X * (aw + (bw - aw) * t), tm = (ym - ay) / (by - ay);
-        poly(xm(X0, 0), ay, xm(X1, 0), ay, xm(X1, tm), ym, xm(X0, tm), ym, fcw(vcol(g, -.16), lit, fog)); poly(xm(X0, tm), ym, xm(X2, tm), ym, xm(X2, 1), by, xm(X0, 1), by, fcw(vcol(g, .2), lit, fog)); }
-      if(fog > .15 || aw < 30) continue;
-      { const X = so + .25 + H0(i * 2.3 + sd) * 2.6, t = H0(i * 4.1 + sd * 2), w = aw + (bw - aw) * t, x = ax + (bx - ax) * t + sd * X * w, y = ay + (by - ay) * t, u = w * (.18 + .14 * H0(i * 1.3 + sd * 7));
-        if(u >= PX * 4 && !(town && X > 1.4)){ cx.fillStyle = fcw(vcol(g, .12), lit, fog); pxRect(x - u / 2, y - u * .1, u, u * .1); pxRect(x - u * .3, y - u * .16, u * .6, u * .06); cx.fillStyle = fcw(vcol(g, .4), lit, fog); pxRect(x - u * .22, y - u * .16, u * .44, PX); cx.fillStyle = fcw(vcol(g, -.25), lit, fog); pxRect(x - u / 2, y, u, PX); } }
+      // drifts: hashed, staggered shapes along the field (never in rows, so they read as drifts, not stripes), and near by a mound; they fade
+      // into the field with distance
+      if(fog > .25 || aw < 12) continue; cx.globalAlpha = Math.min(1, (.25 - fog) * 8);
+      for(let j = 0; j < 2; j++){ const hk = H0(i * 1.73 + j * 4.31 + sd * 2.9); if(hk < .45) continue; const X = so + .3 + H0(i * 2.71 + j * 1.9 + sd) * 2.6, t = H0(i * .93 + j * 3.3 + sd * 5), w = aw + (bw - aw) * t, kp = Math.max(PX, Math.round(w * (.022 + .02 * hk) / PX) * PX), spr = driftSpr((i + j) % 3);
+        const x = ax + (bx - ax) * t + sd * X * w, y = ay + (by - ay) * t; cx.drawImage(spr, Math.round((x - (sd < 0 ? 28 * kp : 0)) / PX) * PX, Math.round((y - 6 * kp) / PX) * PX, 28 * kp, 6 * kp); }
+      if(aw >= 30){ const X = so + .25 + H0(i * 2.3 + sd) * 2.6, t = H0(i * 4.1 + sd * 2), w = aw + (bw - aw) * t, kp = Math.max(PX, Math.round(w * .03 / PX) * PX);
+        if(!(town && X > 1.4) && H0(i * 7.7 + sd) > .5){ const x = ax + (bx - ax) * t + sd * X * w, y = ay + (by - ay) * t; cx.drawImage(moundSpr(), Math.round((x - 8 * kp) / PX) * PX, Math.round((y - 5 * kp) / PX) * PX, 16 * kp, 5 * kp); } }
+      cx.globalAlpha = 1;
       if(town && aw > 60){ cx.fillStyle = fcw(vcol(g, -.3), lit, fog); for(let j = 0; j < 2; j++){ const t = (j + .25 + .5 * H0(i * 3.3 + sd)) / 2, w = aw + (bw - aw) * t, x = ax + (bx - ax) * t + sd * (1.27 + (j % 2) * .05) * w, y = ay + (by - ay) * t, u = Math.max(PX, w * .025); pxRect(x - u, y - u * .4, u * 2, Math.max(PX, u * .8)); } } } }
   ENV.snow = {
     ownsRain:true,
     barrier:BANKX,
     road:['#14161f', '#171922'],
     lampCol:'#6a4434',
-    warm(){ for(let v = 0; v < 4; v++){ const c = ryokan(v); flip(c, 'ryo' + v); } gasLamp(); yukitoro(); gate(); tsuri(); flip(yabane(), 'yabane'); for(let v = 0; v < 3; v++) sugi(v); for(let v = 0; v < 4; v++){ fogTintWarm(ryokan(v), 'sn:sil:ryo' + v, 1, 1, HAZE); fogTintWarm(flip(ryokan(v), 'ryo' + v), 'sn:sil:ryo' + v + 'f', 1, 1, HAZE); } for(let v = 0; v < 3; v++) fogTintWarm(sugi(v), 'sn:sil:sugi' + v, 1, 1, HAZE); fogTintWarm(tsuri(), 'sn:sil:tsuri', 1, 1, HAZE); fogTintWarm(gate(), 'sn:sil:gate', 1, 1, HAZE);
+    warm(){ for(let v = 0; v < 3; v++) driftSpr(v); moundSpr(); for(let v = 0; v < 4; v++){ const c = ryokan(v); flip(c, 'ryo' + v); } gasLamp(); yukitoro(); gate(); tsuri(); flip(yabane(), 'yabane'); for(let v = 0; v < 3; v++) sugi(v); for(let v = 0; v < 4; v++){ fogTintWarm(ryokan(v), 'sn:sil:ryo' + v, 1, 1, HAZE); fogTintWarm(flip(ryokan(v), 'ryo' + v), 'sn:sil:ryo' + v + 'f', 1, 1, HAZE); } for(let v = 0; v < 3; v++) fogTintWarm(sugi(v), 'sn:sil:sugi' + v, 1, 1, HAZE); fogTintWarm(tsuri(), 'sn:sil:tsuri', 1, 1, HAZE); fogTintWarm(gate(), 'sn:sil:gate', 1, 1, HAZE);
       for(const r of PUFF_R) for(const d of [.5, .75]) puff(r, d);
       if(W > 0) buildStrips();
       // touch every sprite once so their texture uploads happen now, not at the first border

@@ -516,10 +516,17 @@
     // its reflection in the bay: a dim broken column under the foot
     if(fog < .7){ const x = pX(MPX - cw, zf), w2 = pX(MPX + cw, zf) - x, y = pY(0, zf), len = pW(zf) * .35; cx.fillStyle = F.pierF; cx.globalAlpha = .35 * (1 - fog);
       for(let k = 0; k < 4; k++) pxRect(x + (k & 1 ? w2 * .2 : 0), y + PX + k * len / 4, w2 * (k & 1 ? .6 : 1), Math.max(PX, len / 8)); cx.globalAlpha = 1; } }
+  function monoHas(t){ const L = t.sprites; for(let n = 0; n < L.length; n++) if(L[n].type === 'mono') return true; return false; }
+  function monoFull(g, m){ for(let j = g; j < g + m; j++){ const t = segs[j]; if(!t || !monoHas(t)) return false; } const e = segs[g + m - 1]; return e.p2.screen.scale > 0 && e.p2.camera.z > 0; }
+  // would segment g (a run's first) merge m segments this frame? the same test drawMono makes there
+  function monoMerges(g, m){ const t = segs[g], n = g - segAt(position).index; if(!t || !(t.p1.screen.scale > 0) || t.p1.camera.z <= DEPTH || n < 1 || n > DRAW - 3) return false;
+    const f = clamp(Math.pow(n / DRAW, 1.6), 0, 1); if(!(t.p1.screen.y - t.p2.screen.y < PX * 1.5) || !(f > .5) || (f > .8 ? 4 : 2) !== m) return false; return monoFull(g, m); }
   function drawMono(sp, x, y, uw, fog, now, sk){ const s = segs[sp.k]; if(!s || !s.p2.screen.scale) return;
     // far away, thin segments are merged two (or four) at a time, anchored to the world so the merge never shifts
     const a = s.p1.screen, thinY = y - s.p2.screen.y < PX * 1.5; let span = 1;
-    if(thinY && fog > .5){ const m = fog > .8 ? 4 : 2; if(sp.k % m) return; const e = segs[sp.k + m - 1]; if(e && e.p2.screen.scale && e.p2.camera.z > 0) span = m; }
+    // (2026-11-24) a segment skips only when its run's first segment will merge the whole run; that one is nearer, so it may not be thin
+    // or fogged enough to merge, or its run's end may be behind the camera, and the skipped segments then drew nothing (a hole)
+    if(thinY && fog > .5){ const m = fog > .8 ? 4 : 2, g = sp.k - sp.k % m; if(g !== sp.k){ if(monoMerges(g, m)) return; } else if(monoFull(g, m)) span = m; }
     const b = segs[sp.k + span - 1].p2.screen;
     PR.ax = a.x; PR.ay = a.y; PR.aw = a.w; PR.bx = b.x; PR.by = b.y; PR.bw = b.w; PR.z0 = sp.k * SEG; PR.zl = span * SEG; PR.off = a.w ? (x - a.x) / a.w - sp.x : 0;   // (off: a fork branch shifts the props)
     if(pX(MN + TWD + .05, PR.z0) < -PX * 2 && pX(MN + TWD + .05, PR.z0 + PR.zl) < -PX * 2) return;   // all of it off the left edge (beside / behind you)

@@ -580,6 +580,12 @@
      colour and touch are merged into one run (up to 8 segments or 6 pixel rows; the rail's edge is a chord across it, under a pixel off), and a
      run is drawn when the next one starts. The last run of the road pass is drawn by the first prop of the sprite pass (runFlush in draw):
      every prop is drawn after the road pass, and the far run lies beyond them all. */
+  // a tree crown seen from above (2 shapes), baked once at warm-up
+  const CROWN = [];
+  function crownSpr(v){ if(CROWN[v]) return CROWN[v]; const c = document.createElement('canvas'); c.width = 14; c.height = 6; const k = c.getContext('2d');
+    for(let x = 0; x < 14; x++){ const h = Math.round(Math.sin(Math.PI * (x + .5) / 14) * (4.4 + v) + (hash(x * 1.3 + v * 7) - .5)); if(h < 1) continue; const top = 6 - Math.min(6, h);
+      k.fillStyle = CAN.crown; k.fillRect(x, top, 1, 6 - top); if(x > 3 && x < 10){ k.fillStyle = CAN.cap; k.fillRect(x, top, 1, 1); } if((x + v) % 3 === 0){ k.fillStyle = CAN.b; k.fillRect(x, 5, 1, 1); } }
+    return CROWN[v] = c; }
   const RUN = [{ on:false }, { on:false }]; let RUNF = -1;
   function runEmit(R){ if(!R.on) return; R.on = false; poly(R.nx, R.ny, R.ex, R.ny, R.ex, R.fy, R.fx, R.fy, R.col); }
   function runQ(sd, col, xa, ya, xb, yb, ex, f){ if(f !== RUNF){ RUNF = f; RUN[0].on = RUN[1].on = false; } const R = RUN[sd < 0 ? 0 : 1];
@@ -591,11 +597,12 @@
     if(!(ay - by >= .5)) return; const low = FOG_COL || fogLow, i = s.index, fm = Math.max(fog, .3); if(!low) return;   // (the road pass's haze colour, sk.low: set before the road is drawn)
     for(let sd = -1; sd <= 1; sd += 2){ const ex = sd < 0 ? -4 : W + 4, x0a = ax + sd * 1.12 * aw, x0b = bx + sd * 1.12 * bw; if(sd < 0 ? x0a < ex && x0b < ex : x0a > ex && x0b > ex) continue;
       if(fog > .35){ if(s.bm < 1 && s.bA !== s.bB) poly(x0a, ay, ex, ay, ex, by, x0b, by, fc(CAN.b, fm, low)); else runQ(sd, fc(CAN.b, fm, low), x0a, ay, x0b, by, ex, now); continue; }   // (in a border blend the other road's far props may draw before ours: no deferred run there)
-      const x2a = ax + sd * 3.6 * aw, x2b = bx + sd * 3.6 * bw;   // (two bands: the canopy below the rail, and the hazed valley beyond)
-      poly(x0a, ay, x2a, ay, x2b, by, x0b, by, fc(i % 2 ? CAN.a : CAN.b, fog, low)); poly(x2a, ay, ex, ay, ex, by, x2b, by, fc(CAN.c, fm, low));
+      // one band to the edge near by, where the valley beyond is off the screen anyway; from fog .12 the hazed valley band past 3.6 half-widths
+      if(fog < .12) poly(x0a, ay, ex, ay, ex, by, x0b, by, fc(i % 2 ? CAN.a : CAN.b, fog, low));
+      else { const x2a = ax + sd * 3.6 * aw, x2b = bx + sd * 3.6 * bw; poly(x0a, ay, x2a, ay, x2b, by, x0b, by, fc(i % 2 ? CAN.a : CAN.b, fog, low)); poly(x2a, ay, ex, ay, ex, by, x2b, by, fc(CAN.c, fm, low)); }
       if(fog > .2 || aw < 60) continue;
       for(let j = 0; j < 2; j++){ const h = hash(i * 3.7 + j * 1.31 + sd * .71), X = 1.35 + h * 2.2, t = hash(i * 5.3 + j * 2.9 + sd), w = aw + (bw - aw) * t, x = ax + (bx - ax) * t + sd * X * w, y = ay + (by - ay) * t, u = w * (.12 + .1 * hash(i * 1.9 + j + sd * 3));
-        if(u < PX * 3) continue; cx.fillStyle = fc(CAN.crown, fog, low); pxRect(x - u / 2, y - u * .3, u, u * .3); pxRect(x - u * .32, y - u * .42, u * .64, u * .14); cx.fillStyle = fc(CAN.cap, fog, low); pxRect(x - u * .2, y - u * .42, u * .4, PX); } } }
+        if(u < PX * 3) continue; const kp = Math.max(PX, Math.round(u / 14 / PX) * PX); cx.globalAlpha = Math.min(1, (.2 - fog) * 10); cx.drawImage(crownSpr((i + j) % 2), Math.round((x - 7 * kp) / PX) * PX, Math.round((y - 6 * kp) / PX) * PX, 14 * kp, 6 * kp); cx.globalAlpha = 1; } } }   // (a baked crown: one drawImage, not four fills)
   ENV.pass = {
     // build every sprite (both moon sides) up front so crossing into the pass never stalls on cache building
     warm(){ for(const _ of ENV.pass.warmSteps()); },
@@ -603,7 +610,7 @@
     // the game-canvas part (uploads, the backdrop sweep) is cut into steps that each restore the canvas state before yielding (a slice runs just
     // after a frame is shown, and the next frame paints over whatever it drew)
     *warmSteps(){ for(const d of [-1, 1]){ for(let v = 0; v < 3; v++){ sugi(v, d); yield; } kusu(0, d); kusu(1, d); yield; toro(d); jizo(d); torii(d); yield; sakura(d); chevron(d); yield; }
-      for(let v = 0; v < 6; v++) rockSpr(v); tipStrip(); for(let v = 0; v < 3; v++) tuftSpr(v); yield; for(let v = 0; v < 6; v++){ rockHi(v, 2); rockHi(v, 4); } yield; signSpr(-1); signSpr(1); mirrorSpr(); yield; mirrorHi(2); mirrorHi(4); yield; for(const d of [-1, 1]) for(const R of [2, 4]){ toriiHi(d, R); yield; sakuraHi(d, R); signHi(d, R); yield; }
+      for(let v = 0; v < 6; v++) rockSpr(v); tipStrip(); crownSpr(0); crownSpr(1); for(let v = 0; v < 3; v++) tuftSpr(v); yield; for(let v = 0; v < 6; v++){ rockHi(v, 2); rockHi(v, 4); } yield; signSpr(-1); signSpr(1); mirrorSpr(); yield; mirrorHi(2); mirrorHi(4); yield; for(const d of [-1, 1]) for(const R of [2, 4]){ toriiHi(d, R); yield; sakuraHi(d, R); signHi(d, R); yield; }
       const up = c => { cx.drawImage(c, 0, 0, PX, PX); cx.drawImage(c, 0, 0, c.width * PX, c.height * PX); }; if(document.fonts && document.fonts.load) document.fonts.load('16px DotGothic16').then(() => { try{ plate(); plateTexts(); }catch(e){} }, () => {});   // the road-name plate needs the pixel font: build it as soon as the font is in, not when first seen   // draw each once so the GPU texture upload happens now, not mid-ride
       // (first 60 s, research/sundown-craft/first60.md: the upload pass in four steps, each its own save/restore, so the ride can take it)
       for(const d of [-1, 1]){ cx.save(); for(let v = 0; v < 3; v++) up(sugi(v, d)); up(kusu(0, d)); up(kusu(1, d)); up(toro(d)); up(jizo(d)); up(torii(d)); up(sakura(d)); up(chevron(d)); cx.restore(); yield; }
