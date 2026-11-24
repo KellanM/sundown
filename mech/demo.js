@@ -29,34 +29,34 @@
 (function(){
 // place: 'free' = takes the authored spot (nudged to its nearest valid one); 'grid' = snaps to the road's own spots (bores, cliffs, cycles);
 // 'road' = the road decides (env sites, the Aqua-Line bore); 'cp' = ends at the checkpoint (the demo moves the checkpoint for it).
-// lvl: intensity 1..5 for the editor's pacing curve.  jumpOk: shares its road with the landmark jump in normal play too.  fix: the measured spot for 'road' events (segments from the road's start).
+// lvl: intensity 1..5 for the editor's pacing curve.  jumpOk: shares its road with the landmark jump in normal play too.  fix: the measured spot for 'road' events (segments from the road's start).  nearAt: segments before the moment where its own card or first cinematic shows (measured at top speed; negative: after it; ?near= in mech/director.js cuts to just before it, else to its pre).  nearPrev: can't fit a ride's first road, so ?near= starts a road earlier.
 const E = window.SD_EVENTS = [
-  { id:'kaiju',      kanji:'怪獣',   name:'KAIJU',         roads:['bay'],               place:'free', pre:620, post:260, min:440, tail:260, lvl:5 },
+  { id:'kaiju',      kanji:'怪獣',   name:'KAIJU',         roads:['bay'],               place:'free', pre:620, post:260, min:440, tail:260, lvl:5, nearAt:204 },
   { id:'typhoon',    kanji:'台風',   name:'TYPHOON',       roads:['coast'],             place:'free', pre:60,  post:560, min:200, tail:540, lvl:4 },
-  { id:'greatwave',  kanji:'大波',   name:'GREAT WAVE',    roads:['coast'],             place:'free', pre:330, post:170, min:820, tail:230, lvl:4 },
-  { id:'hanabi',     kanji:'花火',   name:'HANABI',        roads:['paddies', 'coast'],  place:'free', pre:300, post:260, min:660, tail:220, lvl:2, jumpOk:true },
+  { id:'greatwave',  kanji:'大波',   name:'GREAT WAVE',    roads:['coast'],             place:'free', pre:330, post:170, min:820, tail:230, lvl:4, nearAt:80 },
+  { id:'hanabi',     kanji:'花火',   name:'HANABI',        roads:['paddies', 'coast'],  place:'free', pre:300, post:260, min:660, tail:220, lvl:2, nearAt:333, jumpOk:true },
   { id:'matsuri',    kanji:'祭',     name:'MATSURI',       roads:['neon'],              place:'free', pre:300, post:90,  min:300, tail:120, lvl:2 },
-  { id:'shinkansen', kanji:'新幹線', name:'SHINKANSEN',    roads:['paddies'],           place:'free', pre:60,  post:720, min:560, tail:720, lvl:3 },
+  { id:'shinkansen', kanji:'新幹線', name:'SHINKANSEN',    roads:['paddies'],           place:'free', pre:60,  post:720, min:560, tail:720, lvl:3, nearAt:-172 },
   { id:'fuji',       kanji:'富士',   name:'FUJI',          roads:['coast', 'tunnels'],  place:'free', pre:0,   post:700, min:0,   tail:0,   lvl:1, tier:'ambient' },
   { id:'fireball',   kanji:'爆発',   name:'INFERNO',       roads:['refinery'],          place:'cp',   pre:100, post:520, min:500, tail:840, lvl:5 },
-  { id:'avalanche',  kanji:'雪崩',   name:'AVALANCHE',     roads:['snow'],              place:'free', pre:720, post:200, min:840, tail:210, lvl:4 },
+  { id:'avalanche',  kanji:'雪崩',   name:'AVALANCHE',     roads:['snow'],              place:'free', pre:720, post:200, min:840, tail:210, lvl:4, nearAt:300 },
   { id:'jetwash',    kanji:'噴射',   name:'JETWASH',       roads:['haneda'],            place:'free', pre:340, post:380, min:900, tail:390, lvl:4 },
   { id:'jets',       kanji:'空',     name:'LOW JETS',      roads:['haneda'],            place:'free', pre:40,  post:160, min:250, tail:200, lvl:1, tier:'ambient' },
-  { id:'rockslide',  kanji:'落石',   name:'ROCKSLIDE',     roads:['pass'],              place:'grid', pre:420, post:360, min:690, tail:410, lvl:4, grid:400, gridOff:300 },
-  { id:'cavein',     kanji:'崩落',   name:'CAVE-IN',       roads:['tunnels'],           place:'grid', pre:390, post:300, min:700, tail:350, lvl:4, grid:320, gridOff:300 },
-  { id:'screenfall', kanji:'大画面', name:'SCREENFALL',    roads:['shuto'],             place:'free', pre:640, post:120, min:470, tail:200, lvl:4 },
-  { id:'lava',       kanji:'溶岩流', name:'LAVA BREACH',   roads:['sakurajima'],        place:'grid', pre:360, post:375, min:700, tail:410, lvl:5, grid:300, gridOff:0 },
+  { id:'rockslide',  kanji:'落石',   name:'ROCKSLIDE',     roads:['pass'],              place:'grid', pre:420, post:360, min:690, tail:410, lvl:4, nearAt:359, grid:400, gridOff:300 },
+  { id:'cavein',     kanji:'崩落',   name:'CAVE-IN',       roads:['tunnels'],           place:'grid', pre:390, post:300, min:700, tail:350, lvl:4, nearAt:306, nearPrev:1, grid:320, gridOff:300 },
+  { id:'screenfall', kanji:'大画面', name:'SCREENFALL',    roads:['shuto'],             place:'free', pre:640, post:120, min:470, tail:200, lvl:4, nearAt:600, nearPrev:1 },
+  { id:'lava',       kanji:'溶岩流', name:'LAVA BREACH',   roads:['sakurajima'],        place:'grid', pre:360, post:375, min:700, tail:410, lvl:5, nearAt:345, grid:300, gridOff:0 },
   { id:'naruto',     kanji:'渦潮',   name:'WHIRLPOOLS',    roads:['shimanami'],         place:'grid', pre:352, post:308, min:397, tail:330, lvl:3, rgrid:1080, rgridOff:397 },
   { id:'flood',      kanji:'浸水',   name:'FLOOD',         roads:['aqua'],              place:'free', pre:500, post:390, min:520, tail:430, lvl:4 },
-  { id:'megalodon',  kanji:'滄竜',   name:'MOSASAUR',      roads:['aqua'],              place:'road', pre:700, post:1250, min:300, tail:1300, lvl:5, fix:1410 },
-  { id:'phantom',    kanji:'亡霊',   name:'PHANTOMS',      roads:['tunnels','pass','paddies','snow','kurobe','coast','shimanami','gion'], place:'free', pre:60, post:1750, min:300, tail:1770, lvl:4 },
-  { id:'abyss',      kanji:'深淵',   name:'MOSASAUR + FLOOD', roads:['aqua'],           place:'road', pre:700, post:1450, min:300, tail:1500, lvl:5, fix:1410 },
+  { id:'megalodon',  kanji:'滄竜',   name:'MOSASAUR',      roads:['aqua'],              place:'road', pre:700, post:1250, min:300, tail:1300, lvl:5, nearAt:150, fix:1410 },
+  { id:'phantom',    kanji:'亡霊',   name:'PHANTOMS',      roads:['tunnels','pass','paddies','snow','kurobe','coast','shimanami','gion'], place:'free', pre:60, post:1750, min:300, tail:1770, lvl:4, nearAt:-151 },
+  { id:'abyss',      kanji:'深淵',   name:'MOSASAUR + FLOOD', roads:['aqua'],           place:'road', pre:700, post:1450, min:300, tail:1500, lvl:5, nearAt:226, fix:1410 },
   { id:'wheel',      kanji:'観覧車', name:'RUNAWAY WHEEL', roads:['minato'],            place:'road', pre:300, post:720, min:200, tail:740, lvl:3, fix:910 },
-  { id:'teiden',     kanji:'停電',   name:'BLACKOUT',      roads:['akiba'],             place:'road', pre:400, post:400, min:300, tail:420, lvl:3, fix:1560 },
-  { id:'teiden_boss', kanji:'停電鬼火', name:'BLACKOUT + THE LEGEND', roads:['akiba'],     place:'free', pre:200, post:3200, min:370, tail:3260, lvl:5 },   // the moment: the dark reaches you and he arrives; env/akiba.js lays the street round it (the duel needs 3200 after)
+  { id:'teiden',     kanji:'停電',   name:'BLACKOUT',      roads:['akiba'],             place:'road', pre:400, post:400, min:300, tail:420, lvl:3, nearAt:421, fix:1560 },
+  { id:'teiden_boss', kanji:'停電鬼火', name:'BLACKOUT + THE LEGEND', roads:['akiba'],     place:'free', pre:200, post:3200, min:370, tail:3260, lvl:5, nearAt:188 },   // the moment: the dark reaches you and he arrives; env/akiba.js lays the street round it (the duel needs 3200 after)
   { id:'yoiyama',    kanji:'宵山',   name:'YOIYAMA',       roads:['gion'],              place:'road', pre:400, post:400, min:300, tail:420, lvl:2, fix:684 },
   { id:'kanpo',      kanji:'観光放水', name:'KANPO',       roads:['kurobe'],            place:'road', pre:400, post:400, min:300, tail:420, lvl:2, fix:1868 },
-  { id:'boss',       kanji:'宵闇連合', name:'THE LEGEND',  roads:['*'],                 place:'free', pre:100, post:2300, min:90, tail:2320, lvl:5, jumpOk:true },
+  { id:'boss',       kanji:'宵闇連合', name:'THE LEGEND',  roads:['*'],                 place:'free', pre:100, post:2300, min:90, tail:2320, lvl:5, nearAt:20, jumpOk:true },
   { id:'heli',       kanji:'ヘリ',   name:'HELICOPTER',    roads:['*'],                 place:'free', pre:0,   post:600, min:0,   tail:0,   lvl:2, tier:'ambient', police:true } ];
 const EV = {}; for(const e of E) EV[e.id] = e;
 const ROAD_DEF = 2400, LEN_MIN = 600, LEN_MAX = 9000, CP_END = 260, FB_CP = 580, AFTER_LAST = 1600;

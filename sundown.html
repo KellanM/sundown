@@ -530,7 +530,9 @@ window.BOOT = (() => { const el = document.getElementById('loader'), cells = el 
   <canvas id="pzHead" aria-hidden="true"></canvas><div class="rslab pzalt" aria-hidden="true"><span class="kj">設定</span><b>OPTIONS</b></div><div class="lcd pzl" id="pzLcd"></div><div class="pzp" id="pzPanel"></div><p class="ukeys" id="pzKeys" data-keys="pzmain" aria-hidden="true"></p></div></div>
 <script>window.ENV = {}; window.MECH = {}; window.TIME = { scale:1, core:true }; window.CAM = { zoom:1, roll:0, pitch:0 };
 /* backdrop parallax depth tiers, CSS px of scroll per unit of skyOff: use skyPar('far') etc. (env/README.md, "Backdrop parallax") */
-window.SKY_TIER = { sky:30, moon:40, far:120, mid:250, near:450, edge:700 };</script>
+window.SKY_TIER = { sky:30, moon:40, far:120, mid:250, near:450, edge:700 };
+/* ?near=<event id> (the review player's cut, mech/director.js) without its own ?force=: force that event, here, before the env scripts read the URL (env/akiba.js) */
+try{ const n = new URLSearchParams(location.search).get('near'); if(n && n !== 'road' && !/^jump:/.test(n) && !/[?&]force=/.test(location.search)) history.replaceState(history.state, '', location.pathname + location.search + '&force=' + encodeURIComponent(n) + location.hash); }catch(e){}</script>
 <script src="env/harbour.js"></script>
 <script src="env/bay.js"></script>
 <script src="env/neon.js"></script>
@@ -740,6 +742,9 @@ const LANDS = [
   { key:'akiba', name:'Akihabara', kanji:'秋', sky:'#1e1030', grass:['#1d1b23', '#1b1921'], bg:'city', prop:'block', curve:2.8, oil:.002, prog:[[52, 55, 59], [50, 54, 57], [48, 52, 55], [53, 57, 60]], note:'The electric town, under the Sōbu line', col:'#ffd23a' },
   { key:'gion', name:'Kyoto Gion', kanji:'祇', sky:'#121a3a', grass:['#17151d', '#15131b'], bg:'city', prop:'block', curve:3, oil:0, prog:[[50, 53, 57], [48, 52, 55], [46, 50, 53], [49, 52, 56]], note:'Lantern light, the shrine gate and the pagoda', col:'#ff9a4a' }
 ];
+{ /* ?near=<id> (mech/director.js) without ?land=: start on the road the moment lives on (SD_EVENTS, mech/demo.js: its first road; `nearPrev` ones start a road earlier, as they can't fit a ride's first road; jump:<road>), so LAND0 and ROUTE_FIXED below see it */
+  const q = new URLSearchParams(location.search), n = q.get('near'), ev = n && (window.SD_EVENTS || []).find(e => e.id === n), k = n && /^jump:/.test(n) ? n.slice(5) : ev && ev.roads[0] !== '*' ? ev.roads[0] : null, i = k ? LANDS.findIndex(l => l.key === k) : -1;
+  if(i >= 0 && !q.has('land')) history.replaceState(history.state, '', location.pathname + location.search + '&land=' + ((i - (ev && ev.nearPrev ? 1 : 0) + LANDS.length) % LANDS.length) + location.hash); }
 const QS = new URLSearchParams(location.search), LAND0 = (+QS.get('land') || 0) % LANDS.length;   // ?land=N starts on road N (for testing)
 /* Route variety. A normal ride starts on a road picked away from the roads you started on or rode in recent rides, and every fork offers two
    roads you haven't ridden yet this ride, favouring the ones you've seen least lately (and not two of the same family in a row).
@@ -2939,7 +2944,7 @@ if(!/[?&]con=off(&|$)/.test(location.search)){   /* Kellan 2026-11-23: the in-ga
    A new version downloads in the background and waits. It is applied only on the title (never mid-ride): by itself once
    the title has sat untouched for a few seconds, or at once when the player taps "Update ready". Tap the version to check now. */
 (() => {
-  const VER = 'v47 · cefa0e', $id = (i) => document.getElementById(i);
+  const VER = 'v48 · b1bab4', $id = (i) => document.getElementById(i);
   const SDU = window.SDUPDATE = { version: VER, waiting: null, applied: false, checks: 0 };
   let reg = null, applying = false, asked = false, needReload = false, note = '', noteT = 0, lastInput = performance.now();
   ['keydown', 'pointerdown', 'touchstart', 'wheel'].forEach((t) => addEventListener(t, () => { lastInput = performance.now(); }, { capture: true, passive: true }));
@@ -3001,5 +3006,5 @@ if(!/[?&]con=off(&|$)/.test(location.search)){   /* Kellan 2026-11-23: the in-ga
   }, 1000);
 })();
 </script>
-<!-- __sdbuild:47 cefa0ec31d2d --></body>
+<!-- __sdbuild:48 b1bab43e8f60 --></body>
 </html>

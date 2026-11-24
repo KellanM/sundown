@@ -174,12 +174,53 @@ const D = MECH.director = {
       clear(){ try{ localStorage.removeItem(CFG.key); }catch(e){} }, gov:G }; },
   cine, place, update, reset, hitCar, post, drawScreen, warm };
 
+/* ---------------------------------------------------------------- ?near=<id>: the review player's cut to just before a moment
+   ?near=<event id>[&lead=<s>]: in normal play, once the countdown's GO starts the ride, the road ahead is laid until that event is booked,
+   then the ride is cut to `lead` seconds (default 4) at cruise before the moment's approach begins: its card, or its `pre` footprint
+   (SD_EVENTS in mech/demo.js: `nearAt` when measured, else `pre`), so the review opens seconds before the moment. ?near=jump:<road> does the
+   same for a landmark jump; ?near=road starts a little into the current road (past its border blend). Without ?force= the event is forced
+   (sundown.html, before the env scripts read the URL) and without ?land= the ride starts on its road (sundown.html, beside LAND0).
+   The cut happens right after GO (the countdown always plays, at the start line), between frames (a microtask after the GO frame):
+   the road is laid past the spot, traffic near the bike is cleared, the bike arrives at cruise and this director's cinematics reset, the
+   way the demo's N and the console's `seg` park. Nothing found within NEAR.tmax ms or NEAR.span segments: a console warning, the ride
+   simply goes on. The ride is marked dev (rec.dev 'near=<id>'): it never saves to best nights. Ignored in a ?demo= ride (N skips there). */
+const NEAR = (() => { const id = QS.get('near'); if(!id) return null; if(DEMO){ console.warn('[near] ignored in a demo ride (N skips to the next event)'); return null; }
+  const l = parseFloat(QS.get('lead')); return { id, lead:Number.isFinite(l) ? Math.max(0, Math.min(30, l)) : 4, cruise:.8, pace:1, span:24000, tmax:4000, chunk:800, frameMs:24, st:'wait', segs:null, t0:0, used:false, log:[] }; })();
+D.near = NEAR;
+const JUMP_APPROACH = 120;   // a landmark jump's run-up (its card and the barricades at the lip), segments before its booked launch
+function nearApproach(id){ if(/^jump:/.test(id)) return JUMP_APPROACH; const e = (window.SD_EVENTS || []).find(x => x.id === id); return e ? (e.nearAt != null ? e.nearAt : e.pre || 0) : 0; }
+function nearFind(id, p){ const R = G.R; if(!R) return null; let best = null; for(const b of R.book) if(b.id === id && !b.seen && b.seg > p + 20 && (!best || b.seg < best.seg)) best = b; return best; }
+function nearDev(){ if(NEAR.used) return; NEAR.used = true;
+  try{ const os = store.set; if(!os.__near){ const f = function(k, v){ if(k === 'arcade.sundown' && Array.isArray(v)) v = v.filter(r => !(r && r.dev)); return os.call(this, k, v); }; f.__near = true; store.set = f; } }catch(e){ console.warn('[near] store hook', e); } }
+D.finish = rec => { if(NEAR && NEAR.used && NEAR.segs === segs) rec.dev = (rec.dev ? rec.dev + ' ' : '') + 'near=' + NEAR.id; };
+function nearCut(to){ const p = pSeg(); if(to <= p + 40) return false;
+  extend(to + DRAW + 400); const dz = (to - p) * SEG; position += dz;
+  for(const c of cars){ c.z += dz; const d = c.z - (position + PZ); if(d > -6 * SEG && d < 70 * SEG) c.z = -1e9; }   // (cars kept their places around you, but none right on top of or just ahead of the bike)
+  try{ reset(); }catch(e){} return true; }
+function nearStep(){ const N = NEAR; if(N.segs !== segs){ N.segs = segs; N.st = 'wait'; }   // a new ride (Play again) cuts again
+  if(N.st !== 'wait') return; N.st = 'seek'; N.t0 = performance.now(); nearDev();
+  if(typeof speed === 'number') speed = Math.max(speed, MAXS * N.cruise);   // arriving, not starting: the bike is at cruise from GO
+  queueMicrotask(nearGo); }   // (between frames: the core's update for this frame is over, as when the console's seg runs)
+function nearGo(){ const N = NEAR; if(N.st !== 'seek' || N.segs !== segs || state !== 'play') return;
+  try{ const p = pSeg(), f0 = performance.now(), cs = MAXS / SEG * N.pace;   /* (lead seconds at top speed: from cruise the bike is there within a second) */
+    if(N.id === 'road'){ const z = zoneOfSeg(p), s0 = z > 0 ? gates[2 * z - 1] : 0, to = s0 + (z > 0 ? BL_POST : 0) + 60;
+      const ok = nearCut(to); N.st = 'done'; N.log.push({ id:N.id, from:p, to:pSeg(), cut:ok }); console.log('[near] road: ' + (ok ? 'cut ' + p + ' -> ' + pSeg() : 'already there, riding on from ' + p)); return; }
+    let b = nearFind(N.id, p);
+    while(!b && segs.length < p + N.span && performance.now() - f0 < N.frameMs){ extend(segs.length + N.chunk); b = nearFind(N.id, p); }
+    if(!b){ if(segs.length < p + N.span && performance.now() - N.t0 < N.tmax){ requestAnimationFrame(() => queueMicrotask(nearGo)); return; }   // keep laying next frame
+      N.st = 'done'; N.log.push({ id:N.id, from:p, found:false, laid:segs.length }); console.warn('[near] ' + N.id + ': not booked within ' + (segs.length - p) + ' segments / ' + Math.round(performance.now() - N.t0) + ' ms; riding on from here'); return; }
+    const ap = nearApproach(N.id), to = Math.round(b.seg - ap - N.lead * cs), ok = nearCut(to);
+    N.st = 'done'; N.log.push({ id:N.id, seg:b.seg, approach:ap, from:p, to:pSeg(), cut:ok, ms:Math.round(performance.now() - N.t0) });
+    console.log('[near] ' + N.id + ' booked at ' + b.seg + ' (approach ' + ap + '): ' + (ok ? 'cut ' + p + ' -> ' + pSeg() : 'already within the lead, riding on from ' + p)); }
+  catch(e){ N.st = 'done'; console.warn('[near] failed, riding on', e); } }
+
 /* ---------------------------------------------------------------- placement and the ride */
 function place(i){ rideCheck(); if(i <= lastI) G.regen(i); lastI = i; curI = i; }
 let T = 0, lastScale = 1, sawPost = false;
 function update(dt){ curI = -1; rideCheck();
   const ug = dt / (window.TIME.core ? (lastScale || 1) : 1); T += ug;   // unscaled game seconds: stops while paused, ignores slow-mo
   if(state === 'play'){ G.start(); G.reached(pSeg()); }
+  if(NEAR && state === 'play') nearStep();
   quietStep();
   if(state !== 'play' && state !== 'pulled' && CINES.length) for(const c of CINES) if(c.endT == null) c.endT = T - 9;   // the ride ended: drop everything
   stepCines(ug, dt); }
