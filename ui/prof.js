@@ -124,7 +124,7 @@ function endFrame(t0, drawMs){ const i = R.i; R.t[i] = t0; R.draw[i] = drawMs; R
   R.cvl[i] = cvOn ? CVL : -1; R.cva[i] = cvOn ? CVA : -1; R.rb[i] = cvOn ? RBN : -1; CVL = CVA = RBN = 0; FRM++;
   if(P.sub){ for(const [k, e] of P.keys) P.keys.set(k, e * .97 + (KEYS.get(k) || 0) * .03); for(const [k, v] of KEYS) if(!P.keys.has(k)) P.keys.set(k, v); KEYS.clear(); }   // (smoothed per hook; a hook that stops running decays away)
   R.i = (i + 1) % N; if(R.n < N) R.n++;
-  const want = P.ops && P.level > 0 || P.forceOps; if(want && !opsOn){ cvInstall(); opsInstall(typeof cx !== 'undefined' ? cx : null); } else if(!want && (opsOn || cvOn)){ opsRemove(); cvRemove(); }
+  const want = P.ops && P.level >= 2 || P.forceOps;   /* (op and cv→cv counters wrap every canvas call, so the default FPS line (level 1) runs without them) */ if(want && !opsOn){ cvInstall(); opsInstall(typeof cx !== 'undefined' ? cx : null); } else if(!want && (opsOn || cvOn)){ opsRemove(); cvRemove(); }
   if(++scanN % 120 === 0 && P.sub) rescan();
   if(t0 - lastShow > 250){ lastShow = t0; show(); } }
 const q = (a, f) => { if(!a.length) return 0; const s = Float64Array.from(a).sort(); return s[Math.min(s.length - 1, Math.floor(s.length * f))]; };

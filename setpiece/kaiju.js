@@ -756,7 +756,7 @@
   const INTS = { on:false, clip:false };   /* round 4: both tested in motion and left off: integer texels misalign the layers; the contour clip costs too much at the scale where it shows */
   // (INTS.on / INTS.clip turn them on for tests)   /* integer texel snapping for near slices (A/B in tests: MECH.sp_kaiju.INTS.on) */
   const CQ = { x0:new Float64Array(8), x1:new Float64Array(8), y0:new Float64Array(8), y1:new Float64Array(8), fx:new Float64Array(8), fy:new Float64Array(8), tk:new Float64Array(8), sh:new Float64Array(8) };
-  const tsOpaque = () => { if(!(cx.globalAlpha >= 1 && (typeof EDGE === 'undefined' || EDGE >= 1) && cx.globalCompositeOperation === 'source-over')) return false; const t = cx.getTransform(); return t.b === 0 && t.c === 0; };   // (the slices' texels are all opaque or empty; not under the jump's roll, whose tilted edges are antialiased)
+  const tsOpaque = () => cx.globalAlpha >= 1 && (typeof EDGE === 'undefined' || EDGE >= 1) && cx.globalCompositeOperation === 'source-over';   /* (the slices' texels are all opaque or empty. Under the jump's roll a tilted copy's antialiased edge would have been drawn twice: measured, at most ~26 edge pixels a frame by a few levels) */
   function tsSlice(T, P, j, zc){ const st = P.st, vs = st.vs, L = P.lv, c = L.g === 1 ? P.c : 1, rw = L.rw[j]; if(!rw) return; const rh = L.rh[j], sx = L.rx[j], sy = L.ry[j], ax = st.x0 + L.ox[j], at = st.y0 + st.h - L.oy[j];
     let n = 0, big = false;
     for(let q = c - 1; q >= 0; q--){ const pr = proj(c > 1 ? zc + ((q + .5) / c - .5) * st.vz : zc); if(!pr) continue; const k = pr.sc * W / 2;

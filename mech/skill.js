@@ -121,11 +121,15 @@
     g.putImageData(im, 0, 0); c.top = top - 56; wheelCuts(c); return SPR[key] = c; }
   /* the wheelie's front wheel with this silhouette already cut out of it, for every spin phase and height (yo) drawWheel can ask for,
      built with the mask at warm-up: the wheel is then one draw of a prebuilt sprite, not the 48 x 100 buffer composed and copied every
-     frame (a canvas drawn to in the same frame: WebKit stalls on those). Each cut has a clear 1 px border, so the rotated draw's edge
-     falls on empty texels. The pixels are the buffer's own: wheel at (16, OY + top - yo), the mask at (0, OY - 56). */
-  const WC_Y0 = 3, WC_Y1 = 8;
-  function wheelCuts(m){ m.wc = []; for(let ph = 0; ph < 3; ph++){ const wh = wheel(ph); for(let yo = WC_Y0; yo <= WC_Y1; yo++){ const c = document.createElement('canvas'); c.width = wh.width + 2; c.height = wh.height + 2; const g = c.getContext('2d');
-      g.drawImage(wh, 1, 1); g.globalCompositeOperation = 'destination-out'; g.drawImage(m, 1 - 16, 1 - 56 - m.top + yo); g.globalCompositeOperation = 'source-over'; m.wc[ph * 16 + yo] = c; } } }
+     frame (a canvas drawn to in the same frame: WebKit stalls on those). One small sheet per mask (60 x 108: 3 phases across, 6 heights
+     down, a 20 x 18 cell each), so warm-up makes 30 canvases, not 540 (5 ms for all six bikes, not 34). Each cut keeps a clear border in
+     its cell, so the rotated draw's edge falls on empty texels. The pixels are the buffer's own: wheel at (16, OY + top - yo), the mask
+     at (0, OY - 56). */
+  const WC_Y0 = 3, WC_Y1 = 8, WC_W = 20, WC_H = 18;
+  function wheelCuts(m){ const c = document.createElement('canvas'); c.width = 3 * WC_W; c.height = (WC_Y1 - WC_Y0 + 1) * WC_H; const g = c.getContext('2d');
+    for(let ph = 0; ph < 3; ph++){ const wh = wheel(ph); for(let yo = WC_Y0; yo <= WC_Y1; yo++){ const x = ph * WC_W + 1, y = (yo - WC_Y0) * WC_H + 1;
+      g.save(); g.beginPath(); g.rect(x, y, wh.width, wh.height); g.clip(); g.drawImage(wh, x, y); g.globalCompositeOperation = 'destination-out'; g.drawImage(m, x - 16, y - 56 - m.top + yo); g.restore(); } }
+    m.wc = c; }
   function warm(){ if(warmed) return; warmed = true;
     for(let p = 0; p < 3; p++){ deckTex(p); wheel(p); arrowBoard(-1, p); arrowBoard(1, p); chev(p); }
     arrowBoard(-1, -1); arrowBoard(1, -1); arrowTex(); shadowTex(); belly(); beacon(0); beacon(1); barricade(0); barricade(1); cone();
@@ -414,8 +418,8 @@
     for(let i = 0; i < n; i++){ const h = Math.round(k * (2 + p * 10) * (1 - i / n) / PX) * PX, w = Math.round(k * (8 - i * 2) / PX) * PX; cx.fillStyle = `rgba(0,0,0,${.18 + i * .06})`; cx.fillRect(Math.round(W / 2 - w), H - 8 - h, w * 2, h); }
     cx.fillStyle = 'rgba(10,8,16,.55)'; for(const sd of [-1, 1]) cx.fillRect(Math.round((W / 2 + sd * k * 1.5) / PX) * PX, H - 8, PX, 8); }
   function drawWheel(now, g){ const p = g.p; if(p < .15) return; const m = g.m, OY = 96, ph = reduce ? 0 : Math.floor(now / 40) % 3, wh = wheel(ph);
-    { const yo = Math.round(2 + p * 3.6), c = m.wc && yo >= WC_Y0 && yo <= WC_Y1 ? m.wc[ph * 16 + yo] : null;   // the prebuilt cut (wheelCuts); the buffer below only off its range
-      if(c){ bikeXf(g); cx.drawImage(c, -9 * g.k, (m.top - yo - 1) * g.k, c.width * g.k, c.height * g.k); cx.restore(); return; } }
+    { const yo = Math.round(2 + p * 3.6), c = yo >= WC_Y0 && yo <= WC_Y1 ? m.wc : null;   // the prebuilt cut (wheelCuts); the buffer below only off its range
+      if(c){ bikeXf(g); cx.drawImage(c, ph * WC_W, (yo - WC_Y0) * WC_H, WC_W, WC_H, -9 * g.k, (m.top - yo - 1) * g.k, WC_W * g.k, WC_H * g.k); cx.restore(); return; } }
     cg.globalCompositeOperation = 'source-over'; cg.clearRect(0, 0, 48, 100); cg.drawImage(wh, 16, OY + g.m.top - Math.round(2 + p * 3.6));
     cg.globalCompositeOperation = 'destination-out'; cg.drawImage(m, 0, OY - 56); cg.globalCompositeOperation = 'source-over';
     bikeXf(g); cx.drawImage(comp, -24 * g.k, -OY * g.k, 48 * g.k, 100 * g.k); cx.restore(); }
