@@ -36,6 +36,11 @@
       from the crown, a cold cast. -> sparse world-anchored streaks and slow drips, a blue-green grade, a low swell of sea rumble.
    6. Artistic licence: one observation-window strip in the deepest stretch, framed in steel with a cyan sill light, looking into murky
       water lit from far above (light shafts, kelp, a passing school), drifting slowly like a distant view, never like a texture glitch.
+   The portal (2026-11-24, research/sundown-craft/aquaportal.md; Commons "Tokyo Wan Aqua-Line Expressway" (r6), "Tokyo Wan Aqualine 01" (r21,
+   night), "Umihotaru200508-1" (r28), the Umihotaru aerial (r1)): the main line never meets the round bore in the open. It runs down a walled
+   cutting under the PA's ramp flyover, past a gantry of lane signals and dark message boards, into twin rectangular box mouths in the
+   island's concrete face, the low portal building above; the round shield bore starts further in. -> box sections at both ends of every
+   bore (boxStrip), a bulkhead ring where the circle starts, wing walls flaring to the box, the flyover and gantry in the cutting.
    Lessons kept: reflections are world-anchored (lamp/car columns hang from their own segment) or physically screen-anchored (moon glade,
    far-shore mirror) and only shimmer on a slow 1.2 s phase; fog tints sprites opaque, never alpha; every sprite and table is built in warm(). */
 "use strict";

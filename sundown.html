@@ -3073,7 +3073,7 @@ if(!/[?&]con=off(&|$)/.test(location.search)){   /* Kellan 2026-11-23: the in-ga
    A new version downloads in the background and waits. It is applied only on the title (never mid-ride): by itself once
    the title has sat untouched for a few seconds, or at once when the player taps "Update ready". Tap the version to check now. */
 (() => {
-  const VER = 'v62 · e1525f', $id = (i) => document.getElementById(i);
+  const VER = 'v63 · ba1f53', $id = (i) => document.getElementById(i);
   const SDU = window.SDUPDATE = { version: VER, waiting: null, applied: false, checks: 0 };
   let reg = null, applying = false, asked = false, needReload = false, note = '', noteT = 0, lastInput = performance.now();
   ['keydown', 'pointerdown', 'touchstart', 'wheel'].forEach((t) => addEventListener(t, () => { lastInput = performance.now(); }, { capture: true, passive: true }));
@@ -3135,5 +3135,5 @@ if(!/[?&]con=off(&|$)/.test(location.search)){   /* Kellan 2026-11-23: the in-ga
   }, 1000);
 })();
 </script>
-<!-- __sdbuild:62 e1525f1ace53 --></body>
+<!-- __sdbuild:63 ba1f53b9c30c --></body>
 </html>
