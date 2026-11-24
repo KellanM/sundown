@@ -363,18 +363,30 @@
   const SPAN = f => { f = fogPx(f); return f > .6 ? 5 : f > .4 ? 4 : f > .22 ? 3 : f > .1 ? 2 : 1; };   // tiers by screen size (fogPx: the fog the old 260-segment draw distance gave here)
   // (over a side lane the engine pushes this side's roadside out beyond it, window.laneDX: a span never crosses a change of that push)
   const LX = k => window.laneDX ? laneDX(k) : 0;
-  const farEnd = (sp, fog) => { const n = SPAN(fog), i = sp.s.index, d = LX(i); if(i % n && LX(i - 1) === d) return null; let e = i + 1; const e1 = i - i % n + n; while(e < e1 && LX(e) === d) e++; const t = segs[e - 1]; return t && t.p2.screen.w ? t : sp.s; };
+  // Span LOD without holes (the scheme env/pass.js's cliff uses): every segment's span comes from its own distance (b0, the camera's segment,
+  // recovered from this segment's fog), a slice starts where its own span divides its index and runs on to the next start. It used to run to
+  // the next multiple of the start's span: where the tiers change, a nearer start's short span stopped one to four segments before the next
+  // start, and that gap in the banks, rails and facades slid along with the camera, so far scenery blinked in and out (Kellan, 2026-11-23)
+  const spanAt = (j, b0) => SPAN(clamp(Math.pow((j - b0) / DRAW_N, 1.6), 0, 1));
+  const farEnd = (sp, fog) => { const i = sp.s.index, b0 = i - Math.round(DRAW_N * Math.pow(fog, 1 / 1.6)), d = LX(i); if(i % spanAt(i, b0) && LX(i - 1) === d) return null; let e = i + 1; while(e < i + 8 && e % spanAt(e, b0) && LX(e) === d) e++; const t = segs[e - 1]; return t && t.p2.screen.w ? t : sp.s; };
   const WALL = { face:['#3a4372', '#363f6c', '#3d4676'], strata:'#2c3460', light:'#4c5688', crest:'#c4ceec', under:'#262c52', top:'#7a86b8' };
   let FACES = null;
+  // the snow field behind a low corridor bank: the ground's snow (LANDS' snow grass) at the base height to WALL.top at h .5, in 8 steps (bounded: fcw caches per colour)
+  const TOPC = [], topCol = h => { const q = Math.round(clamp((h - BASEH) / (.5 - BASEH), 0, 1) * 8); return TOPC[q] || (TOPC[q] = mixc('#5a6488', WALL.top, q / 8)); };
   function drawBank(sp, x, y, uw, fog, now){ if(!FACES) FACES = [...WALL.face, ...WALL.face.map(c => mixc(c, SN.M, .12))]; const t = farEnd(sp, fog); if(!t) return; const p = t.p2.screen; if(!p.w) return; const side = sp.side, x2 = p.x + sp.x * p.w, y2 = p.y, u2 = p.w, h2v = t === sp.s ? sp.h2 : bankH(t.index + 1);
     const k = sp.k, lit = Math.min(1, (sp.s.snLit || 0) * 1.4), mn = MOON.x > x ? 1 : -1, faceMoon = mn === -side ? .12 : 0;   // the bank on the far side from the moon faces it
     const H1 = uw * sp.h, H2 = u2 * h2v, L1 = side * uw * LEAN * sp.h, L2 = side * u2 * LEAN * h2v;
     const band = (f0, f1, col) => poly(x + L1 * f0, y - H1 * f0, x2 + L2 * f0, y2 - H2 * f0, x2 + L2 * f1, y2 - H2 * f1, x + L1 * f1, y - H1 * f1, col);
     const face = fcw(FACES[(k / 7 | 0) % 3 + (faceMoon ? 3 : 0)], lit, fog);
+    // Behind a corridor wall's top lies snow at the wall's height: wherever we look down onto it (the road climbs), it hides the ground beyond.
+    // That holds for the low banks at the corridor's ends too, where the hill it is cut through rises out of the road: there the field used to
+    // be left out, and on a climb its rows lie above the farthest road, where no ground is drawn, so the sky showed through in wedges beside
+    // the wall (Kellan, 2026-11-23: hills missing their front top parts). Its colour runs from the ground's snow (a bank at the base height) to the
+    // wall-top snow at h .5, so the ramp meets the ground and the tall wall with no seam. The street's banks are berms with no field behind them.
+    { const ty1 = y - H1, ty2 = y2 - H2; if(ty1 > ty2 + .5 && (sp.h >= .5 || ((k % PER) + PER) % PER < COR1)){ const ex = side < 0 ? -4 : W + 4; poly(x + L1, ty1, x2 + L2, ty2, ex, ty2, ex, ty1, fcw(sp.h >= .5 ? WALL.top : topCol(sp.h), lit * .5, fog)); } }
     // low bank: we see its top, so a lit crest band over a short shaded face
     if(sp.h < .5){ const j = H0(k * 1.37) * .25; band(0, 1, face); if(fog < .9){ band(.62, 1 + j * .5, fcw(WALL.top, lit, fog)); band(.9 + j * .5, 1.06 + j, fcw(WALL.crest, lit * .6, fog)); } return; }
-    // tall corridor wall. Behind its top lies snow at the wall's height: when the road climbs and we look down onto it, it hides the ground beyond
-    { const ty1 = y - H1, ty2 = y2 - H2; if(ty1 > ty2 + .5){ const ex = side < 0 ? -4 : W + 4; poly(x + L1, ty1, x2 + L2, ty2, ex, ty2, ex, ty1, fcw(WALL.top, lit * .5, fog)); } }
+    // tall corridor wall
     // strata of old snowfalls, plough-cutter marks, a dark overhang and a moonlit rim at the top
     band(0, 1, face); if(fog > .35){ band(.9, 1.02, fc(WALL.crest, fog)); return; }
     const s1 = .2 + Math.sin(k * .11) * .03 + Math.sin(k * .37) * .008, s2 = .46 + Math.sin(k * .07 + 2) * .04, s3 = .7 + Math.sin(k * .05 + 4) * .03, sc = fcw(WALL.strata, lit, fog), lc = fcw(WALL.light, lit, fog);

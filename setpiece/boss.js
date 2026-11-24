@@ -337,7 +337,7 @@ function start(P){ const pz = pzz(); S.tb = P && P.tb ? P : null; S.st = 'arrive
     st:'ride', windT:0, windSide:0, kickT:0, kickSide:0, kickCD:1.5 + i * .4, stunT:0, brakeT:0, brk:0, brkCD:3 + i, flagPh:i * .7 }));
   loud(() => horn(.6)); setTimeout(() => loud(() => callRev(.8)), 700); setTimeout(() => { if(S.st === 'arrive') loud(() => horn(1)); }, 1700);
   if(S.tb && S.tb.z === 0 && TBX.has(0) && typeof sunLeft === 'number') sunLeft = Math.min(SUN_MAX + 60, sunLeft + 50);   // (the named test's first road has no gate before its long stretch to pay for it)
-  if(DIR && DIR.cine) S.cut = DIR.cine({ letterbox:{ top:.1, bottom:.05 }, duck:S.tb ? .3 : .55, dur:0, card:S.tb ? CARD_TB : CARD, guard:{ ahead:60, behind:0 } });
+  if(DIR && DIR.cine) S.cut = DIR.cine({ letterbox:{ top:.1, bottom:.05 }, duck:S.tb ? .3 : .55, dur:0, card:S.tb ? CARD_TB : CARD, id:S.tb ? 'teiden_boss' : undefined, guard:{ ahead:60, behind:0 } });
   else floatText('宵闇連合', W / 2, H * .3, 34, '#ffd04a');
   if(DIR && DIR.done) DIR.done(ID);
   S.log.push({ ev:'start', seg:pSeg(), t:+playT.toFixed(1), tb:!!S.tb }); }

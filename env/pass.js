@@ -243,8 +243,11 @@
   // that starts mid-span, after a cliff or a ravine, starts where it should instead of up to three segments late)
   const hasR = (j, sd) => { const t = segs[j]; return !!(t && t.passRl && t.passRl[sd]); };
   let RE = 0;   // the span's last segment index (set by farEnd)
-  const farEnd = (sp, fog) => { const n = SPAN(fog), i = sp.s.index, sd = sp.x < 0 ? -1 : 1; if(i % n && hasR(i - 1, sd)) return null;
-    let e = i + 1; const e1 = i - i % n + n; while(e < e1 && hasR(e, sd)) e++; const t = segs[e - 1]; RE = t && t.p2.screen.w ? e - 1 : i; return segs[RE].p2; };
+  // (each segment's span from its own distance, and a run goes on to the next start, as the cliff's spans do (spanAt, below): running to the
+  // next multiple of the start's own span left a one-to-three-segment hole in the rail wherever the tiers changed, which slid along with the camera)
+  const rSpan = (j, b0) => SPAN(clamp(Math.pow((j - b0) / DRAW_N, 1.6), 0, 1));
+  const farEnd = (sp, fog) => { const i = sp.s.index, sd = sp.x < 0 ? -1 : 1, b0 = i - Math.round(DRAW_N * Math.pow(fog, 1 / 1.6)); if(i % rSpan(i, b0) && hasR(i - 1, sd)) return null;
+    let e = i + 1; while(e < i + 8 && e % rSpan(e, b0) && hasR(e, sd)) e++; const t = segs[e - 1]; RE = t && t.p2.screen.w ? e - 1 : i; return segs[RE].p2; };
   /* 袖ビーム: where a Japanese guard rail ends, its last beam bends away from the road in a rounded curl (so a car can't spear its end).
      Drawn in the road's own projection off segment T's p1 -> p2 (f0 = 1: the curl runs on past T's far edge; f0 = 0: it comes back toward
      the camera before T's near edge): the beam face turning outward and darkening as it turns, its moonlit top edge, the cut edge of the

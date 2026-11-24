@@ -420,11 +420,15 @@
   MECH.sp_naruto = {
     plans, CARD, _S:S, _preview:() => preview(),
     _buf(){ return LC ? LC.toDataURL('image/png') : ''; },
+    _foam(){ return FTX[0] ? FTX[0].toDataURL('image/png') : ''; },   // (tests: the flood's foam atlas, level 0)
     _dbg(){ const o = []; for(let r = R0; r <= R1; r += 4) o.push([r, RN[r], Math.round(RLc[r]), Math.round(RRc[r]), +RZc[r].toFixed(1)]); return { R0, R1, ok:rasterOK, vk:VA.k, HZ, rows:o }; },
     // tests: lane hazards ahead { id, z, x (centre), r (so that r * .85 is the half-width), landed }
     hazards(ahead){ const ps = pSeg(), out = []; for(const p of plans){ if(p.off || p.done) continue; for(const h of p.hz){ if(h.Z < ps - 3 || h.Z > ps + (ahead || 140)) continue; out.push({ id:h.id, z:h.Z, x:hzX(h), r:hzR(h) / .85, landed:ps >= h.at }); } } return out; },
     hits(){ let n = 0; for(const p of plans) n += p.hits; return n; },
     gust(){ const p = cur; return p ? gustAt(p, pSeg()) : 0; },
+    // how wet the deck is at the rider (0..1): it wets as the rain comes and stays wet to the end of the event (env/shimanami.js wetK -> roadmat)
+    wet(){ const p = cur; if(!p) return 0; const s = pSeg() - p.B; return sm((s + PRE - 15) / 70) * (1 - sm((s - END + 50) / 60)); },
+    wetFX(s, n, r0, r1, RV, wet, T){ const p = cur; if(!p) return; wetDeck(p, s, n, r0, r1, RV, wet, T); },
     report(){ return plans.map(p => ({ B:p.B, off:p.off, hits:p.hits, hit:p.hz.filter(h => h.hit).map(h => h.id), gmax:+p.gmax.toFixed(3) })); },
     dbg(B){ const p = build(B); for(let j = B - PRE - 10; j <= B + END && j < segs.length; j++) if(segs[j]) segs[j].nrP = p; plans.push(p); return p; },
     warm(){ for(const N of DS) for(let f = 0; f < 4; f++) S['sp' + N + '_' + f] = spraySpr(N, f);
@@ -433,9 +437,9 @@
       for(let lay = 0; lay < 3; lay++) for(let b = 0; b < 7; b++){ const sl = b / 10 - .1, n = [3, 5, 9][lay], wd = Math.max(1, Math.ceil(n * Math.abs(sl)) + 1), c = can(wd, n), k = c.getContext('2d'); k.fillStyle = lay === 2 ? '#b4c4dc' : '#8496b4';
         for(let q = 0; q < n; q++) k.fillRect(sl >= 0 ? Math.round(q * sl) : wd - 1 + Math.round(q * sl), q, 1, 1); S['rn' + lay + '_' + b] = c; }
       const ch = cx.canvas.height, cw = cx.canvas.width; CLH = Math.max(40, Math.ceil(ch * .42)); S.cloudD = clouds(false); S.cloudL = clouds(true); for(let l = 0; l < 3; l++) S['cm' + l] = cloudMask(l); if(!CW2){ CW2 = can(MW, CLH); CG2 = CW2.getContext('2d'); }
-      ensureBuf(cw, Math.ceil(ch * .75)); ensurePanel(); prerenderPanel();
+      ensureBuf(cw, Math.ceil(ch * .75)); ensurePanel(); prerenderPanel(); buildFoam();
       if(!UB){ UB = can(UBW, UBW); UG = UB.getContext('2d'); UB2 = can(UBW, UBW); UG2 = UB2.getContext('2d'); UB3 = can(UBW, UBW); UG3 = UB3.getContext('2d'); }
-      try{ cx.save(); for(const k in S) if(S[k] && S[k].width) cx.drawImage(S[k], 0, 0, 1, 1); cx.drawImage(LC, 0, 0, 1, 1); cx.drawImage(UB, 0, 0, 1, 1); cx.restore(); cx.clearRect(0, 0, PX * 2, PX * 2); }catch(e){} },
+      try{ cx.save(); for(const k in S) if(S[k] && S[k].width) cx.drawImage(S[k], 0, 0, 1, 1); cx.drawImage(LC, 0, 0, 1, 1); cx.drawImage(UB, 0, 0, 1, 1); for(const c of FTX) cx.drawImage(c, 0, 0, 1, 1); cx.restore(); cx.clearRect(0, 0, PX * 2, PX * 2); }catch(e){} },
     reset(){ for(const p of plans){ if(p.cut){ p.cut.end(); p.cut = null; } p.on = false; p.lastPs = null; p.hits = 0; p.estT = -1; for(const h of p.hz){ h.hit = false; h.t = -1; } for(const q of p.st) q.t = -9; p.gt = { st:0, t:-1, f:0, down:false }; } for(const q of DP) q.on = false; cur = null; PNL.on = false; },
     place(i, s, L){ if(i === 0){ for(const p of plans) if(p.cut) p.cut.end(); plans.length = 0; }
       for(const p of plans) if(!p.off) lay(p, i, s);
@@ -447,6 +451,8 @@
       if(play && !p.on && s >= -PRE + 15 && s < BRL){ p.on = true; if(DIR && DIR.cine) p.cut = DIR.cine({ letterbox:{ top:.1, bottom:.06 }, duck:.5, shake:0, guard:{ from:B - PRE + 10, to:B + END }, dur:0 }); }
       if(play && X(B + T_CARD)) showCard();
       const I = stormI(p, ps);
+      // the wet deck's puddles flare with the lightning: roadmat's sky sheen (the lit cloud deck in the water) for its strokes, in hard steps
+      { const R = MECH.roadmat && MECH.roadmat.RP && MECH.roadmat.RP.shimanami; if(R){ let fl = 0; for(const q of p.st){ const f = flashLv(q) * (q.k === 'far' ? .5 : 1); if(f > fl) fl = f; } R.sheen = .75 + (fl > .66 ? 1.1 : fl > .33 ? .6 : fl > .1 ? .25 : 0); } }
       // strikes
       for(const q of p.st){ if(!X(q.at)) continue; q.t = Tg; const dist = Math.max(0, q.Z - ps), near = clamp(1.2 - dist / 300, .25, 1); thunder(near, q.k === 'far' ? 1.2 : clamp(dist / 220, .05, .9));
         if(q.k === 'gantry'){ p.gt.st = 1; p.gt.t = Tg; zap(); drops(q.Z, q.X, 1.5, reduce ? 6 : 22, .6, 1.2, 1); }
@@ -536,25 +542,109 @@
   let fcK = '', FCM = new Map();
   const fc2 = (c, f) => { if(FOG_COL !== fcK){ fcK = FOG_COL; FCM.clear(); } const q = Math.round(clamp(f, 0, 1) * 16), k = c + q; let v = FCM.get(k); if(!v){ v = mixc(c, FOG_COL, q / 16 * .8); FCM.set(k, v); } return v; };
 
-  // ---------------------------------------------------------------- a flood over the rail: green water and foam across the lanes it covers
+  // ---------------------------------------------------------------- a flood over the rail: green water and foam lace across the lanes it covers
+  /* (water pass, Kellan 2026-11-23: "the textures of the water on the road in the whirlpool level aren't the best") The sheet used to be a flat
+     blue-grey polygon under a 50 % checker of foam (it read as a screen door) with foam rafts as rectangles. Now it is painted like the
+     close Naruto photos and Hiroshige's foam: green-black water seen through a lace of foam (a cell network, stretched along the flow), each
+     strand lit on its far edge and shadowed on its near one, submerged foam glowing under the surface beside it, a few glints; dense white
+     water at the rail where the wave broke, lace in the middle, a rolled foam lip at the front with a thin sheet of water running ahead of it
+     that holds the sky and the parapet lamps. Texture-mapped per pixel row at the row's true depth (one texel row per row, stretched across,
+     as roadmat does), world-anchored along the road, flowing inward from the rail, with four boil frames so the lace churns instead of
+     sliding like a belt; three pre-filtered levels so it never shimmers far away. All of it is built in warm(). */
+  const FT_U = 56, FT_W = 192, FT_H = 96, FT_NF = 4, FT_ND = 3, FT_NL = 3;   // texels per half-road width across, per segment along
+  let FT_V = 5.6;   // (FT_U * SEG / ROADW, set in buildFoam: the core's constants are declared after this script loads)
+  const FTX = [];   // per level: one atlas canvas, [density 0 dense / 1 lace / 2 film][frame] tiles stacked down
+  function buildFoam(){ if(FTX.length) return; FT_V = FT_U * SEG / ROADW; const W0 = FT_W, H0 = FT_H, NPX = 8, NPY = 8, cw = W0 / NPX, ch = H0 / NPY, TH = [9.5, 4.2, 2];
+    const col = c => hx(c), WAT = [col('#12283a'), col('#163246'), col('#1b3b50'), col('#21455a')], SUBM = col('#305a70'), SUB2 = col('#284a62'), F_HI = col('#f2f8fa'), F_MD = col('#c6dce6'), F_LO = col('#8fb2c6'), F_SH = col('#56809c'), GLT = col('#bcd4ec');
+    const L0 = can(W0, H0 * FT_ND * FT_NF), g0 = L0.getContext('2d'), id = g0.createImageData(W0, H0 * FT_ND * FT_NF), D = id.data, E = new Float32Array(W0 * H0);
+    for(let f = 0; f < FT_NF; f++){ const ph = f / FT_NF * TAU, PXs = new Float32Array(NPX * NPY), PYs = new Float32Array(NPX * NPY);
+      for(let gy = 0; gy < NPY; gy++) for(let gx = 0; gx < NPX; gx++){ const k = gy * NPX + gx, r = 3 + 3 * HS(gx, gy + 40), a0 = HS(gx + 9, gy) * TAU; PXs[k] = (gx + .2 + .6 * HS(gx, gy)) * cw + Math.cos(a0 + ph) * r; PYs[k] = (gy + .2 + .6 * HS(gy + 7, gx)) * ch + Math.sin(a0 + ph) * r * .6; }
+      for(let y = 0; y < H0; y++) for(let x = 0; x < W0; x++){
+        // a periodic domain warp (periods divide the tile), then Worley F1/F2 with the cells stretched along the flow (across the road)
+        const wx = x + 5 * Math.sin(TAU * (y / H0 * 2 + x / W0)) + 2 * Math.sin(TAU * (x / W0 * 4 - y / H0 * 3) + ph), wy = y + 3 * Math.sin(TAU * (x / W0 * 3 + y / H0)) + 1.5 * Math.cos(TAU * (y / H0 * 4) - ph);
+        const gx = Math.floor(wx / cw), gy = Math.floor(wy / ch); let f1 = 1e9, f2 = 1e9;
+        for(let oy = -1; oy <= 1; oy++) for(let ox = -1; ox <= 1; ox++){ const cxg = ((gx + ox) % NPX + NPX) % NPX, cyg = ((gy + oy) % NPY + NPY) % NPY, k = cyg * NPX + cxg;
+          const px = PXs[k] + (gx + ox - cxg) * cw, py = PYs[k] + (gy + oy - cyg) * ch, dx = wx - px, dy = (wy - py) * 2.6, d = Math.sqrt(dx * dx + dy * dy); if(d < f1){ f2 = f1; f1 = d; } else if(d < f2) f2 = d; }
+        E[y * W0 + x] = f2 - f1; }
+      for(let dn = 0; dn < FT_ND; dn++){ const th = TH[dn], oy = (dn * FT_NF + f) * H0;
+        for(let y = 0; y < H0; y++) for(let x = 0; x < W0; x++){ const e = E[y * W0 + x], up = E[((y + H0 - 1) % H0) * W0 + x], dnn = E[((y + 1) % H0) * W0 + x], j = ((oy + y) * W0 + x) * 4;
+          let c; const n = .5 + .3 * Math.sin(TAU * (x / W0 * 2 + y / H0)) + .2 * Math.sin(TAU * (y / H0 * 3 - x / W0 * 2));
+          if(e < th){ const m = 1 - e / th; c = up >= th ? F_HI : dnn >= th ? F_SH : m > .5 ? F_MD : F_LO; if(dn === 2 && c === F_MD) c = F_LO; }
+          else if(e < th + (dn === 0 ? 3 : 2.2)) c = (x + y) & 1 && dn < 2 ? SUBM : SUB2;   // submerged foam: a halo under the surface beside each strand
+          else { c = WAT[Math.min(3, Math.floor(n * 4))]; if(HS(x * 7 + f, y * 13 + dn) < .006) c = GLT; }
+          D[j] = c[0]; D[j + 1] = c[1]; D[j + 2] = c[2]; D[j + 3] = 255; } } }
+    g0.putImageData(id, 0, 0); FTX.push(L0);
+    // pre-filtered levels: a 2 x 2 box each (opaque water, so plain averages)
+    let src = id, sw = W0, sh = H0 * FT_ND * FT_NF;
+    for(let l = 1; l < FT_NL; l++){ const nw = sw >> 1, nh = sh >> 1, c = can(nw, nh), g = c.getContext('2d'), o = g.createImageData(nw, nh), O = o.data, Sd = src.data;
+      for(let y = 0; y < nh; y++) for(let x = 0; x < nw; x++) for(let q = 0; q < 3; q++){ const a = ((y * 2) * sw + x * 2) * 4 + q, b2 = a + sw * 4; O[(y * nw + x) * 4 + q] = (Sd[a] + Sd[a + 4] + Sd[b2] + Sd[b2 + 4]) >> 2; O[(y * nw + x) * 4 + 3] = 255; }
+      g.putImageData(o, 0, 0); FTX.push(c); src = o; sw = nw; sh = nh; } }
+  // one pixel row of the sheet: texels [u0, u0 + du) of tile (dn, fr) at level lv, row v, over screen [x0, x1) (wraps the tile across)
+  function foamRow(lv, dn, fr, u0, du, v, x0, x1, y){ const C = FTX[lv]; if(!C || x1 - x0 < .5) return; const tw = FT_W >> lv, th = FT_H >> lv, sy = (dn * FT_NF + fr) * th + (((v >> lv) % th) + th) % th;
+    let u = ((u0 / (1 << lv)) % tw + tw) % tw, left = du / (1 << lv), x = x0; const k = (x1 - x0) / left;
+    for(let g = 0; g < 4 && left > .01; g++){ const n = Math.min(left, tw - u), xe = g === 3 ? x1 : x + n * k; cx.drawImage(C, u, sy, Math.max(.01, n), 1, Math.round(x / PX) * PX, y, Math.max(PX, Math.round(xe / PX) * PX - Math.round(x / PX) * PX), PX); x = xe; left -= n; u = 0; } }
   function flood(p, h, s, sx0, sy0, uw, fog, i){ const t = Tg - h.t, grow = sm(t / .35), a = s.p1.screen, b = s.p2.screen, sd = h.sd, T = Tg * (reduce ? .5 : 1);
     const xr = sd * 1.1, xi = sd > 0 ? h.x0 : h.x1, e0 = (i - (h.Z - 4)) / 8, taper = sm(Math.min(e0, 1 - e0) * 4);   // the sheet's ends taper along the road
     const wob = (k) => .05 * Math.sin(k * 1.7 + T * 5) + .03 * Math.sin(k * 4.1 - T * 7), xin0 = xr + (xi + wob(i) * -sd - xr) * grow * taper, xin1 = xr + (xi + wob(i + 1) * -sd - xr) * grow * taper;
     if(a.y - b.y >= .2 && Math.abs(xin0 - xr) > .02){
       const ax0 = a.x + a.w * xr, ax1 = a.x + a.w * xin0, bx0 = b.x + b.w * xr, bx1 = b.x + b.w * xin1;
-      // green water: a blue-grey sheet, half-dithered foam over it, then foam rafts and streaks running in from the rail, a bright front
-      poly(ax0, a.y, ax1, a.y, bx1, b.y, bx0, b.y, fc2('#2c4a66', fog));
-      cx.fillStyle = ditherPat(fc2('#8fb2c6', fog), .5); poly(ax0, a.y, ax1, a.y, bx1, b.y, bx0, b.y, cx.fillStyle);
-      const hgt = a.y - b.y;
-      if(a.w > 14){ const nr = Math.min(14, 4 + Math.floor(a.w / 60)); for(let k = 0; k < nr; k++){ const u = ((T * (.8 + H1(k * 3.7) * .5) + H1(i * 3.1 + k)) % 1), xa2 = lerp(ax0, ax1, u), xb2 = lerp(bx0, bx1, u), x = lerp(xb2, xa2, .5), ww = Math.max(PX * 2, Math.min(PX * 9, snp(a.w * (.06 + .1 * H1(i + k * 5.3)) * (1 - u * .5)))), yy = snp(b.y + hgt * H1(i * 1.7 + k) * .7), hh = Math.max(PX, Math.min(PX * 2, snp(hgt * .35)));
-          cx.fillStyle = fc2(k % 3 ? '#f0f8fa' : '#c4dae6', fog); cx.fillRect(snp(x - ww / 2), yy, ww, hh); cx.fillStyle = fc2('#16263a', fog); cx.fillRect(snp(x - ww / 2) + PX, yy + hh, Math.max(PX, ww - PX * 2), PX); } }
-      // the frothy front edge: a bright line with bumps
-      const fa = Math.min(PX * 3, Math.max(PX, snp(a.w * .025))), fb = Math.min(PX * 3, Math.max(PX, snp(b.w * .025)));
-      poly(ax1, a.y, ax1 + sd * fa, a.y, bx1 + sd * fb, b.y, bx1, b.y, fc2('#f0f8fa', fog));
-      poly(ax1 - sd * PX, a.y, ax1, a.y, bx1, b.y, bx1 - sd * PX, b.y, fc2('#16263a', fog)); }
+      if(!FTX.length || !(a.scale > 0) || !(b.scale > 0)){ poly(ax0, a.y, ax1, a.y, bx1, b.y, bx0, b.y, fc2('#1d3c50', fog)); }
+      else { const sa = a.scale, sb = b.scale, dy = a.y - b.y, r0 = Math.max(0, Math.ceil(b.y / PX - .5)), r1 = Math.ceil(Math.min(a.y, H) / PX - .5) - 1;
+        const fr = (reduce ? Math.floor(T * 2) : Math.floor(T * 7.5)) % FT_NF, flow = T * (reduce ? 20 : 52), fresh = t < 1.4 ? 0 : 1;   // fresh: white water for its first 1.4 s (as it is first read, far ahead), then lace
+        const cut = sd > 0 ? 1.1 - .3 : -1.1 + .3;   // the broken-wave band at the rail (dense), lace inside it
+        for(let r = r0; r <= r1; r++){ const yc = (r + .5) * PX, f = (a.y - yc) / dy, sc = sa + (sb - sa) * f, tq = Math.min(1, Math.max(0, (sa / sc - 1) / (sa / sb - 1))), x = a.x + (b.x - a.x) * f, w = a.w + (b.w - a.w) * f; if(!(w > .5)) continue;
+          const xin = xin0 + (xin1 - xin0) * tq, lo = Math.min(xr, xin), hi = Math.max(xr, xin); if(hi - lo < .01) continue;
+          const du = FT_U / w, dv = FT_V * PX * sa * sb / (sc * sc * dy), lv = Math.min(FT_NL - 1, Math.max(0, Math.ceil(Math.log2(Math.max(du, dv, 1e-3)) - .3))), v = Math.floor((i + tq) * FT_V);
+          const U = X => X * FT_U + sd * flow, sx = X => x + X * w;
+          // the band at the rail (dense white water), then the lace to the front
+          const cA = sd > 0 ? Math.max(lo, cut) : lo, cB = sd > 0 ? hi : Math.min(hi, cut);
+          if(cB > cA) foamRow(lv, 0, fr, U(cA), (cB - cA) * FT_U, v, sx(cA), sx(cB), r * PX);
+          const lA = sd > 0 ? lo : Math.max(lo, cut), lB = sd > 0 ? Math.min(hi, cut) : hi;
+          if(lB > lA) foamRow(lv, fresh, fr, U(lA), (lB - lA) * FT_U, v, sx(lA), sx(lB), r * PX); }
+        if(fog > .04){ cx.globalAlpha = Math.min(1, fog * .85); poly(ax0, a.y, ax1, a.y, bx1, b.y, bx0, b.y, FOG_COL); cx.globalAlpha = 1; } }
+      // the front: a thin sheet of water running ahead of the foam (it holds the sky), the rolled foam lip, its shadow line
+      const fa = Math.min(PX * 3, Math.max(PX, snp(a.w * .03))), fb = Math.min(PX * 3, Math.max(PX, snp(b.w * .03))), ra = a.w * .09 * grow, rb = b.w * .09 * grow;
+      cx.globalCompositeOperation = 'lighter'; cx.globalAlpha = .22 * (1 - fog); poly(ax1, a.y, ax1 - sd * ra, a.y, bx1 - sd * rb, b.y, bx1, b.y, '#3a5a86'); cx.globalAlpha = 1; cx.globalCompositeOperation = 'source-over';
+      poly(ax1 - sd * PX, a.y, ax1 - sd * (ra > PX * 2 ? PX * 2 : PX), a.y, bx1 - sd * (rb > PX * 2 ? PX * 2 : PX), b.y, bx1 - sd * PX, b.y, fc2('#0c1622', fog));
+      poly(ax1, a.y, ax1 + sd * fa, a.y, bx1 + sd * fb, b.y, bx1, b.y, fc2('#c6dce6', fog));
+      poly(ax1, a.y, ax1 + sd * Math.max(PX, fa - PX), a.y, bx1 + sd * Math.max(PX, fb - PX), b.y, bx1, b.y, fc2('#f2f8fa', fog));
+      poly(ax1, a.y, ax1 - sd * PX, a.y, bx1 - sd * PX, b.y, bx1, b.y, fc2('#f2f8fa', fog)); }
     // spray columns at the rail, pulsing; the first burst is the tallest
     if((i - h.Z + 8) % 2 === 0){ const P = proj(s, .5); if(P.w > 0 && P.cz > 700){ const ph = ((T - h.t) * 1.15 + H1(i * 1.3)) % 1, first = clamp(1 - t / .9, 0, 1), hh = (.75 + .5 * H1(i * 2.1)) * (1 + first * 1.1) * (.55 + .45 * Math.sin(ph * Math.PI)) * taper;
         spr1('sp', P.x + sd * (RAILX + .08) * P.w, P.y - .1 * P.w, hh * P.w, Math.min(3, Math.floor(ph * 4)), (1 - fog * .7) * clamp(t * 4, 0, 1)); } } }
+
+  // ---------------------------------------------------------------- the wet deck under the storm (roadmat's wetFX, per segment near by)
+  /* Under the roadmat's wet layer (puddle sheets holding the lit sky, the lamps' and tail lights' columns, env/shimanami.js wetSrc), this
+     adds what the rain does to standing water (the puddle photos at pixel zoom): rings that spread on the deep water as thin arcs, bright
+     on the far side where they catch the sky and dim on the near side, flattened by the row's true depth (a ring R across is R x 10
+     segments along, so its height comes from the segment's own rows); tiny crowns where a drop lands on the film; and in the gusts, spray
+     torn off the deck running sideways downwind in 1-px streaks just over the surface (spindrift). World-anchored: each drop's place
+     belongs to its segment and its cycle, so nothing crawls. Lightning whitens the rings for its strokes. Reduced motion: still rings, no
+     spindrift. */
+  function wetDeck(p, s, n, r0, r1, RV, wet, Tm){ if(n > 34 || r1 < r0) return; const a = s.p1.screen, b = s.p2.screen, uw = a.w; if(!(uw > 4)) return;
+    const ps = pSeg(), I = stormI(p, ps) * Math.min(1, wet * 1.4); if(I < .05) return; const i = s.index, rows = r1 - r0 + 1, segH = (a.y - b.y) / PX, now = Tg;
+    let fl = 0; for(const q of p.st){ const f = flashLv(q) * (q.k === 'far' ? .4 : 1); if(f > fl) fl = f; }
+    const g = cx, a0 = g.globalAlpha; g.globalCompositeOperation = 'lighter';
+    const rc = fl > .5 ? '#e8eeff' : '#9fb4dc', rn = n < 4 ? 6 : n < 10 ? 4 : n < 20 ? 2 : 1, N = Math.max(1, Math.round(rn * I));
+    for(let q = 0; q < N; q++){ const per = .55 + .4 * H1(i * 3.1 + q * 1.7), ph = (reduce ? .5 : now / per) + H1(i * 7.13 + q * 3.7) * 9, cyc = Math.floor(ph), f = reduce ? .45 : ph - cyc;
+      const X = (H1(i * 1.7 + q * 9.1 + cyc * .37) * 2 - 1) * 1.05, r = r0 + Math.floor(H1(i * 5.3 + q * 2.3 + cyc * .71) * rows), w = RV.w[r], x = RV.x[r] + X * w, y = r * PX; if(!(x === x) || !(w > 0)) continue;
+      const m = RV.mask(Tm, X, RV.v[r]);
+      if(f < .16){ if(n > 14) continue; g.globalAlpha = a0 * .5 * I; g.fillStyle = rc; const e = f < .07 ? 0 : PX, xx = snp(x); g.fillRect(xx, y - PX - e, PX, PX); if(e){ g.fillRect(xx - PX * 2, y - PX, PX, PX); g.fillRect(xx + PX * 2, y - PX, PX, PX); } continue; }
+      if(m < .25) continue;
+      // the ring: R half-road widths across at age t; on screen R * w wide and R * 10 segments of this segment's rows deep (true perspective)
+      const t = (f - .16) / .84, R = .012 + .05 * t, rx = Math.max(PX * 1.5, R * w), ry = Math.max(PX * .5, R * 10 * segH * PX), al = a0 * (.6 * (1 - t) + .1) * I * (.5 + .5 * m);
+      ring(x, y, rx, ry, al, rc); if(n < 8 && t < .55) ring(x, y, rx * .55, ry * .55, al * .7, rc); }
+    // spindrift: in a gust (and as the socks fill before it), spray torn off the deck runs downwind in 1-px streaks just over the surface
+    const sk = sockAt(p, ps), gp = Math.abs(gustAt(p, ps)), sp = Math.max(gp, sk[0] > .5 ? (sk[0] - .5) * 1.2 : 0);
+    if(!reduce && sp > .05 && n < 26){ const d = sk[1], M = n < 6 ? 3 : n < 14 ? 2 : 1; g.fillStyle = '#b4c8e4';
+      for(let k = 0; k < M; k++){ const h = H1(i * 4.7 + k * 2.9), spd = 1.6 + 1.4 * h, X = (((h * 2.6 + d * now * spd) % 2.6) + 2.6) % 2.6 - 1.3, r = r0 + Math.floor(H1(i * 9.7 + k) * rows), w = RV.w[r]; if(!(w > 0)) continue;
+        const L = w * (.12 + .3 * H1(i + k * 7.7)) * (.5 + sp), x = RV.x[r] + X * w, lift = Math.max(0, snp(w * .012 * H1(i * 1.3 + k)));
+        g.globalAlpha = a0 * .32 * sp * I; g.fillRect(snp(x - (d > 0 ? L : 0)), r * PX - lift, Math.max(PX, snp(L)), PX); g.globalAlpha = a0 * .55 * sp * I; g.fillRect(snp(x - (d > 0 ? PX * 2 : -PX)), r * PX - lift, PX * 2, PX); } }
+    g.globalAlpha = a0; g.globalCompositeOperation = 'source-over'; }
+  // a ring on the water: the far arc bright, the near arc dim, the ends a pixel each (pixel-stepped half-ellipses, no allocation)
+  function ring(x, y, rx, ry, al, col){ const g = cx; g.fillStyle = col; const nseg = Math.min(14, Math.max(4, Math.round(rx / PX)));
+    for(let h = 0; h < 2; h++){ g.globalAlpha = al * (h ? .45 : 1); const sg = h ? 1 : -1; let px0 = 1e9, py0 = 1e9;
+      for(let k = 0; k <= nseg; k++){ const th = k / nseg * Math.PI, xx = snp(x - Math.cos(th) * rx), yy = snp(y + sg * Math.sin(th) * ry); if(xx === px0 && yy === py0) continue; px0 = xx; py0 = yy; g.fillRect(xx, yy, PX, PX); } } }
 
   // ---------------------------------------------------------------- the wind-warning gantry: standing, struck, fallen across the left lanes
   // Galvanised steel (light, so it reads on the dark deck), a truss beam, an LED board over the left lanes reading 強風 50 (amber).

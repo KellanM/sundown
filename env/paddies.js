@@ -200,7 +200,7 @@
   const inWater = (x, y) => { const r = Math.floor(y / PX); return r >= 0 && r < XL.length && (x < XL[r] || x > XR[r]); };
   // how far down from yTop the column at x stays on water (for trimming reflections that would run onto the bank or the road)
   function wetDepth(x, yTop, maxH){ let r = Math.max(0, Math.floor(yTop / PX)); const r1 = Math.min(XL.length, Math.ceil((yTop + maxH) / PX)); let d = 0;
-    for(; r < r1; r++){ if(!(x < XL[r] || x > XR[r])){ if(d) break; continue; } d = (r + 1) * PX - yTop; } return Math.min(maxH, d); }
+    const r00 = r; for(; r < r1; r++){ if(!(x < XL[r] || x > XR[r])){ if(d || r - r00 > 2) break; continue; } d = (r + 1) * PX - yTop; } return Math.min(maxH, d); }   // (the column must meet water within two rows of its foot: a pole on the bank isn't doubled in a field further down the screen)
   // a filled ellipse made of whole pixel rows (crisp, no anti-aliasing)
   function pxEll(x, y, rx, ry, col, a){ if(rx < PX * .5 || a <= 0) return; cx.globalAlpha = Math.min(1, a); cx.fillStyle = col; const n = Math.max(0, Math.round(ry / PX));
     for(let j = -n; j <= n; j++){ const t = j / (n + .5), hw = rx * Math.sqrt(1 - t * t); FR(snap(x - hw), snap(y) + j * PX, Math.max(PX, snap(2 * hw)), PX); } cx.globalAlpha = 1; }
@@ -337,6 +337,107 @@
     const fk = typeof FX_CLIP !== 'undefined' && FX_CLIP; q.cq = fk ? fk.q : 0; q.cx = fk ? fk.x : 0;
   }
 
+  // ---------------------------------------------------------------- the field surface (2026-11-23, fields pass: research/sundown-craft/paddies.md)
+  /* The plots beyond the bank are one pre-baked texture laid on the ground the way env/roadmat.js lays the asphalt (Lou's pseudo-3D texture
+     mapping): every canvas row of water takes one texel row of an atlas at that row's true depth (1/z is linear in screen y inside a segment,
+     and the road's scale w is 1/z), stretched across from the bank foot to the screen edge with nearest sampling. The texels belong to the
+     world (the field's segment index and the lateral offset in half-road widths), so seedlings, levees and plots ride toward you with the road
+     and never crawl. The canvas is at art resolution (one canvas pixel per art pixel), so every texel edge lands on the pixel grid.
+     Levels: a chain from 128 texels per half-road and 4 texel rows per segment down to 2 per half-road, each half as wide and a quarter as
+     deep (depth compresses with the square of distance), built by averaging the art (premultiplied) so nothing far shimmers; level 3 keeps one
+     row per field, levels 4-6 one row averaged over every field. A row takes the finest level whose texel is at least one art pixel wide.
+     Plots: early summer (June, the week of the planting: fireflies, frogs, the mirror), so every plot is one stage of the same month: bare
+     flooded water waiting for the planter (cat's-paw ripples), freshly planted rows (thin tufts, the mirror between), established rows (three
+     weeks: green clumps with moonlit tips), rows planted across, machine rows with hand-filled gaps, a seedling nursery (bright mats in trays)
+     and now and then a dry vegetable plot (black mulch ridges catching the moon). Levees (aze) run along the road at the plot boundaries and
+     across at every field end, with water inlets (mizuguchi); a headland margin of clear water frames every planted plot. */
+  const FLV = [{ tx:128, s:4, w:384 }, { tx:64, s:1, w:384 }, { tx:32, s:.25, w:384 }, { tx:16, s:-1, w:512 }, { tx:8, s:0, w:512 }, { tx:4, s:0, w:512 }, { tx:2, s:0, w:512 }];
+  const NSLOT = 6, FR0 = FL * 4, FAW = 512;   // field rows (slots) per side; L0 texel rows per field; atlas width
+  const ih = (a, b) => { let h = Math.imul(a, 374761393) + Math.imul(b, 668265263) | 0; h = Math.imul(h ^ (h >>> 13), 1274126177); return ((h ^ (h >>> 16)) >>> 0) / 4294967296; };
+  const PB = [0, 5.2, 10.8, 17.5, 25.5, 35]; for(let k = 0; PB[PB.length - 1] < 270; k++) PB.push(PB[PB.length - 1] + 7 + ih(k, 5) * 6);
+  const PBT = PB.map(v => Math.round(v * 128)), PIDX = new Uint8Array(270 * 32 + 2);
+  for(let i = 0, c = 0; i < PIDX.length; i++){ while(c + 1 < PB.length && PB[c + 1] * 32 <= i) c++; PIDX[i] = c; }
+  // plot type per side, slot and plot: 0 bare water, 1 just planted, 2 established, 3 rows across, 4 machine rows with gaps, 5 nursery, 6 dry plot
+  const PTY = []; for(let sd = 0; sd < 2; sd++) for(let sl = 0; sl < NSLOT; sl++){ const a = new Uint8Array(PB.length);
+    for(let c = 0; c < PB.length; c++){ const h = ih(c * 13 + sd * 7, sl + 11); a[c] = h < .2 ? 0 : h < .41 ? 1 : h < .68 ? 2 : h < .8 ? 3 : h < .9 ? 4 : h < .945 ? 5 : 6; } PTY.push(a); }
+  const ptypeAt = (X, slot, sd) => { const ci = Math.max(0, Math.round((X - WX) * 128)); let c = PIDX[Math.min(PIDX.length - 1, ci >> 2)]; if(ci < PBT[c]) c--; return PTY[(sd > 0 ? NSLOT : 0) + slot][Math.max(0, c)]; };
+  const fslot = (f, sd) => Math.floor(ih(f, sd + 3) * NSLOT);
+  // the palette: [r, g, b, a]
+  const FPAL = [[0, 0, 0, 0],
+    [16, 28, 20, 255], [62, 96, 70, 255], [26, 42, 31, 255], [40, 62, 46, 255], [6, 12, 8, 255],          // 1-5 levee: road face, moonlit edge, grass top, fleck, far edge
+    [9, 16, 11, 255], [22, 36, 27, 255], [50, 78, 58, 255],                                                // 6-8 cross levee: face, top, lit top
+    [3, 6, 9, 140],                                                                                          // 9 a levee's reflection
+    [7, 20, 13, 255], [20, 52, 33, 255], [10, 29, 18, 255], [66, 110, 74, 255], [104, 150, 98, 255],       // 10-14 seedlings: base, body, body shade, tip, bright tip
+    [10, 24, 16, 255], [52, 92, 62, 255],                                                                   // 15-16 new seedlings: base, tip
+    [29, 74, 42, 255], [42, 102, 56, 255], [70, 140, 80, 255],                                              // 17-19 nursery mats
+    [18, 15, 12, 255], [12, 13, 16, 255], [104, 112, 130, 255], [10, 8, 6, 255], [26, 58, 30, 255],        // 20-24 dry plot: soil, mulch, mulch gleam, furrow, leaves
+    [150, 164, 210, 70], [2, 4, 9, 90], [106, 90, 52, 255], [92, 96, 104, 255], [4, 6, 9, 255]];             // 25-29 ripple light, ripple dark, straw, concrete inlet, inlet slot
+  // one L0 texel: column ci (1/128 half-road from the bank foot), row rj (a quarter segment, 0 at the field's near levee), its field slot and side
+  function fpx(ci, rj, slot, sd){
+    let c = PIDX[Math.min(PIDX.length - 1, ci >> 2)]; if(ci < PBT[c]) c--; else if(c + 1 < PBT.length && ci >= PBT[c + 1]) c++;
+    const lx = ci - PBT[c], pw = (c + 1 < PBT.length ? PBT[c + 1] : 1e9) - PBT[c], so = sd > 0 ? NSLOT : 0, pt = PTY[so + slot][c], g = ih(ci, rj + slot * 997 + so * 5000);
+    if(c > 0 && lx < 12){   // the levee along the road: its road-facing side, a moonlit edge, the grassy top, the far edge; an inlet now and then
+      if(rj < 4) return rj === 3 ? 8 : 7;
+      if(rj >= 60 && rj < 68 && ih(c * 31 + so, slot) < .45){ if(lx < 3) return 28; if(lx < 9) return rj >= 62 && rj < 66 ? 29 : 28; }
+      return lx < 2 ? 1 : lx < 4 ? (g > .3 ? 2 : 3) : lx < 10 ? (g > .82 ? 4 : 3) : 5; }
+    if(rj < 4) return rj === 0 ? 6 : rj === 3 ? (g > .35 ? 8 : 4) : g > .85 ? 4 : 7;   // the levee across at the field's start
+    if(pt === 6){ const rr = lx % 16; if(rr === 7 || rr === 15) return 23; if(rr < 7){ if(rr >= 2 && rr <= 5 && rj % 6 < 2 && g > .25) return 24; return rr === 1 ? 22 : 21; } return 20; }
+    if(rj >= 155) return 9;   // the next levee doubled in the water just in front of it
+    const mar = lx < 16 || lx >= pw - 8 || rj < 10 || rj >= 150;
+    if(pt === 0 || mar){   // open water: cat's-paw ripples in patches, a wisp of straw
+      const cx0 = lx >> 5, cy0 = rj >> 3, hp = ih(cx0 * 13 + c * 7 + so, cy0 + slot * 101);
+      if(hp < (pt === 0 ? .24 : .08) && (rj & 1) === 0){ const d = Math.abs((lx & 31) - 16) / 16 + Math.abs((rj & 7) - 4) / 5; if(d < .9){ const m = (lx + rj * 3 + (hp * 50 | 0)) % 9; return m < 3 ? 25 : m === 5 ? 26 : 0; } }
+      return g > .9994 ? 27 : 0; }
+    const ax = lx - 16, ay = rj - 10;
+    if(pt === 5){ const bx = ax % 46, by = ay % 30; if(bx >= 40 || by >= 24) return 0; return by === 23 ? 19 : g > .93 ? 19 : g > .6 ? 18 : 17; }
+    if(pt === 1){ const rx = ax % 8, hy = ay % 4; if(rx !== 0 || hy > 1 || ih((ax >> 3) * 131 + (ay >> 2), c + so) < .06) return 0; return hy === 0 ? 15 : 16; }
+    if(pt === 3){ const rx = ax % 3, hy = ay % 6; if(rx === 2 || hy > 2) return 0; return hy === 0 ? 10 : hy === 1 ? 11 : rx === 0 ? 13 : 12; }
+    const rx = ax % 8, hy = ay % 3, hid = (ax >> 3) * 131 + (ay / 3 | 0);
+    if(rx > 1 || pt === 4 && ih(hid, c + slot * 17 + so) < .2) return 0;
+    if(rx === 0) return hy === 0 ? 10 : hy === 1 ? 11 : ih(hid, 7 + c) > .8 ? 14 : 13;
+    return hy === 0 ? 10 : hy === 1 ? 12 : 0; }
+  // the atlases (one per side; the left one mirrored) and their build, in warm-up steps
+  const FAT = [null, null]; let FAOK = false, FL0 = true;
+  function* fieldBake(){
+    FL0 = W / PX >= 300; let y0 = 0; for(let k = 0; k < FLV.length; k++){ const L = FLV[k]; L.rows = k === 0 && !FL0 ? 0 : L.s > 0 ? NSLOT * FL * L.s : L.s < 0 ? NSLOT : 1; L.y0 = y0; y0 += L.rows; }
+    const AH = y0, acc = new Float32Array(4);
+    for(let si = 0; si < 2; si++){ const sd = si ? 1 : -1, c = FAT[si] || (FAT[si] = document.createElement('canvas')); c.width = FAW; c.height = AH;
+      const k2 = c.getContext('2d'), img = k2.createImageData(FAW, AH), D = img.data;
+      const put = (k, col, row, r, g, b, a) => { const L = FLV[k], x = si ? col : L.w - 1 - col, o = ((L.y0 + row) * FAW + x) * 4; D[o] = r; D[o + 1] = g; D[o + 2] = b; D[o + 3] = a; };
+      const avg = (n, k, col, row) => { const a = acc[3]; if(a <= 0) put(k, col, row, 0, 0, 0, 0); else put(k, col, row, acc[0] / a, acc[1] / a, acc[2] / a, a / n); };
+      const add = p => { const P = FPAL[p], a = P[3]; acc[0] += P[0] * a; acc[1] += P[1] * a; acc[2] += P[2] * a; acc[3] += a; };
+      // L0: the art itself; L1, L2: boxes of it (2x4, and 4x16 stratified to 2x8)
+      if(FL0){ const L = FLV[0]; for(let row = 0; row < L.rows; row++){ const sl = row / FR0 | 0, rj = row % FR0; for(let col = 0; col < L.w; col++){ const P = FPAL[fpx(col, rj, sl, sd)]; put(0, col, row, P[0], P[1], P[2], P[3]); } if(row % 160 === 159) yield; } }
+      { const L = FLV[1]; for(let row = 0; row < L.rows; row++){ const sl = row / FL | 0, r0 = (row % FL) * 4; for(let col = 0; col < L.w; col++){ acc.fill(0); for(let a = 0; a < 2; a++) for(let b = 0; b < 4; b++) add(fpx(col * 2 + a, r0 + b, sl, sd)); avg(8, 1, col, row); } if(row % 80 === 79) yield; } }
+      { const L = FLV[2]; for(let row = 0; row < L.rows; row++){ const sl = row / 10 | 0, r0 = (row % 10) * 16; for(let col = 0; col < L.w; col++){ acc.fill(0); for(let a = 0; a < 4; a += 2) for(let b = 0; b < 16; b += 2) add(fpx(col * 4 + a + (b & 2 ? 1 : 0), r0 + b + (a ? 1 : 0), sl, sd)); avg(16, 2, col, row); } if(row % 20 === 19) yield; } }
+      // L3: one row per field (8 columns x 24 stratified rows a texel)
+      { const L = FLV[3]; for(let sl = 0; sl < NSLOT; sl++){ for(let col = 0; col < L.w; col++){ acc.fill(0); for(let a = 0; a < 8; a += 2) for(let b = 0; b < 24; b++) add(fpx(col * 8 + a + (b & 1), (b * 160 / 24 | 0) + (ih(col, b) * 6 | 0), sl, sd)); avg(96, 3, col, sl); } yield; } }
+      // L4-6: every field averaged: a profile at 16 per half-road (4 columns x 6 slots x 8 rows a cell), then boxes of it
+      { const n16 = 4096, pr = new Float32Array(n16 * 4); for(let col = 0; col < n16; col++){ acc.fill(0); for(let a = 0; a < 8; a += 2) for(let sl = 0; sl < NSLOT; sl++) for(let b = 0; b < 8; b++) add(fpx(col * 8 + a + (b & 1), (b * 20 + (ih(col + sl * 7, b) * 20 | 0)), sl, sd)); pr.set(acc, col * 4); if(col % 1024 === 1023) yield; }
+        for(let k = 4; k <= 6; k++){ const L = FLV[k], m = 1 << (k - 3); for(let col = 0; col < L.w; col++){ acc.fill(0); for(let j = 0; j < m; j++){ const o = (col * m + j) * 4; acc[0] += pr[o]; acc[1] += pr[o + 1]; acc[2] += pr[o + 2]; acc[3] += pr[o + 3]; } avg(m * 192, k, col, 0); } } }
+      k2.putImageData(img, 0, 0); cx.drawImage(c, 0, 0, 1, 1); yield; }
+    FAOK = true; }
+  /* Per frame, inside the water's clip: every canvas row of water takes the frontmost segment covering it (near to far, as the road is
+     drawn, so a crest hides what is behind it), and one drawImage per side per level span. */
+  function fieldRow(si, sd, slot, dz, xc, w, Xa, Xend, ry){
+    const P = w / PX; let k = 0; while(k < 6 && FLV[k].tx > P) k++; if(k === 0 && !FL0) k = 1;
+    for(; k < FLV.length && Xa < Xend; k++){ const L = FLV[k], Xm = WX + L.w / L.tx, Xb = Math.min(Xend, Xm); if(Xb <= Xa) continue;
+      const yy = L.y0 + (L.s > 0 ? Math.min(L.rows - 1, ((slot * FL + dz) * L.s) | 0) : L.s < 0 ? slot : 0), sw = (Xb - Xa) * L.tx;
+      if(sd > 0) cx.drawImage(FAT[si], (Xa - WX) * L.tx, yy, sw, 1, xc + Xa * w, ry, (Xb - Xa) * w, PX);
+      else cx.drawImage(FAT[si], L.w - (Xb - WX) * L.tx, yy, sw, 1, xc - Xb * w, ry, (Xb - Xa) * w, PX);
+      Xa = Xb; } }
+  let FDC = 0;
+  function fieldPass(){ FDC = 0; if(!FAOK) return; cx.imageSmoothingEnabled = false; let maxr = Math.ceil(H / PX);
+    for(let n = 0; n < NQ; n++){ const q = Q[n], dy = q.ay - q.by; if(dy <= .01) continue; if(q.fog > .92) break;
+      const r0 = Math.ceil(q.by / PX - .5), r1 = Math.min(maxr, Math.ceil(q.ay / PX - .5)); if(r1 <= r0){ maxr = Math.min(maxr, Math.max(0, r0)); continue; } maxr = r0;
+      const i = q.s.index, ia = 1 / q.aw, ib = 1 / q.bw; if(isRail(i) || jRail(i)) continue;
+      cx.globalAlpha = 1 - q.fog * .85;
+      for(let r = Math.max(0, r0); r < r1; r++){ const y = (r + .5) * PX, u = (q.ay - y) / dy, w = q.aw + (q.bw - q.aw) * u, xc = q.ax + (q.bx - q.ax) * u;
+        const d = i + (ib !== ia ? (1 / w - ia) / (ib - ia) : u), f = Math.floor(d / FL), dz = d - f * FL;
+        for(let si = 0; si < 2; si++){ const sd = si ? 1 : -1; if(!ok(q, sd)) continue; const Xe = sd > 0 ? (W - xc) / w : xc / w; if(Xe <= q.xw) continue;
+          FDC++; fieldRow(si, sd, fslot(f, sd), dz, xc, w, q.xw, Xe + .01, r * PX); } } }
+    cx.globalAlpha = 1; }
+
   // ---------------------------------------------------------------- the water pass
   // may this gathered segment draw on side sd? Outside a fork, both sides; on a fork branch only its outer side (its inner side meets the
   // other branch, the gore and the island: no fields detail, no kerb, as the engine's fork inner-side rule)
@@ -411,28 +512,8 @@
       const sd = h < .5 ? -1 : 1; if(!ok(q, sd)) continue; const x = q.ax + sd * q.aw * (q.xw + .6 + hash(i * 5.1) * 4), r = q.aw * (.04 + ph * .5), al = (1 - ph / .45) * .5 * (1 - q.fog * 3);
       if(x < -r || x > W + r) continue; cx.fillStyle = mixc('#8aa4b8', moonCol, .3); cx.globalAlpha = al;
       for(let j = 0; j < 12; j++){ const an = j / 12 * 6.283; FR(snap(x + Math.cos(an) * r), snap(q.ay + Math.sin(an) * r * .22), PX, PX); } cx.globalAlpha = 1; }
-    // seedlings: rows of small upright tufts on a world grid; they read as dark lines converging on the horizon. Only where a row is tall
-    // enough to hold them; beyond that the water is left as a clean mirror (nothing far can shimmer).
-    const TD = [], TL = [];   // rect lists, filled with fillRect (cheaper than paths of thousands of rects)
-    for(let n = 0; n < NQ; n++){ const q = Q[n], rh = q.ay - q.by; if(rh < PX * 1.5) break; const i = q.s.index; if(isRail(i) || ((i % FL) + FL) % FL === 0 || (rh < PX * 3 && i % 2)) continue;
-      const th = Math.max(PX, snap(q.aw * .022)), step = .34, w = Math.max(PX, snap(q.aw * .012)), y = snap(q.ay - rh * .5);
-      for(const sd of [-1, 1]){ if(!ok(q, sd)) continue; for(let c = 0; c < 4; c++){ if(bare(i, sd, c)) continue; const a0 = q.xw + COLS[c] + .35, a1 = WX + COLS[c + 1] - .25;
-        let k0 = Math.ceil(a0 / step), k1 = Math.floor(a1 / step); const xs = k => q.ax + sd * q.aw * k * step;
-        if(sd < 0){ while(k1 >= k0 && xs(k1) > W) k1--; } else { while(k1 >= k0 && xs(k1) < 0) k1--; }
-        for(let k = k0; k <= k1; k++){ const x = snap(xs(k)); if(x < -PX * 2 || x > W + PX) { if(sd < 0 && x < 0 || sd > 0 && x > W) break; continue; }
-          if(hash(k * 2.7 + i * 1.31) < .12) continue; TD.push(x, y - th, w, th); if(th >= PX * 3){ TD.push(x - w, y - th + PX * 2, w, th - PX * 2); TD.push(x + w, y - th + PX, w, th - PX); }
-          if(Math.abs(x - mx) < q.aw * 1.2 || hash(k * 1.3 + i * .7) > .7) TL.push(x, y - th, w, PX); } } } }
-    // farther, the rows thin into fine dark lines across each planted field, every second or fourth row as they crowd together
-    const RL = [[], []];
-    for(let n = 0; n < NQ; n++){ const q = Q[n], rh = q.ay - q.by, i = q.s.index; if(rh >= PX * 3) continue; if(q.fog > .8) break;
-      const tier = rh >= PX * 1.2 ? (i % 2 ? -1 : (i % 4 ? 1 : 0)) : rh >= PX * .45 ? (i % 4 ? -1 : (i % 8 ? 1 : 0)) : (i % 8 ? -1 : 1);
-      if(tier < 0 || isRail(i) || ((i % FL) + FL) % FL === 0) continue; const y = snap(q.by), dash = .34 * q.aw;
-      for(const sd of [-1, 1]) for(let c = 0; c < 5; c++){ if(bare(i, sd, c) || !ok(q, sd)) continue; const xa = q.bx + sd * q.bw * (q.xw + COLS[c] + .35), xb = q.bx + sd * q.bw * (WX + COLS[c + 1] - .25);
-        let l = Math.max(0, Math.min(xa, xb)), r = Math.min(W, Math.max(xa, xb)); if(r - l < PX) continue;
-        if(dash < PX * 3) RL[tier].push(snap(l), y, snap(r - l), PX);
-        else for(let x = l + ((sd * (q.bx - l) % dash) + dash) % dash; x < r; x += dash) RL[tier].push(snap(x), y, Math.max(PX, snap(dash * .55)), PX); } }
-    cx.fillStyle = '#0a1612'; for(let t2 = 0; t2 < 2; t2++){ const L2 = RL[t2]; cx.globalAlpha = t2 ? .3 : .55; for(let j = 0; j < L2.length; j += 4) FR(L2[j], L2[j + 1], L2[j + 2], L2[j + 3]); } cx.globalAlpha = 1;
-    cx.fillStyle = '#06110c'; for(let j = 0; j < TD.length; j += 4) FR(TD[j], TD[j + 1], TD[j + 2], TD[j + 3]); cx.fillStyle = mixc('#5a7a48', moonCol, .25); for(let j = 0; j < TL.length; j += 4) FR(TL[j], TL[j + 1], TL[j + 2], TL[j + 3]);
+    // the plots themselves: seedlings, levees, ripples, nurseries and dry plots, texture-mapped (fieldPass)
+    fieldPass();
     // ridges (aze) running beside the road: a dark band, a lit grassy top edge, a darker mirror band under it
     // each ridge is one strip polygon per unbroken run of segments: x(q, end) gives its centre, w and h its width and lift
     const strip = (path, X, wf, wmin, hf, off) => { for(const sd of [-1, 1]){ let L = [], Rr = [];
@@ -444,8 +525,6 @@
           if(!L.length){ L.push(xa - wa / 2 + o * wa, q.ay - ha); Rr.push(xa + wa / 2 + o * wa, q.ay - ha); }
           L.push(xb - wb / 2 + o * wb, q.by - hb); Rr.push(xb + wb / 2 + o * wb, q.by - hb); }
         flush(); } };
-    cx.beginPath(); for(let c = 1; c < COLS.length; c++) strip(cx, WX + COLS[c], .2, PX, .03, 0); cx.fillStyle = RC.aze; cx.fill();
-    cx.beginPath(); for(let c = 1; c < COLS.length; c++) strip(cx, WX + COLS[c], .04, PX * 1.2, .03, -2.2); cx.fillStyle = mixc(RC.azeT, moonCol, .12); cx.fill();
     // the waterline at the foot of the road bank: one pale line where the grass meets the mirror
     cx.beginPath(); strip(cx, -1, 0, PX * 1.4, 0, .5); cx.globalAlpha = .55; cx.fillStyle = mixc(SK.low, moonCol, .45); cx.fill(); cx.globalAlpha = 1;
     // cross ridges at every field end, and the railway embankment
@@ -894,6 +973,14 @@
     return true; }
   const L0 = () => '#0e1a14';
 
+  // warm-up, in steps (each well under 12 ms): the sprites and their reflections, the Scale2x art sizes, the signs, then the field atlases
+  function* warmSteps(){ const up = c => { cx.drawImage(c, 0, 0, PX, PX); }; if(!WCV) WCV = document.createElement('canvas');   // the water ramp's one canvas, made here so the first water frame of a ride allocates nothing
+    for(const d of [-1, 1]){ for(let v = 0; v < 3; v++){ up(pole(v, d)); up(reflOf(pole(v, d), 'pad_rpole' + v + d)); yield; up(padArtSizes(farm(v, d))); yield; up(reflOf(farm(v, d), 'pad_rfarm' + v + d)); yield; }
+      up(bus(d)); up(xing(d)); yield; up(xingHi(d, 2)); yield; up(xingHi(d, 4)); yield; up(shrine(d)); up(reflOf(shrine(d), 'pad_rshrine' + d)); yield; up(crow(d)); up(reflOf(crow(d), 'pad_rcrow' + d)); up(jizo(d));
+      for(let v = 0; v < 2; v++){ up(hasa(v, d)); up(reflOf(hasa(v, d), 'pad_rhasa' + v + d)); } yield; }
+    up(pylonSpr()); warmSigns(); for(const k in SIGNS) up(SIGNS[k]); cx.clearRect(0, 0, W, H); yield;
+    yield* fieldBake(); cx.clearRect(0, 0, W, H); }
+
   ENV.paddies = {
     barrier:1.12,
     road:['#1b1c22', '#1e1f26'],
@@ -910,13 +997,12 @@
     fxSolo:true,   // the water is gathered here and drawn later, so in a border blend roadFX runs whole where Paddies has the larger weight
     backdrop,
     draw(sp, x, y, uw, fog, now, sk){ if(sk.low !== fogLow){ fogLow = sk.low; FC.clear(); } SK = sk;
-      if(PEND){ PEND = false; LASTI = -1e9; if(sp.s){ cx.restore(); waterPass(now); cx.save(); cx.beginPath(); cx.rect(0, 0, W, sp.s.clip); cx.clip(); } NQ = 0; }
+      if(PEND){ PEND = false; LASTI = -1e9; if(sp.s){ cx.restore(); const e0 = EDGE; EDGE = 1; cx.globalAlpha = 1; try{ waterPass(now); } finally { EDGE = e0; cx.globalAlpha = 1; } cx.save(); cx.beginPath(); cx.rect(0, 0, W, sp.s.clip); cx.clip(); } NQ = 0; }
       const f = DRAW[sp.type]; if(f) f(sp, x, y, uw, fog, now); },
-    warm(){ const up = c => { cx.drawImage(c, 0, 0, PX, PX); }; if(!WCV) WCV = document.createElement('canvas');   // the water ramp's one canvas, made here so the first water frame of a ride allocates nothing
-      cx.save(); for(const d of [-1, 1]){ for(let v = 0; v < 3; v++){ up(pole(v, d)); up(reflOf(pole(v, d), 'pad_rpole' + v + d)); up(padArtSizes(farm(v, d))); up(reflOf(farm(v, d), 'pad_rfarm' + v + d)); }
-        up(bus(d)); up(xing(d)); up(xingHi(d, 2)); up(xingHi(d, 4)); up(shrine(d)); up(reflOf(shrine(d), 'pad_rshrine' + d)); up(crow(d)); up(reflOf(crow(d), 'pad_rcrow' + d)); up(jizo(d));
-        for(let v = 0; v < 2; v++){ up(hasa(v, d)); up(reflOf(hasa(v, d), 'pad_rhasa' + v + d)); } }
-      up(pylonSpr()); warmSigns(); for(const k in SIGNS) up(SIGNS[k]); cx.restore(); cx.clearRect(0, 0, W, H); }
+    warm(){ for(const _ of warmSteps()); },
+    warmSteps,
+    _fdbg:() => ({ ok:FAOK, l0:FL0, h:FAT[0] && FAT[0].height, nq:NQ, rows:FDC }), _fat:FAT,   // (tests: the field atlases' state)
+    // (the old one-piece warm() took 114 ms in a single step; now each step is one sprite family or a slice of the field atlases)
   };
 })();
 // its shoulders cover the engine's red and white rumble blocks: the engine does not draw its far kerb rows here (laneMark)

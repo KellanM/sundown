@@ -73,14 +73,14 @@ const ROADS = {
   snow:{ mat:'snow', str:1, wet:.25, sheen:.35, road:['#2e3444', '#303647'], marks:'none' },
   paddies:{ mat:'asphalt', str:.95, marks:'rural', speed:40 },
   aqua:{ mat:'concrete', str:.85, wet:.45, sheen:.45, road:['#191c26', '#1b1e29'], marks:'expressway', speed:80 },
-  shimanami:{ mat:'asphalt', str:.9, marks:'rural', speed:70 },
+  shimanami:{ mat:'asphalt', str:.9, marks:'rural', speed:70, wet:1, wetMat:'wet', sheen:.75, refl:1, tails:true, sheenCol:'#3a5c9c', pools:2.2, hot:1, sheenN:.4 },   // (dry on its clear nights: ENV.shimanami.wetK() is 0 except under the Naruto storm, which wets it in world-anchored patches on wetMat)
   sakurajima:{ mat:'ash', str:1, marks:'rural', speed:40 },
   haneda:{ mat:'concrete', str:.85, wet:.2, sheen:.35, road:['#1e2132', '#202435'], marks:'expressway', speed:60 },
   minato:{ mat:'asphalt', str:.9, marks:'city', speed:50 },
   shuto:{ mat:'wet', str:.95, wet:1, sheen:.5, refl:.6, tails:true, sheenCol:'#6a4a5a', marks:'expressway', speed:50 },
   kurobe:{ mat:'asphalt', str:.95, marks:'none' },
   akiba:{ mat:'wet', str:.9, wet:1, sheen:.8, refl:1, lamps:false, tails:true, sheenCol:'#3a66c4', marks:'none', pools:2.4, hot:1, sheenN:.55 },   // (the downpour: its signs' own pools come from ENV.akiba.wetSrc)
-  gion:{ mat:'cobble', str:.7, marks:'none' } };
+  gion:{ mat:'cobble', str:.72, wet:.8, sheen:.55, refl:1, lamps:false, tails:true, sheenCol:'#2e4070', marks:'none', pools:2.4, hot:1, sheenN:.35 } };   // (round 3: after the rain; its lattices, lanterns, andon and the gate lay their own pools: ENV.gion.wetSrc)
 const FIELD_D = JSON.parse(JSON.stringify(FIELD)), ROADS_D = JSON.parse(JSON.stringify(ROADS));
 const RP = {};   // resolved render presets per road (R0 + ROADS + saved), with derived strings
 function resolve(key){ const p = Object.assign({}, R0, ROADS[key] || {}); RP[key] = p; return p; }
@@ -229,7 +229,7 @@ function* buildType(type){ const P = FIELD[type]; if(!P) return; if(!F){ F = new
     for(let i = 0; i < w * h; i++){ const la = A[i * 2], ta = A[i * 2 + 1], j = i * 4, f = ta > 0 ? la / ta : 0; D[j] = L[0] * f; D[j + 1] = L[1] * f; D[j + 2] = L[2] * f; D[j + 3] = Math.round(ta * 255); }
     T.c[k].getContext('2d').putImageData(id, 0, 0); yield; }
   T.key = JSON.stringify(P); }
-function* buildTint(key){ const p = RP[key], T = TEX[p.mat]; if(!T) return; const col = hexRGB(sheenCol(key)); let Q = TINT[key];
+function* buildTint(key){ const p = RP[key], T = TEX[p.wetMat || p.mat]; if(!T) return; const col = hexRGB(sheenCol(key)); let Q = TINT[key];
   if(!Q){ Q = TINT[key] = { c:[], col:'' }; for(let k = 0; k < NL; k++) Q.c.push(mkCanvas(LW[k], LH[k])); }
   for(let k = 0; k < NL; k++){ const w = LW[k], h = LH[k], g = Q.c[k].getContext('2d'), id = g.createImageData(w, h), D = id.data, M = T.m[k];
     for(let i = 0; i < w * h; i++){ const j = i * 4; D[j] = col[0]; D[j + 1] = col[1]; D[j + 2] = col[2]; D[j + 3] = M[i]; } g.putImageData(id, 0, 0); yield; }
@@ -287,16 +287,16 @@ const DPER = { city:520, expressway:520, rural:700 };
 
 // ---------------------------------------------------------------- warm-up
 let PRESETS_IN = false, presetWait = 0;
-function usedTypes(){ const s = new Set(); for(const k of KEYS){ const m = RP[k].mat; if(m && m !== 'none' && FIELD[m]) s.add(m); } return [...s]; }
+function usedTypes(){ const s = new Set(); for(const k of KEYS){ const m = RP[k].mat, m2 = RP[k].wetMat; if(m && m !== 'none' && FIELD[m]) s.add(m); if(m2 && FIELD[m2]) s.add(m2); } return [...s]; }
 function* warmSteps(){ while(!PRESETS_IN && presetWait++ < 120) yield;   // the saved presets usually arrive within a few ms of load
   for(const t of usedTypes()) yield* buildType(t);
-  for(const k of KEYS) if(RP[k].wet > 0 && TEX[RP[k].mat]) yield* buildTint(k);
+  for(const k of KEYS) if(RP[k].wet > 0 && TEX[RP[k].wetMat || RP[k].mat]) yield* buildTint(k);
   yield* buildDecals();
   applyRoadCols(); RM.ready = true; }
 function warm(){ for(const _ of warmSteps()); }   // eslint-disable-line no-unused-vars
 // rebuild what a changed preset needs (lab, or presets arriving after the warm-up): synchronous in the lab, sliced otherwise
 function refresh(sync){ const job = (function*(){ for(const t of usedTypes()){ if(!TEX[t] || TEX[t].key !== JSON.stringify(FIELD[t])) yield* buildType(t); }
-    for(const k of KEYS){ const p = RP[k]; if(p.wet > 0 && TEX[p.mat] && (!TINT[k] || TINT[k].col !== sheenCol(k) + '|' + TEX[p.mat].key)) yield* buildTint(k); }
+    for(const k of KEYS){ const p = RP[k]; const tm = TEX[p.wetMat || p.mat]; if(p.wet > 0 && tm && (!TINT[k] || TINT[k].col !== sheenCol(k) + '|' + tm.key)) yield* buildTint(k); }
     yield* buildDecals(); applyRoadCols(); RM.ready = true; })();
   if(sync){ for(const _ of job); return; }
   const step = () => { const t0 = performance.now(); while(performance.now() - t0 < 6){ if(job.next().done) return; } setTimeout(step, 0); }; step(); }
@@ -328,6 +328,7 @@ function prep(){ FR.f = DRAWN; const base = segAt(position).index; FR.base = bas
   if(cars.length > CARN.length) CARN = new Int16Array(cars.length + 64);
   for(let k = 0; k < cars.length; k++){ const c = cars[k]; if(c.oth) continue; const n = Math.floor(c.z / SEG) - base; if(n < 0 || n >= nd) continue; CARN[k] = CARH[n]; CARH[n] = k; }
   // this frame's state per road (Shuto's drizzle comes and goes by visit)
+  WETK.shimanami = ENV.shimanami && ENV.shimanami.wetK ? ENV.shimanami.wetK() : 0;   // (0 on its clear nights; the Naruto storm's rain)
   WETK.shuto = ENV.shuto && ENV.shuto.wetVisit && segs[base] && segs[base].shB !== undefined ? (ENV.shuto.wetVisit(segs[base].shB) ? 1 : .12) : 1;
   PLN = 0; DKN = 0; PLHOT = 0; PLLG = 0; BN = 0; WFE.fill(null);   // this frame's deferred pools (and dark breaks; ?gl: the stored wetFX calls)
   PK.ph = reduce ? 0 : Math.floor(performance.now() / 85);   // the ripples' time step (pools shiver on it; none under reduced motion)
@@ -394,7 +395,8 @@ function layer(s, n, w0){ const BL = s.bm < 1 && s.bA !== s.bB && !s.tunnel;
   else paint(s, n, LANDS[s.land].key, w0); }
 let POOLED = false;
 // src: only record this road's light pools (the border seam, above)
-function paint(s, n, key, wt, src){ if(wt < .03) return; const p = RP[key]; if(!p || p.mat === 'none') return; const T = TEX[p.mat]; if(!T || (s.tunnel && !p.tunnel)) return;
+function paint(s, n, key, wt, src){ if(wt < .03) return; const p = RP[key]; if(!p || p.mat === 'none') return; let T = TEX[p.mat], wk = 1; if(!T || (s.tunnel && !p.tunnel)) return;
+  if(p.wetMat){ const k = WETK[key] || 0; if(k > .02 && TEX[p.wetMat] && ih(s.index >> 1, 5, 91) < k * 1.25 - .15) T = TEX[p.wetMat]; else wk = .3; }   // (a road that only gets wet in a storm: wetMat in world-anchored patches as the rain comes, damp film between)
   const r0 = RS0[n], r1 = RS1[n], g = cx;
   // markings first (the material then wears them like the road)
   if(!src && p.marks !== 'none' && r1 >= r0){ let D = s.rmDk === key ? s.rmD : null; if(!D){ const P = DPER[p.marks]; D = cellDecals(key, Math.floor(s.index / P), P); if(D !== NO_DEC){ s.rmD = D; s.rmDk = key; } }
@@ -409,7 +411,7 @@ function paint(s, n, key, wt, src){ if(wt < .03) return; const p = RP[key]; if(!
       const lv = Math.min(NL - 1, Math.max(0, Math.ceil(lod - .3))), vr = Math.floor(ROWV[r] / (1 << (2 * lv))) % LH[lv]; SA(Math.min(1, a)); blitRow(T.c[lv], ROWX[r] - ROWW[r], ROWX[r] + ROWW[r], r, vr); }
     SA(1); }
   // wet: the sky in the puddles (Fresnel: strong toward the horizon), the moon's broken glitter, the lamps' and tail lights' streaks
-  const wet = p.wet * (WETK[key] !== undefined ? WETK[key] : 1) * wt; if(wet <= .02) return; const Q = TINT[key];
+  const wet = p.wet * (WETK[key] !== undefined ? WETK[key] : 1) * wt * wk; if(wet <= .02) return; const Q = TINT[key];
   g.globalCompositeOperation = 'lighter';
   if(!src && r1 >= r0 && Q){ const sh = wet * p.sheen, h2 = p.pools > 0;   // (perf pass: roads with pools (Akihabara) lay the sky sheen on even rows, each two rows deep)
     for(let r = r0; r <= r1; r++){ const h4 = p.hot && ROWF[r] < .03; if(h2 && (r & (h4 ? 3 : 1)) && r > r0) continue; const f = ROWF[r], fr = Math.max(ss(.004, .4, f), p.sheenN) * (1 - ss(.72, .98, f)), lod = ROWL[r], a = sh * fr * Math.min(1, Math.max(0, (4.8 - lod) / 1.2)); if(a < .02) continue;

@@ -1381,10 +1381,14 @@
   function lit(i, s){ return s.akLit || 0; }
 
   // ---------------------------------------------------------------- the road: pavements with the shops' light, crossings
+  /* in a border blend the core draws each road's roadFX at its weight (blendFX: EDGE = w); props choose in cells (blendFar). Where one of our
+     buildings stands on this segment's side, its pavement is drawn whole, so no strip of bare ground shows between the kerb and the shop. */
+  function akStands(s, side){ const sp = s.sprites; for(let k = 0; k < sp.length; k++){ const q = sp[k]; if(q.type === 'b' && q.env === KEY && (q.x < 0) === (side < 0)) return true; } return false; }
   function roadFX(s, a, b, fog, f, now){ if(s.akNoHz && s.hz && (s.hz.type === 'oil' || s.hz.type === 'pad')) s.hz = null;   // no slick or pad on a crossing or under the bridge (they would read as a stray shape at the scramble)
     if(a.y - b.y < .5 || fog > .75) return; const L = s.akV; if(L === undefined){ s.akV = visitOf(s.index) || null; }
     const V = s.akV; if(!V) return; const i = s.index, a0 = cx.globalAlpha;
-    for(const side of [-1, 1]){ const B = bAt(V, side, i), x0 = B ? B.x0 : 2.3, on = B ? onAt(B.b0) : 1, X1 = side * 1.0, X2 = side * 1.1, X3 = side * x0;
+    for(const side of [-1, 1]){ const B = bAt(V, side, i), x0 = B ? B.x0 : 2.3, on = B ? onAt(B.b0) : 1, X1 = side * 1.0, X2 = side * 1.1, X3 = side * x0, eS = EDGE;
+      if(eS < 1 && s.bA !== s.bB && akStands(s, side)){ EDGE = Math.min(1, eS / Math.max(.03, s.bB === landK() ? s.bm : 1 - s.bm)); cx.globalAlpha = a0; }   // (border blend: where our shop stands, its pavement is whole, not cross-faded over the bare ground)
       poly4(a.x + a.w * X1, a.y, a.x + a.w * X2, a.y, b.x + b.w * X2, b.y, b.x + b.w * X1, b.y, f((i & 3) ? '#5a5866' : '#6e6c78'));   // the kerb stones
       const pc = B && on ? (B.gr === 'crane' ? '#3a2838' : B.gr === 'stall' ? '#34302e' : '#2e2e3a') : '#201e26';
       poly4(a.x + a.w * X2, a.y, a.x + a.w * X3, a.y, b.x + b.w * X3, b.y, b.x + b.w * X2, b.y, f((i % 4) === 0 ? '#1a1820' : pc));   // the pavement tiles (a joint every 4), lit by the shop it fronts
@@ -1398,7 +1402,7 @@
         const ya = a.y + (b.y - a.y) * t0, yb = a.y + (b.y - a.y) * t1, xa = a.x + (b.x - a.x) * t0, xb = a.x + (b.x - a.x) * t1, wa = a.w + (b.w - a.w) * t0, wb = a.w + (b.w - a.w) * t1;
         poly4(xa + wa * Xa, ya, xa + wa * Xb, ya, xb + wb * Xb, yb, xb + wb * Xa, yb, f('#0c0a14'));
         if(B && on){ cx.globalCompositeOperation = 'lighter'; cx.globalAlpha = a0 * .42 * (1 - fog); poly4(xa + wa * Xa, ya, xa + wa * Xb, ya, xb + wb * Xb, yb, xb + wb * Xa, yb, SHOPL[B.sv] || '#ffc070'); cx.globalAlpha = a0; cx.globalCompositeOperation = 'source-over'; }
-        poly4(xb + wb * Xa, yb, xb + wb * Xb, yb, xb + wb * Xb, yb + PX, xb + wb * Xa, yb + PX, f(B && on ? '#7a7ea0' : '#3a3c50')); } }   // the light spilling out over the sill
+        poly4(xb + wb * Xa, yb, xb + wb * Xb, yb, xb + wb * Xb, yb + PX, xb + wb * Xa, yb + PX, f(B && on ? '#7a7ea0' : '#3a3c50')); } if(EDGE !== eS){ EDGE = eS; cx.globalAlpha = a0; } }   // the light spilling out over the sill
     // the crossings: a stop line, the zebra (its bars run with the traffic), the diagonal of the scramble, the zebra across the side street
     const m = s.akX; if(m === undefined) return; const zc = f('#d8d4dc');
     if(m === -6) poly4(a.x - a.w, a.y, a.x + a.w, a.y, b.x + b.w, b.y, b.x - b.w, b.y, zc);

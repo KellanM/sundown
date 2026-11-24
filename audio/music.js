@@ -827,25 +827,26 @@ function drum(E, c, hit, t, v, style, s16){ const st = style || {}, soft = st.so
     case 'I': toneHit(E, c.body, t, 'sine', 80, 28, .5, 1.1 * v, 1.6); noiseHit(E, c.body, t, 'lowpass', 900, .7, .5 * v, .002, .7); drum(E, c, 'C', t, v / KIT_BODY, st, s16); break; } }   // impact: sub boom, a wash and a crash
 
 /* ================================================================== the deck scheduler: one compiled song on the audio clock */
-function stepDeck(D, until, onBar){ const C = D.C, th = D.th, s16 = C.s16, sw = (th.swing || 0) * s16, E = D.E;
+function stepDeck(D, until, onBar){ const C = D.C, th = D.th, s16 = C.s16, sw = (th.swing || 0) * s16, E = D.E, ac0 = E.ac.currentTime - .03;
   while(D.alive && D.t < until){ if(D.st === 0 && D.xq) jumpNow(D);
-    const bar = curBar(D), s = D.st, t = D.t + (s % 2 ? sw : 0);
+    const bar = curBar(D), s = D.st, t = D.t + (s % 2 ? sw : 0), late = t < ac0;   // late: this step's time passed while the main thread was held (past the lookahead); its notes are skipped, not played at once in a clump (D.late counts them)
+    if(late) D.late = (D.late || 0) + 1;
     if(s === 0 && onBar && onBar(D, bar) === false) return;   // the owner may switch songs on this bar line
     const X = D.x; if(s === 0) latch(D); if(s % 4 === 0) latchBeat(D, t);
     const tk = X.tk, drop = X.esc === 1, eCap = tk >= 1 ? Math.min(D.e, 1) : tk > 0 ? Math.min(D.e, 2) : D.e;
-    if(D.crash){ const h = D.crash === true ? 'C' : D.crash; D.crash = false; drum(E, D.ch[C.PI.kit] || D.ch[0], h, t, .9, th.style, s16); }
+    if(D.crash && !late){ const h = D.crash === true ? 'C' : D.crash; D.crash = false; drum(E, D.ch[C.PI.kit] || D.ch[0], h, t, .9, th.style, s16); }
     const evs = D.fillReq && s >= 12 && bar.fill ? null : bar.ev[s];
     let hatHere = false;
-    if(evs) for(let i = 0; i < evs.length; i++){ const ev = evs[i]; if(ev.lay > eCap || D.mute[ev.p]) continue; const c = D.ch[ev.p]; if(D.solo && !soloHas(D.solo, C.parts[ev.p])) continue;
+    if(evs && !late) for(let i = 0; i < evs.length; i++){ const ev = evs[i]; if(ev.lay > eCap || D.mute[ev.p]) continue; const c = D.ch[ev.p]; if(D.solo && !soloHas(D.solo, C.parts[ev.p])) continue;
       if(tk >= 1 && D.isLead[ev.p]) continue;
       if(ev.kit){ if(ev.kit !== 'R' && ev.kit !== 'V' && (drop || tk >= 1 || (tk > 0 && !thinKit(ev.kit, s)))) continue;
         if(ev.kit === 'h' || ev.kit === 'h2' || ev.kit === 'y') hatHere = true; }
       else if(drop && D.isBass[ev.p]) continue;
       if(ev.kit){ drum(E, c, ev.kit, t, ev.v, th.style, s16); if((ev.kit === 'k' || ev.kit === 'K') && D.pumps.length) pump(D, t); }
       else { const tr = D.tr[ev.p]; playVoice(E, c.inst, c.in, tr ? (Array.isArray(ev.n) ? ev.n.map(x => x + tr) : ev.n + tr) : ev.n, t, ev.d * s16, ev.v, ev.gl && tr ? ev.gl + tr : ev.gl); } }
-    if(!D.solo && !(D.xs && D.xs.bare)) layers(D, bar, s, t, hatHere);
+    if(!late && !D.solo && !(D.xs && D.xs.bare)) layers(D, bar, s, t, hatHere);
     const fill = (D.fillReq || bar.last) && s >= 12 && bar.fill && tk <= 0 && !drop ? bar.fill[s] : null;
-    if(fill && D.e >= 1) for(let i = 0; i < fill.length; i++){ const ev = fill[i]; const c = D.ch[ev.p]; if(D.solo && !soloHas(D.solo, 'kit')) continue; drum(E, c, ev.kit, t, ev.v, th.style, s16); }
+    if(fill && D.e >= 1 && !late) for(let i = 0; i < fill.length; i++){ const ev = fill[i]; const c = D.ch[ev.p]; if(D.solo && !soloHas(D.solo, 'kit')) continue; drum(E, c, ev.kit, t, ev.v, th.style, s16); }
     D.st++; D.t += s16; D.gs++;
     if(D.st >= 16){ D.st = 0; D.fillReq = false;
       if(D.xs){ const X = D.xs; if(++X.i >= X.bars.length){ if(X.hold) X.i = Math.min(X.holdFrom, X.bars.length - 1); else if(X.next && C.xs[X.next]) setXs(D, X.next); else { D.xs = null; D.bi = C.secStart[X.ret] != null ? C.secStart[X.ret] : D.bi; } } }
@@ -934,8 +935,15 @@ for(const k in GRIT) if(T[k]) T[k].style = Object.assign({}, T[k].style, { tight
 const ROAD_THEME = { harbour:'harbour', bay:'bay', neon:'neon', tunnels:'tunnels', pass:'pass', refinery:'refinery', coast:'coast', snow:'snow', paddies:'paddies', aqua:'aqua', shimanami:'shimanami', sakurajima:'sakurajima', haneda:'haneda', minato:'minato', shuto:'shuto', kurobe:'kurobe', akiba:'akiba', gion:'gion' };
 const CD_B = 60 / 126 * 1.5, CD_0 = .15, CD_GO = CD_0 + 3 * CD_B;   // mech/arrival.js's countdown timing (a count every 1.5 beats at 126)
 const LOOK = .35, TICK_MS = 50;
+/* LOOK_LOAD: under the loader the title song is scheduled up to 8 s ahead on the audio clock, not 0.35 s: boot() holds the main thread
+   in jobs it cannot slice (50-140 ms, the first road's reset() and a few that took 3-7 s in headless Chrome at 4x CPU), and nothing on
+   the loader changes the song, so a long lookahead costs nothing audible (a START, pause or volume change still acts at once: every note
+   goes through the deck's own gain, M.out and M.vol). The first tick schedules LOAD_MIN (2.5 s: the first road's reset() may follow at
+   once), then the horizon grows by at most LOAD_GROW a tick, so no tick schedules more in one burst. The title takes back the usual 0.35 s on its own (the notes already scheduled play out). A step still late after
+   all that is skipped (stepDeck), never played as a clump. */
+const LOOK_LOAD = 8, LOAD_MIN = 2.5, LOAD_GROW = .5;
 const S = { M:null, E:null, deck:null, want:null, mode:'off', road:-1, eHold:0, eTgt:0, lastState:'', overT:0, caught:false, countT:0, countDeck:null,
-  boostT:0, cues:{}, tickMs:0, ticks:0, lastBoost:0, stung:{}, iv:0, resultsAt:0, lpT:0, thinK:0 };
+  boostT:0, cues:{}, tickMs:0, ticks:0, lastBoost:0, stung:{}, iv:0, resultsAt:0, lpT:0, thinK:0, booted:false, ldEl:null };
 const g = name => { try{ return (0, eval)('typeof ' + name + ' !== "undefined" ? ' + name + ' : undefined'); }catch(e){ return undefined; } };   // used once, at attach (not per tick)
 let GA = null;   // accessors to the game's globals, built once
 const IN = { sp:0, mult:1, cs:0, thin:0, play:false };   // the build's inputs, reused every tick (no allocation)
@@ -945,7 +953,7 @@ function bindGame(){ if(GA) return GA; const has = n => g(n) !== undefined;
     'boost:() => (typeof boostT === "number" ? boostT : 0), btier:() => (typeof boostTier === "number" ? boostTier : 0), sheet:() => (typeof SHEET !== "undefined" && SHEET ? !SHEET.hidden : false),' +
     'land:() => (typeof landIdx === "function" && typeof zone === "function" && typeof LANDS !== "undefined" ? LANDS[landIdx(zone())] : null),' +
     'cop:() => (typeof copT === "number" ? copT : 0), land0:() => (typeof landIdx === "function" && typeof LANDS !== "undefined" ? LANDS[landIdx(0)] : null), pseg:() => (typeof position === "number" && typeof PZ === "number" && typeof SEG === "number" ? (position + PZ) / SEG : 0),' +
-    'cs:() => (typeof position === "number" && typeof SEG === "number" ? position / SEG : 0) }')();
+    'cs:() => (typeof position === "number" && typeof SEG === "number" ? position / SEG : 0), vol:() => (typeof SET !== "undefined" && SET && Number.isFinite(SET.vol) ? SET.vol : 10) }')();
   return GA; }
 /* the night bed (first 60 s): on the title and through START's wait only the city and the wind (Shadow of the Colossus, Akira's opening:
    silence is scored, and the music arrives with the event). Distant traffic hum (brown noise under 160 Hz, a slow swell), wind (two
@@ -982,7 +990,8 @@ function tick(){ const M = S.M; if(!M || !M.ac) return; const ac = M.ac; if(!S.E
   // which song: title on the attract screen, the count-in, the road, the stings, the results
   const attract = st === 'ready' && A.sheet() && HAS_WIN && document.getElementById('attract');
   const cdOn = !!(HAS_WIN && window.MECH && MECH.arrival && MECH.arrival.countdownOn && MECH.arrival.countdownOn());
-  let mode = attract ? 'title' : cdOn ? 'count' : st === 'play' ? 'ride' : st === 'pulled' ? 'pulled' : st === 'over' ? 'over' : st === 'ready' ? 'wait' : 'wait';
+  const load = !S.booted && A.vol() > 0;   // the first boot's loader is still up (S.booted: see loaderUp); volume 0 in the settings: no song under it
+  let mode = attract ? 'title' : load ? 'load' : cdOn ? 'count' : st === 'play' ? 'ride' : st === 'pulled' ? 'pulled' : st === 'over' ? 'over' : st === 'ready' ? 'wait' : 'wait';
   if(mode !== S.mode){ enterMode(mode, S.mode, A, now); S.mode = mode; }
   if(mode === 'ride' || mode === 'count'){ const L = A.land(), key = themeForLand(L);
     if(mode === 'ride' && S.deck && S.deck.alive && S.deck.key !== key && S.want !== key){ S.want = key; S.deck.fillReq = S.deck.st <= 12; }
@@ -997,14 +1006,15 @@ function tick(){ const M = S.M; if(!M || !M.ac) return; const ac = M.ac; if(!S.E
       setPieces(A, now); spTick(A); } }
   if(mode === 'over' && !S.deck && S.resultsAt && now >= S.resultsAt){ S.resultsAt = 0; startSong('results', now + .1, { energy:3, crash:false }); if(S.deck){ S.deck.lp.frequency.value = 20000; } }
   // schedule ahead on the audio clock; free decks that have faded out
-  if(S.deck && S.deck.alive){ stepDeck(S.deck, now + LOOK, onBar); setCur(S.deck); publishClock(now); }
+  if(S.deck && S.deck.alive){ stepDeck(S.deck, mode === 'load' ? Math.max(now + LOAD_MIN, Math.min(now + LOOK_LOAD, S.deck.t + LOAD_GROW)) : now + LOOK, onBar); setCur(S.deck); publishClock(now); }
   for(let i = E.decks.length - 1; i >= 0; i--){ const D = E.decks[i]; if(!D.alive && now > D.dieT){ freeDeck(D); E.decks.splice(i, 1); } }
   if(HAS_WIN && performance){ S.tickMs += performance.now() - t0; S.ticks++; } }
 function publishClock(now){ const D = S.deck, M = S.M; if(!D || !M) return; const s16_126 = 60 / 126 / 4, ahead = D.t - now;   // festival.js reads M.step and M.next on a 126 grid
   if(ahead < 0 || D.gs === 0) return; const fs = D.gs - ahead / D.C.s16; M.step = Math.ceil(fs); M.next = now + (M.step - fs) * s16_126; }
 function enterMode(mode, prev, A, now){ const E = S.E;
   if(mode === 'count' || mode === 'wait' || mode === 'title') S.sp = null;   // a new ride: the set pieces' memory starts clean
-  if(mode === 'title'){ E.route(S.M.out); const og = S.M.out.gain; if(og.value < .5){ og.cancelScheduledValues(now); og.setTargetAtTime(.85, now, .3); }   // home from the results: M.resolve faded M.out (as the Again button does)
+  if(mode === 'title' || mode === 'load'){ E.route(S.M.out); const og = S.M.out.gain; if(og.value < .5){ og.cancelScheduledValues(now); og.setTargetAtTime(.85, now, .3); }   // home from the results: M.resolve faded M.out (as the Again button does)
+    if(mode === 'title' && prev === 'load' && S.deck && S.deck.alive && S.deck.key === 'title') return;   // the loader's 日没 carries on into the title: never restarted
     amb(false, now, .6); startSong('title', now + .15, { energy:3, crash:false }); S.deck.lp.frequency.value = 20000; return; }   // Kellan 2026-11-23: the 日没 title song is back on the title (the city-and-wind bed is gone from here)
   if(mode === 'count'){ E.route(S.M.out); if(S.deck && S.deck.alive) killDeck(S.deck, now, .15); S.deck = null;
     const L = A.land0() || A.land(), key = themeForLand(L), root = 48 + comp(key).keyPc - (comp(key).keyPc > 6 ? 12 : 0);
@@ -1101,16 +1111,20 @@ const MUSIC = { THEMES:T, STINGS:ST, INST, MOTIF, compile, render, ROAD_THEME,
   road(i){ /* optional: the game may call this at a road border; the owner also polls the road itself */ if(typeof LANDS !== 'undefined' && LANDS[i] && S.deck && S.mode === 'ride'){ const k = themeForLand(LANDS[i]); if(k !== S.deck.key){ S.want = k; S.deck.fillReq = S.deck.st <= 12; } } },
   end(caught){ S.caught = !!caught; },
   clock(){ const D = S.deck; if(!D) return null; const bar = curBar(D); return { key:D.key, bpm:D.th.bpm, bar:D.bi, step:D.st, beat:D.gs / 4, chord:bar ? (D.st < 8 ? bar.ch[0] : bar.ch[1]).name : null, energy:D.e, xs:D.xs ? D.xs.name : null }; },
-  get debug(){ return { amb:S.E && S.E.amb ? S.E.amb.v : 0, goAt:S.goAt, goLag:S.goLag, mode:S.mode, song:S.deck && S.deck.key, energy:S.deck && S.deck.e, build:S.deck && S.deck.x ? Object.assign({}, S.deck.x) : null, thinK:S.thinK, want:S.want, decks:S.E ? S.E.decks.length : 0, avgTickMs:S.ticks ? S.tickMs / S.ticks : 0, ticks:S.ticks, cues:Object.assign({}, S.cues), countT:S.countT }; } };
+  get debug(){ return { amb:S.E && S.E.amb ? S.E.amb.v : 0, goAt:S.goAt, goLag:S.goLag, mode:S.mode, song:S.deck && S.deck.key, energy:S.deck && S.deck.e, build:S.deck && S.deck.x ? Object.assign({}, S.deck.x) : null, thinK:S.thinK, want:S.want, decks:S.E ? S.E.decks.length : 0, avgTickMs:S.ticks ? S.tickMs / S.ticks : 0, ticks:S.ticks, booted:S.booted, late:S.deck ? S.deck.late || 0 : 0, ahead:S.deck && S.E ? S.deck.t - S.E.ac.currentTime : 0, cues:Object.assign({}, S.cues), countT:S.countT }; } };
+/* the first boot's loader (#loader in sundown.html) is up and not on its way out: the title song plays under it (mode 'load') */
+function loaderUp(){ const L = S.ldEl || (S.ldEl = HAS_WIN ? document.getElementById('loader') : null); return !!L && !L.hidden && !L.classList.contains('out'); }
 if(HAS_WIN){ window.MUSIC = MUSIC; if(window.MECH) MECH.music = MUSIC; try{ wrapDirector(); wrapCountdown(); }catch(e){ console.warn('music wrap', e); }
-  S.iv = setInterval(() => { try{ if(!S.M && typeof M !== 'undefined') S.M = M; tick(); }catch(e){ if(!S.err){ S.err = e; console.warn('music tick', e); } } }, TICK_MS);
+  S.iv = setInterval(() => { try{ if(!S.booted && !loaderUp()) S.booted = true; if(!S.M && typeof M !== 'undefined') S.M = M; tick(); }catch(e){ if(!S.err){ S.err = e; console.warn('music tick', e); } } }, TICK_MS);
   /* the title's night bed needs a running AudioContext, which needs a gesture: the first press on the loader or the attract screen opens it.
      Listens until M.ac exists (it used to be once:true, so a tap during the long loader, before #attract, spent it and the title stayed
      silent until START). A touch opens it on touchend / pointerup / click, not pointerdown: those carry the user activation (iOS Safari
-     needs it there); after that M.init's own wake resumes a context the browser stopped. */
+     needs it there); after that M.init's own wake resumes a context the browser stopped. sundown.html now opens the context before the
+     boot (so the title song can start under the loader where autoplay is allowed): where it is blocked, the context waits suspended and
+     this listens until a gesture gets it running. */
   const WK = ['pointerdown', 'pointerup', 'touchend', 'click', 'keydown'], wkOff = () => WK.forEach(t => removeEventListener(t, wake, true));
-  function wake(e){ try{ if(typeof M === 'undefined') return; if(M.ac){ wkOff(); return; } if(e.type === 'pointerdown' && e.pointerType !== 'mouse') return;
-    const L = document.getElementById('loader'); if(document.getElementById('attract') || (L && !L.hidden)){ M.init(); if(M.ac) wkOff(); } }catch(x){} }
+  function wake(e){ try{ if(typeof M === 'undefined') return; if(M.ac && M.ac.state === 'running'){ wkOff(); return; } if(e.type === 'pointerdown' && e.pointerType !== 'mouse') return;
+    const L = document.getElementById('loader'); if(document.getElementById('attract') || (L && !L.hidden)){ M.init(); if(M.ac && M.ac.state === 'running') wkOff(); } }catch(x){} }
   WK.forEach(t => addEventListener(t, wake, { capture:true, passive:true })); }
 if(typeof module !== 'undefined') module.exports = MUSIC;
 })();

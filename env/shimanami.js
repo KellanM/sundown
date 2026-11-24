@@ -781,6 +781,15 @@
       // a thin haze lying on the water at the horizon, in dither-width steps, drifting slowly
       for(let q = 0; q < 10; q += 5){ const aa = HAZE_B[q], y0 = HAZE_B[q + 1], amp = HAZE_B[q + 2], sp2 = HAZE_B[q + 3], thk = HAZE_B[q + 4]; cx.fillStyle = `rgba(130,150,200,${aa * al})`;
         for(let x = 0; x < W; x += PX * 4){ const n = Math.sin((x + now * sp2 * 20 + skyOff * 200) * .011) * .6 + Math.sin((x - now * sp2 * 33) * .027 + 2) * .4, top = snap(hz + y0 * PX - (n + 1) * amp * PX * .5), bot = snap(hz + (y0 + thk) * PX + n * PX); if(bot > top) cx.fillRect(x, top, PX * 4, bot - top); } } },
+    /* the storm's wet deck (env/roadmat.js: wetMat in patches, the sky in the puddles, these pools, the tail lights). Shimanami's own
+       nights are clear and dry (wetK 0, so roadmat skips all of it); only the Naruto storm wets it. The images in the water: each parapet
+       lamp as a short warm column near the rail, the tower legs' floodlit feet as long pale columns, the island street lamps as cool ones. */
+    wetK(){ const N = MECH.sp_naruto; return N && N.wet ? N.wet() : 0; },
+    wetSrc(s, n, a, P){ if(n > 70 || s.smU === undefined) return; const u = s.smU, uw = a.w; if(!(uw > .5)) return; const fa = 1 - n / 80;
+      if(s.smK > 0 && u % 4 === 0 && s.smR > .3) for(let sd = -1; sd <= 1; sd += 2) P(a.x + sd * (RAILX - .03) * uw, a.y, uw, .04, .09, Math.max(PX, uw * .025), '#ffb050', .5 * fa);   // (under roadmat's long-column threshold: a low lamp's image stays near its foot)
+      if(s.smK === 1 && KB.some(b => b[1] === u || b[2] === u)) for(let sd = -1; sd <= 1; sd += 2){ P(a.x + sd * CABX * uw, a.y, uw, 0, 1.4, uw * .11, '#9eb4d8', .55 * fa); P(a.x + sd * CABX * uw, a.y, uw, 0, .5, uw * .07, '#e2ecf8', .5 * fa); }
+      if(s.smK === 0 && u % 12 === 0) P(a.x + (RAILX + .1 - .39) * uw, a.y, uw, 1.27, 1.35, Math.max(PX, uw * .07), '#e8f6ff', .85 * fa); },
+    wetFX(s, n, r0, r1, RV, wet, T){ const N = MECH.sp_naruto; if(N && N.wetFX) N.wetFX(s, n, r0, r1, RV, wet, T); },
     // for set pieces: what the road is doing at segment i ('island', 'suspension' or 'stayed')
     kind(i){ const s = segs[i]; return !s || s.smK === undefined ? null : ['island', 'suspension', 'stayed'][s.smK]; }
   };

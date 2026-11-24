@@ -526,7 +526,19 @@
 
   // ---------------------------------------------------------------- drawing: the deck's parapets
   const WSP = f => { f = fogPx(f); return f < .03 ? 1 : f < .08 ? 2 : f < .2 ? 4 : f < .4 ? 8 : 16; };
-  function drawPar(sp, x, y, uw, fog, now){ const j = sp.k, n = WSP(fog), side = sp.side; if(j % n && !sp.cap) return; const s = sp.s, kd = sp.kd;
+  /* The parapet's slices (Kellan, 2026-11-23: "some of them disappear when they are between the farground and the foreground"). Each
+     slice used to be drawn from a segment j only when j % WSP(fog at j) === 0, covering WSP segments. Where the tier changed (n 1 -> 2 at
+     about 30 segments out, 2 -> 4 at 55, 4 -> 8 at 100) the first segments of the coarser tier were neither drawn by the finer slice
+     before them nor started a slice of their own: a hole of one to four segments that slid along with the camera. Now (as the buildings'
+     spanOf) a slice starts at every segment whose tier divides it, or where the parapet's kind or the side-lane push changes, and runs on to
+     the next start: every segment is covered exactly once at every distance. The span per distance is a table (fog depends on it alone). */
+  const WST = new Uint8Array(1024); let WSTOK = false, WSF = -1, WSB = 0;
+  const wsAt = k => { const d = k - WSB; return d < 1 ? 1 : d > 1023 ? 16 : WST[d]; };
+  const pkOf = (k, side) => { const t = segs[k]; return t ? (side < 0 ? t.shPK & 3 : t.shPK >> 2) : -1; };
+  function parSpan(j, side){ if(!WSTOK){ WSTOK = true; for(let d = 0; d < 1024; d++) WST[d] = WSP(clamp(Math.pow(d / DRAW, 1.6), 0, 1)); } if(WSF !== DRAWN){ WSF = DRAWN; WSB = segAt(position).index; }
+    const kd = pkOf(j, side), lx = laneDX(j); if(j % wsAt(j) && pkOf(j - 1, side) === kd && laneDX(j - 1) === lx) return 0;
+    let n = 1; while(n < 16 && (j + n) % wsAt(j + n) && pkOf(j + n, side) === kd && laneDX(j + n) === lx && segs[j + n]) n++; return n; }
+  function drawPar(sp, x, y, uw, fog, now){ const j = sp.k, side = sp.side, n = parSpan(j, side); if(!n) return; const s = sp.s, kd = sp.kd;
     const t = segs[j + n - 1] || s; const q = t.p2.screen; if(!q.w) return; const x2 = q.x + sp.x * q.w, y2 = q.y, u2 = q.w; face(x, y, uw, x2, y2, u2);
     if(side < 0 ? Math.max(x, x2) < -PX : Math.min(x, x2) > W + PX) return;
     FF = fog; const F = F0, near = uw > 26;
@@ -780,7 +792,7 @@
     // buildings: back rows, then street rows (nearer draws over)
     for(const row of [1, 0]) for(const side of [-1, 1]){ const B = bldAt(i, side, row); if(B) sp.push({ env:KEY, type:'bld', x:side * B.x0, k:i, b:B }); }
     // the deck: parapets each side, lamps, gantries
-    for(const side of [-1, 1]){ const kd = parKind(i, side, Z); if(kd === 'rail') s.shOpen |= side < 0 ? 1 : 2;
+    s.shPK = 0; for(const side of [-1, 1]){ const kd = parKind(i, side, Z); if(kd === 'rail') s.shOpen |= side < 0 ? 1 : 2; s.shPK |= (kd === 'rail' ? 3 : kd === 'snd' ? 2 : 1) << (side < 0 ? 0 : 2);
       const o = { env:KEY, type:'par', x:side * PAR_X, k:i, s, side, kd };
       if(Math.abs(s.curve) >= 3.4 && Math.sign(s.curve) === -side && kd !== 'rail' && i % 10 === 0) s.shCv = (s.shCv || 0) | (side < 0 ? 1 : 2);   // a chevron board's first segment (it spans 3)
       if(side < 0 && i % 240 === 120 && kd === 'con') o.phone = 1;
@@ -913,6 +925,6 @@
     backdrop(o){ if(!ABL.includes('sky')) backdrop(o); if(FR !== DRAWN){ FR = DRAWN; hostPrep(); } },
     overlay,
     // for setpiece/screenfall.js and tests
-    zoneAt, claim, bldAt, mkBld, riverSide, wetVisit, DBG, PANELS, SIGN, face, FQ, fpt, FPT, fc, KBT, KBC
+    zoneAt, claim, bldAt, mkBld, riverSide, wetVisit, DBG, PANELS, SIGN, face, FQ, fpt, FPT, fc, KBT, KBC, _parSpan:parSpan
   };
 })();

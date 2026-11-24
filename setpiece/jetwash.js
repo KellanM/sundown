@@ -299,7 +299,7 @@
   function drawGantry(s, sx0, sy0, uw, fog, now){ const on = reduce || (now / 520 | 0) % 2 === 0, spr = on ? S.gOn : S.gOff; if(!spr) return; const k = uw * 3.1 / spr.width;
     cx.globalAlpha = 1 - fog * .6; blit(spr, sx0, sy0, k); cx.globalAlpha = 1; if(on && fog < .9) glow(sx0, sy0 - spr.height * k * .55, uw * .8, '#ffa030', .3 * (1 - fog)); }
   function drawSign(s, sx0, sy0, uw, fog, now, sd){ const spr = S.sign; if(!spr) return; const k = uw * .62 / spr.width;
-    { const x = sx0 + sd * 1.42 * uw; cx.globalAlpha = 1 - fog * .6; blit(spr, x, sy0, k); cx.globalAlpha = 1;
+    { const x = sx0 + sd * 2.05 * uw; cx.globalAlpha = 1 - fog * .6; blit(spr, x, sy0, k); cx.globalAlpha = 1;
       const on = reduce || ((now / 600 | 0) + (sd > 0 ? 1 : 0)) % 2; if(on && fog < .9){ cx.fillStyle = '#ffb02a'; pxRect(x - PX / 2, sy0 - spr.height * k - PX * 2, PX, PX * 2); glow(x, sy0 - spr.height * k - PX, uw * .25, '#ffa030', .35 * (1 - fog)); }
       if(fog < .7) glow(x, sy0 - spr.height * k * .7, uw * .35, '#fff0d0', .08); } }
 

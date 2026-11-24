@@ -4,7 +4,7 @@
 
    API
      MECH.cutin.has(id)            a card exists for this id ('kaiju', 'greatwave', 'fireball', 'avalanche', 'jetwash', 'typhoon', 'hanabi', 'matsuri',
-                                   'shinkansen', 'fuji', 'phantom', 'teiden', 'lava', 'jump:<road>' for harbour pass sakurajima haneda tunnels snow paddies refinery kurobe)
+                                   'shinkansen', 'fuji', 'phantom', 'teiden', 'teiden_boss', 'lava', 'jump:<road>' for harbour pass sakurajima haneda tunnels snow paddies refinery kurobe)
      MECH.cutin.show(id, opts)     play it now (replaces any card on screen); false if there is no such card. opts.dur overrides the length.
                                    Sparse: true without playing when the ride has had its share (see spare()); .skipped then says why.
                                    opts.force skips that rule (tests).
@@ -920,119 +920,139 @@ function tapeC(tt, ink, acc){ const sl = Math.max(4, Math.round(tt.height * .35)
   g.fillStyle = ink; g.beginPath(); g.moveTo(sl, 0); g.lineTo(c.width, 0); g.lineTo(c.width - sl, c.height); g.lineTo(0, c.height); g.fill(); bin(c);
   g.fillStyle = acc; g.fillRect(Math.ceil(sl * 2 / c.height) + 1, c.height - 2, c.width - sl - 3, 1); g.drawImage(tt, sl + 5, 3); return c; }
 
-/* ---------------------------------------------------------------- teiden (env/akiba.js MECH.sp_teiden): 停電, the city's lights die in a wave.
-   night ink / navy / moonlight blue x3 / the signs' neon (red, green, cyan, magenta, amber, Akiba yellow) / window warm
-   Studied: the 2003 blackout over Toronto (from 545 Sherbourne) and Manhattan under Sandy, 2012: the city goes to one black silhouette under
-   a sky that is now LIGHTER than it, a few islands of generator light stay on, and the moon becomes the light. Akihabara at night (Chuo-dori):
-   stacked tategaki boards down the building edges, backlit box signs under the roofs, lit window grids, a warm haze over the roofs. So: a
-   slanted band of Akiba facades, every sign lit with a dithered halo; the dark rolls across it column by column from the far end (each
-   column stutters like a dying tube: half, on, off, half, off; a spark at the tube), the haze goes and the moon comes out over dead boards
-   that keep only a cold rim on their tops. The last light is 停電 itself, a yellow neon tube sign: it fizzes (half, on, off, on, half, off),
-   dies, a beat of dark (the breakers' thump), then the title is there again, carved in moonlight in four dither steps. BLACKOUT on an ink
-   tape, the caption typed in. Exit: a stepped fade to black. Reduced motion: the dark street, the moon, the carved title. */
-const TD_FZ = [1, 0, 2, 0, 1, 2, 2, 1, 2], TD_FS = .028;   // the title tube's fizz, a state per frame step (0 lit, 1 half, 2 dead)
+/* ---------------------------------------------------------------- teiden (env/akiba.js MECH.sp_teiden): 停電, the city's power dies.
+   Three colours, as the house cards: ink / umber (the sky's glow) / sodium amber (with its white-hot core and a burnt step for shadows).
+   Studied (refs inspected at pixel zoom, research/sundown-craft/teiden-card.md): Manhattan under Sandy, 2012, and New York, 2003: the dark
+   city is one black mass under a sky that is now LIGHTER than it (the glow of the districts still lit, on the haze), its windows gone but
+   for a cluster or two on a generator, warm, 2-3 cells; Akihabara at night (Chuo-dori, 1992 and now): building faces stacked with box signs
+   under the roofs and tategaki boards down their edges, lit floors as strips of windows. And the anime staple of the telephone pole and its
+   sagging wires across a night sky (the line the power runs down). So: a slanted band of Akiba facades, every floor and sign lit sodium
+   amber; the dark takes it street by street from the far end, each column stuttering out like a dying tube (half, on, off, half, off) with
+   a spark at its sign; the pole's transformer flashes as the wave passes it; then 停電 lands as AVALANCHE's 雪崩 does (Dela, or the 16 px
+   hand-drawn pair under 72 px; a white-hot face over amber, a 2 px ink rim, a burnt offset shadow, a white impact frame, then cracked along
+   fracture lines with a kick), and BLACKOUT on the card's slanted label with its 3x5 sub-line. One light is left: a generator window that
+   catches its breath twice. The boss variant (teiden_boss, the combined event's title, called by setpiece/boss.js as he arrives): no
+   generator; in the dead street a rider's silhouette sits at the kerb, rim-lit by the sky, and his headlight comes on. Exit: a stepped fade
+   (nothing slides, so no border rides up). Reduced motion: the dead street, the light, the title. */
 const tdSt = u => u < 0 ? 0 : u < .03 ? 1 : u < .05 ? 0 : u < .075 ? 2 : u < .095 ? 1 : 2;   // a sign column's death, u s after the wave reaches it
-CARDS.teiden = { dur:2.4, out:.4, exit:'fade', hold:1.55, kanji:['停電'],
-  *build(cw, ch, nar){ const L = {}, K = { ink:'#03040a', n0:'#070a16', n1:'#0f1632', dk:'#0a1024', rim:'#26386a', m1:'#4a6aa8', m2:'#9cbce8', m3:'#eaf2ff',
-      haze:'#2e1030', win:'#ffd890', fl:'#c8e4ff', tube:'#ffd23a', hot:'#fff6c8', am:'#ff9a2a', glass:'#1a2242', red:'#ff3048', grn:'#3aff9a', cy:'#3ad8ff', mg:'#ff4ad0' }; yield;
-    const top = nar ? Math.round(ch * .2) : 0, PH = Math.round(ch * (nar ? .4 : .37)), sk = Math.round(PH * (nar ? .1 : .2)), H = PH + 8; yield;
-    L.top = top; yield; L.PH = PH; yield; const yb = x => PH - sk * x / cw; yield;
-    // 停電 (Dela Gothic, heavy enough to hold a tube inside every stroke): one mask, two treatments
-    const ks = Math.round(nar ? Math.min((cw - 14) / 2.1, PH * .5) : Math.min(PH * .6, cw * .125)); yield;
-    // (under ~72 px Dela's 停 and 電 fill in, the tube worst of all: there they are hand-drawn on the 16 px grid and scaled by whole pixels, as phantom's 亡霊 are)
-    const thin = ks < 72, pk = Math.max(2, Math.round(ks / 16)); yield;
-    const km0 = thin ? handM('停電', { track:pk * 2 }, pk) : textM('停電', 'dela', ks, { track:Math.round(ks * .06) }); yield; const km = thin ? km0 : carve(km0, 23, Math.round(ks * .5)); yield;
-    // carved, moonlit from above: a white top face on every stroke, the body cooling down the glyph, a dark bevel on every underside
-    const moonF = (x, y) => !at(km, x, y + 1) ? K.rim : !at(km, x, y - 1) ? K.m3 : y < km.h * .38 ? K.m3 : y < km.h * .7 ? K.m2 : K.m1; yield;
-    const full = (yield* inkedG(km, { fill:moonF, line:K.ink, lw:1, line2:K.m1, lw2:1, sh:K.ink, sx:3, sy:3 })); yield;
-    L.kjL = [ditherC(full, 1)]; yield; L.kjL.push(ditherC(full, 2)); yield; L.kjL.push(ditherC(full, 3)); yield; L.kjL.push(full); yield;
-    L.kx = nar ? Math.round((cw - full.width) / 2) : Math.max(Math.round(cw * .04), tagClear(cw, nar)); yield; L.ky = nar ? Math.round(PH * .17) : Math.max(Math.round((yb(L.kx + full.width / 2) - full.height) * .42), Math.min(homeClear(ch, nar), Math.floor(yb(L.kx + full.width) - full.height))); yield;   // (phones: under the moon)
-    // the neon: the same strokes as a tube sign. A hot core along each stroke's edge, the yellow tube inside it, the dark backing, an ink
-    // keyline round the whole glyph (it holds it off the lit street), an amber halo beyond. Small type gets a thinner tube (the strokes stay open)
-    const pd = 6, P = padM(km0, pd), tw = ks < 60 ? 1.6 : 2.5; yield; const Din = distM(P, 0); yield; const Dout = distM(P, 1); yield;
-    const tubeC = (core, ring, back, halo) => { const c = mk(P.w, P.h), g = c.getContext('2d'), im = g.createImageData(P.w, P.h), D = im.data, cc = rgb(core), rc = rgb(ring), bc = rgb(back), hc = halo ? rgb(halo) : null, kc = rgb(K.ink);
-      for(let y = 0; y < P.h; y++) for(let x = 0; x < P.w; x++){ const i = y * P.w + x; let v = null;
-        if(P.d[i]){ const d = Din[i]; v = thin ? (d >= 2.5 ? cc : rc) : d <= 1 ? cc : d <= tw ? rc : bc; }   // (a pixel-face stroke is all tube: the hot core down its middle)
-        else if(Dout[i] <= 1) v = kc;
-        else if(hc){ const d = Dout[i], lv = d <= 2 ? .5 : d <= 3.5 ? .25 : d <= 5.5 ? .1 : 0; if(BAY[(y & 3) * 4 + (x & 3)] < lv) v = hc; }
-        if(v){ D[i * 4] = v[0]; D[i * 4 + 1] = v[1]; D[i * 4 + 2] = v[2]; D[i * 4 + 3] = 255; } }
-      g.putImageData(im, 0, 0); return c; }; yield;
-    L.neon = [tubeC(K.hot, K.tube, K.n0, K.am)]; yield; L.neon.push(tubeC(K.tube, '#7a5a14', K.n0, null)); yield; L.neon.push(tubeC('#30385a', K.glass, K.n0, null)); yield;   // lit, half, dead glass
-    L.nx = L.kx + 2 - pd; yield; L.ny = L.ky + 2 - pd; yield;
-    { const R = rnd(9), pts = []; for(let y = 0; y < P.h; y++) for(let x = 0; x < P.w; x++) if(P.d[y * P.w + x] && Din[y * P.w + x] <= 1) pts.push(x, y); yield;
-      L.tsp = []; for(let k = 0; k < 12 && pts.length; k++){ const j = Math.floor(R() * pts.length / 2) * 2; L.tsp.push([L.nx + pts[j], L.ny + pts[j + 1]]); } yield; }   // spark points on the tube
-    // BLACKOUT on an ink tape (the Akiba yellow hairline), the caption letter-spaced
-    const tpx = Math.round(nar ? Math.min(cw * .12, ch * .05) : Math.min(ch * .068, cw * .05)), tm = textM('BLACKOUT', 'dela', tpx, { track:Math.max(1, Math.round(tpx * .14)), max:cw - 24 }); yield;
-    const tt = (yield* inkedG(tm, { fill:(x, y) => y < tm.h * .55 ? K.m3 : K.m2, sh:K.rim, sx:1, sy:2 })); yield;
-    L.lab = tapeC(tt, K.ink, K.tube); yield;
-    const caps = ['AKIHABARA  //  THEN EVERY SIGN AT ONCE', 'THEN EVERY SIGN AT ONCE', 'EVERY SIGN AT ONCE', 'AKIHABARA']; let cs = caps[caps.length - 1]; yield;
-    for(const s of caps) if(s.length * 5 <= (nar ? cw - 12 : cw * .5)){ cs = s; break; } yield; L.sub = capC(cs, K.m2, K.ink); yield;
-    if(nar){ L.lx = Math.max(2, Math.round((cw - L.lab.width) / 2)); yield; L.ly = L.ky + full.height + 2; yield; }
-    else { L.lx = L.kx + full.width + Math.round(cw * .02); yield; L.ly = L.ky + full.height - L.lab.height - L.sub.height - 4; yield; } yield;
-    L.sx = nar ? Math.max(2, Math.round((cw - L.sub.width) / 2)) : L.lx + 4; yield; L.sy = L.ly + L.lab.height + 1; yield;
-    // the moon: behind the far roofs (washed out by the haze while the street is lit)
-    const mr = Math.max(4, Math.round(PH * (nar ? .065 : .12))), mx = Math.round(nar ? cw - mr - 6 : cw * .75), my = Math.round(nar ? mr + 3 : PH * .3); yield;
-    // the street: building faces with window grids; on each (right of the title) a backlit box sign under the roof and a tategaki board on an edge
-    const R = rnd(61), WV = ['電気街', 'ラジオ', '無線', '部品', 'パソコン', '家電', '音響', 'ゲーム', '中古', '免税'], WH = ['電気', '無線', '部品', '家電', '中古', '免税', '音響'], NEON = [K.red, K.grn, K.cy, K.mg, K.tube, K.am]; yield;
-    const blds = [], signs = [], tR = nar ? -1 : L.kx + full.width + 4; yield;   // (no boards behind the title; the tape covers the ones under it once it lands)
-    for(let x = -3; x < cw; ){ const bw = Math.round((nar ? 22 : 30) + R() * (nar ? 14 : 40)); let roof = Math.round(PH * (.1 + R() * .3)); if(Math.abs(x + bw / 2 - mx) < mr + bw / 2 + 3) roof = Math.max(roof, my + mr + 5); blds.push([x, roof, bw, R() < .45 ? Math.floor(R() * 3) : -1]); x += bw + 1; } yield;
-    for(const [x, roof, bw] of blds){ if(x + bw < tR) continue; let y0 = roof + 3;
-      if(bw >= 40 && R() < .8){ const m = textM(WH[Math.floor(R() * WH.length)], 'dot', 16, {}); if(m.w + 10 <= bw - 2 && x + (bw - m.w - 8) / 2 - 3 > tR){ signs.push({ k:'h', x:Math.round(x + (bw - m.w - 8) / 2), y:y0, w:m.w + 8, h:m.h + 6, m, col:NEON[Math.floor(R() * NEON.length)] }); y0 += m.h + 9; } }
-      const room = Math.floor((yb(x + bw) - 5 - y0 - 6) / 16); if(room >= 2){ const ws = WV.filter(w => [...w].length <= room); if(ws.length){ const m = textM(ws[Math.floor(R() * ws.length)], 'dot', 16, { vert:true }); let sx0 = R() < .5 ? x + 2 : x + bw - m.w - 8; if(sx0 - 3 < tR) sx0 = x + bw - m.w - 8;
-          if(sx0 - 3 >= tR) signs.push({ k:'v', x:Math.round(sx0), y:y0, w:m.w + 6, h:m.h + 6, m, col:NEON[Math.floor(R() * NEON.length)] }); } } } yield;
-    const lit = mk(cw, H), dead = mk(cw, H); yield;
-    // the sky: lit, a navy night under a warm haze that hides the moon; dead, the sky now lighter than the city, the moon out, a few stars
-    yield* toneG(lit, K.n0, () => 1, 'bay'); yield; yield* toneG(lit, K.haze, (x, y) => clamp01(y / (PH * .55)) * .62, 'bay'); yield;
-    yield* toneG(lit, K.rim, (x, y) => Math.hypot(x - mx, y - my) < mr ? .25 : 0, 'bay', mx - mr - 1, my - mr - 1, mr * 2 + 2, mr * 2 + 2); yield;
-    yield* toneG(dead, K.n1, () => 1, 'bay'); yield; yield* toneG(dead, K.dk, (x, y) => clamp01(1 - y / (PH * .7)) * .5, 'bay'); yield;
-    yield* toneG(dead, K.rim, (x, y) => { const r = Math.hypot(x - mx, y - my) / mr; return r < 1 ? 0 : r < 1.6 ? .5 : r < 2.4 ? .25 : 0; }, 'bay', mx - mr * 3, my - mr * 3, mr * 6, mr * 6); yield;
-    yield* toneG(dead, K.m3, (x, y) => Math.hypot(x - mx, y - my) < mr ? 1 : 0, 'bay', mx - mr - 1, my - mr - 1, mr * 2 + 2, mr * 2 + 2); yield;
-    yield* toneG(dead, K.m2, (x, y) => { const r = Math.hypot(x - mx, y - my); return r < mr && Math.hypot(x - mx + mr * .45, y - my + mr * .35) > mr * .95 ? .6 : 0; }, 'dot', mx - mr - 1, my - mr - 1, mr * 2 + 2, mr * 2 + 2); yield;   // its shaded limb, halftone
-    { const g = ctx(dead), Rs = rnd(5); yield; g.fillStyle = K.m1; for(let i = 0; i < cw / 22; i++){ const x = Math.floor(Rs() * cw), y = Math.floor(Rs() * PH * .3); if(Math.hypot(x - mx, y - my) > mr * 2.6) g.fillRect(x, y, 1, 1); } yield; }
-    // the buildings: lit faces (sign spill) with warm and fluorescent windows; dead, black blocks with a moonlit roof edge and two windows on a generator
-    { const gl = ctx(lit), gd = ctx(dead), Rw = rnd(17); let isl = 0; yield;
-      for(const [x, roof, bw, ant] of blds){ gl.fillStyle = K.n1; gl.fillRect(x, roof, bw, H - roof); gd.fillStyle = K.ink; gd.fillRect(x, roof, bw, H - roof); gd.fillStyle = K.rim; gd.fillRect(x, roof, bw, 1);
-        if(ant >= 0){ const ax = x + 3 + ant * Math.floor(bw / 4), ah = 4 + ant * 2; for(const [g2, c1] of [[gl, K.n1], [gd, K.ink]]){ g2.fillStyle = c1; g2.fillRect(ax, roof - ah, 1, ah); g2.fillRect(ax - 1, roof - ah + 1, 3, 1); if(ant === 1){ g2.fillRect(ax + 4, roof - 4, 6, 4); } } gd.fillStyle = K.rim; gd.fillRect(ax, roof - ah, 1, 1); if(ant === 1) gd.fillRect(ax + 4, roof - 4, 6, 1); }
-        // floors: a lit floor is a strip of windows between the pillars (offices, all on or all off), warm or fluorescent; a few odd windows
-        for(let y = roof + 5; y < H - 3; y += 6){ const r = Rw(), on = r < .38, col = Rw() < .6 ? K.win : K.fl; gl.fillStyle = col;
-          for(let wx = x + 2; wx < x + bw - 4; wx += 5){ if(on || Rw() < .06){ gl.fillRect(wx, y, 3, 2); if(!on && isl < 3 && Rw() < .05){ isl++; gd.fillStyle = K.am; gd.fillRect(wx, y, 3, 2); } } } } } yield; }
-    // the signs, lit (box: a backlit panel, pale glyphs; board: neon glyphs and a tube rim on a dark back) with a dithered halo; dead: glass, a moonlit top
-    for(const s of signs){ yield* toneG(lit, s.col, (x, y) => { const dx = Math.max(s.x - x, x - (s.x + s.w - 1), 0), dy = Math.max(s.y - y, y - (s.y + s.h - 1), 0), d = Math.max(dx, dy); return d < 1 ? 0 : d <= 2 ? .5 : d <= 4 ? .25 : 0; }, 'bay', s.x - 5, s.y - 5, s.w + 10, s.h + 10);
-      const gl = ctx(lit), gd = ctx(dead), box = s.k === 'h';
-      gl.fillStyle = K.ink; gl.fillRect(s.x - 1, s.y - 1, s.w + 2, s.h + 2); gl.fillStyle = box ? s.col : K.n0; gl.fillRect(s.x, s.y, s.w, s.h); if(!box){ gl.fillStyle = s.col; gl.strokeStyle = s.col; gl.fillRect(s.x, s.y, s.w, 1); gl.fillRect(s.x, s.y + s.h - 1, s.w, 1); gl.fillRect(s.x, s.y, 1, s.h); gl.fillRect(s.x + s.w - 1, s.y, 1, s.h); }
-      gl.drawImage(paint(s.m, box ? K.hot : s.col), s.x + Math.round((s.w - s.m.w) / 2), s.y + 3);
-      gd.fillStyle = K.ink; gd.fillRect(s.x - 1, s.y - 1, s.w + 2, s.h + 2); gd.fillStyle = box ? K.dk : K.n0; gd.fillRect(s.x, s.y, s.w, s.h); gd.fillStyle = K.glass; if(!box){ gd.fillRect(s.x, s.y + s.h - 1, s.w, 1); gd.fillRect(s.x, s.y, 1, s.h); gd.fillRect(s.x + s.w - 1, s.y, 1, s.h); }
-      gd.drawImage(paint(s.m, K.glass), s.x + Math.round((s.w - s.m.w) / 2), s.y + 3); gd.fillStyle = K.rim; gd.fillRect(s.x - 1, s.y - 1, s.w + 2, 1); yield; }
-    cutBelow(lit, yb); yield; cutBelow(dead, yb); yield;
-    const dim = mk(cw, H); yield; ctx(dim).drawImage(dead, 0, 0); yield; ctx(dim).drawImage(ditherC(lit, 2), 0, 0); yield;   // a column stuttering: half its light
-    L.lit = lit; yield; L.dim = dim; yield; L.dead = dead; yield;
-    // the band's foot: a moonlit hairline, the ink keyline, a hard navy shadow offset down and right
-    const fr = mk(cw, H); yield;
-    yield* toneG(fr, K.dk, (x, y) => { const e = Math.floor(yb(x - 3)); return y >= e + 2 && y < e + 6 ? 1 : 0; }, 'bay'); yield;
-    yield* toneG(fr, K.ink, (x, y) => { const e = Math.floor(yb(x)); return y >= e && y < e + 2 ? 1 : 0; }, 'bay'); yield;
-    yield* toneG(fr, K.m1, (x, y) => y === Math.floor(yb(x)) - 1 ? 1 : 0, 'bay'); yield; L.fr = fr; yield;
-    // the columns the dark takes, from the far end toward the title; a spark point on a sign tube in each
-    const N = nar ? 6 : 14; yield; L.N = N; yield; L.cx = []; yield; for(let i = 0; i <= N; i++) L.cx.push(Math.round(i * cw / N)); yield;
-    L.td = []; yield; for(let i = 0; i < N; i++) L.td.push(.16 + (N - 1 - i) / (N - 1) * .46); yield;
-    L.spk = L.cx.slice(0, N).map((x0, i) => { const s = signs.find(q => q.x >= x0 && q.x < L.cx[i + 1]); return s ? [s.x + (s.k === 'h' ? 2 : s.w - 2), s.y + 1] : null; }); yield;
-    L.fz = .7; yield; L.kt = L.fz + TD_FZ.length * TD_FS + .06; yield;
-    return L; },
-  draw(g, t, L, rm, cw, ch){
-    // entry: the band drops in four hard steps, the whole street lit
-    const dy = rm ? 0 : -Math.round((1 - stepq(t / .12, 4)) * (L.PH + 14)), hc = L.lit.height;
-    g.save(); g.translate(0, L.top + dy);
-    // the dark rolls across it column by column, each column stuttering out with a spark at its tube
-    for(let i = 0; i < L.N; i++){ const s = rm ? 2 : tdSt(t - L.td[i]), c = s === 0 ? L.lit : s === 1 ? L.dim : L.dead, x0 = L.cx[i], w = L.cx[i + 1] - x0; if(w > 0) g.drawImage(c, x0, 0, w, hc, x0, 0, w, hc);
-      if(s === 1 && L.spk[i]){ const [sx, sy] = L.spk[i]; g.fillStyle = '#ffffff'; g.fillRect(sx - 1, sy, 3, 1); g.fillRect(sx, sy - 1, 1, 3); g.fillStyle = '#ffd890'; g.fillRect(sx + 2, sy - 2, 1, 1); g.fillRect(sx - 2, sy + 2, 1, 1); } }
-    B(g, L.fr, 0, 0);
-    // 停電, the last light: lit, it fizzes and dies (a beat of dark, the breakers' thump), then it is there again carved in moonlight
-    if(!rm){ const u = t - L.fz, f = u < 0 ? -1 : Math.floor(u / TD_FS), s = f < 0 ? 0 : f < TD_FZ.length ? TD_FZ[f] : 2; B(g, L.neon[s], L.nx, L.ny);
-      if(f >= 0 && f < TD_FZ.length && s !== 2){ g.fillStyle = '#ffffff'; for(const k of [f, f * 5 + 3]){ const p = L.tsp[k % L.tsp.length]; if(p){ g.fillRect(p[0] - 1, p[1], 3, 1); g.fillRect(p[0], p[1] - 1, 1, 3); } } }
-      if(f >= TD_FZ.length && !L.hit){ L.hit = true; kick(3); } }
-    const lv = rm ? 3 : Math.floor((t - L.kt) / .06); if(lv >= 0) B(g, L.kjL[Math.min(3, lv)], L.kx, L.ky);
-    if(rm || t > L.kt + .04){ const sl = rm ? 0 : Math.round((1 - stepq((t - L.kt - .04) / .1, 3)) * 50); B(g, L.lab, L.lx - sl, L.ly); }
-    if(rm || t > L.kt + .12){ const n = rm ? L.sub.width : Math.min(L.sub.width, Math.floor((t - L.kt - .12) / .012) * 6); if(n > 0) g.drawImage(L.sub, 0, 0, n, L.sub.height, L.sx, L.sy, n, L.sub.height); }
-    g.restore(); } };
+const TDK = { ink:'#06050b', um:'#3b2733', am:'#ffb23c', hot:'#fff0c0', dp:'#a8501a' };
+// the rider (boss variant), side on, facing left, on the 1-bit grid: '#' ink, 'h' the headlight; his top edges take the sky's rim
+const TD_RIDER = ['..............##..................', '.............####.................', '.............####.........##......', '............#####..........#......',
+  '.............###...........#......', '............#####..........#......', '...........#######.........#......', '..........########........##......', '.........###.#####........##......',
+  '........##...######....#####......', '....####.....#######.#######......', '...h####....###########.###.......', '..hh###########################...', '...##########################.###.',
+  '....#######################.....##', '...#####..#############..#####....', '..##...##...#########...##...##...', '.##.....##....####.....##.....##..', '.##..#..##.............##..#..##..',
+  '.##.....##.............##.....##..', '..##...##...............##...##...', '...#####.................#####....'];
+function* tdBuild(cw, ch, nar, boss){ const L = {}, K = TDK; yield;
+  const top = nar ? Math.round(ch * .2) : 0; L.top = top; let PH = Math.round(ch * (nar ? .36 : .38)); yield;
+  // 停電 as AVALANCHE sets 雪崩: one mask; a white-hot face over sodium amber (the split at 58%), a 2 px ink rim, a burnt offset shadow
+  const ks = Math.round(nar ? Math.min(cw * .3, PH * .45) : Math.min(PH * .62, cw * .13)); yield;   // (phones: AVALANCHE's own ~.3 of the width)
+  const thin = ks < 72, pk = Math.max(2, Math.round(ks / 16)); yield;   // (under ~72 px Dela's 停 and 電 fill in: the hand-drawn pair, whole-pixel scaled)
+  const km = thin ? handM('停電', { track:pk * 2 }, pk) : textM('停電', 'dela', ks, { track:Math.round(ks * .06) }); yield;
+  const sx = Math.max(2, Math.round(ks * .07)), sy = Math.max(2, Math.round(ks * .05)); yield;
+  const solid = (yield* inkedG(km, { fill:(x, y) => y < km.h * .58 ? K.hot : K.am, line:K.ink, lw:2, sh:K.dp, sx, sy })); yield;
+  const spr = Math.max(1, Math.round(ks * .03)); L.kp = spr + 1; yield; L.kjS = solid; yield; L.kj = shatterC(solid, 29, 3, .8, spr); yield; L.kjW = whiteOf(solid); yield;   // (the shards' canvas is padded by kp: the solid frames sit kp in)
+  const kw = L.kj.width, kh = L.kj.height; yield;
+  // BLACKOUT on the card's slanted label (an ink parallelogram, the amber face), its 3x5 sub-line under it, as AVALANCHE's
+  const tpx = Math.round(Math.min(ch * .085, cw * (nar ? .085 : .055))), tm = textM('BLACKOUT', 'dela', tpx, { track:2, max:cw - 24 }), tt = paint(tm, K.ink); yield;
+  const subs = boss ? ['YOIYAMI RENGO  //  OUT OF THE DARK', 'YOIYAMI RENGO', 'OUT OF THE DARK'] : ['AKIHABARA  //  EVERY SIGN AT ONCE', 'EVERY SIGN AT ONCE', 'AKIHABARA']; yield;
+  const room = nar ? cw - 16 : cw * .55; let ss = subs[subs.length - 1]; for(const s of subs) if(s.length * 4 + 20 <= room){ ss = s; break; } yield;
+  const st = paint(t3M(ss), K.um), lw = Math.max(tt.width, st.width) + 16, lab = mk(lw + 10, tt.height + st.height + 12), lg = ctx(lab); yield;
+  lg.fillStyle = K.ink; lg.beginPath(); lg.moveTo(8, 0); lg.lineTo(lab.width, 0); lg.lineTo(lab.width - 8, lab.height); lg.lineTo(0, lab.height); lg.fill(); yield;
+  lg.fillStyle = K.am; lg.beginPath(); lg.moveTo(9, 1); lg.lineTo(lab.width - 2, 1); lg.lineTo(lab.width - 9, lab.height - 1); lg.lineTo(1, lab.height - 1); lg.fill(); bin(lab); yield;
+  lg.drawImage(tt, 12, 4); lg.drawImage(st, 10, tt.height + 6); L.lab = lab; yield;
+  L.tag = boss ? capC('RIVAL BOSS', K.am, K.ink) : null; yield;
+  // placing: beside the kanji on wide screens (its foot on the kanji's), under it on phones (the band grows to hold them and the rider)
+  L.kx = nar ? Math.round((cw - kw) / 2) : Math.max(Math.round(cw * .04), tagClear(cw, nar)); yield;
+  if(nar){ L.ky = Math.round(PH * .06); yield; L.lx = Math.max(2, Math.round((cw - lab.width) / 2)); yield; L.ly = L.ky + kh + 2; yield; PH = Math.max(PH, L.ly + lab.height + (boss ? 30 : 12)); yield; }
+  const sk = Math.round(PH * (nar ? .08 : .16)), H = PH + 8, yb = x => PH - sk * x / cw; yield; L.PH = PH; yield;
+  if(!nar){ L.ky = Math.max(Math.round((yb(L.kx + kw / 2) - kh) * .5), Math.min(homeClear(ch, nar), Math.floor(yb(L.kx + kw) - kh - 2))); yield;
+    L.lx = L.kx + kw + Math.round(cw * .02); yield; L.ly = L.ky + kh - lab.height - 2; yield; }
+  if(L.tag){ L.gx = L.lx + 10; yield; L.gy = L.ly - L.tag.height - 1; yield; }
+  // the street: building faces (window grids), a backlit box sign under a wide roof, a tategaki board down an edge; none behind the title
+  const R = rnd(61), WV = ['電気街', 'ラジオ', '無線', '部品', 'パソコン', '家電', '音響', 'ゲーム', '中古', '免税'], WH = ['電気', '無線', '部品', '家電', '中古', '免税', '音響']; yield;
+  const blds = [], signs = [], tR = nar ? -1 : L.kx + kw + 2, rW = TD_RIDER[0].length, rx0 = nar ? Math.round(cw * .96 - rW) : Math.min(cw - rW - 3, Math.max(Math.round(cw * .9 - rW), L.lx + L.lab.width + 6)), gap = x => boss && x > rx0 - 10 && x < rx0 + rW + 10; yield;   // (boss: a cross street left open round the rider, so the far glow backlights him)
+  for(let x = -3; x < cw; ){ const bw = Math.round((nar ? 22 : 28) + R() * (nar ? 14 : 36)); if(!boss || x + bw < rx0 - 10 || x > rx0 + rW + 10) blds.push([x, Math.round(PH * (.1 + R() * .32)), bw]); else if(x < rx0 - 10) blds.push([x, Math.round(PH * (.1 + R() * .32)), rx0 - 11 - x]); x += bw + 1; } yield;
+  for(const [x, roof, bw] of blds){ if(x + bw < tR) continue; let y0 = roof + 3;
+    if(bw >= 40 && R() < .8){ const m = textM(WH[Math.floor(R() * WH.length)], 'dot', 16, {}); if(m.w + 10 <= bw - 2 && x + (bw - m.w - 8) / 2 - 3 > tR){ signs.push({ k:'h', x:Math.round(x + (bw - m.w - 8) / 2), y:y0, w:m.w + 8, h:m.h + 6, m }); y0 += m.h + 9; } }
+    const rm2 = Math.floor((yb(x + bw) - 5 - y0 - 6) / 16); if(rm2 >= 2){ const ws = WV.filter(w => [...w].length <= rm2); if(ws.length){ const m = textM(ws[Math.floor(R() * ws.length)], 'dot', 16, { vert:true }); let sx0 = R() < .5 ? x + 2 : x + bw - m.w - 8; if(sx0 - 3 < tR) sx0 = x + bw - m.w - 8;
+        if(sx0 - 3 >= tR) signs.push({ k:'v', x:Math.round(sx0), y:y0, w:m.w + 6, h:m.h + 6, m }); } } } yield;
+  // far towers behind the strip (Akiba's office blocks over the electric town): thin, tall, a red-less night
+  const far = []; { const Rf = rnd(13); for(let x = Math.round(cw * .08); x < cw; x += Math.round(cw * (nar ? .3 : .14) + Rf() * cw * .1)){ const fw = Math.round(10 + Rf() * 14), ft = Math.round(PH * (.02 + Rf() * .12)); if(!gap(x) && !gap(x + fw)) far.push([x, ft, fw]); } } yield;
+  const lit = mk(cw, H), dead = mk(cw, H); yield;
+  // the sky: the city's light on the haze, dithered in umber over ink; dead, the haze keeps the far districts' glow, now LIGHTER than the city
+  yield* toneG(lit, K.ink, () => 1, 'bay'); yield; yield* toneG(lit, K.um, (x, y) => clamp01((y / PH - .02) * 1.5) * .9, 'bay'); yield;
+  yield* toneG(lit, K.am, (x, y) => clamp01((y / PH - .3) * 1.2) * .22, 'bay'); yield;
+  yield* toneG(dead, K.ink, () => 1, 'bay'); yield; yield* toneG(dead, K.um, (x, y) => clamp01(y / PH * 1.7 + .1), 'bay'); yield;   // solid umber from about half way down: the black city stands against it
+  { const gl = ctx(lit), gd = ctx(dead), Rw = rnd(17); yield;
+    // far towers: lit, ink with scattered amber floors; dead, ink against the glow
+    for(const [x, t0, w] of far){ for(const g2 of [gl, gd]){ g2.fillStyle = K.ink; g2.fillRect(x, t0, w, H - t0); } gl.fillStyle = K.am; for(let y = t0 + 3; y < H; y += 4) for(let wx = x + 2; wx < x + w - 2; wx += 3) if(Rw() < .3) gl.fillRect(wx, y, 1, 1); } yield;
+    // the strip: a lit floor is a strip of windows between the pillars (offices: all on or all off), a few odd cells, a white-hot one now and then
+    for(const [x, roof, bw] of blds){ for(const g2 of [gl, gd]){ g2.fillStyle = K.ink; g2.fillRect(x, roof, bw, H - roof); } gd.fillStyle = K.um; gd.fillRect(x, roof, bw, 1); gl.fillStyle = K.um; gl.fillRect(x, roof, bw, 1);
+      for(let y = roof + 4; y < H - 3; y += 5){ const on = Rw() < .55; for(let wx = x + 2; wx < x + bw - 3; wx += 4){ if(on || Rw() < .07){ gl.fillStyle = Rw() < .12 ? K.hot : K.am; gl.fillRect(wx, y, 2, 2); } } } } yield; }
+  // the signs, lit (box: an amber panel, ink glyphs; board: amber glyphs and rim on ink) with a dithered halo; dead: umber glass
+  for(const s of signs){ yield* toneG(lit, K.am, (x, y) => { const dx = Math.max(s.x - x, x - (s.x + s.w - 1), 0), dy = Math.max(s.y - y, y - (s.y + s.h - 1), 0), d = Math.max(dx, dy); return d < 1 ? 0 : d <= 2 ? .5 : d <= 4 ? .2 : 0; }, 'bay', s.x - 5, s.y - 5, s.w + 10, s.h + 10);
+    const gl = ctx(lit), gd = ctx(dead), box = s.k === 'h';
+    gl.fillStyle = K.ink; gl.fillRect(s.x - 1, s.y - 1, s.w + 2, s.h + 2); gl.fillStyle = box ? K.am : K.ink; gl.fillRect(s.x, s.y, s.w, s.h);
+    if(!box){ gl.fillStyle = K.am; gl.fillRect(s.x, s.y, s.w, 1); gl.fillRect(s.x, s.y + s.h - 1, s.w, 1); gl.fillRect(s.x, s.y, 1, s.h); gl.fillRect(s.x + s.w - 1, s.y, 1, s.h); }
+    gl.drawImage(paint(s.m, box ? K.ink : K.hot), s.x + Math.round((s.w - s.m.w) / 2), s.y + 3);
+    gd.fillStyle = K.ink; gd.fillRect(s.x - 1, s.y - 1, s.w + 2, s.h + 2); gd.fillStyle = K.um; gd.fillRect(s.x - 1, s.y - 1, s.w + 2, 1); if(!box){ gd.fillRect(s.x, s.y + s.h - 1, s.w, 1); gd.fillRect(s.x, s.y, 1, s.h); gd.fillRect(s.x + s.w - 1, s.y, 1, s.h); }
+    gd.drawImage(paint(s.m, K.um), s.x + Math.round((s.w - s.m.w) / 2), s.y + 3); yield; }
+  cutBelow(lit, yb); yield; cutBelow(dead, yb); yield;
+  const dim = mk(cw, H); yield; ctx(dim).drawImage(dead, 0, 0); yield; ctx(dim).drawImage(ditherC(lit, 2), 0, 0); yield;   // a column stuttering: half its light
+  L.lit = lit; yield; L.dim = dim; yield; L.dead = dead; yield;
+  // the pole and its wires: an ink silhouette over the street (lit or dead), its transformer the wave's flash point
+  const px = Math.round(cw * (nar ? .86 : boss ? .7 : .78)), pt = Math.round(PH * .04), pole = mk(cw, H); yield;
+  { const g = ctx(pole); g.fillStyle = K.ink; g.fillRect(px - 1, pt, 3, Math.ceil(yb(px)) - pt); g.fillRect(px - 9, pt + 4, 19, 2); g.fillRect(px - 7, pt + 9, 15, 1);
+    g.fillRect(px + 3, pt + 12, 5, 8); g.fillStyle = K.um; g.fillRect(px + 3, pt + 12, 5, 1); g.fillRect(px - 1, pt, 3, 1); g.fillRect(px - 9, pt + 4, 19, 1);
+    g.fillStyle = K.ink; for(const [ax, sag] of [[px - 8, .14], [px + 8, .12], [px - 6, .1]]) for(const [x0, x1] of [[-2, ax], [ax, cw + 2]]){ const len = x1 - x0, s = Math.min(PH * sag, len * .12);
+      for(let x = x0; x <= x1; x++){ const u = (x - x0) / Math.max(1, len); g.fillRect(x, Math.round(pt + 4 + 4 * u * (1 - u) * s), 1, 1); } } } yield;
+  cutBelow(pole, yb); yield; L.pole = pole; yield; L.ptx = px + 5; yield; L.pty = pt + 12; yield;
+  // the band's foot: a hairline of the glow, the ink keyline, an umber shadow stepped down and right
+  const fr = mk(cw, H); yield;
+  yield* toneG(fr, K.um, (x, y) => { const e = Math.floor(yb(x - 3)); return y >= e + 2 && y < e + 5 ? (y < e + 4 ? 1 : .5) : 0; }, 'bay'); yield;
+  yield* toneG(fr, K.ink, (x, y) => { const e = Math.floor(yb(x)); return y >= e && y < e + 2 ? 1 : 0; }, 'bay'); yield;
+  yield* toneG(fr, K.am, (x, y) => y === Math.floor(yb(x)) - 1 ? .5 : 0, 'bay'); yield; L.fr = fr; yield;
+  // the columns the dark takes, from the far end toward the title; a spark point on a sign in each
+  const N = nar ? 6 : 14; yield; L.N = N; yield; L.cx = []; yield; for(let i = 0; i <= N; i++) L.cx.push(Math.round(i * cw / N)); yield;
+  L.td = []; yield; for(let i = 0; i < N; i++) L.td.push(.14 + (N - 1 - i) / (N - 1) * .42); yield;
+  L.spk = L.cx.slice(0, N).map((x0, i) => { const s = signs.find(q => q.x >= x0 && q.x < L.cx[i + 1]); return s ? [s.x + (s.k === 'h' ? 2 : s.w - 2), s.y + 1] : null; }); yield;
+  { const pc = Math.min(N - 1, Math.floor(px * N / cw)); L.pft = L.td[pc] + .02; yield; }
+  // the light left: a generator's three windows low on the far right (plain), or the rider at the kerb and his headlight (boss)
+  if(!boss){ const lx = Math.round(cw * (nar ? .9 : .93)), ly = nar ? Math.round(L.ky + kh * .55) : Math.round(yb(lx) - 12), lone = mk(16, 12), g = ctx(lone); yield;
+    yield* toneG(lone, K.am, (x, y) => { const d = Math.max(Math.abs(x - 7.5) - 4, Math.abs(y - 5.5) - 1.5, 0); return d < 1 ? 0 : d <= 2 ? .5 : d <= 4 ? .2 : 0; }, 'bay'); yield;
+    g.fillStyle = K.am; g.fillRect(3, 5, 2, 2); g.fillRect(7, 5, 2, 2); g.fillRect(11, 5, 2, 2); g.fillStyle = K.hot; g.fillRect(7, 5, 1, 1); yield;
+    L.lone = lone; yield; L.lnx = lx - 8; yield; L.lny = ly - 5; yield; L.lnt = L.td[Math.min(N - 1, Math.floor(lx * N / cw))] + .1; yield; }
+  else { const w = TD_RIDER[0].length, h = TD_RIDER.length, M = { w, h, d:new Uint8Array(w * h) }; let hx = 0, hy = 0; yield;
+    TD_RIDER.forEach((row, y) => [...row].forEach((c, x) => { if(c !== '.') M.d[y * w + x] = 1; if(c === 'h' && !hx){ hx = x; hy = y; } })); yield;
+    const rider = mk(w, h), on = mk(w, h); yield;
+    for(const [c, lamp] of [[rider, K.ink], [on, K.hot]]){ const g = ctx(c); TD_RIDER.forEach((row, y) => [...row].forEach((ch2, x) => { if(ch2 === '.') return; g.fillStyle = ch2 === 'h' ? lamp : !at(M, x, y - 1) ? K.um : K.ink; g.fillRect(x, y, 1, 1); })); } yield;
+    L.rider = rider; yield; L.riderOn = on; yield; L.rx = rx0; yield; L.ry = Math.round(yb(L.rx + w) - h - 1); yield;
+    // the beam: a dithered cone out to the left along the kerb, three steps long
+    L.beam = []; yield; const bx = L.rx + hx, by = L.ry + hy; yield;
+    for(const n of [1, 2, 3]){ const len = Math.round(cw * (nar ? .3 : .22) * n / 3), c = mk(len + 2, 20); yield;
+      yield* toneG(c, K.am, (x, y) => { const u = 1 - x / len; if(u < 0) return 0; const half = 1 + (1 - u) * 8; return Math.abs(y - 9) > half ? 0 : u > .8 ? .5 : u > .45 ? .25 : .12; }, 'bay'); yield;
+      L.beam.push(c); yield; }
+    L.bmx = bx; yield; L.bmy = by - 9; yield; L.lnt = .98; yield; }
+  return L; }
+function tdDraw(g, t, L, rm, cw, ch, boss){ const dy = rm ? 0 : -Math.round((1 - stepq(t / .12, 4)) * (L.PH + 14)), hc = L.lit.height;
+  g.save(); g.translate(0, L.top); g.beginPath(); g.rect(0, 0, cw, hc + 2); g.clip(); g.translate(0, dy);
+  // the dark takes the street column by column, each one stuttering out with a spark at its sign
+  for(let i = 0; i < L.N; i++){ const s = rm ? 2 : tdSt(t - L.td[i]), c = s === 0 ? L.lit : s === 1 ? L.dim : L.dead, x0 = L.cx[i], w = L.cx[i + 1] - x0; if(w > 0) g.drawImage(c, x0, 0, w, hc, x0, 0, w, hc);
+    if(s === 1 && L.spk[i]){ const [sx, sy] = L.spk[i]; g.fillStyle = TDK.hot; g.fillRect(sx - 1, sy, 3, 1); g.fillRect(sx, sy - 1, 1, 3); g.fillStyle = TDK.am; g.fillRect(sx + 2, sy - 2, 1, 1); g.fillRect(sx - 2, sy + 2, 1, 1); } }
+  // the light left over
+  if(L.lone){ const u = t - L.lnt, on = rm || (u >= 0 && !(u > .02 && u < .07) && !(t > 1.36 && t < 1.4) && !(t > 1.44 && t < 1.47)); if(on) B(g, L.lone, L.lnx, L.lny); }
+  if(L.rider){ const u = t - L.lnt, lv = rm ? 3 : u < 0 ? 0 : u < .03 ? 1 : u < .06 ? 0 : 1 + Math.min(2, Math.floor((u - .06) / .05)); if(lv) B(g, L.beam[lv - 1], L.bmx - L.beam[lv - 1].width, L.bmy); B(g, lv ? L.riderOn : L.rider, L.rx, L.ry); }
+  B(g, L.pole, 0, 0); B(g, L.fr, 0, 0);
+  // the transformer flashes as the wave passes the pole: two white-hot frames and an amber one
+  if(!rm){ const u = t - L.pft; if(u < 0) L.hitP = false; if(u >= 0 && u < .09){ const r = u < .06 ? 3 : 2, x = L.ptx, y = L.pty; g.fillStyle = u < .06 ? TDK.hot : TDK.am; g.fillRect(x - r, y, r * 2 + 1, 1); g.fillRect(x, y - r, 1, r * 2 + 1); g.fillRect(x - 1, y - 1, 3, 3);
+      if(u < .06){ g.fillStyle = TDK.am; for(const [a, b] of [[-3, -3], [3, -3], [-3, 3], [3, 3], [5, 0], [-5, 0]]) g.fillRect(x + a, y + b, 1, 1); } if(u < .03 && !L.hitP){ L.hitP = true; kick(2); } } }
+  // 停電 lands as 雪崩 does: a white impact frame, solid, then cracked with a kick and two frames of jitter
+  if(rm || t > .64){ const k = rm ? 9 : t - .64, img = k < .04 ? L.kjW : k < .12 ? L.kjS : L.kj; if(!rm && k >= .12 && !L.hit){ L.hit = true; kick(5); }
+    const j = !rm && k > .12 && k < .24 ? (Math.floor(t * 40) % 2) : 0, o = img === L.kj ? 0 : L.kp; B(g, img, L.kx + j + o, L.ky + o); }
+  if(rm || t > .76){ const sl = rm ? 0 : Math.round((1 - stepq((t - .76) / .12, 4)) * 70); B(g, L.lab, L.lx + sl, L.ly); if(L.tag && (rm || t > .9)) B(g, L.tag, L.gx, L.gy); }
+  g.restore(); }
+CARDS.teiden = { dur:2.4, out:.4, exit:'fade', hold:1.55, kanji:['停電'], *build(cw, ch, nar){ return yield* tdBuild(cw, ch, nar, false); }, draw(g, t, L, rm, cw, ch){ tdDraw(g, t, L, rm, cw, ch, false); } };
+CARDS.teiden_boss = { dur:2.4, out:.4, exit:'fade', hold:1.55, kanji:['停電'], *build(cw, ch, nar){ return yield* tdBuild(cw, ch, nar, true); }, draw(g, t, L, rm, cw, ch){ tdDraw(g, t, L, rm, cw, ch, true); } };
 
 /* ---------------------------------------------------------------- lava (setpiece/lavabreach.js, director id 'lava'): 溶岩流, Sakurajima breaks.
    ink / crust x3 / night ash x3 / lava red / orange / yellow / white-hot / burnt shadow
@@ -1281,7 +1301,7 @@ function canvasSize(){ return (typeof cx !== 'undefined' && cx) ? [cx.canvas.wid
    The output is the same pixels as the single-pass build: the statements run in the same order, only paused between them. */
 const ROADS = { kaiju:['bay'], typhoon:['coast'], greatwave:['coast'], megalodon:['aqua'], hanabi:['coast', 'neon', 'paddies'], matsuri:['coast', 'neon', 'paddies'],
   shinkansen:['coast', 'paddies', 'tunnels'], fuji:['coast', 'paddies', 'tunnels'], jetwash:['haneda'], fireball:['refinery'], avalanche:['snow'], phantom:['tunnels', 'pass', 'paddies', 'snow', 'kurobe', 'coast', 'shimanami', 'gion'],
-  teiden:['akiba'], lava:['sakurajima'] };   // the roads whose set pieces call each hero card
+  teiden:['akiba'], teiden_boss:['akiba'], lava:['sakurajima'] };   // the roads whose set pieces call each hero card
 const roadsOf = id => id.startsWith('jump:') ? [id.slice(5)] : ROADS[id] || null;
 // the roads of the first minute (read only: never rolls a fork or a route), as warmGate counts them; null when the core is not there (build all)
 function nearRoads(){ try{ if(typeof ROUTE === 'undefined' || typeof LANDS === 'undefined') return null; const S = new Set(), add = i => { if(i !== undefined && LANDS[i]) S.add(LANDS[i].key); };

@@ -138,8 +138,12 @@
         if(DIR && DIR.cine){ let card = CARD; if(MECH.cutin && MECH.cutin.show){ let shown = false; try{ shown = MECH.cutin.show('wheel') !== false; }catch(e){} if(shown) card = null; }
           p.cut = DIR.cine({ letterbox:{ top:.1, bottom:.06 }, duck:.4, shake:reduce ? 0 : 5, guard:{ from:p.H + T0 - 10, to:p.H + T0 + END }, dur:0, card }); }
         const st = pose(p, 0); emit(p, 1, st.z, st.x, st.h, reduce ? 60 : 160, 2.4); }
-      const st = pose(p, Math.max(0, s)), ds = Math.max(0, s - p.lastS); p.lastS = Math.max(p.lastS, s); p.dist += ds;
-      st.rot -= ds * (s < BRK ? .02 : 1) / (WR * 10) * 6.283 * .5; st.broken = s < BRK ? .55 : s < SPLS ? .3 : .3 + .7 * st.sink; st.clock = s < 20 ? '88:88' : '--:--'; st.swing = s < BRK ? .2 : .55; st.lights = 1 - sm((s - SPLS) / 140);
+      const pz = p.st.z, px = p.st.x, pyaw = p.st.yaw, st = pose(p, Math.max(0, s)), ds = Math.max(0, s - p.lastS); p.lastS = Math.max(p.lastS, s); p.dist += ds;
+      // Kellan 2026-11-24: it rolled the wrong way and at the wrong speed. The spin follows the hub's own ground travel along the rim's
+      // plane (rolling without slip: x and r in half-road widths, z/10 likewise), not the rider's progress; and when pose() turns the
+      // plane half a turn (yaw folds to +-pi/2) the angle is mirrored with it, so the spokes, gaps and lights don't jump or run backwards
+      if(Math.abs(st.yaw - pyaw) > Math.PI / 2) st.rot = Math.PI - st.rot;
+      { const tr = (st.x - px) * Math.cos(st.yaw) + (st.z - pz) / 10 * Math.sin(st.yaw); if(s >= 42 && s < SPLS + 10 && Math.abs(tr) < WR) st.rot -= tr / WR * (1 - st.sink); else if(s < 42) st.rot -= ds * .02 / (WR * 10) * 6.283 * .5; } st.broken = s < BRK ? .55 : s < SPLS ? .3 : .3 + .7 * st.sink; st.clock = s < 20 ? '88:88' : '--:--'; st.swing = s < BRK ? .2 : .55; st.lights = 1 - sm((s - SPLS) / 140);
       // the rim's contact: spray in the water, sparks on stone
       const cz = st.z, cxp = st.x; p.sparkT -= dt;
       if(s > 16 && s < SPLS + 20 && p.sparkT <= 0){ p.sparkT = reduce ? .08 : .03; if(st.wet) emit(p, 2, cz, cxp, .1, reduce ? 2 : 5, 1.5); else emit(p, 1, cz, cxp, .05, reduce ? 2 : 6, 1.3); }

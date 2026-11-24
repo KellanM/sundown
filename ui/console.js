@@ -192,6 +192,7 @@ def('gl', '[on|off]', 'GPU pools: live when they were made; otherwise reloads wi
   if(B){ B.on = v === 'on'; log(`gl ${v} (live; a reload brings back the default, on${QS.get('gl') === '0' ? ' unless ?gl=0' : ''})`); return; }
   if(window.GLR_OFF && v === 'on'){ err(`gl can't turn on here: ${window.GLR_OFF}`); return; }
   if(v === 'on'){ log('gl was not made at load: reloading without ?gl=0'); reloadWith('gl', null); } else log('gl is already off'); });
+def('gapviz', '[on|off]', 'paint the ground plane flat magenta so scenery gaps show (reloads)', a => { const on = a[0] ? a[0] !== 'off' : !/[?&]gapviz=1(&|$)/.test(location.search); reloadWith('gapviz', on ? '1' : null); });
 def('land', '<n|key>', 'reload on road n (or its key), keeping the other params', a => { const L = G(() => LANDS) || [];
   if(!a[0]){ log(L.map((l, i) => `${pad(i, 2)} ${padE(l.key, 11)}${l.name}`).join('\n')); return; }
   const v = a[0].toLowerCase(); let i = /^\d+$/.test(v) ? +v : L.findIndex(l => l.key === v || String(l.name).toLowerCase() === v);

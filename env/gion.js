@@ -113,6 +113,424 @@
   function gpick(ch, px){ const T = GA[ch]; if(!T) return null; for(let si = SZ.length - 1; si >= 0; si--){ const g = T[si]; if(g && Math.max(g.w, g.h) * PX <= px) return g; } return null; }
   function glyph(ch, x, y, px){ const g = gpick(ch, px); if(!g || !INK) return false; const w = g.w * PX, h = g.h * PX; if(x + w < 0 || x - w > W || y + h < 0 || y - h > H) return true; cx.drawImage(INK, g.ax, g.ay, g.w, g.h, snp(x - w / 2), snp(y - h / 2), w, h); return true; }
 
+  // ART-BEGIN
+  /* ---------------------------------------------------------------- round 3: the street floor as pixel art (Kellan: "akihabara is the gold
+     standard now for the level of detail"). The bar is Akihabara's retail floor (env/akiba.js shopLayers/interior) and Snow Onsen's inn fronts.
+     References at pixel zoom (research/sundown-craft/gion.md section 8): Hanami-kōji at night (lattices glowing, red chōchin with the linked
+     white roundels), a Kyoto machiya by day (senbon-gōshi in panels with a kiriko top, a heavy lintel, the koshi-ita board under the lattice,
+     ochre plaster), Ninenzaka at night (open shop fronts flooding amber, hanging boards, square lanterns on brackets), Pontochō after rain,
+     noren (a slit cloth with a crest, taken in when the house closes), a sugidama, a battari-shōgi.
+     Every street-floor front is four layers, 160 x 36 (the 128-texel front plus 16 spare each side for the slide), as Akihabara's:
+       0 the room's far side: the ceiling boards, the back wall (shōji, fusuma, the tokonoma, shelves), the floor (tatami, stone);
+       1 the middle of the room: the people, an andon, the low table, the keeper;
+       2 just inside the front: the display case, the counter, the customers' backs;
+       3 the front itself: the lattice (each slat 2 texels, a 1-texel gap: the room shows through), the posts, the lintel, the noren, the
+         koshi-ita and the plinth. It does not slide.
+     The room is drawn in true perspective for a rider's eye (about row 20 of 36): the ceiling recedes down to row ~9, the floor up to ~27.
+     Riding past, the room slides behind the lattice (interior(), the layered parallax of env/akiba.js). Unlit houses: the room is dark and
+     cool, the noren taken in and the door shut. All crests are generic geometry; there is no lettering and no real house's mark. */
+  const aI = (w, h) => ({ w, h, c:new Array(w * h).fill(null) });
+  const aP = (I, x, y, col) => { x = Math.round(x); y = Math.round(y); if(x >= 0 && y >= 0 && x < I.w && y < I.h) I.c[y * I.w + x] = col; };
+  const aG = (I, x, y) => x >= 0 && y >= 0 && x < I.w && y < I.h ? I.c[y * I.w + x] : null;
+  function aF(I, x, y, w, h, col){ for(let yy = y; yy < y + h; yy++) for(let xx = x; xx < x + w; xx++) aP(I, xx, yy, col); }
+  const aHx = c => [parseInt(c.slice(1, 3), 16), parseInt(c.slice(3, 5), 16), parseInt(c.slice(5, 7), 16)];
+  const aHex = (r, g, b) => '#' + [r, g, b].map(v => Math.max(0, Math.min(255, Math.round(v))).toString(16).padStart(2, '0')).join('');
+  const aMix = (a, b, t) => { const p = aHx(a), q = aHx(b); return aHex(p[0] + (q[0] - p[0]) * t, p[1] + (q[1] - p[1]) * t, p[2] + (q[2] - p[2]) * t); };
+  const aDk = (c, t) => aMix(c, '#0a0812', t), aLt = (c, t) => aMix(c, '#fff4dc', t);
+  // an ellipse filled (centre, radii), for bowls, jars, lamps
+  function aE(I, cx0, cy0, rx, ry, col){ for(let y = Math.ceil(cy0 - ry); y <= cy0 + ry; y++) for(let x = Math.ceil(cx0 - rx); x <= cx0 + rx; x++){ const u = (x - cx0) / (rx + .01), v = (y - cy0) / (ry + .01); if(u * u + v * v <= 1.0) aP(I, x, y, col); } }
+  // a person seen from the front (5 wide): hair, face, robe; kneel shortens; back: seen from behind (no face)
+  function aPer(I, x, y, robe, o){ o = o || {}; const hair = o.hair || '#120c10', skin = o.skin || '#e8c0a0', h = o.kneel ? 7 : 11;
+    aF(I, x + 1, y, 3, 2, hair); aP(I, x, y + 1, aDk(hair, .2)); if(o.bun) aF(I, x + 1, y - 1, 3, 1, hair); if(o.pin) aP(I, x + 4, y - 1, o.pin);
+    if(o.back){ aF(I, x + 1, y + 2, 3, 2, hair); } else { aF(I, x + 1, y + 2, 3, 2, skin); aP(I, x + 3, y + 3, aDk(skin, .25)); }
+    aF(I, x, y + 4, 5, h, robe); aF(I, x, y + 4, 1, h, aLt(robe, .18)); aF(I, x + 4, y + 4, 1, h, aDk(robe, .3)); if(o.obi) aF(I, x, y + 7, 5, 2, o.obi);
+    if(o.apron) aF(I, x + 1, y + 6, 3, h - 2, o.apron); if(o.band) aF(I, x, y + 1, 5, 1, o.band); }
+  // the room box: ceiling boards (receding), the back wall's band, the floor; light: the room's own glow (warm), brightest at the back wall
+  function room(L, ceil, floor, fl2){ aF(L, 0, 0, 160, 10, ceil); for(let x = 0; x < 160; x += 7) aF(L, x, 0, 1, 9, aDk(ceil, .3)); aF(L, 0, 9, 160, 1, aDk(ceil, .45));
+    aF(L, 0, 27, 160, 9, floor); if(fl2) for(let y = 28; y < 36; y += 3) aF(L, 0, y, 160, 1, fl2); }
+  // shōji: a lit paper panel, kumiko every 4 x 4 texels, a dark frame
+  function shoji(L, x, y, w, h, lit){ const p = lit ? '#ffe8b4' : '#4a4038', k = lit ? '#d0a060' : '#2e2622'; aF(L, x, y, w, h, p);
+    for(let xx = x + 3; xx < x + w - 1; xx += 4) aF(L, xx, y + 1, 1, h - 2, k); for(let yy = y + 3; yy < y + h - 1; yy += 4) aF(L, x + 1, yy, w - 2, 1, k);
+    aF(L, x, y, w, 1, '#3a2014'); aF(L, x, y + h - 1, w, 1, '#3a2014'); aF(L, x, y, 1, h, '#3a2014'); aF(L, x + w - 1, y, 1, h, '#3a2014'); }
+  // the tatami floor: mats with dark borders (heri) in a running layout, the light pooled toward the middle
+  function tatami(L, lit){ const a = lit ? '#c8b064' : '#3a3628', b = lit ? '#b49a50' : '#322e22', e = lit ? '#2a1e12' : '#141210';
+    for(let y = 27; y < 36; y++) for(let x = 0; x < 160; x++) aP(L, x, y, ((x >> 2) + y) & 1 ? a : b);
+    aF(L, 0, 27, 160, 1, e); aF(L, 0, 31, 160, 1, e); for(let x = 8; x < 160; x += 36){ aF(L, x, 27, 1, 4, e); aF(L, x + 18, 31, 1, 5, e); } }
+
+  // ---- the interiors (layers 0..2); each returns [L0, L1, L2]; lit false: the same room after hours (dimmed and cooled at the end)
+  const ROOMS = ['zashiki', 'genkan', 'wagashi', 'sensu', 'toki', 'cha', 'kappo'];
+  function roomLayers(kind, sd){ const L0 = aI(160, 36), L1 = aI(160, 36), L2 = aI(160, 36), r = q => H1(sd * 7.31 + q * 1.97);
+    if(kind === 'zashiki'){ // an ochaya's front room: shōji and fusuma at the back, the tokonoma with its scroll, tatami; a geiko kneeling, a guest, an andon
+      room(L0, '#3a2216', '#c8b064'); tatami(L0, true);
+      for(let x = 0; x < 160; x += 40){ shoji(L0, x, 10, 18, 17, true); aF(L0, x + 18, 10, 22, 17, '#b48a50'); for(let q = 0; q < 4; q++) aF(L0, x + 20 + q * 5, 14 + (q & 1) * 5, 4, 1, '#9a7240'); aF(L0, x + 18, 10, 1, 17, '#3a2014'); aF(L0, x + 29, 10, 1, 17, '#5a3a22'); }   // fusuma: a gold-brown field, clouds as bars
+      aF(L0, 62, 10, 20, 17, '#6a4428'); aF(L0, 62, 10, 20, 1, '#2a160e'); aF(L0, 70, 11, 4, 12, '#ece0c4'); aF(L0, 71, 13, 1, 6, '#2a1a14'); aF(L0, 72, 16, 1, 4, '#2a1a14'); aP(L0, 72, 23, '#3a2a1a'); aF(L0, 64, 23, 3, 3, '#4a5a7a'); aP(L0, 65, 21, '#c84a3a'); aP(L0, 66, 20, '#4a6a3a'); aF(L0, 62, 26, 20, 1, '#2a160e');   // the tokonoma: the scroll, a vase with a camellia
+      aF(L1, 34, 26, 26, 3, '#2a1210'); aF(L1, 34, 26, 26, 1, '#7a3a28'); aF(L1, 36, 29, 2, 2, '#1a0c0a'); aF(L1, 56, 29, 2, 2, '#1a0c0a');   // the low lacquer table
+      aP(L1, 42, 25, '#f0ece0'); aP(L1, 43, 25, '#f0ece0'); aP(L1, 50, 25, '#e8d8b0');   // sake cups
+      aF(L1, 108, 18, 6, 8, '#fff2cc'); aF(L1, 108, 18, 6, 1, '#3a2014'); aF(L1, 108, 25, 6, 1, '#3a2014'); aF(L1, 110, 18, 1, 8, '#e8c888'); aF(L1, 108, 26, 1, 4, '#2a160e'); aF(L1, 113, 26, 1, 4, '#2a160e');   // the andon
+      aPer(L1, 24, 15, '#5a1a3a', { kneel:true, bun:true, pin:'#e8c040', skin:'#f4ece4', obi:'#d8a838' });   // a geiko kneeling: the white face, the hair up with a pin
+      aPer(L1, 64, 17, '#2a2a3a', { kneel:true, back:true }); aPer(L1, 126, 16, '#3a4a6a', { kneel:true, bun:true, pin:'#c83a2a', skin:'#f0e4dc', obi:'#e8d8c0' });
+      aF(L2, 92, 30, 10, 2, '#1a0c0a'); aF(L2, 92, 29, 10, 1, '#8a2a1a'); aP(L2, 95, 28, '#e8e0d0'); aP(L2, 98, 28, '#e8e0d0'); }   // a tray by the window
+    else if(kind === 'genkan'){ // a house's tōri-niwa: the earthen passage running back to a lit doorway, the step-chest, a lamp; dim
+      room(L0, '#24160e', '#3a2c22', '#30241c'); aF(L0, 0, 10, 160, 17, '#4a3020');
+      for(let x = 0; x < 160; x += 54){ aF(L0, x + 20, 13, 12, 14, '#2a1a10'); aF(L0, x + 22, 14, 8, 12, '#ffd890'); aF(L0, x + 22, 14, 8, 4, '#2a3a5a'); aF(L0, x + 24, 14, 1, 4, '#1a2440'); aF(L0, x + 27, 14, 1, 4, '#1a2440'); aF(L0, x + 22, 26, 8, 1, '#c8a060'); }   // the far doorway, an indigo noren over it
+      for(let x = 0; x < 160; x += 54) shoji(L0, x + 38, 12, 12, 14, true);
+      for(let s = 0; s < 4; s++) aF(L1, 70 + s * 4, 14 + s * 3, 16 - s * 4, 3, s & 1 ? '#2e1a10' : '#3a2214');   // the kaidan-dansu (step chest), its pulls
+      for(let s = 0; s < 4; s++) aP(L1, 72 + s * 4, 15 + s * 3, '#a88a50');
+      aF(L1, 30, 0, 1, 5, '#1a1010'); aE(L1, 30, 7, 3, 2.4, '#ffe8b0'); aF(L1, 28, 7, 5, 1, '#e0b070');   // a hanging paper lamp
+      aF(L2, 0, 31, 160, 5, '#5a5248'); aF(L2, 0, 31, 160, 1, '#8a8070'); aF(L2, 118, 29, 3, 2, '#2a1a10'); aF(L2, 122, 29, 3, 2, '#2a1a10'); aP(L2, 119, 29, '#c83a2a'); aP(L2, 123, 29, '#c83a2a');   // the stone step, a pair of geta
+      aF(L2, 136, 20, 5, 11, '#3a3a44'); aF(L2, 137, 15, 1, 5, '#c84a3a'); aF(L2, 139, 14, 1, 6, '#2a3a6a'); }   // an umbrella stand
+    else if(kind === 'wagashi'){ // a sweets shop: shelves of wrapped boxes, the keeper, the glass case of sweets on lacquer trays
+      room(L0, '#7a5232', '#6a625a', '#5a524a'); aF(L0, 0, 10, 160, 17, '#c8a070');
+      const BX = ['#f0c8cc', '#d8e4c4', '#f4ecd4', '#c8a878', '#e8d0e8', '#ffe0a0'];
+      for(const y of [15, 21, 26]){ aF(L0, 0, y, 160, 1, '#4a2e1c'); for(let x = 1, q = 0; x < 158; q++){ const w = 5 + Math.floor(r(q + y) * 4), h = 3 + Math.floor(r(q * 3 + y) * 2), c = BX[Math.floor(r(q * 5 + y) * BX.length)]; aF(L0, x, y - h, w, h, c); aF(L0, x, y - h, w, 1, aLt(c, .4)); aF(L0, x + w - 1, y - h, 1, h, aDk(c, .25)); aP(L0, x + (w >> 1), y - h, '#c82a2a'); aF(L0, x + (w >> 1), y - h + 1, 1, h - 1, '#e85a4a'); x += w + 1 + (r(q * 7 + y) < .2 ? 3 : 0); } }
+      for(let x = 6; x < 160; x += 31){ aF(L0, x, 10, 4, 3, '#f4ecd8'); aP(L0, x + 1, 11, '#3a2a20'); aP(L0, x + 2, 11, '#3a2a20'); }   // small menu cards along the top
+      aPer(L1, 52, 12, '#f0ece4', { band:'#2a3a6a', apron:'#e8e4dc', skin:'#e8c0a0' }); aF(L1, 52, 16, 5, 1, '#2a3a6a'); aPer(L1, 112, 13, '#4a3a5a', { bun:true, back:true });   // the keeper (apron, headscarf), a customer
+      aF(L2, 14, 19, 132, 13, '#3a2416'); aF(L2, 15, 20, 130, 9, '#2a1810'); for(let x = 14; x < 146; x++) if(H1(x * .61) < .35 || (x % 29) < 5) aP(L2, x, 19, '#e8f4f0'); aF(L2, 14, 31, 132, 5, '#5a3a22'); aF(L2, 14, 31, 132, 1, '#8a6040');   // the case: wood, the glass top glinting
+      const SW = ['#f4a8b8', '#8ac070', '#f4f0e8', '#8a4a20', '#f0c850', '#8a5a9a', '#e86a5a'];
+      for(let t = 0; t < 2; t++){ const ty = 23 + t * 4; aF(L2, 16, ty + 2, 128, 1, '#1a0a0a'); for(let x = 17; x < 143; x += 3){ const c = SW[Math.floor(r(x * .37 + t) * SW.length)]; aF(L2, x, ty, 2, 2, c); aP(L2, x, ty, aLt(c, .45)); } }
+      for(let x = 30; x < 140; x += 34) aP(L2, x, 20, '#ffffff'); for(let x = 22; x < 140; x += 26){ aF(L2, x, 29, 3, 1, '#f4ecd8'); } }
+    else if(kind === 'sensu'){ // a fan shop: open fans hung on a cream wall, a rack, the counter with folded fans in trays
+      room(L0, '#6a4428', '#6a5a4a', '#5e5040'); aF(L0, 0, 10, 160, 17, '#e4d0a8');
+      const FN = [['#c82a2a', '#e8b040'], ['#2a3a7a', '#f0ece0'], ['#f0e4c8', '#2a2a2a'], ['#3a6a4a', '#e8d8a0'], ['#d86a8a', '#f4e8f0'], ['#e8b040', '#c82a2a']];
+      for(let q = 0; q < 10; q++){ const cx0 = 8 + q * 16, cy0 = q & 1 ? 25 : 18, F = FN[(q + Math.floor(sd * 5)) % FN.length], R0 = q & 1 ? 6 : 7;
+        for(let y = cy0 - R0; y <= cy0; y++) for(let x = cx0 - R0; x <= cx0 + R0; x++){ const dx = x - cx0, dy = cy0 - y, d = Math.sqrt(dx * dx + dy * dy); if(d > R0 + .3 || d < 2.2) continue; const ang = Math.atan2(dy, dx), rib = Math.floor(ang / Math.PI * 9) & 1;
+          let c = rib ? F[0] : aDk(F[0], .14); if(d > R0 - 1.2) c = aDk(F[0], .35); else if(q % 3 === 0 && Math.abs(d - (R0 - 2.5)) < .7) c = F[1]; else if(q % 3 === 1 && Math.abs(dx) < 1.5 && dy > 2 && dy < 5) c = F[1]; else if(q % 3 === 2 && ((x + y) & 3) === 0) c = F[1]; aP(L0, x, y, c); }
+        aF(L0, cx0, cy0 - 1, 1, 2, '#3a2014'); }
+      for(let x = 40; x < 160; x += 60){ aF(L1, x, 14, 1, 16, '#3a2014'); aF(L1, x + 10, 14, 1, 16, '#3a2014'); for(let y = 16; y < 29; y += 4) aF(L1, x, y, 11, 1, '#5a3420'); for(let y = 15; y < 28; y += 4) for(let q = 0; q < 3; q++) aF(L1, x + 2 + q * 3, y, 2, 1, FN[(q + y) % 6][0]); }
+      aPer(L1, 22, 13, '#3a4a5a', { skin:'#e8c0a0' }); aPer(L1, 120, 14, '#7a3a4a', { bun:true, back:true });
+      aF(L2, 6, 24, 148, 8, '#6a4428'); aF(L2, 6, 24, 148, 1, '#b08050'); aF(L2, 6, 31, 148, 5, '#3a2416');
+      for(let x = 8; x < 152; x += 2) if(r(x * .7) < .8) aF(L2, x, 21, 1, 3, FN[Math.floor(r(x * 1.3) * 6)][0]); }
+    else if(kind === 'toki'){ // a pottery shop: shelves of bowls, cups, vases and plates in their glazes; a table; a big jar by the door
+      room(L0, '#4a3020', '#5a5048', '#4e463e'); aF(L0, 0, 10, 160, 17, '#9a7a52');
+      const GZ = ['#8ab8a0', '#ece6d8', '#3a4a8a', '#c08040', '#2a2422', '#5a8a5a', '#c8b8a0'];
+      for(const y of [15, 20, 26]){ aF(L0, 0, y, 160, 1, '#3a2414'); aF(L0, 0, y + 1, 160, 1, '#6a4a2e'); for(let x = 1, q = 0; x < 156; q++){ const k = r(q * 2.3 + y), c = GZ[Math.floor(r(q * 4.1 + y) * GZ.length)];
+          if(k < .4){ aF(L0, x, y - 2, 5, 1, c); aF(L0, x + 1, y - 1, 3, 1, aDk(c, .2)); aP(L0, x, y - 2, aLt(c, .4)); x += 6; }   // a bowl
+          else if(k < .7){ aF(L0, x, y - 3, 2, 3, c); aP(L0, x, y - 3, aLt(c, .4)); x += 3; }   // a cup
+          else if(k < .88 && y > 15){ aF(L0, x, y - 4, 3, 4, c); aP(L0, x + 1, y - 5, c); aF(L0, x, y - 4, 1, 4, aLt(c, .3)); x += 4; }   // a vase
+          else { aE(L0, x + 2, y - 3, 2, 2.4, c); aP(L0, x + 2, y - 3, aDk(c, .3)); x += 5; } } }   // a plate on its stand
+      aF(L1, 24, 25, 60, 2, '#4a2e1c'); aF(L1, 26, 27, 2, 4, '#2a1a10'); aF(L1, 80, 27, 2, 4, '#2a1a10'); for(let x = 27; x < 82; x += 6){ const c = GZ[Math.floor(r(x) * GZ.length)]; aF(L1, x, 23, 4, 2, c); aP(L1, x, 23, aLt(c, .4)); }
+      aPer(L1, 104, 13, '#2a2a30', { skin:'#d8b090' });
+      aE(L2, 130, 27, 6, 6, '#6a3a1e'); aF(L2, 127, 20, 7, 2, '#5a3018'); aE(L2, 128, 25, 2, 3, '#8a5a30'); aP(L2, 127, 24, '#c89060'); for(let x = 125; x < 136; x += 2) aF(L2, x, 29, 1, 3, '#3a1e10');   // the big jar, its glaze drip and highlight
+      aF(L2, 30, 30, 6, 4, '#f4ecd8'); aF(L2, 31, 31, 4, 1, '#c82a2a'); }   // a price card
+    else if(kind === 'cha'){ // a tea merchant: a wall of lacquer canisters with paper labels, the big tea jars in their cord nets, the counter
+      room(L0, '#2e1e14', '#4a4038', '#403830'); aF(L0, 0, 10, 160, 17, '#5a3a22');
+      for(const y of [16, 22]){ aF(L0, 0, y, 160, 1, '#2a1a0e'); for(let x = 2; x < 158; x += 6){ const tin = r(x * .9 + y) < .25, c = tin ? '#9a9aa4' : '#1a1416'; aF(L0, x, y - 5, 4, 5, c); aF(L0, x, y - 5, 4, 1, tin ? '#d8d8e0' : '#4a3a3a'); aF(L0, x + 1, y - 3, 2, 2, '#e8dcc0'); aP(L0, x + 1, y - 3, '#3a2a20'); } }
+      for(let x = 10; x < 160; x += 48){ aE(L0, x + 4, 23, 4.5, 3.6, '#7a4220'); aF(L0, x + 1, 18, 7, 2, '#8a2a2a'); aP(L0, x + 4, 17, '#c8a050'); for(let q = 0; q < 3; q++) aF(L0, x + q * 3, 21, 1, 5, '#c8a868'); aF(L0, x, 23, 9, 1, '#c8a868'); aP(L0, x + 2, 21, '#b06a3a'); }
+      aF(L1, 0, 24, 160, 3, '#4a2e1c'); aF(L1, 0, 24, 160, 1, '#a07848'); aF(L1, 60, 21, 6, 3, '#9a9aa4'); aF(L1, 61, 20, 4, 1, '#d8d8e0'); aF(L1, 90, 22, 8, 2, '#c8a040'); aF(L1, 93, 19, 1, 3, '#2a2a2a');   // the counter: tins, the scale
+      aPer(L1, 72, 10, '#3a4a3a', { apron:'#2a3a5a', skin:'#e0b898' });
+      aF(L2, 120, 26, 18, 6, '#3a2416'); aF(L2, 120, 26, 18, 1, '#8a6040'); for(let x = 122; x < 136; x += 4){ aF(L2, x, 23, 3, 3, '#5a8a3a'); aP(L2, x, 23, '#8ac060'); } }   // tea in open boxes
+    else { // kappo: a counter restaurant: cedar wall, sake bottles, menu strips, the cook in white, the counter, the customers' backs
+      room(L0, '#5a3a22', '#4a3a2e', '#40322a'); aF(L0, 0, 10, 160, 17, '#9a6a40');
+      for(let x = 2; x < 158; x += 5){ aF(L0, x, 9, 3, 6, r(x * 3.1) < .2 ? '#f0d090' : '#f4ecd8'); aF(L0, x + 1, 10, 1, 3, '#5a4a40'); if(r(x) < .3) aP(L0, x + 1, 13, '#c82a2a'); }   // the menu strips
+      aF(L0, 0, 18, 160, 1, '#3a2414'); for(let x = 3; x < 158; x += 4){ const c = r(x * 1.7) < .5 ? '#1a3a2a' : '#3a2010'; aF(L0, x, 12 + 1, 2, 5, c); aP(L0, x, 13, aLt(c, .3)); aP(L0, x + 1, 15, '#e8dcc0'); aP(L0, x, 11 + 1, '#1a1a1a'); }
+      aF(L0, 66, 19, 18, 8, '#ffd890'); aF(L0, 66, 19, 18, 4, '#2a3a5a'); aF(L0, 72, 19, 1, 4, '#1a2440'); aF(L0, 78, 19, 1, 4, '#1a2440');   // the kitchen door: its noren, the light beyond
+      aPer(L1, 40, 11, '#f4f4f0', { band:'#f4f4f0', skin:'#e8c0a0' }); aPer(L1, 108, 12, '#f4f4f0', { band:'#2a3a6a', skin:'#d8b090' }); aF(L1, 0, 20, 160, 2, '#6a4a2e'); aE(L1, 58, 18, 3, 1.4, '#9a9aa4'); aE(L1, 120, 18, 2.4, 1.2, '#2a2a2a');
+      aF(L2, 0, 22, 160, 2, '#ecd098'); aF(L2, 0, 22, 160, 1, '#fff0c0'); aF(L2, 0, 24, 160, 12, '#7a5030'); for(let x = 6; x < 160; x += 20) aF(L2, x, 24, 1, 12, '#5a3820');
+      for(const x of [22, 58, 94, 132]){ aPer(L2, x, 15, ['#2a2a3a', '#3a2a2a', '#2a3a3a', '#4a3a2a'][(x >> 3) % 4], { back:true }); aF(L2, x - 1, 19, 7, 3, '#1a1418'); aF(L2, x + 1, 24, 3, 6, '#1a1418'); } }
+    return [L0, L1, L2]; }
+  // after hours: the room dimmed and cooled (the fronts are the same; the noren come in: see the fronts)
+  function dimL(L){ for(let i = 0; i < L.c.length; i++){ const c = L.c[i]; if(c) L.c[i] = aMix(c, '#0e0c1a', .72); } return L; }
+
+  // ---- the fronts (layer 3). face: 'kb' bengara lattice (ochaya), 'kd' dark-stained lattice (a house), 'mise' an open shop under a half
+  // noren, 'glass' a Shijō shop's glazed front. nc: the noren's colour; lit: open (noren out, door open) or shut (noren in, the door's lattice).
+  const NOREN = ['#1c2a5a', '#ece4d4', '#5a1a1a', '#2a3a2e', '#3a2a4a'];
+  function crest(I, x, y, c, k){ // a generic crest, 5 x 5: a ring with a dot, a four-petal flower, three dots, a wave
+    if(k === 0){ for(const [a, b] of [[1, 0], [2, 0], [3, 0], [0, 1], [4, 1], [0, 2], [4, 2], [0, 3], [4, 3], [1, 4], [2, 4], [3, 4], [2, 2]]) aP(I, x + a, y + b, c); }
+    else if(k === 1){ for(const [a, b] of [[2, 0], [1, 1], [3, 1], [0, 2], [2, 2], [4, 2], [1, 3], [3, 3], [2, 4]]) aP(I, x + a, y + b, c); }
+    else if(k === 2){ aP(I, x + 2, y + 0, c); aP(I, x + 1, y + 1, c); aP(I, x + 3, y + 1, c); aF(I, x, y + 3, 2, 2, c); aF(I, x + 3, y + 3, 2, 2, c); aP(I, x + 2, y + 1, c); }
+    else { for(let a = 0; a < 5; a++) aP(I, x + a, y + 2 + (a & 1), c); for(let a = 0; a < 5; a++) aP(I, x + a, y + (a & 1), c); } }
+  function norenAt(I, x0, x1, y0, y1, nc, ck){ const pw = Math.max(5, Math.floor((x1 - x0 + 1) / 3)), ink = nc === NOREN[1] ? '#2a2030' : '#ece4d4';
+    aF(I, x0 - 1, y0 - 1, x1 - x0 + 3, 1, '#2a1a10');   // the rod
+    for(let x = x0; x < x1; x++){ const k = (x - x0) % pw; if(k === pw - 1 && x < x1 - 2) continue; const c = k === 0 ? aLt(nc, .16) : k === pw - 2 ? aDk(nc, .22) : nc; aF(I, x, y0, 1, y1 - y0, c); aP(I, x, y1 - 1, aDk(nc, .3)); }
+    const mx = Math.floor((x0 + x1) / 2) - 2; crest(I, mx, y0 + 3, ink, ck); }
+  function face(kind, nc, lit, sd){ const I = aI(160, 36), r = q => H1(sd * 5.7 + q * 2.3);
+    const C = kind === 'kb' ? ['#2a0a0a', '#4a1410', '#7a2a1a'] : ['#100a0a', '#22140e', '#3e2618'], post = (x, w) => { aF(I, x, 0, w, 36, C[0]); aF(I, x + 1, 0, 1, 36, C[2]); };
+    const head = () => { aF(I, 0, 0, 160, 3, C[0]); aF(I, 0, 2, 160, 1, C[1]); aF(I, 0, 0, 160, 1, aLt(C[1], .15)); };
+    if(kind === 'kb' || kind === 'kd'){ // posts, two lattice panels and the door bay (open under a noren, or shut), the koshi-ita, the plinth
+      const kiri = kind === 'kb' || r(1) < .5, PZ = r(2) < .35;   // a kiriko top (every other slat cut short); PZ: the second panel is a plastered sodekabe
+      const lat = (xa, xb) => { for(let x = xa; x < xb; x++){ const k = (x - xa) % 3; if(k === 2) continue; const short = kiri && (Math.floor((x - xa) / 3) & 1);
+          const y0 = short ? 10 : 3, sl = Math.floor((x - xa) / 3), wash = H1(sl * 2.7 + sd * 31) * .18; for(let y = y0; y < 29; y++){ const c = k === 0 ? C[2] : C[1]; aP(I, x, y, aDk(c, wash + (y > 22 ? (y - 22) * .03 : 0))); } } aF(I, xa, 3, xb - xa, 1, C[1]); if(kiri) aF(I, xa, 9, xb - xa, 1, C[1]); aF(I, xa, 28, xb - xa, 2, C[1]); aF(I, xa, 28, xb - xa, 1, C[2]); };
+      head(); lat(0, 20); post(16, 4); lat(20, 72); post(72, 4);
+      if(lit){ aF(I, 76, 30, 32, 6, '#5a5450'); aF(I, 76, 30, 32, 1, '#9a9088'); norenAt(I, 77, 107, 3, 19, nc, Math.floor(sd * 4) % 4); }   // open: the noren out, the step
+      else { for(let x = 76; x < 108; x++) aF(I, x, 3, 1, 27, (x & 1) ? C[1] : C[0]); for(let y = 5; y < 30; y += 3) aF(I, 76, y, 32, 1, C[1]); aF(I, 91, 3, 2, 27, C[0]); }   // shut: the lattice door
+      post(108, 4);
+      if(PZ){ aF(I, 112, 3, 28, 26, '#5a5262'); aF(I, 112, 3, 28, 1, '#7a7484'); for(let x = 118; x < 134; x += 3){ aF(I, x, 9, 2, 10, '#8a8494'); aP(I, x, 9, '#a8a2b0'); } aF(I, 117, 8, 18, 1, '#3a3442'); aF(I, 117, 19, 18, 1, '#3a3442'); for(let x = 120; x < 134; x += 3) aF(I, x, 10, 1, 9, lit ? '#d89850' : '#1a141e'); }   // a barred window in plaster
+      else lat(112, 140);
+      post(140, 4); lat(144, 160);
+      boards(I, 0, 30, 76, 4, [C[0], C[1]], sd * 7, kind === 'kd'); boards(I, 108, 30, 52, 4, [C[0], C[1]], sd * 9, kind === 'kd'); aF(I, 0, 30, 76, 1, C[2]); aF(I, 108, 30, 52, 1, C[2]); for(let x = 0; x < 160; x++){ const st = Math.floor(x / 11); aP(I, x, 34, x % 11 ? '#56525c' : '#24222a'); aP(I, x, 35, H1(st * 3.3) < .5 ? '#3a3842' : '#44424c'); } }
+    else if(kind === 'mise'){ // an open shop: posts, a half noren across the whole front (a crest on every panel), open below; shut: wooden doors
+      head(); post(14, 4); post(78, 3); post(142, 4);
+      if(lit){ for(let x = 18; x < 142; x++){ if(x >= 78 && x < 81) continue; const k = (x - 18) % 16; if(k === 15) continue; aF(I, x, 3, 1, 9, k === 0 ? aLt(nc, .16) : k === 14 ? aDk(nc, .22) : nc); aP(I, x, 11, aDk(nc, .3)); }
+        for(let x = 22; x < 140; x += 16) if(x < 74 || x > 82) crest(I, x + 1, 5, nc === NOREN[1] ? '#2a2030' : '#ece4d4', Math.floor(sd * 4) % 4);
+        aF(I, 0, 32, 160, 4, '#5a5450'); aF(I, 0, 32, 160, 1, '#8a8278'); }
+      else { for(let x = 18; x < 142; x++) if(x < 78 || x >= 81) aF(I, x, 3, 1, 31, ((x - 18) % 4) ? C[1] : C[0]); for(let x = 18; x < 142; x += 31) aF(I, x, 3, 1, 31, C[2]); aF(I, 0, 34, 160, 2, '#3a3842'); }
+      aF(I, 0, 3, 14, 33, '#3a3442'); aF(I, 146, 3, 14, 33, '#3a3442'); }   // (the pads: the neighbour's wall)
+    else { // glass: a Shijō shop. Wooden frame, sliding glazed doors (mullions every 31), glints, the kick board; a short noren over the door
+      aF(I, 0, 0, 160, 4, '#2a1a12'); aF(I, 0, 3, 160, 1, '#5a3a22');
+      for(let x = 16; x <= 144; x += 32){ aF(I, x - 1, 4, 3, 28, '#2a1a12'); aF(I, x, 4, 1, 28, '#6a4a30'); }
+      for(let x = 18; x < 142; x += 32) for(let q = 0; q < 5; q++){ const gx = x + 4 + q + Math.floor(r(x) * 10), gy = 6 + q * 2; if((q & 1) === 0) aP(I, gx, gy, '#f4f8ff'); }
+      aF(I, 0, 30, 160, 6, '#3a2416'); aF(I, 0, 30, 160, 1, '#7a5030'); aF(I, 0, 35, 160, 1, '#1a1010');
+      if(lit) norenAt(I, 65, 95, 5, 13, nc, Math.floor(sd * 4) % 4); }
+    return I; }
+
+  // ---- the upper storey (128 x 24, one layer; frames for the figures seen through the paper). kinds: shoji, sudare, mushi, koshi
+  const UPF = 4;
+  function upperArt(kind, lit, fr, sd, wallC){ const I = aI(128, 24), wall = wallC || '#4a4858'; if(kind === 'koshi') boards(I, 0, 0, 128, 24, ['#100a0a', '#24160f'], sd, true); else plaster(I, 0, 0, 128, 24, wall, sd * 13.1);   // the plaster: grime, streaks, the splash band; or sugi-yaki boards
+    aF(I, 0, 0, 128, 1, aDk(wall, .4));
+    // a figure seen through paper or bamboo: a geiko dancing with a fan (4 poses), as a shadow
+    const fig = (x0, y0, col, step) => { const p = fr % UPF, arm = [[-3, 2], [-4, 0], [3, -1], [4, 1]][p]; aF(I, x0 + 1, y0, 3, 2, col); aF(I, x0 + 1, y0 - 1, 3, 1, col); aF(I, x0 + 2, y0 + 2, 2, 1, col);
+      aF(I, x0, y0 + 3, 5, 12, col); aF(I, x0 - 1, y0 + 10, 7, 5, col); const ax = x0 + 2 + arm[0], ay = y0 + 4 + arm[1]; for(let t = 0; t <= 4; t++) aP(I, x0 + 2 + Math.round(arm[0] * t / 4), y0 + 4 + Math.round(arm[1] * t / 4), col);
+      for(let q = -2; q <= 2; q++) aP(I, ax + q, ay - 1 - (q * q > 1 ? 0 : 1), col); aF(I, ax - 1, ay - 2, 3, 1, col); if(step) aP(I, x0 + (p & 1 ? 0 : 4), y0 + 15, col); };
+    if(kind === 'shoji' || kind === 'sudare'){ for(const [xa, xb] of [[6, 60], [68, 122]]){ aF(I, xa - 1, 2, xb - xa + 2, 19, '#24140f');
+        if(kind === 'shoji'){ for(let x = xa; x < xb; x++) for(let y = 3; y < 20; y++){ const t = 1 - Math.abs((x - (xa + xb) / 2) / ((xb - xa) / 2)) * .35; aP(I, x, y, lit ? aMix('#c88a48', '#ffe8b0', t) : '#3a302c'); }
+          for(let x = xa + 3; x < xb; x += 4) aF(I, x, 3, 1, 17, lit ? '#b07a40' : '#2a221e'); for(let y = 6; y < 20; y += 4) aF(I, xa, y, xb - xa, 1, lit ? '#b07a40' : '#2a221e'); aF(I, (xa + xb) >> 1, 3, 1, 17, '#3a2014'); }
+        else { for(let y = 3; y < 20; y++) aF(I, xa, y, xb - xa, 1, lit ? (y & 1 ? '#c8884a' : '#a86a34') : (y & 1 ? '#3e3024' : '#342820')); for(let x = xa + 6; x < xb; x += 12) aF(I, x, 4, 1, 16, lit ? '#6a3a1a' : '#201810'); aF(I, xa, 3, xb - xa, 2, '#2a1a2a'); for(let x = xa + 2; x < xb; x += 8) aP(I, x, 5, '#c82a2a'); } }
+      if(lit){ const fx = 20 + Math.floor(H1(sd * 3.3) * 22) + (fr % UPF === 2 ? 1 : 0), sc = kind === 'shoji' ? '#9a6234' : '#6a3a1c'; fig(fx, 4, sc, true);
+        if(kind === 'sudare') for(let y = 4; y < 20; y += 2) for(let x = fx - 6; x < fx + 10; x++) if(aG(I, x, y) === sc) aP(I, x, y, '#a86a34');   // (through bamboo: every other row of the shadow is the blind's own slat)
+        if(H1(sd * 9.1) < .5){ for(let y = 13; y < 20; y++) aF(I, 96, y, 6, 1, kind === 'shoji' ? '#a06a3a' : '#7a4a24'); aF(I, 97, 10, 4, 3, kind === 'shoji' ? '#a06a3a' : '#7a4a24'); } }   // a guest seated, still
+      aF(I, 0, 15, 128, 2, '#3e2418'); aF(I, 0, 15, 128, 1, '#7a4a2a'); for(let x = 2; x < 128; x += 4) aF(I, x, 17, 1, 4, '#2a160e'); aF(I, 0, 21, 128, 1, '#3e2418'); }   // the railing in front
+    else if(kind === 'mushi'){ for(const xa of [14, 74]){ aF(I, xa - 2, 5, 40, 14, aLt(wall, .12)); aF(I, xa - 2, 18, 40, 1, aDk(wall, .35)); for(let x = xa; x < xa + 36; x += 4){ aF(I, x + 2, 7, 2, 10, lit ? '#d89a54' : '#141018'); aF(I, x, 7, 2, 10, aLt(wall, .3)); aP(I, x, 7, aLt(wall, .5)); } } }
+    else { for(let x = 6; x < 122; x++) aF(I, x, 3, 1, 17, (x % 3) === 2 ? (lit ? '#b07a40' : '#1a1218') : (x % 3) ? '#22140e' : '#3e2618'); aF(I, 6, 3, 116, 1, '#3e2618'); aF(I, 6, 19, 116, 1, '#22140e'); }
+    return I; }
+
+  // ---- hanging signboards (kanban, 12 x 22) and the sugidama (14 x 16): graphic marks only, no lettering
+  const KAN = ['fan', 'tea', 'dango', 'bowl', 'wave', 'gourd'];
+  function kanArt(k){ const I = aI(12, 22), wood = '#5a3a20', face = k & 1 ? '#1a1410' : '#e8dcc0', ink = k & 1 ? '#e8c870' : '#2a1a14', red = '#c82a24';
+    aF(I, 0, 0, 12, 22, '#2a1a10'); aF(I, 1, 1, 10, 20, wood); aF(I, 2, 2, 8, 18, face); aF(I, 1, 1, 10, 1, '#8a6040'); aF(I, 4, 0, 1, 1, '#1a1010'); aF(I, 7, 0, 1, 1, '#1a1010');
+    const m = KAN[k % KAN.length];
+    if(m === 'fan'){ for(let y = 5; y < 11; y++) for(let x = 2; x < 10; x++){ const dx = x - 5.5, dy = 11 - y, d = Math.sqrt(dx * dx + dy * dy); if(d < 5.2 && d > 1.4) aP(I, x, y, (Math.floor(Math.atan2(dy, dx) * 3) & 1) ? red : ink); } aF(I, 5, 11, 2, 2, ink); aF(I, 4, 15, 4, 1, ink); aF(I, 5, 17, 2, 1, ink); }
+    else if(m === 'tea'){ aF(I, 3, 9, 6, 5, ink); aF(I, 4, 14, 4, 1, ink); aF(I, 9, 10, 1, 2, ink); aP(I, 5, 7, ink); aP(I, 6, 6, ink); aP(I, 5, 5, ink); aF(I, 4, 11, 4, 1, red); aF(I, 4, 17, 4, 1, ink); }
+    else if(m === 'dango'){ aF(I, 6, 3, 1, 16, '#8a6a3a'); aE(I, 6, 6, 1.6, 1.6, '#f4a8b8'); aE(I, 6, 10, 1.6, 1.6, '#f4f0e8'); aE(I, 6, 14, 1.6, 1.6, '#8ac070'); if(k & 1) aE(I, 6, 10, 1.6, 1.6, '#e8dcc0'); }
+    else if(m === 'bowl'){ aF(I, 3, 8, 6, 1, ink); aF(I, 3, 9, 6, 2, red); aF(I, 4, 11, 4, 1, ink); aF(I, 5, 12, 2, 1, ink); aF(I, 4, 15, 4, 1, ink); aF(I, 4, 17, 4, 1, ink); }
+    else if(m === 'wave'){ for(let y = 5; y < 17; y += 4) for(let x = 2; x < 10; x++){ const t = (x - 2) / 8 * Math.PI * 2; aP(I, x, y + Math.round(Math.sin(t)), ink); } aE(I, 6, 4, 1.2, 1.2, red); }
+    else { aE(I, 6, 7, 2, 2, ink); aE(I, 6, 12, 3, 3, ink); aF(I, 6, 4, 1, 1, '#8a6a3a'); aF(I, 4, 9, 4, 1, red); aF(I, 4, 17, 4, 1, ink); }
+    return I; }
+  function sugiArt(fresh){ const I = aI(14, 16); aF(I, 6, 0, 2, 2, '#8a7a5a'); for(let y = 2; y < 16; y++) for(let x = 0; x < 14; x++){ const dx = x - 6.5, dy = y - 8.8, d = Math.sqrt(dx * dx + dy * dy * 1.05); if(d > 6.6) continue;
+      const h = H1(x * 3.7 + y * 11.3 + (fresh ? 0 : 5)), lt = dx < 0 && dy < 0 ? .2 : dx > 2 || dy > 3 ? -.3 : 0, base = fresh ? (h < .5 ? '#3a5a2a' : h < .8 ? '#4e7034' : '#2a4020') : (h < .5 ? '#6a4a26' : h < .8 ? '#8a6232' : '#4a3018');
+      aP(I, x, y, lt > 0 ? aLt(base, .25) : lt < 0 ? aDk(base, .35) : base); if(d > 5.8 && h < .4) aP(I, x, y, null); }
+    for(let x = 2; x < 12; x++) aP(I, x, 4, '#e8e0c8'); aP(I, 5, 5, '#e8e0c8'); aP(I, 8, 5, '#e8e0c8'); aF(I, 5, 6, 1, 2, '#f0ead8'); aF(I, 8, 6, 1, 2, '#f0ead8'); return I; }
+
+  // ---- materials (Kellan: "the textures / lack of textures on the buildings"). Pre-baked strips, laid on the faces as the signs are:
+  // plaster with grime gradient, stains, rain streaks under every sill and the dark splash band at its foot; weathered sugi boards with
+  // grain; the bengara wash, uneven; the eave's tile front (the round ends of the cover tiles, the pale lip); a stone base.
+  function plaster(I, x0, y0, w, h, base, sd){ for(let y = y0; y < y0 + h; y++){ const g = (y - y0) / h; for(let x = x0; x < x0 + w; x++){ const n = H1(x * 1.3 + y * 7.1 + sd), m = H1(Math.floor(x / 5) * 3.1 + Math.floor(y / 4) * 5.3 + sd);
+        let c = aMix(base, '#0a0812', .1 + g * .22 + (m < .25 ? .1 : 0)); if(n < .12) c = aLt(c, .07); else if(n > .9) c = aDk(c, .12); aP(I, x, y, c); } }
+    for(let q = 0; q < w / 9; q++){ const x = x0 + Math.floor(H1(sd + q * 3.7) * w), y = y0 + Math.floor(H1(sd + q * 5.1) * h * .6), l = 3 + Math.floor(H1(sd + q * 7.9) * h * .5);   // rain streaks
+      for(let t = 0; t < l && y + t < y0 + h; t++){ const c = aG(I, x, y + t); if(c) aP(I, x, y + t, aDk(c, .2 * (1 - t / l))); } }
+    for(let x = x0; x < x0 + w; x++) for(let t = 0; t < 3; t++){ const y = y0 + h - 1 - t, c = aG(I, x, y); if(c && H1(x * 2.9 + t) < .9 - t * .25) aP(I, x, y, aDk(c, .28 - t * .07)); } }   // the splash band
+  function boards(I, x0, y0, w, h, C, sd, yaki){ for(let x = x0; x < x0 + w; x++){ const b = Math.floor((x - x0) / 4), k = (x - x0) % 4, bc = H1(b * 3.3 + sd) < .3 ? aDk(C[1], .15) : C[1];
+      for(let y = y0; y < y0 + h; y++){ const gr = H1(x * 1.9 + Math.floor(y / 3) * 4.1 + sd); let c = k === 0 ? C[0] : k === 1 ? aLt(bc, .08) : bc; if(gr < .18) c = aDk(c, .25); else if(yaki && gr > .85) c = aLt(c, .14); aP(I, x, y, c); } } }
+  function texArt(kind, sd){
+    if(kind === 'eave'){ const I = aI(64, 6); aF(I, 0, 0, 64, 6, '#1a1c28'); for(let x = 0; x < 64; x += 4){ aF(I, x, 1, 3, 4, '#262a38'); aP(I, x + 1, 1, '#4a5062'); aF(I, x, 4, 3, 1, '#12131c'); aP(I, x + 1, 2, '#8a8e9e'); } aF(I, 0, 5, 64, 1, '#b4b8c4'); aF(I, 0, 0, 64, 1, '#0e0e16'); return I; }   // the cover tiles' round ends, each with a moonlit boss
+    if(kind === 'ridge'){ const I = aI(64, 4); aF(I, 0, 0, 64, 4, '#22242e'); for(let x = 0; x < 64; x += 2) aP(I, x, 1, '#3a3e4c'); aF(I, 0, 0, 64, 1, '#8a8e9e'); aF(I, 0, 3, 64, 1, '#121218'); return I; }
+    if(kind === 'stone'){ const I = aI(64, 8); for(let y = 0; y < 8; y++) for(let x = 0; x < 64; x++){ const b = Math.floor((x + (y >= 4 ? 7 : 0)) / 14), c = H1(b * 3.1 + (y >= 4 ? 9 : 0)) < .5 ? '#3a3842' : '#46444e'; aP(I, x, y, H1(x * 3.1 + y * 1.7) < .15 ? aDk(c, .2) : c); }
+      for(let x = 0; x < 64; x++){ aP(I, x, 0, '#6a6670'); aP(I, x, 4, '#24222a'); } for(let x = 0; x < 64; x += 14){ aF(I, x, 0, 1, 4, '#24222a'); aF(I, x + 7, 4, 1, 4, '#24222a'); } return I; }
+    if(kind === 'gable'){ const I = aI(32, 32); plaster(I, 0, 0, 32, 32, '#4a4858', sd); for(let x = 0; x < 32; x += 10) aF(I, x, 0, 1, 32, '#2a1a14'); aF(I, 0, 20, 32, 1, '#2a1a14'); return I; }
+    if(kind === 'shopwall'){ const I = aI(64, 32); for(let y = 0; y < 32; y++) for(let x = 0; x < 64; x++){ const t = (x % 8 === 0) || (y % 4 === 0), c = t ? '#1e1c26' : (H1(Math.floor(x / 8) * 2.1 + Math.floor(y / 4) * 3.7 + sd) < .5 ? '#2e2a36' : '#34303c'); aP(I, x, y, H1(x * 5.1 + y * 3.3) < .1 ? aDk(c, .15) : c); }
+      for(let q = 0; q < 8; q++){ const x = Math.floor(H1(sd + q * 2.7) * 64); for(let y = 0; y < 32; y++) if(H1(x + y * .37 + q) < .7){ const c = aG(I, x, y); aP(I, x, y, aDk(c, .18)); } } return I; }   // tiled concrete, rain-streaked
+    return null; }
+  // ART-END
+
+  // ---------------------------------------------------------------- the art atlas: every piece above, built at warm-up (one piece a step),
+  // each at 1x and averaged 1/2 and 1/4 (alpha kept), packed in shelves into one 1024-wide texture (one putImageData at the end)
+  const GA2 = { room:{}, face:{}, up:{}, kan:[], sugi:[], tex:{}, gate:{}, ready:false }; let GAT = null; const GPK = [];
+  const aCC = new Map(); const aRGB = c => { let v = aCC.get(c); if(!v){ v = aHx(c); aCC.set(c, v); } return v; };
+  function aPiece(I){ const lv = [], P = { w:I.w, h:I.h, L:lv, avg:'#202020' }; const px = new Float32Array(I.w * I.h * 4); let r = 0, g = 0, b = 0, n = 0;
+    for(let i = 0; i < I.c.length; i++){ const c = I.c[i]; if(!c) continue; const v = aRGB(c); px[i * 4] = v[0]; px[i * 4 + 1] = v[1]; px[i * 4 + 2] = v[2]; px[i * 4 + 3] = 255; r += v[0]; g += v[1]; b += v[2]; n++; }
+    if(n) P.avg = aHex(r / n, g / n, b / n); let w = I.w, h = I.h; lv.push({ w, h, px });
+    for(let k = 1; k < 3; k++){ const w2 = Math.max(1, w >> 1), h2 = Math.max(1, h >> 1), q = new Float32Array(w2 * h2 * 4), p = lv[k - 1].px;
+      for(let y = 0; y < h2; y++) for(let x = 0; x < w2; x++){ let R0 = 0, G0 = 0, B0 = 0, A0 = 0; for(let dy = 0; dy < 2; dy++) for(let dx = 0; dx < 2; dx++){ const o = (Math.min(h - 1, y * 2 + dy) * w + Math.min(w - 1, x * 2 + dx)) * 4, a = p[o + 3]; R0 += p[o] * a; G0 += p[o + 1] * a; B0 += p[o + 2] * a; A0 += a; }
+        const o = (y * w2 + x) * 4; if(A0 > 0){ q[o] = R0 / A0; q[o + 1] = G0 / A0; q[o + 2] = B0 / A0; q[o + 3] = A0 / 4; } }
+      lv.push({ w:w2, h:h2, px:q }); w = w2; h = h2; }
+    GPK.push(P); return P; }
+  function aPack(){ const AW = 1024; let x = 0, y = 0, rh = 0; const all = []; for(const P of GPK) for(const l of P.L) all.push(l); all.sort((a, b) => b.h - a.h);
+    for(const l of all){ if(x + l.w > AW){ x = 0; y += rh + 1; rh = 0; } l.x = x; l.y = y; x += l.w + 1; if(l.h > rh) rh = l.h; }
+    const AH = y + rh + 1; GAT = GAT || mk(AW, AH); if(GAT.height !== AH){ GAT.width = AW; GAT.height = AH; } const k = GAT.getContext('2d'), img = k.createImageData(AW, AH), d = img.data;
+    for(const l of all){ for(let yy = 0; yy < l.h; yy++) for(let xx = 0; xx < l.w; xx++){ const s = (yy * l.w + xx) * 4, o = ((l.y + yy) * AW + l.x + xx) * 4; d[o] = l.px[s]; d[o + 1] = l.px[s + 1]; d[o + 2] = l.px[s + 2]; d[o + 3] = l.px[s + 3]; } l.px = null; }
+    k.putImageData(img, 0, 0); GA2.ready = true; }
+  const FACEK = ['kb', 'kd', 'mise', 'glass'];
+  function* artSteps(){ if(GA2.ready) return; GPK.length = 0;
+    for(const rk of ROOMS) for(const lit of [1, 0]){ const Ls = roomLayers(rk, .3 + ROOMS.indexOf(rk) * .11); if(!lit) Ls.forEach(dimL); const C = aI(160, 36);
+      for(let i = 0; i < C.c.length; i++) for(let k = 2; k >= 0; k--){ const c = Ls[k].c[i]; if(c){ C.c[i] = c; break; } }
+      GA2.room[rk + lit] = { L:Ls.map(aPiece), C:aPiece(C) }; yield; }
+    for(const fk of FACEK){ for(let nc = 0; nc < NOREN.length; nc++){ GA2.face[fk + nc + '1'] = aPiece(face(fk, NOREN[nc], true, .17 + nc * .23)); if(nc < 2) GA2.face[fk + nc + '0'] = aPiece(face(fk, NOREN[nc], false, .17 + nc * .23)); yield; } }
+    for(const uk of ['shoji', 'sudare']){ for(let f = 0; f < UPF; f++) GA2.up[uk + '1' + f] = aPiece(upperArt(uk, true, f, .37)); GA2.up[uk + '0'] = aPiece(upperArt(uk, false, 0, .37)); yield; }
+    GA2.up.mushi1 = aPiece(upperArt('mushi', true, 0, .51)); GA2.up.mushi0 = aPiece(upperArt('mushi', false, 0, .51)); GA2.up.koshi0 = aPiece(upperArt('koshi', false, 0, .61)); GA2.up.koshi1 = aPiece(upperArt('koshi', true, 0, .61)); yield;
+    for(let k = 0; k < KAN.length * 2; k++) GA2.kan.push(aPiece(kanArt(k))); GA2.sugi.push(aPiece(sugiArt(true)), aPiece(sugiArt(false)));
+    for(const t of ['eave', 'ridge', 'stone', 'gable']) GA2.tex[t] = aPiece(texArt(t, .4)); yield;
+    for(let q = 0; q < 3; q++) GA2.tex['shop' + q] = aPiece(texArt('shopwall', .3 + q * .27)); yield;
+    for(const gk of GATEP) { GA2.gate[gk] = aPiece(gateArt(gk)); yield; }
+    aPack(); }
+
+  /* A picture on a face parallel to the street (the upper storey, the eave's tile front, a Shijō shop's wall): this slice's part, in strips
+     about 4 px wide, each a drawImage of its column range (env/akiba.js faceArt). dOff: how far the face stands out from the wall, toward
+     the road. Below 2 screen px per texel the 1/2 or 1/4 mip is sampled; the caller paints the average where it is too small. */
+  const FXS = new Float64Array(26);
+  function faceArtG(B, A, h0, h1, j, n, rep, dOff){ const z0b = B.b0 + .3, Lz = B.len - .6; if(Lz < 1 || !A) return;
+    const copies = Math.max(1, Math.round(Lz / rep)), tl = Lz / copies, zv = Math.floor(position / SEG) + 1.02, flip = B.side > 0, X0 = B.side * (B.x0 - (dOff || 0));
+    const sa = Math.max(j, zv, z0b), sb = Math.min(j + n - .001, z0b + Lz); if(sb <= sa) return;
+    if(!CF(sa)) return; const xa = CFX + (X0 + laneDX(Math.floor(sa))) * CFU, ua = CFU; if(!CF(sb)) return; const xb = CFX + (X0 + laneDX(Math.floor(sb))) * CFU;
+    const hv = (h1 - h0) * Math.max(ua, CFU); if(!fin(xa + xb)) return; const kv = hv / A.h, Lv = A.L[kv < PX * .375 ? 2 : kv < PX * .75 ? 1 : 0];
+    const ns = Math.max(1, Math.min(12, Math.round(Math.abs(xb - xa) / (PX * 4)))), a0 = cx.globalAlpha; cx.globalAlpha = a0 * (1 - FF * .55);
+    for(let s = 0; s <= ns; s++){ const z = sa + (sb - sa) * s / ns; FXS[s] = CF(z) ? snp(CFX + (X0 + laneDX(Math.floor(z))) * CFU) : NaN; }
+    for(let s = 0; s < ns; s++){ const za = sa + (sb - sa) * s / ns, zb = sa + (sb - sa) * (s + 1) / ns, xl = Math.min(FXS[s], FXS[s + 1]), xr = Math.max(FXS[s], FXS[s + 1]); if(!(xr > xl) || xr < -PX || xl > W + PX) continue;
+      const ta = (za - z0b) / tl, ti = Math.floor(ta), tb = Math.min(ti + 1, (zb - z0b) / tl); let u0 = ta - ti, u1 = tb - ti; if(flip){ const q = 1 - u1; u1 = 1 - u0; u0 = q; }
+      if(!CF((za + zb) / 2)) continue; const yt = snp(CFY - h1 * CFU), yb = snp(CFY - h0 * CFU); if(yb <= yt) continue;
+      cx.drawImage(GAT, Lv.x + u0 * Lv.w, Lv.y, Math.max(.01, (u1 - u0) * Lv.w), Lv.h, xl, yt, xr - xl, yb - yt); }
+    cx.globalAlpha = a0; }
+  /* The layered street floor (env/akiba.js interior): the room's three layers back to front, each slid by its depth x how obliquely this
+     strip is seen (in whole texels, toward the street's far end), then the front (lattice, posts, noren) unslid. Mid range: the room's
+     composite and the front, two images a strip. */
+  const IDEP = [1, .55, .25];
+  function interiorG(B, Q, Fc, h0, h1, j, n, rep, near){ const z0b = B.b0 + .3, Lz = B.len - .6; if(Lz < 1) return;
+    const copies = Math.max(1, Math.round(Lz / rep)), tl = Lz / copies, zv = Math.floor(position / SEG) + 1.02, flip = B.side > 0, X0 = B.side * B.x0, dir = flip ? -1 : 1;
+    const sa = Math.max(j, zv, z0b), sb = Math.min(j + n - .001, z0b + Lz); if(sb <= sa) return;
+    if(!CF(sa)) return; const xa = CFX + (X0 + laneDX(Math.floor(sa))) * CFU, ua = CFU; if(!CF(sb)) return; const xb = CFX + (X0 + laneDX(Math.floor(sb))) * CFU;
+    const hv = (h1 - h0) * Math.max(ua, CFU); if(!fin(xa + xb)) return; const kv = hv / 36, li = kv < PX * .375 ? 2 : kv < PX * .75 ? 1 : 0;
+    const ns = Math.max(1, Math.min(8, Math.round(Math.abs(xb - xa) / (PX * 6)))), a0 = cx.globalAlpha; cx.globalAlpha = a0 * (1 - FF * .55);
+    for(let s = 0; s <= ns; s++){ const z = sa + (sb - sa) * s / ns; FXS[s] = CF(z) ? snp(CFX + (X0 + laneDX(Math.floor(z))) * CFU) : NaN; }
+    for(let s = 0; s < ns; s++){ const za = sa + (sb - sa) * s / ns, zb = sa + (sb - sa) * (s + 1) / ns, xl = Math.min(FXS[s], FXS[s + 1]), xr = Math.max(FXS[s], FXS[s + 1]); if(!(xr > xl) || xr < -PX || xl > W + PX) continue;
+      const ta = (za - z0b) / tl, ti = Math.floor(ta), tb = Math.min(ti + 1, (zb - z0b) / tl); let u0 = ta - ti, u1 = tb - ti; if(flip){ const q = 1 - u1; u1 = 1 - u0; u0 = q; }
+      if(!CF((za + zb) / 2)) continue; const yt = snp(CFY - h1 * CFU), yb = snp(CFY - h0 * CFU); if(yb <= yt) continue;
+      const ob = clamp(1 - Math.abs((xl + xr) / 2 - W / 2) / (W / 2), 0, 1);
+      if(near) for(let k = 0; k < 3; k++){ const Lv = Q.L[k].L[li], sc = Lv.w / 160, sh = Math.round(IDEP[k] * 14 * ob) * dir; cx.drawImage(GAT, Lv.x + (16 + u0 * 128 + sh) * sc, Lv.y, Math.max(.01, (u1 - u0) * 128 * sc), Lv.h, xl, yt, xr - xl, yb - yt); }
+      else { const Lv = Q.C.L[li], sc = Lv.w / 160; cx.drawImage(GAT, Lv.x + (16 + u0 * 128) * sc, Lv.y, Math.max(.01, (u1 - u0) * 128 * sc), Lv.h, xl, yt, xr - xl, yb - yt); }
+      const Fv = Fc.L[li], sf = Fv.w / 160; cx.drawImage(GAT, Fv.x + (16 + u0 * 128) * sf, Fv.y, Math.max(.01, (u1 - u0) * 128 * sf), Fv.h, xl, yt, xr - xl, yb - yt); }
+    cx.globalAlpha = a0; }
+  // where a point of its front (u 0..1 of a copy, as the pictures are laid; mirrored on the right) stands along the street
+  function frontZ(B, u, rep, c){ const z0b = B.b0 + .3, Lz = B.len - .6, cp = Math.max(1, Math.round(Lz / rep)), tl = Lz / cp; return z0b + tl * (Math.min(c, cp - 1) + (B.side > 0 ? 1 - u : u)); }
+  const frontN = (B, rep) => Math.max(1, Math.round((B.len - .6) / rep));
+
+  /* ---------------------------------------------------------------- the Nishirōmon in three dimensions (round 3; Kellan: "the temple at
+     the first turn looks like it is just a 2d sprite but the second temple is 3d"). It was a camera-facing card; it is now built as the
+     pagoda is: boxes and hipped roofs in world space (wq, clipped at the near plane), so its side faces, the depth of its eaves and its roof
+     planes show in perspective and slide as you pass. Its faces are pixel-art pictures (pieces in the atlas) laid on the true quads: the
+     front faces stand square to the street's axis, so each is one rectangle; the side faces are laid in strips. The lighting follows the
+     pagoda's: the eave undersides floodlit warm, the plaster brightest at its foot, the tile dark with pale edges, the hips moonlit.
+     Sizes are the gate's own at GS (drawn larger than life, round 2's staging), in half-road widths: the lower storey 2.16 x 1.1 deep. */
+  const GATEP = ['gLowF', 'gUpF', 'gLowS', 'gUpS', 'gBrk', 'gRail', 'gWing', 'gWingS', 'pBody', 'pBrk', 'pSuien', 'pBell'];
+  function gateArt(k){ const V = ['#5a140a', '#b83a16', '#ec6a26', '#ffa050'], Wt = ['#9a8a7c', '#d8c4ac', '#f4e4c8'], Gn = ['#0c3626', '#1c684a', '#3a9a6c'];
+    const post = (I, x, w, y0, y1) => { aF(I, x, y0, w, y1 - y0, V[2]); aF(I, x, y0, 1, y1 - y0, V[3]); aF(I, x + w - 1, y0, 1, y1 - y0, V[1]); for(let y = y0; y < y1; y += 5) aP(I, x + 1 + (y & 1), y, V[1]); };
+    const plast = (I, x, y, w, h) => { for(let yy = y; yy < y + h; yy++) for(let xx = x; xx < x + w; xx++){ const t = (yy - y) / h, n = H1(xx * 1.7 + yy * 3.1); aP(I, xx, yy, n < .08 ? Wt[0] : t > .55 ? (n > .85 ? Wt[1] : Wt[2]) : Wt[1]); } };   // floodlit from below: brightest at the foot
+    const lat = (I, x, y, w, h) => { aF(I, x, y, w, h, Gn[0]); for(let xx = x + 1; xx < x + w - 1; xx += 2) aF(I, xx, y + 1, 1, h - 2, Gn[2]); aF(I, x, y, w, 1, Gn[1]); aF(I, x, y + h - 1, w, 1, Gn[1]); };
+    const lan = (I, x, y) => { aP(I, x + 1, y, '#2a1010'); aF(I, x, y + 1, 3, 3, '#fff0d0'); aP(I, x + 1, y + 2, '#ffd890'); aF(I, x, y + 3, 3, 1, V[2]); aP(I, x + 1, y + 4, '#2a1010'); };
+    const beams = (I, w) => { aF(I, 0, 0, w, 2, V[1]); aF(I, 0, 0, w, 1, V[2]); aF(I, 0, 6, w, 2, V[2]); aF(I, 0, 7, w, 1, V[1]); };
+    if(k === 'gLowF'){ const I = aI(96, 20); plast(I, 0, 0, 96, 20); beams(I, 96);
+      aF(I, 35, 2, 26, 18, '#180806'); aF(I, 35, 17, 26, 3, '#3a2418'); aF(I, 35, 17, 26, 1, '#6a4a2c'); for(const [x, y] of [[39, 12], [43, 13], [52, 12], [57, 13], [48, 14]]) aP(I, x, y, '#ffc070');   // the passage, the precinct's lights beyond
+      aF(I, 47, 2, 2, 2, '#5a3a1a'); aF(I, 45, 4, 6, 6, '#e8b850'); aF(I, 45, 4, 6, 1, '#5a3a1a'); aF(I, 45, 9, 6, 1, '#5a3a1a'); aF(I, 46, 5, 1, 4, '#fff0a0'); aF(I, 49, 5, 1, 4, '#b07a28');   // the gilt lantern
+      for(const [x0, rc] of [[5, '#8a2a1a'], [66, '#1e5a3a']]){ aF(I, x0, 8, 26, 6, '#2a1410'); const fx = x0 + 10; aF(I, fx + 1, 7, 4, 2, '#0a0a0a'); aF(I, fx + 1, 9, 4, 2, x0 < 40 ? '#c86a50' : '#d8a888'); aF(I, fx, 11, 6, 3, rc); aF(I, fx - 1, 12, 8, 2, rc); aP(I, fx, 11, aLt(rc, .3)); aF(I, fx + 7, 8, 1, 6, '#c8a050'); lat(I, x0, 13, 26, 7); }   // the guardians behind their green fences
+      for(const x of [32, 62]){ aF(I, x, 2, 2, 12, '#0a0a0e'); aF(I, x, 4, 2, 1, '#e8e0d0'); }   // the black banners
+      for(const x of [0, 30, 61, 91]) post(I, x, 5, 0, 20);
+      for(let x = 5; x < 92; x += 9) if(x < 32 || x > 60) lan(I, x, 1);
+      return I; }
+    if(k === 'gUpF'){ const I = aI(80, 14); plast(I, 0, 0, 80, 14); aF(I, 0, 0, 80, 1, V[1]); aF(I, 0, 11, 80, 1, V[2]); lat(I, 6, 2, 20, 9); lat(I, 54, 2, 20, 9);
+      aF(I, 33, 2, 14, 8, '#c89a3a'); aF(I, 34, 3, 12, 6, '#1a1410'); aF(I, 34, 3, 12, 1, '#3a2a20');   // the plaque (no lettering)
+      for(const x of [0, 26, 50, 76]) post(I, x, 4, 0, 14); return I; }
+    if(k === 'gLowS'){ const I = aI(40, 20); plast(I, 0, 0, 40, 13); beams(I, 40); aF(I, 0, 13, 40, 7, V[1]); for(let x = 1; x < 40; x += 4) aF(I, x, 13, 1, 7, V[0]); lat(I, 8, 8, 9, 5); lat(I, 23, 8, 9, 5); for(const x of [0, 18, 36]) post(I, x, 4, 0, 20); return I; }
+    if(k === 'gUpS'){ const I = aI(32, 14); plast(I, 0, 0, 32, 14); aF(I, 0, 0, 32, 1, V[1]); lat(I, 8, 2, 16, 9); for(const x of [0, 28]) post(I, x, 4, 0, 14); return I; }
+    if(k === 'gBrk'){ const I = aI(96, 5); aF(I, 0, 0, 96, 5, V[0]); for(let x = 0; x < 96; x += 3){ aF(I, x, 1, 2, 3, V[2]); aP(I, x, 1, Wt[2]); aF(I, x, 3, 2, 1, V[3]); } aF(I, 0, 0, 96, 1, V[1]); return I; }   // bracket clusters, their ends pale, lit from below
+    if(k === 'gRail'){ const I = aI(96, 5); aF(I, 0, 0, 96, 1, V[3]); aF(I, 0, 1, 96, 1, V[1]); for(let x = 0; x < 96; x += 3) aF(I, x, 2, 1, 3, V[2]); aF(I, 0, 4, 96, 1, V[1]); for(let x = 0; x < 96; x += 16) aF(I, x, 0, 2, 5, '#e8c060'); return I; }
+    /* The pagoda's materials (Hōkan-ji at night, the dusk and night photographs at pixel zoom): weathered dark timber with its grain, white
+       plaster panels floodlit from below (brightest at the foot) with rain streaks and moss at the sill, the door's studs, the bracket sets
+       (tokyō) as a band of blocks, bengara-red, their ends painted white, the shadows between them black; the bronze water-flame; a wind bell. */
+    if(k === 'pBody'){ const I = aI(48, 24); boards(I, 0, 0, 48, 24, ['#140a06', '#2a170e'], 3.3, false);
+      for(const xa of [3, 31]){ plaster(I, xa, 4, 14, 15, '#c89868', 7.7 + xa); for(let y = 11; y < 19; y++) for(let x = xa; x < xa + 14; x++){ const c = aG(I, x, y); aP(I, x, y, aLt(c, (y - 11) * .05)); } for(let x = xa; x < xa + 14; x += 3) if(H1(x * 2.3) < .5) aP(I, x, 18, '#3a4a2a'); }   // floodlit plaster, moss at the sill
+      aF(I, 19, 3, 10, 19, '#2a140a'); for(let y = 6; y < 21; y += 3) for(let x = 20; x < 28; x += 3) aP(I, x, y, '#c08a40'); aF(I, 23, 3, 1, 19, '#120804'); aF(I, 19, 3, 10, 1, '#d89048');   // the door, its studs, its lit head
+      aF(I, 0, 2, 48, 2, '#1a0e08'); aF(I, 0, 2, 48, 1, '#4a2a18'); aF(I, 0, 20, 48, 2, '#1a0e08'); aF(I, 0, 21, 48, 1, '#7a4a28'); return I; }
+    if(k === 'pBrk'){ const I = aI(64, 6); aF(I, 0, 0, 64, 6, '#140806'); for(let x = 0; x < 64; x += 8){ aF(I, x + 1, 1, 6, 2, '#8a3a1a'); aF(I, x + 2, 3, 4, 2, '#a8481e'); aF(I, x + 3, 5, 2, 1, '#e0904a'); aP(I, x + 1, 1, '#f0dcb0'); aP(I, x + 6, 1, '#f0dcb0'); aP(I, x + 2, 3, '#f0dcb0'); aP(I, x + 5, 3, '#f0dcb0'); aF(I, x + 1, 2, 6, 1, '#5a2410'); } aF(I, 0, 0, 64, 1, '#2a1208'); return I; }
+    if(k === 'pSuien'){ const I = aI(12, 12); const F0 = ['....b..b....', '...bb..bb...', '..b.bb.b.b..', '.b..b.bb..b.', '.bb.b..b.bb.', 'b.b.bb.b.b.b', 'b..b.bb..b.b', '.b.bb..bb.b.', '..bb.bb.bb..', '...bbbbbb...', '....bbbb....', '.....bb.....'];
+      for(let y = 0; y < 12; y++) for(let x = 0; x < 12; x++) if(F0[y][x] === 'b') aP(I, x, y, x < 5 ? '#d8b068' : H1(x * 3 + y) < .3 ? '#4a7a6a' : '#8a6a3a'); return I; }
+    if(k === 'pBell'){ const I = aI(5, 9); aF(I, 2, 0, 1, 2, '#2a2418'); aF(I, 1, 2, 3, 4, '#3a3a2a'); aF(I, 0, 5, 5, 1, '#3a3a2a'); aF(I, 1, 2, 1, 4, '#a89a6a'); aP(I, 2, 6, '#2a2418'); aF(I, 1, 7, 3, 2, '#c8b080'); return I; }
+    if(k === 'gWing' || k === 'gWingS'){ const w = k === 'gWing' ? 64 : 24, I = aI(w, 20); plast(I, 0, 0, w, 13); beams(I, w); aF(I, 0, 13, w, 7, V[1]); for(let x = 1; x < w; x += 4) aF(I, x, 13, 1, 7, V[0]); aF(I, 0, 13, w, 1, V[2]);
+      for(let x = 0; x < w; x += 16){ post(I, x, 3, 0, 20); if(x + 12 < w) lat(I, x + 5, 3, 8, 5); } post(I, w - 3, 3, 0, 20); for(let x = 7; x < w; x += 16) lan(I, x, 1); return I; }
+    return aI(1, 1); }
+
+  function gate(z, X0, fog){ cam(); FF = fog; const s = GS * .86, cs = camSeg();   /* (.86: the front now stands ~9 segments nearer than the card's plane did, so the gate keeps its staged size in frame) */ PJ(z, X0, 0); if(!fin(PJX + PJU)) return; const U0 = PJU * s; if(PJX + 4 * U0 < -PX || PJX - 4 * U0 > W + PX) return;
+    const ad = .55 * s, ZF = d => z + d * ZU; if(ZF(.9 * s) < cs + ZNEAR) return;
+    /* Nothing of it may stand over the road where you pass it (round 2): everything right of the road's left edge, at the depth of the
+       front steps, is clipped (one pixel-aligned rect clip), so the near wing ends at the kerb. */
+    const zc = Math.max(z, cs + ZNEAR + .05); PJ(zc, -1.25, 0); const xr = snp(PJX); if(!fin(xr)) return;   /* (at the gate's own depth, as the card's clip was) */
+    if(xr < -PX) return; const clip = xr < W + PX; if(clip){ cx.save(); cx.beginPath(); cx.rect(-W, -H, xr + W, H * 3); cx.clip(); }
+    try{ gate3(z, X0, fog, s, cs, ad, ZF, U0); } finally { if(clip) cx.restore(); } }
+  // a picture on a face square to the axis (constant z): one rectangle; on a face along it (constant X): strips
+  function gPicF(A, za, Xa, Xb, h0, h1, cs){ if(za < cs + ZNEAR || !A) return; PJ(za, Xa, h1); const x0 = snp(PJX), y0 = snp(PJY); PJ(za, Xb, h0); const x1 = snp(PJX), y1 = snp(PJY); if(!fin(x0 + y0 + x1 + y1) || x1 - x0 < 1 || y1 - y0 < 1) return;
+    if(x1 < -PX || x0 > W + PX || y1 < -PX || y0 > H + PX) return; const kv = (y1 - y0) / A.h, Lv = A.L[kv < PX * .375 ? 2 : kv < PX * .75 ? 1 : 0];
+    if(y1 - y0 < PX * 3){ cx.fillStyle = F(A.avg); pxRect(x0, y0, x1 - x0, y1 - y0); return; } const a0 = cx.globalAlpha; cx.globalAlpha = a0 * (1 - FF * .55); cx.drawImage(GAT, Lv.x, Lv.y, Lv.w, Lv.h, x0, y0, x1 - x0, y1 - y0); cx.globalAlpha = a0; }
+  function gPicS(A, X, za, zb, h0, h1, cs, flip){ if(!A) return; const N = 8; const a0 = cx.globalAlpha; cx.globalAlpha = a0 * (1 - FF * .55);
+    for(let q = 0; q < N; q++){ const z0 = za + (zb - za) * q / N, z1 = za + (zb - za) * (q + 1) / N; if(Math.min(z0, z1) < cs + ZNEAR) continue;
+      PJ(z0, X, h1); const xa = PJX, ya0 = PJY; PJ(z0, X, h0); const yb0 = PJY; PJ(z1, X, h1); const xb = PJX, ya1 = PJY; PJ(z1, X, h0); const yb1 = PJY;
+      const xl = snp(Math.min(xa, xb)), xx = snp(Math.max(xa, xb)), yt = snp((ya0 + ya1) / 2), yb = snp((yb0 + yb1) / 2); if(!fin(xl + xx + yt + yb) || xx <= xl || yb <= yt || xx < -PX || xl > W + PX) continue;
+      const kv = (yb - yt) / A.h, Lv = A.L[kv < PX * .375 ? 2 : kv < PX * .75 ? 1 : 0]; let u0 = q / N, u1 = (q + 1) / N; if(flip){ const t = 1 - u1; u1 = 1 - u0; u0 = t; }
+      cx.drawImage(GAT, Lv.x + u0 * Lv.w, Lv.y, Math.max(.01, (u1 - u0) * Lv.w), Lv.h, xl, yt, xx - xl, yb - yt); }
+    cx.globalAlpha = a0; }
+  const GQ = (p1, p2, p3, p4, col) => wq(p1[0], p1[1], p1[2], p2[0], p2[1], p2[2], p3[0], p3[1], p3[2], p4[0], p4[1], p4[2], col);
+  /* A hipped roof over a box: its eave (half sizes rx, rz at height he, the corners lifting), the floodlit underside back to the wall (half
+     wx, wz at wh), the tile band of the eave with its pale rafter-end lip and its tile edge, and, where the eye stands above its plane, the
+     slopes up to the inner line (half ix, iz at ih: a ridge when iz is 0, the balcony's edge for the skirt roof), their tile courses, the
+     moonlit hips. eyeH, eyeX: the eye, in the gate's frame. */
+  const GRF = new Float64Array(13);
+  function gRoof(ZF, X0, cs, o, eyeH, dz, sideR, front, fine){ const { rx, rz, he, th, wx, wz, wh, ix, iz, ih } = o, LIFT = .14 * GS, N = 6;
+    for(let q = 0; q <= N * 2; q++){ const u = q / N - 1; GRF[q] = u * u * u * u; }
+    const E = (sd, u, d, h) => sd ? [ZF(u * rz * d), X0 + sideR * rx * d, h] : [ZF(-rz * d), X0 + u * rx * d, h];
+    for(const sd of [1, 0]){ if(sd ? !sideR : !front) continue; const R = sd ? rz : rx, Wd = sd ? wz : wx, Ii = sd ? iz : ix, out = sd ? rx : rz, wo = sd ? wx : wz, io = sd ? ix : iz;
+      const P = (u, k, h) => { const along = k === 0 ? R : k === 1 ? Wd : Ii, o2 = k === 0 ? out : k === 1 ? wo : io; return sd ? [ZF(u * along), X0 + sideR * o2, h] : [ZF(-o2), X0 + u * along, h]; };
+      for(let q = 0; q < N * 2; q++){ const u0 = q / N - 1, u1 = (q + 1) / N - 1, l0 = he + LIFT * GRF[q], l1 = he + LIFT * GRF[q + 1];
+        GQ(P(u0, 0, l0), P(u1, 0, l1), P(u1, 1, wh), P(u0, 1, wh), L1(fine ? (q & 1 ? '#8a2e12' : '#a43a16') : '#963414')); }   // the underside: vermilion rafters, floodlit
+      const dEye = sd ? (eyeX0 - X0) * sideR : dz, hAt = he + th + (ih - he - th) * (dEye - out) / Math.max(.01, io - out), up = eyeH > hAt;
+      if(up) for(let q = 0; q < N * 2; q++){ const u0 = q / N - 1, u1 = (q + 1) / N - 1, l0 = he + th + LIFT * GRF[q], l1 = he + th + LIFT * GRF[q + 1];
+        GQ(P(u0, 0, l0), P(u1, 0, l1), P(u1, 2, ih), P(u0, 2, ih), F(q & 1 ? '#1c1e2a' : '#22242f'));
+        if(fine) for(const t of [.3, .6]){ const a = P(u0, 0, l0), b = P(u1, 0, l1), c = P(u1, 2, ih), d = P(u0, 2, ih), m = (p, r, k) => p.map((v, i) => v + (r[i] - v) * k);
+          const a1 = m(a, d, t), b1 = m(b, c, t), a2 = m(a, d, t + .04), b2 = m(b, c, t + .04); GQ(a1, b1, b2, a2, F('#363a4a')); } }   // tile courses
+      for(let q = 0; q < N * 2; q++){ const u0 = q / N - 1, u1 = (q + 1) / N - 1, h0 = he + LIFT * GRF[q], h1 = he + LIFT * GRF[q + 1];
+        GQ(P(u0, 0, h0), P(u1, 0, h1), P(u1, 0, h1 + th), P(u0, 0, h0 + th), F('#262836')); if(fine){ GQ(P(u0, 0, h0), P(u1, 0, h1), P(u1, 0, h1 + th * .28), P(u0, 0, h0 + th * .28), L1('#f0dcc0')); GQ(P(u0, 0, h0 + th * .82), P(u1, 0, h1 + th * .82), P(u1, 0, h1 + th), P(u0, 0, h0 + th), F('#7a7e90')); } }
+      if(up && fine) for(const u of [-1, 1]){ const c0 = P(u, 0, he + th + LIFT), c1 = P(u, 2, ih); if(c0[0] > cs + ZNEAR && c1[0] > cs + ZNEAR){ PJ(c0[0], c0[1], c0[2]); const x0 = PJX, y0 = PJY; PJ(c1[0], c1[1], c1[2]); pline(x0, y0, PJX, PJY, F('#7a8098'), 1); } } } }
+  let eyeX0 = 0;
+  function gate3(z, X0, fog, s, cs, ad, ZF, U0){ const fine = U0 >= PX * 10, small = U0 < PX * 3;
+    let n = z - BI; if(n < 0) n = 0; if(n > NX - 1) n = NX - 1; const gi = n | 0, gy = YA[gi] + (YA[gi + 1] - YA[gi]) * (n - gi), eyeH = (CAMY - gy) / ROADW, dz = (z - cs) / ZU; eyeX0 = playerX;
+    const aw = 1.08 * s, front = cs < ZF(-ad), sideR = playerX > X0 + aw ? 1 : playerX < X0 - aw ? -1 : 0, Gp = GA2.ready ? GA2.gate : {};
+    // the forest behind (Maruyama): a wooded hill, never a card (audit #14), camera-facing well behind the gate
+    if(plane(ZF(1.2 * s), X0)){ OU *= s; const u = OU, cw = Math.max(PX, Math.min(2 * PX, snp(u * .09))), x0 = snp(OX - 3.4 * u), CWu = .34;
+      for(let xs = x0; xs < OX + 3.4 * u; xs += cw){ if(xs > W + PX) break; if(xs + cw < -PX) continue; const X = (xs + cw / 2 - OX) / u;
+        const f = Math.min(1, Math.abs(X) / 3.4), cc = (X + 3.4) / CWu, cr = Math.floor(cc), t = (cc - cr) * 2 - 1, dome = Math.sqrt(Math.max(0, 1 - t * t));
+        const hb = .4 + (2.9 * (1 - f * f) + H1(cr * .37 + 5) * .34 * (1 - f * .5) + dome * (.12 + H1(cr * 1.13 + 2) * .1)), top = snp(OY - hb * u), bot = snp(OY - .2 * u);
+        if(bot - top < PX) continue; R(xs, top, cw, bot - top, F(H1(cr * 2.9 + 1) > .7 ? '#0a1210' : '#070c0c')); R(xs, top, cw, PX, F(dome > .45 ? '#1c2a26' : '#142220'));
+        if(Math.abs(X) < 2.9){ const g = Math.abs(X) / 2.9, hl = .4 + (1.45 * (1 - g * g) + H1(cr * 3.7 + 9) * .22 + dome * .08), tl = snp(OY - hl * u); if(bot - tl >= PX) R(xs, tl, cw, bot - tl, F('#0e1814')); } } }
+    // the stone platform under the gate and wings
+    { const pz = ZF(-.62 * s); if(pz > cs + ZNEAR){ GQ([pz, X0 - 2.95 * s, 0], [pz, X0 + 2.95 * s, 0], [pz, X0 + 2.95 * s, .42 * s], [pz, X0 - 2.95 * s, .42 * s], F('#4a4650')); GQ([pz, X0 - 2.95 * s, .4 * s], [pz, X0 + 2.95 * s, .4 * s], [pz, X0 + 2.95 * s, .42 * s], [pz, X0 - 2.95 * s, .42 * s], F('#8a8690')); } }
+    // the wings: lower halls each side, their hipped roofs (outer end first where it shows)
+    for(const sw of [-1, 1]){ const xa = X0 + sw * 1.14 * s, xb = X0 + sw * 2.75 * s, wz = .4 * s;
+      if(!small && sideR === sw) gPicS(Gp.gWingS, xb, ZF(-wz), ZF(wz), .42 * s, 1.02 * s, cs, false);
+      if(front) gPicF(Gp.gWing, ZF(-wz), Math.min(xa, xb), Math.max(xa, xb), .42 * s, 1.02 * s, cs);
+      const cxw = (xa + xb) / 2, hw = Math.abs(xb - xa) / 2; gRoof(ZF, cxw, cs, { rx:hw + .16 * s, rz:wz + .14 * s, he:1.04 * s, th:.06 * s, wx:hw, wz, wh:1.02 * s, ix:hw * .6, iz:0, ih:1.3 * s }, eyeH, dz, sideR === sw ? sw : 0, front, fine); }
+    // the upper storey and its roof (top down, so each roof covers the foot of the body above it, as you look up)
+    const a2 = .92 * s, d2 = .42 * s;
+    gRoof(ZF, X0, cs, { rx:1.68 * s, rz:.98 * s, he:1.96 * s, th:.09 * s, wx:a2 + .06 * s, wz:d2 + .06 * s, wh:1.9 * s, ix:.7 * s, iz:0, ih:2.5 * s }, eyeH, dz, sideR, front, fine);
+    if(!small){ for(const sg of [-1, 1]){ if(sideR !== sg) continue; const gx = X0 + sg * .7 * s; GQ([ZF(-.24 * s), gx, 2.34 * s], [ZF(.24 * s), gx, 2.34 * s], [ZF(0), gx, 2.5 * s], [ZF(0), gx, 2.5 * s], L1('#e8d8bc')); GQ([ZF(-.24 * s), gx, 2.32 * s], [ZF(.24 * s), gx, 2.32 * s], [ZF(.24 * s), gx, 2.35 * s], [ZF(-.24 * s), gx, 2.35 * s], L1('#c84a1e')); }   // the gable (irimoya), white boards and a vermilion rail
+      const rz0 = ZF(-.03 * s); if(rz0 > cs + ZNEAR){ GQ([rz0, X0 - .74 * s, 2.47 * s], [rz0, X0 + .74 * s, 2.47 * s], [rz0, X0 + .74 * s, 2.56 * s], [rz0, X0 - .74 * s, 2.56 * s], F('#1a1c28')); GQ([rz0, X0 - .74 * s, 2.55 * s], [rz0, X0 + .74 * s, 2.55 * s], [rz0, X0 + .74 * s, 2.57 * s], [rz0, X0 - .74 * s, 2.57 * s], F('#9a9eae'));
+        for(const e of [-1, 1]) GQ([rz0, X0 + e * .7 * s, 2.47 * s], [rz0, X0 + e * .8 * s, 2.47 * s], [rz0, X0 + e * .82 * s, 2.64 * s], [rz0, X0 + e * .72 * s, 2.62 * s], F('#262836')); } }   // the ridge and its onigawara
+    if(!small && sideR) gPicS(Gp.gBrk, X0 + sideR * (a2 + .04 * s), ZF(-d2 - .04 * s), ZF(d2 + .04 * s), 1.8 * s, 1.9 * s, cs, sideR > 0);
+    if(front) gPicF(Gp.gBrk, ZF(-d2 - .04 * s), X0 - a2 - .04 * s, X0 + a2 + .04 * s, 1.8 * s, 1.9 * s, cs);
+    if(!small && sideR) gPicS(Gp.gUpS, X0 + sideR * a2, ZF(-d2), ZF(d2), 1.44 * s, 1.8 * s, cs, sideR > 0);
+    if(front) gPicF(Gp.gUpF, ZF(-d2), X0 - a2, X0 + a2, 1.44 * s, 1.8 * s, cs);
+    // the balcony: its floor's edge, the railing round the upper storey
+    if(!small && sideR) gPicS(Gp.gRail, X0 + sideR * 1.02 * s, ZF(-.55 * s), ZF(.55 * s), 1.36 * s, 1.46 * s, cs, false);
+    if(front) gPicF(Gp.gRail, ZF(-.55 * s), X0 - 1.02 * s, X0 + 1.02 * s, 1.36 * s, 1.46 * s, cs);
+    // the skirt roof over the lower storey, up to the balcony's edge
+    gRoof(ZF, X0, cs, { rx:1.42 * s, rz:.84 * s, he:1.13 * s, th:.07 * s, wx:aw + .05 * s, wz:ad + .05 * s, wh:1.12 * s, ix:1.02 * s, iz:.55 * s, ih:1.36 * s }, eyeH, dz, sideR, front, fine);
+    if(!small && sideR) gPicS(Gp.gBrk, X0 + sideR * (aw + .04 * s), ZF(-ad - .04 * s), ZF(ad + .04 * s), 1.02 * s, 1.12 * s, cs, false);
+    if(front) gPicF(Gp.gBrk, ZF(-ad - .04 * s), X0 - aw - .04 * s, X0 + aw + .04 * s, 1.02 * s, 1.12 * s, cs);
+    if(!small && sideR) gPicS(Gp.gLowS, X0 + sideR * aw, ZF(-ad), ZF(ad), .42 * s, 1.02 * s, cs, sideR > 0);
+    if(front) gPicF(Gp.gLowF, ZF(-ad), X0 - aw, X0 + aw, .42 * s, 1.02 * s, cs);
+    // the steps: seven treads down to the street (the side ends where they show, then each riser and tread, the highest first)
+    const st = 7, sd0 = ad + .6 * s; for(let q = st - 1; q >= 0; q--){ const zq = ZF(-sd0 + q * .6 * s / st), h0 = q * .06 * s, h1 = h0 + .06 * s, w = 2.1 * s - q * .05 * s; if(zq < cs + ZNEAR) continue;
+      if(sideR && !small) GQ([zq, X0 + sideR * w, 0], [ZF(-ad), X0 + sideR * w, 0], [ZF(-ad), X0 + sideR * w, h1], [zq, X0 + sideR * w, h1], F('#4e4a52'));
+      GQ([zq, X0 - w, h1], [zq, X0 + w, h1], [ZF(-ad), X0 + w, h1], [ZF(-ad), X0 - w, h1], F('#8a847c')); GQ([zq, X0 - w, h0], [zq, X0 + w, h0], [zq, X0 + w, h1], [zq, X0 - w, h1], F(q & 1 ? '#6a6460' : '#76706a'));
+      if(fine) GQ([zq, X0 - w, h1 - .012 * s], [zq, X0 + w, h1 - .012 * s], [zq, X0 + w, h1], [zq, X0 - w, h1], L1('#c8bca8')); }
+    // the stone lanterns flanking the steps, camera-facing
+    if(!small && plane(ZF(-sd0 - .1 * s), X0)){ OU *= s; for(const sg of [-1, 1]){ const lx = sg * 2.35; PR(lx - .05, lx + .05, 0, .45, F(STONE[2])); PR(lx - .1, lx + .1, .45, .6, F(STONE[1])); PR(lx - .06, lx + .06, .48, .57, L1('#ffc870')); PP(lx - .16, .6, lx + .16, .6, lx + .05, .7, lx - .05, .7, F(STONE[1])); PR(lx - .14, lx + .14, .0, .05, F(STONE[0])); } }
+    if(fog < .85){ PJ(ZF(-ad), X0, 1.1 * s); glow(PJX, PJY, Math.min(H * .25, U0 * 1.6), '#ff7a2a', .18 * (1 - fog)); } }
+
+
   // ---------------------------------------------------------------- the visit and its layout
   /* Each visit (zone z, border B0 to B1) is laid out from the gates alone, so place(), the set piece and the far land agree. In order:
        Shijō-dōri    B0 .. GT: shops with arcades, the Minami-za near the start, the Hanami-kōji junction JX, then a straight of 300
@@ -191,6 +609,14 @@
     else if(k === 'minamiza'){ B.nF0 = 4; B.x0 = 2.3; B.depth = 2.4; B.lit = true; }
     else if(k === 'ochaya' || k === 'kawa'){ B.nF0 = hs(11) < .25 ? 3 : 2; }
     else B.nF0 = hs(11) < .15 ? 3 : 2;
+    // round 3: which pictures it wears (the street floor's room and front, the upper storey), its hanging board, the inuyarai
+    B.nc = Math.floor(hs(5) * 5); const SHOPR = ['wagashi', 'sensu', 'toki', 'cha'];
+    if(k === 'ochaya' || k === 'kawa'){ B.fk = 'kb'; B.rk = hs(12) < .72 ? 'zashiki' : 'kappo'; }
+    else if(k === 'mach'){ const shop = hs(12) < (sec === 'climb' ? .7 : sec === 'hanami' ? .3 : .55); B.fk = shop ? 'mise' : 'kd'; B.rk = shop ? SHOPR[Math.floor(hs(13) * 4)] : 'genkan'; }
+    else if(k === 'shop'){ B.fk = 'glass'; B.rk = SHOPR.concat(['kappo'])[Math.floor(hs(13) * 5)]; }
+    if(B.fk){ B.fkey = B.fk + (B.lit ? B.nc : B.nc % 2) + (B.lit ? '1' : '0'); B.inu = B.fk !== 'mise' && B.fk !== 'glass' && sec !== 'shijo' && hs(14) < .7; B.uk = B.up === 'lattice' ? (B.fk === 'kb' ? 'shoji' : 'koshi') : B.up;
+      if(B.fk !== 'glass'){ const zl = frontZ(B, B.fk === 'mise' ? .47 : .45, 9, 0); B.door = zl + .4 - B.b0; }
+      if(k !== 'shop' && B.sign && B.len >= 8){ B.kz = frontZ(B, B.fk === 'mise' ? .06 : .12, 9, frontN(B, 9) - 1); B.kan = B.rk === 'kappo' ? -1 : (['fan', 'tea', 'dango', 'bowl', 'wave', 'gourd'].indexOf(B.rk === 'sensu' ? 'fan' : B.rk === 'cha' ? 'tea' : B.rk === 'wagashi' ? 'dango' : B.rk === 'toki' ? 'bowl' : hs(15) < .5 ? 'wave' : 'gourd') + (hs(16) < .5 ? 6 : 0)); } }
     B.nF = B.nF0; B.h = bH(B); return B; }
   // storeys: a shop storey .62; the machiya street floor G .56, each upper storey UH .42 (low, under the deep eaves)
   const FH = .62, G = .56, UH = .42;
@@ -242,6 +668,16 @@
     FQ(0, .04, F(STONE[1]));
     if(!mid){ FQ(.04, G, F(lit ? mix(W0[1], GLOW[1], .55) : W0[1])); FQ(G, G + .06, F(TILE)); for(let f = 1; f < B.nF; f++){ const fy = G + .06 + (f - 1) * (UH + .06); FQ(fy, fy + UH, F(B.up === 'sudare' && lit ? '#7a5030' : PLAS[1])); FQ(fy + UH, fy + UH + .06, F(TILE)); }
       return; }
+    // round 3: the street floor as the layered picture (the room behind, the front over it), once it stands 6 px tall
+    const art = GA2.ready && B.fkey && G * Math.max(FU1, FU2) >= PX * 6 && !GX.includes('art');
+    if(art){ interiorG(B, GA2.room[B.rk + (lit ? 1 : 0)], GA2.face[B.fkey], 0, G, j, n, 9, fpx >= 7);
+      if(fpx >= 4) for(let c = 0, N = frontN(B, 9); c < N; c++){
+        if(B.inu) for(const [ua, ub] of [[.02, .44], [.75, .98]]){ const z0 = frontZ(B, B.side > 0 ? ub : ua, 9, c), z1 = frontZ(B, B.side > 0 ? ua : ub, 9, c), ta = Math.max(0, (z0 - j) / n), tb = Math.min(1, (z1 - j) / n); if(tb <= ta) continue;   // the inuyarai under the lattice panels (never across the door)
+          SQ(.08, 0, .06, .07, F('#2a2016'), ta, tb); SQ(.06, .07, .01, .15, F('#3e3220'), ta, tb); if(fpx >= 6) SQ(.012, .145, .0, .16, F(lit ? '#a8844a' : '#5a4c36'), ta, tb);
+          if(fpx >= 10){ const st = .35; for(let z = Math.ceil(Math.max(z0, j) / st) * st; z < Math.min(z1, j + n); z += st){ const t = (z - j) / n; SQ(.075, .01, .015, .145, F('#18120c'), t, Math.min(1, t + .08 / n)); } } }
+        if(B.fk === 'mise' && lit){ const z0 = frontZ(B, B.side > 0 ? .4 : .1, 9, c), z1 = frontZ(B, B.side > 0 ? .1 : .4, 9, c), ta = Math.max(0, (z0 - j) / n), tb = Math.min(1, (z1 - j) / n); if(tb > ta){   // a battari-shōgi folded down: the plank, its lit front edge
+            SQ(0, .09, .075, .09, F('#5a3a22'), ta, tb); SQ(.075, .075, .075, .09, L1('#a8784a'), ta, tb); if(fpx >= 8) for(const q of [.15, .85]){ const t = ta + (tb - ta) * q; SQ(.06, 0, .06, .075, F('#2a1a10'), t, Math.min(1, t + .1 / n)); } } } } }
+    else {
     // the street floor: the face, then each bay (lattice, door, or a plain wall panel)
     FQ(.04, G, F(W0[0]));
     const ba = Math.floor(rel / P), bz = Math.floor((rel + n - 1) / P);
@@ -264,18 +700,21 @@
       FQ(.5, .53, F(W0[2]), pa, pb); FQ(.06, .08, F(W0[2]), pa, pb);   // the lattice's head and sill rails
       // the inuyarai: a curved bamboo fence leaning out from the foot of the wall
       if(B.sec !== 'shijo' && hb > .3){ SQ(.08, 0, .06, .07, F('#2a2016'), pa, pb); SQ(.06, .07, .01, .15, F('#3e3220'), pa, pb); if(fpx >= 6) SQ(.012, .145, .0, .16, F(lit ? '#a8844a' : '#5a4c36'), pa, pb);
-        if(fpx >= 10){ const st = .35; for(let z = Math.ceil(Math.max(z0, j) / st) * st; z < Math.min(z0 + P, j + n); z += st){ const t = (z - j) / n; SQ(.075, .01, .015, .145, F('#18120c'), t, Math.min(1, t + .08 / n)); } } } }
+        if(fpx >= 10){ const st = .35; for(let z = Math.ceil(Math.max(z0, j) / st) * st; z < Math.min(z0 + P, j + n); z += st){ const t = (z - j) / n; SQ(.075, .01, .015, .145, F('#18120c'), t, Math.min(1, t + .08 / n)); } } } } }
     // the shallow eave between storeys: its soffit seen from below, the tile front with a pale lip, the tile rolls near
-    let fy = G; SQ(0, fy - .01, .16, fy + .01, F(W0[0])); SQ(.16, fy + .01, .17, fy + .07, F(TILE)); if(fpx >= 4) SQ(.17, fy + .065, .17, fy + .075, F(TEDGE));
+    let fy = G; SQ(0, fy - .01, .16, fy + .01, F(W0[0])); SQ(.16, fy + .01, .17, fy + .07, F(TILE)); if(GA2.ready && .06 * Math.max(FU1, FU2) >= PX * 3) faceArtG(B, GA2.tex.eave, fy + .01, fy + .07, j, n, 7, .17); else if(fpx >= 4) SQ(.17, fy + .065, .17, fy + .075, F(TEDGE));   // (the tile front: the cover tiles' round ends, the pale lip)
     // the lantern by the door (camera-facing, hung from the eave's lip)
     if(B.lan){ const zl = B.b0 + B.door - .4; if(zl >= j && zl < j + n) lantern(zl, B.side * (B.x0 - .15) + laneDX(Math.floor(zl)), .38, .055, B.k === 'ochaya' || B.k === 'kawa' ? 1 : 0, B.sd); }
     fy += .07;
     for(let f = 1; f < B.nF; f++){ if(fy > hv) break; upper(B, fy, j, n, fpx, wpx, now); fy += UH; // the main eave over the top storey, or the next shallow eave
       const top = f === B.nF - 1, d = top ? .24 : .14; SQ(0, fy, d, fy + .03, F(top ? W0[1] : W0[0])); if(fpx >= 6 && top){ const st = 1.2; for(let z = Math.ceil(Math.max(B.b0, j) / st) * st; z < j + n; z += st){ const t = (z - j) / n; SQ(0, fy + .005, d, fy + .03, F(W0[0]), t, Math.min(1, t + .14 / n)); } }   // the rafter ends under the eave
-      SQ(d, fy + .03, d + .01, fy + .1, F(TILE)); if(fpx >= 3) SQ(d + .01, fy + .09, d + .01, fy + .105, F(TEDGE)); if(fpx >= 10 && top) SQ(d + .01, fy + .03, d + .01, fy + .045, F(TLIP));
+      SQ(d, fy + .03, d + .01, fy + .1, F(TILE)); if(GA2.ready && .07 * Math.max(FU1, FU2) >= PX * 3) faceArtG(B, GA2.tex.eave, fy + .03, fy + .1, j, n, 7, d + .01); else if(fpx >= 3) SQ(d + .01, fy + .09, d + .01, fy + .105, F(TEDGE)); if(fpx >= 10 && top) SQ(d + .01, fy + .03, d + .01, fy + .045, F(TLIP));
       fy += .1; } }   // (the roof itself rises away from the street: from the eye's height it hides behind its own eave)
   // an upper storey: sudare blinds lit from behind (horizontal slats), mushiko-mado (dark slats in plaster), or a wooden lattice; a railing
   function upper(B, fy, j, n, fpx, wpx, now){ const lit = B.lit, P = B.P, W0 = B.bg;
+    if(GA2.ready && B.uk && UH * Math.max(FU1, FU2) >= PX * 5 && !GX.includes('art')){ const an = B.uk === 'shoji' || B.uk === 'sudare', on = lit && (B.uk !== 'koshi' || H1(B.sd * 5.1) < .5);
+      const A = GA2.up[B.uk + (on ? 1 : 0) + (an && on ? (reduce ? 0 : Math.floor((now + B.sd * 9000) / 560) % UPF) : '')] || GA2.up[B.uk + '0'];   // the figures behind the paper move (a dance with a fan); still under reduced motion
+      FQ(fy, fy + UH, F(A.avg)); faceArtG(B, A, fy, fy + UH, j, n, 9.5, 0); return; }
     FQ(fy, fy + UH, F(PLAS[B.k === 'mach' ? 0 : 1]));
     const sec = Math.floor((j - B.b0) / (P * 2)), on = lit && H1(B.sd * 5.1 + fy * 3 + sec) < .75;
     if(B.up === 'sudare'){ FQ(fy + .06, fy + UH - .05, F(on ? '#c88a48' : '#4a3426')); if(fpx >= 5) for(let r = 0; r < (fpx >= 12 ? 6 : 3); r++){ const hh = fy + .08 + r * (UH - .13) / (fpx >= 12 ? 6 : 3); FQ(hh, hh + .008, F(on ? '#8a5228' : '#2e2018')); }
@@ -289,15 +728,17 @@
   /* A Shijō shop: three to five storeys of night-dark tile or concrete, lit floors, its shop at street level, the arcade over the pavement
      (a roof between the kerb and the face, lit from below, posts at the kerb), a small restrained signboard (Kyoto keeps signs small). */
   function shopB(B, j, n, fpx, wpx, hv, now){ const S = B.face, lit = B.lit;
-    FQ(0, .58, F(lit ? '#e8c890' : '#2a2026')); FQ(0, .06, F(STONE[0]));
-    if(fpx >= 4){ for(let q = Math.floor((j - B.b0) / B.P); ; q++){ const z = B.b0 + q * B.P; if(z >= j + n) break; const t = (z - j) / n; if(t >= 0) FQ(0, .58, F('#1a1418'), t, Math.min(1, t + .1 / n)); if(lit && fpx >= 6){ const a = Math.max(0, t + .25 * B.P / n), b = Math.min(1, t + .6 * B.P / n); if(b > a) FQ(.08, .3, F(['#8a5a3a', '#4a5a7a', '#9a7a4a'][q % 3]), a, b); } } }
+    if(GA2.ready && B.fkey && .58 * Math.max(FU1, FU2) >= PX * 6 && !GX.includes('art')) interiorG(B, GA2.room[B.rk + (lit ? 1 : 0)], GA2.face[B.fkey], 0, .58, j, n, 9, fpx >= 7);
+    else { FQ(0, .58, F(lit ? '#e8c890' : '#2a2026')); FQ(0, .06, F(STONE[0])); }
+    if(fpx >= 4 && !GA2.ready){ for(let q = Math.floor((j - B.b0) / B.P); ; q++){ const z = B.b0 + q * B.P; if(z >= j + n) break; const t = (z - j) / n; if(t >= 0) FQ(0, .58, F('#1a1418'), t, Math.min(1, t + .1 / n)); if(lit && fpx >= 6){ const a = Math.max(0, t + .25 * B.P / n), b = Math.min(1, t + .6 * B.P / n); if(b > a) FQ(.08, .3, F(['#8a5a3a', '#4a5a7a', '#9a7a4a'][q % 3]), a, b); } } }
     FQ(.58, .74, F(S[0]));
     // the arcade: a roof over the pavement at .62, from the face out to the kerb; tubes underneath; a lit fascia
     SQ(0, .64, 1.08, .64, F('#1e1c24')); SQ(1.08, .64, 1.1, .74, F('#4a4650')); if(fpx >= 2) SQ(1.1, .72, 1.1, .74, F('#8a8690'));
     if(fpx >= 5){ for(let z = Math.ceil(j / 3) * 3; z < j + n; z += 3){ const t = (z - j) / n; SQ(.4, .64, .7, .64, L1('#fff0d0'), t, Math.min(1, t + .5 / n)); } }
     if(B.b0 % 8 < 8){ for(let z = Math.ceil(j / 8) * 8; z < j + n; z += 8){ const t = (z - j) / n; SQ(1.07, 0, 1.09, .64, F('#3a3842'), t, Math.min(1, t + .12 / n)); } }   // the arcade's posts at the kerb
-    if(hv <= .74) return; FQ(.74, B.h, F(S[1]));
+    if(hv <= .74) return; FQ(.74, B.h, F(S[1])); const wt = GA2.ready && fpx >= 6 ? GA2.tex['shop' + (Math.floor(B.sd * 3) % 3)] : null;   // (near: the wall's tiles, rain-streaked, a floor at a time)
     for(let f = 0; f < B.nF; f++){ const fy = .74 + f * FH; if(fy > hv) break; const xtra = f >= B.nF0, st = H1(B.sd * 7.1 + f * 3.3 + Math.floor((j - B.b0) / 6)), on = lit && st < (xtra ? .4 : .55);
+      if(wt && !xtra) faceArtG(B, wt, fy, Math.min(fy + FH, B.h), j, n, 6, 0);
       FQ(fy + .16, fy + .46, F(on ? (st < .25 ? '#e8c890' : '#b8c0d8') : '#161420')); if(xtra || fpx < 6) continue;
       for(let z = Math.ceil(Math.max(B.b0, j) / 3) * 3; z < j + n; z += 3){ const t = (z - j) / n; FQ(fy + .16, fy + .46, F(S[0]), t, Math.min(1, t + .2 / n)); }
       FQ(fy + .46, fy + .49, F(S[2])); }
@@ -359,6 +800,7 @@
     const h = B.h, mach = B.k === 'mach' || B.k === 'ochaya' || B.k === 'kawa';
     R(xl, y - uw * h, wd, uw * h, F(mach ? PLAS[0] : B.k === 'shop' ? B.face[0] : B.k === 'minamiza' ? MZP[0] : '#14121c'));
     if(mach){ R(xl, y - uw * G, wd, uw * G, F(B.bg[0])); if(B.lit && wd > PX * 4) R(xl + wd * .2, y - uw * .46, wd * .6, uw * .3, F(mix(GLOW[1], B.bg[1], .5)));
+      if(GA2.ready && wd > PX * 6 && uw * (h - G) > PX * 6){ const A = GA2.tex.gable, Lv = A.L[wd / 32 < PX * .75 ? 1 : 0], a0 = cx.globalAlpha; cx.globalAlpha = a0 * (1 - FF * .55); cx.drawImage(GAT, Lv.x, Lv.y, Lv.w, Lv.h, snp(xl), snp(y - uw * h), snp(wd), snp(uw * (h - G))); cx.globalAlpha = a0; }   // the plaster: grime, streaks, the half-timber
       const xr = x + dx * .5, yt = y - uw * (h + .34); poly4(x, y - uw * h, x + dx, y - uw * h, xr, yt, xr, yt, F(PLAS[1]));   // the gable
       pline(x - side * uw * .06, y - uw * (h - .02), xr, yt - PX, F(TEDGE), wd > PX * 30 ? 2 : 1); pline(xr, yt - PX, x + dx + side * uw * .06, y - uw * (h - .02), F(TEDGE), wd > PX * 30 ? 2 : 1); }
     if(B.k === 'shop' && wd > PX * 3) for(let f = 0; f < B.nF; f++){ const fy = .74 + f * FH; if(fy + .46 > h) break; if(H1(B.sd * 3.1 + f) < .4) R(xl + wd * .2, y - uw * (fy + .46), wd * .6, uw * .28, F(B.lit ? '#d8b880' : '#1c1a26')); } }
@@ -367,9 +809,32 @@
   /* A chōchin (camera-facing, at segment-float z, lateral X, height of its centre h, radius r in half-road widths). kind 0: white paper with
      a red band (a generic inn lantern); 1: Gion's red lantern with the white roundels (the dango ring motif, a district emblem, no name).
      Small: a lit dot. Near: the stepped body, the ribs, black caps top and bottom, a glow. */
+  /* A hanging board (kanban) on its bracket beside the door, square to the street, so it faces you as you ride: a graphic mark of the
+     trade (a fan, a cup, dango, a bowl, a wave, a gourd), never lettering; at a sake-serving house, a sugidama (a cedar ball). */
+  function drawKan(sp, x, y, uw, fog, now){ const B = sp.b; if(!GA2.ready || !CF(B.kz)) return; FF = fog; const u = CFU; if(u < .4) return;
+    const lx = laneDX(Math.floor(B.kz)), xw = CFX + (B.side * B.x0 + lx) * u, xo = CFX + (B.side * (B.x0 - .1) + lx) * u, yb = CFY - .5 * u;
+    if(Math.max(xw, xo) < -PX * 8 || Math.min(xw, xo) > W + PX * 8 || !fin(xw + xo + yb)) return;
+    const sugi = B.kan < 0, A = sugi ? GA2.sugi[B.sd < .5 ? 0 : 1] : GA2.kan[B.kan]; if(!A) return; pline(xw, yb, xo, yb, F('#1a1010'), u > 160 ? 2 : 1);   // the bracket
+    const bw = (sugi ? .1 : .085) * u, bh = bw * A.h / A.w, top = yb + (sugi ? .006 : .012) * u; if(bh < PX * 3){ R(xo - PX / 2, yb, PX, PX * 2, F(A.avg)); return; }
+    pline(xo, yb, xo, top, F('#2a1a10'), 1); const kv = bh / A.h, Lv = A.L[kv < PX * .375 ? 2 : kv < PX * .75 ? 1 : 0], a0 = cx.globalAlpha; cx.globalAlpha = a0 * (1 - fog * .55);
+    cx.drawImage(GAT, Lv.x, Lv.y, Lv.w, Lv.h, snp(xo - bw / 2), snp(top), snp(bw), snp(bh)); cx.globalAlpha = a0; }
+  /* The chōchin near (ui/cycle.js, Mark Ferrari's colour cycling): each lantern is one 16 x 20 index map baked at warm-up; three rings of
+     the paper's glow rotate through a ramp, so the candle inside seems to breathe, for one drawImage a lantern. Gion's red lantern carries the
+     linked white roundels (the reference's dango mark); the inn lantern a generic ring crest over its red band. Steady under reduced motion. */
+  const LCY = [null, null];
+  function lanCycBuild(){ if(LCY[0] || !window.CYCLE) return; for(let kind = 0; kind < 2; kind++){ const w = 16, h = 20, idx = new Uint8Array(w * h);
+      for(let y = 0; y < h; y++) for(let x = 0; x < w; x++){ const i = y * w + x; if(y < 2 || y >= 18){ if(x >= 4 && x < 12) idx[i] = 1; continue; }
+        const v = (y + .5 - 10) / 8, ww = 7.9 * Math.sqrt(Math.max(0, 1 - v * v)) + .4, dx = x + .5 - 8; if(Math.abs(dx) > ww) continue;
+        const ring = Math.min(2, Math.floor(Math.hypot(dx / 8, v) * 3)); let sl = 3 + ring; if(y % 3 === 0) sl = 2; if(dx > ww - 1.3 || dx < -ww + .6) sl = 7; idx[i] = sl; }
+      if(kind){ for(let y = 8; y <= 12; y++) for(let x = 1; x < 15; x++){ let dm = 9; for(const c of [3.5, 8, 12.5]) dm = Math.min(dm, Math.hypot(x + .5 - c, y + .5 - 10.5)); if(!idx[y * w + x]) continue; if(dm < 1.9 || (y >= 10 && y <= 10 && x > 3 && x < 12)) idx[y * w + x] = 6; else if(dm < 2.6) idx[y * w + x] = 8; } }
+      else { for(let y = 13; y < 16; y++) for(let x = 0; x < w; x++) if(idx[y * w + x] > 1) idx[y * w + x] = 6; for(let y = 4; y < 11; y++) for(let x = 4; x < 12; x++){ const d = Math.hypot(x + .5 - 8, y + .5 - 7.5); if(Math.abs(d - 2.6) < .6 || d < .8) idx[y * w + x] = 8; } }
+      const pal = kind ? ['#0000', '#141014', '#a01414', '#ff5a36', '#ee3a28', '#d8281e', '#fff4e8', '#8a1010', '#6a0c0c'] : ['#0000', '#141014', '#d8c098', '#fffae8', '#fff0d4', '#f4dcb0', '#d42a20', '#c8a878', '#2a1a14'];
+      LCY[kind] = CYCLE.make({ w, h, idx, pal, ranges:[[3, 5]], ms:260, still:0 }); } }
   function lantern(z, X, h, r, kind, sd){ if(!CF(z)) return; const u = CFU, xc = CFX + X * u, yc = CFY - h * u, rx = r * u, ry = r * 1.25 * u; if(xc + rx < -PX || xc - rx > W + PX) return;
     const body = kind ? '#e02a24' : '#fff0d4', band = kind ? '#fff4e8' : '#d42a20';
     if(ry < PX * 1.6){ R(xc - PX / 2, yc - PX / 2, PX, PX, L1(body)); return; }
+    { const C = LCY[kind ? 1 : 0]; if(ry > PX * 4 && C && !CYCLE.off){ const hh = ry * 2.5, a0 = cx.globalAlpha; cx.globalAlpha = a0 * (1 - FF * .4); C.draw(cx, performance.now() + sd * 997, snp(xc - rx), snp(yc - hh / 2), snp(rx * 2), snp(hh)); cx.globalAlpha = a0;
+        if(FF < .7) glow(xc, yc, Math.min(H * .06, Math.max(PX * 2, rx * 2.6)), kind ? '#ff6a3a' : LAMPW, .2 * (1 - FF)); return; } }
     R(xc - rx * .5, yc - ry - Math.max(PX, ry * .12), rx, Math.max(PX, ry * .14), F('#141014')); R(xc - rx * .5, yc + ry - PX * .5, rx, Math.max(PX, ry * .14), F('#141014'));
     disc(xc, yc, rx, ry, L1(body)); if(ry > PX * 3) disc(xc + rx * .2, yc + ry * .1, rx * .7, ry * .82, L1(kind ? '#b81a18' : '#f0d8b0'));
     if(ry > PX * 5) for(let q = -2; q <= 2; q++){ const v = q / 3, w = rx * Math.sqrt(1 - v * v); R(xc - w, yc + v * ry, w * 2, PX, L1(kind ? '#a01414' : '#e0c8a0')); }
@@ -471,54 +936,7 @@
      pillars and beams; the dense bracket band; the lower roof with its pale edge tiles; the balcony; the upper storey with green lattice
      windows; the brackets; the hip-and-gable roof, its corners lifted; the wings; stone lanterns; a row of paper lanterns under the eave. */
   const GS = 1.7;   // (round 2: the gate drawn 1.7x: at the end of Shijō it must loom as the street's focal point; the real gate on its steps fills more of the eye than its metres say)
-  function gate(z, X0, fog){ if(!plane(z, X0)) return; FF = fog; OU *= GS; const u = OU; if(OX + 3.4 * u < -PX || OX - 3.4 * u > W + PX) return;
-    /* Nothing of it may stand over the road where you pass it: everything right of the road's left edge (X -1.25 at its depth) is clipped
-       away (one pixel-aligned rect clip), so the wing on that side ends at the kerb. */
-    const RL = (-1.25 - X0) / GS; let clip = false; if(RL < 3.4){ const xr = snp(OX + RL * u); if(xr < -PX) return; cx.save(); cx.beginPath(); cx.rect(-W, -H, xr + W, H * 3); cx.clip(); clip = true; }
-    try{ gateBody(u, fog, RL); } finally { if(clip) cx.restore(); } }
-  function gateBody(u, fog, RL){
-    const V = q => L1(VERM[q]), Wt = q => L1(WHITE[q]), Gn = q => F(GREEN[q]), lod = u * .06 > PX;
-    /* The forest behind (Maruyama): a wooded hill, never a card (audit #14: it was a straight-edged dark box against the sky). Stepped
-       columns on the pixel grid; tree crowns (rounded steps, each its own height) make the skyline ragged; the hill is highest behind the
-       roof and falls to the ground at both sides; a moonlit rim on every crown top (the tunnels headwall hill's recipe). The near canopy
-       is lit from below by the gate's floodlights. Where the clip cuts it at the road as you pass, it falls away to the cut first. */
-    { const cw = Math.max(PX, Math.min(2 * PX, snp(u * .09))), x0 = snp(OX - 3.4 * u), xe = Math.min(3.4, RL), CWu = .34;
-      for(let xs = x0; xs < OX + 3.4 * u; xs += cw){ if(xs > W + PX) break; if(xs + cw < -PX) continue; const X = (xs + cw / 2 - OX) / u; if(X > xe + .05) break;
-        const f = Math.min(1, Math.abs(X) / 3.4), cc = (X + 3.4) / CWu, cr = Math.floor(cc), t = (cc - cr) * 2 - 1, fall = sm((RL - X) / 1.1), dome = Math.sqrt(Math.max(0, 1 - t * t));
-        const hb = .4 + (2.7 * (1 - f * f) + H1(cr * .37 + 5) * .34 * (1 - f * .5) + dome * (.12 + H1(cr * 1.13 + 2) * .1)) * fall, top = snp(OY - hb * u), bot = snp(OY - .4 * u);
-        if(bot - top < PX) continue; R(xs, top, cw, bot - top, F(H1(cr * 2.9 + 1) > .7 ? '#0a1210' : '#070c0c')); R(xs, top, cw, PX, F(dome > .45 ? '#1c2a26' : '#142220'));
-        if(Math.abs(X) < 2.9){ const g = Math.abs(X) / 2.9, hl = .4 + (1.35 * (1 - g * g) + H1(cr * 3.7 + 9) * .22 + dome * .08) * fall, tl = snp(OY - hl * u); if(bot - tl >= PX) R(xs, tl, cw, bot - tl, F('#0e1814')); } } }
-    // the wings: lower halls each side (vermilion posts, white panels, green windows), dark roofs with pale edges
-    for(const s of [-1, 1]){ PR(s * 1.12, s * 2.75, .42, 1.02, Wt(0)); PR(s * 1.12, s * 2.75, .42, .62, V(1)); if(lod){ for(let q = 0; q < 4; q++){ const a = s * (1.2 + q * .4); PR(a, a + s * .05, .42, 1.02, V(2)); } PR(s * 1.45, s * 1.8, .7, .92, Gn(1)); PR(s * 2.1, s * 2.45, .7, .92, Gn(1)); }
-      PP(s * 1.05, 1.02, s * 2.95, 1.02, s * 2.7, 1.24, s * 1.15, 1.26, F(TILE)); PR(s * 1.05, s * 2.95, 1.0, 1.04, Wt(2)); }
-    // the steps: seven treads, risers lit by the floodlights from below
-    for(let q = 0; q < 7; q++){ const h0 = q * .06, w = 2.1 - q * .05; PR(-w, w, h0, h0 + .06, F(q & 1 ? '#6a6460' : '#7a746c')); PR(-w, w, h0 + .052, h0 + .06, F('#b0a898')); }
-    // stone lanterns flanking the steps
-    for(const s of [-1, 1]){ const lx = s * 2.35; PR(lx - .05, lx + .05, 0, .45, F(STONE[2])); PR(lx - .1, lx + .1, .45, .6, F(STONE[1])); PR(lx - .06, lx + .06, .48, .57, L1('#ffc870')); PP(lx - .16, .6, lx + .16, .6, lx + .05, .7, lx - .05, .7, F(STONE[1])); }
-    // the lower storey
-    PR(-1.08, 1.08, .42, 1.02, Wt(1)); PR(-.36, .36, .42, .98, F('#180806'));   // the plaster; the passage
-    if(lod){ PR(-.36, .36, .42, .5, F('#3a2418')); PR(-.08, .08, .74, .9, L1('#e8b850')); PR(-.03, .03, .9, .98, F('#5a3a1a'));   // the passage floor; the hanging gilt lantern
-      for(const s of [-1, 1]){ PR(s * .4, s * 1.0, .42, .62, Gn(0)); for(let q = 0; q < 8; q++){ const a = s * (.43 + q * .072); PR(a, a + s * .03, .44, .62, Gn(2)); } PR(s * .48, s * .9, .62, .8, F('#2a1410')); PR(s * .6, s * .76, .64, .82, F(s < 0 ? '#5a2a1a' : '#1e3a2a'));   // the fences; the guardians in the dim bays
-        PR(s * .3, s * .34, .55, .95, F('#0a0a0e')); }   // the black banners beside the passage
-      for(let q = -3; q <= 3; q++){ const lx = q * .3 + (q > 0 ? .02 : q < 0 ? -.02 : 0); if(Math.abs(lx) < .2) continue; const ly = .96; if(u * .05 > PX * 1.2){ disc(OX + lx * u, OY - ly * u, u * .05, u * .065, L1('#fff4e0')); PR(lx - .05, lx + .05, ly - .015, ly, V(2)); PR(lx - .03, lx + .03, ly + .06, ly + .075, F('#1a1010')); } else R(OX + lx * u - PX / 2, OY - ly * u - PX, PX, PX * 2, L1('#fff0d0')); }   // the paper lanterns under the eave
-      for(const s of [-1, 1]) for(let q = 0; q < 6; q++){ const lx = s * (1.28 + q * .26), ly = .93; if(u * .04 > PX * 1.2){ disc(OX + lx * u, OY - ly * u, u * .04, u * .052, L1('#fff0d4')); PR(lx - .04, lx + .04, ly - .03, ly - .018, V(2)); } else R(OX + lx * u - PX / 2, OY - ly * u - PX / 2, PX, PX, L1('#ffe8c0')); } }   // and a row along each wing
-    for(const p of [-1.06, -.38, .38, 1.06]){ PR(p - .045, p + .045, .42, 1.04, V(2)); if(lod) PR(p - .045, p - .015, .42, 1.04, V(1)); }
-    PR(-1.1, 1.1, .78, .82, V(2)); PR(-1.1, 1.1, .97, 1.03, V(2));
-    // the lower brackets and roof
-    PR(-1.18, 1.18, 1.03, 1.12, V(1)); if(lod) for(let q = -14; q <= 14; q++){ const a = q * .08; PR(a - .025, a + .025, 1.04, 1.1, V(3)); PR(a - .02, a + .02, 1.04, 1.055, Wt(2)); }
-    PP(-1.42, 1.12, 1.42, 1.12, 1.36, 1.2, -1.36, 1.2, F('#3a1408')); PP(-1.48, 1.18, 1.48, 1.18, 1.14, 1.36, -1.14, 1.36, F(TILE)); PR(-1.46, 1.46, 1.17, 1.2, Wt(2));
-    PP(-1.48, 1.18, -1.42, 1.18, -1.4, 1.23, -1.52, 1.25, Wt(2)); PP(1.42, 1.18, 1.48, 1.18, 1.52, 1.25, 1.4, 1.23, Wt(2));   // the lifted corners
-    // the balcony and the upper storey
-    PR(-1.02, 1.02, 1.36, 1.44, V(2)); if(lod) for(let q = -10; q <= 10; q++) PR(q * .1 - .015, q * .1 + .015, 1.38, 1.44, V(1));
-    PR(-.92, .92, 1.44, 1.8, Wt(1)); for(const s of [-1, 1]){ PR(s * .32, s * .78, 1.5, 1.72, Gn(1)); if(lod) for(let q = 0; q < 6; q++){ const a = s * (.34 + q * .08); PR(a, a + s * .025, 1.5, 1.72, Gn(2)); } }
-    for(const p of [-.9, -.3, .3, .9]) PR(p - .04, p + .04, 1.44, 1.82, V(2)); PR(-.94, .94, 1.6, 1.63, V(2));
-    PR(-1.04, 1.04, 1.8, 1.9, V(1)); if(lod) for(let q = -12; q <= 12; q++){ const a = q * .085; PR(a - .025, a + .025, 1.81, 1.88, V(3)); PR(a - .02, a + .02, 1.81, 1.825, Wt(2)); }
-    // the upper roof: the soffit, the eave with its pale edge, the hip, the gable, the ridge
-    PP(-1.62, 1.9, 1.62, 1.9, 1.5, 1.98, -1.5, 1.98, F('#3a1408')); PP(-1.68, 1.96, 1.68, 1.96, .78, 2.34, -.78, 2.34, F(TILE)); PR(-1.66, 1.66, 1.95, 1.99, Wt(2));
-    PP(-1.68, 1.96, -1.6, 1.96, -1.58, 2.02, -1.74, 2.06, Wt(2)); PP(1.6, 1.96, 1.68, 1.96, 1.74, 2.06, 1.58, 2.02, Wt(2));
-    PP(-.55, 2.28, .55, 2.28, .55, 2.36, -.55, 2.36, F('#2a2a36')); PP(-.5, 2.34, .5, 2.34, 0, 2.52, 0, 2.52, V(1)); PR(-.86, .86, 2.5, 2.56, F(TILE)); PR(-.86, .86, 2.55, 2.57, Wt(2)); PR(-.92, -.82, 2.5, 2.64, F(TILE)); PR(.82, .92, 2.5, 2.64, F(TILE));
-    if(lod){ pline(OX - 1.68 * u, OY - 1.98 * u, OX - .78 * u, OY - 2.34 * u, Wt(2), 1); pline(OX + 1.68 * u, OY - 1.98 * u, OX + .78 * u, OY - 2.34 * u, Wt(2), 1); }
-    if(fog < .85) glow(OX, OY - 1.1 * u, Math.min(H * .25, u * 1.6), '#ff7a2a', .18 * (1 - fog)); }
+  // (the Nishirōmon: gate() and gate3(), with the art module above: world geometry since round 3)
   /* The Yasaka pagoda (round 2, rebuilt to the night photographs): five tiers on a stone base. Half-road widths of about 5.8 m: the base
      1.1 wide, the top of the finial near 7 high. What makes it read at every distance:
      - the roofs dark (grey-blue tile) against the sky, thick at the edge, their eaves curving up into lifted corners (the curve sampled in
@@ -528,23 +946,30 @@
      - the bodies: white plaster panels glowing warm between dark timber posts and beams, the middle bay a dark door with a lit frame;
      - the bronze sōrin: the base box, the bowl, nine rings, the openwork flame, the jewel.
      Drawn from the top tier down, so each roof covers the foot of the body above it as you look up. */
+  // a stretch of eave tile ends between two projected points (a strip of the eave texture, h half-road widths tall)
+  function eaveTiles(p0, p1, h, cs, q){ if(Math.min(p0[0], p1[0]) < cs + ZNEAR) return; PJ(p0[0], p0[1], p0[2]); const xa = PJX, ya = PJY, ua = PJU; PJ(p1[0], p1[1], p1[2]); const xb = PJX, yb = PJY, ub = PJU;
+    const xl = snp(Math.min(xa, xb)), xr = snp(Math.max(xa, xb)), yt = snp((ya + yb) / 2 - h * (ua + ub) / 2), yB = snp((ya + yb) / 2); if(!fin(xl + xr + yt + yB) || xr - xl < 1 || yB - yt < PX * 2 || xr < 0 || xl > W) return;
+    const A = GA2.tex.eave, Lv = A.L[0], u0 = (q % 3) / 3; cx.drawImage(GAT, Lv.x + u0 * Lv.w, Lv.y, Lv.w / 3, Lv.h, xl, yt, xr - xl, yB - yt); }
+  // a wind bell (fūtaku) hanging from a lifted corner, swaying a little (still under reduced motion)
+  function bell(c, cs){ PJ(c[0], c[1], c[2]); const u = PJU, bw = u * .045, bh = bw * 9 / 5; if(bh < PX * 3 || !fin(PJX + PJY)) return; const A = GA2.ready && GA2.gate.pBell; if(!A) return;
+    const sw = reduce ? 0 : Math.round(Math.sin(performance.now() / 700 + c[1] * 3) * bw * .25 / PX) * PX, Lv = A.L[bh / 9 < PX * .75 ? 1 : 0]; cx.drawImage(GAT, Lv.x, Lv.y, Lv.w, Lv.h, snp(PJX - bw / 2) + sw, snp(PJY), snp(bw), snp(bh)); }
   const ZU = 10;   // depth offsets are in half-road widths; z is in segments (ROADW / SEG = 10)
   const PT = (() => { const T = []; let hb = .3; for(let k = 0; k < 5; k++){ const a = .53 - .03 * k, bh = .5 - .02 * k, he = hb + bh + .1, r = 1.18 - .06 * k; T.push({ hb, a, bh, he, r }); hb = he + .3; } return T; })();
   const RT = 6;   // steps of the eave's curve per half side
   const RF = new Float64Array(RT * 2 + 1);   // the eave's lift along a side, u in -1..1
-  function pagoda(z, X0, fog, hy){ cam(); FF = fog; PJ(z, X0, 0); if(!fin(PJX) || PJX < -PJU * 2.5 || PJX > W + PJU * 2.5) return; const cs = camSeg(); if(z - (1.3) * ZU < cs + ZNEAR) return;
+  function pagoda(z, X0, fog, hy){ cam(); FF = fog; PJ(z, X0, 0); if(!fin(PJX) || PJX < -PJU * 2.5 || PJX > W + PJU * 2.5) return; const cs = camSeg(); if(z + 1.3 * ZU < cs + ZNEAR) return;   // (round 3: only once wholly behind; wq clips the rest at the near plane)
     const T = PT, top = T[4].he + .55, fine = PJU >= PX * 10, small = PJU < PX * 2.5, front = cs < z - (.6) * ZU, side = X0 < -.6 ? 1 : X0 > .6 ? -1 : 0;
     // the eye's height above the pagoda's ground, and its lateral (both in half-road widths): to decide which roof slopes face it
     let n = z - BI; if(n < 0) n = 0; if(n > NX - 1) n = NX - 1; const gi = n | 0, gy = YA[gi] + (YA[gi + 1] - YA[gi]) * (n - gi), eyeH = (CAMY - gy) / ROADW, dz = (z - cs) / ZU, eyeX = playerX;
     for(let q = 0; q <= RT * 2; q++){ const u = q / RT - 1; RF[q] = u * u * u * u; }
     const ZF = d => z + d * ZU;
     // the finial
-    { PJ(z, X0, top); const bx = PJX, by = PJY, u = PJU;
+    if(z > cs + ZNEAR + .3){ PJ(z, X0, top); const bx = PJX, by = PJY, u = PJU;
       if(small){ R(bx - PX / 2, by - u * 1.7, PX, u * 1.7, F('#5a3e20')); }
       else { R(bx - u * .1, by - u * .12, u * .2, u * .12, F('#3a2a1c')); R(bx - u * .1, by - u * .12, u * .2, Math.max(PX, u * .025), L1('#a8783a'));   // the base box
         disc(bx, by - u * .17, u * .09, u * .05, F('#4a3420')); R(bx - u * .022, by - u * 1.72, u * .044, u * 1.58, F('#4a3420')); R(bx - u * .022, by - u * 1.72, Math.max(PX, u * .014), u * 1.58, L1('#c89048'));   // the bowl; the mast, lit on one side
-        for(let q = 0; q < 9; q++){ const yy = by - u * (.3 + q * .105), rw = u * (.12 - q * .004); R(bx - rw, yy, rw * 2, Math.max(PX, u * .028), F('#3a2a1a')); R(bx - rw, yy, rw * 2, Math.max(PX, u * .01), L1(q & 1 ? '#d8a050' : '#b8843c')); }   // the nine rings, each with a lit top edge
-        if(fine){ const fy = by - u * 1.36; for(const d of [-1, 1]) poly4(bx + d * u * .02, fy, bx + d * u * .13, fy - u * .08, bx + d * u * .1, fy - u * .2, bx + d * u * .02, fy - u * .16, L1('#a87a40')); }   // the openwork flame
+        for(let q = 0; q < 9; q++){ const yy = by - u * (.3 + q * .105), rw = u * (.12 - q * .004); R(bx - rw, yy, rw * 2, Math.max(PX, u * .028), F(q % 3 === 1 ? '#2e3a30' : '#3a2a1a')); R(bx - rw, yy, rw * 2, Math.max(PX, u * .01), L1(q & 1 ? '#d8a050' : '#b8843c')); if(fine) R(bx + rw * .5, yy + u * .012, rw * .4, Math.max(PX, u * .014), F('#4a7a6a')); }   // the nine rings, each with a lit top edge, verdigris in the shade
+        if(fine && GA2.ready){ const A = GA2.gate.pSuien, sw = u * .34, Lv = A.L[sw / 12 < PX * .75 ? 1 : 0]; cx.drawImage(GAT, Lv.x, Lv.y, Lv.w, Lv.h, snp(bx - sw / 2), snp(by - u * 1.62), snp(sw), snp(sw)); }   // the water-flame (suien), openwork bronze
         disc(bx, by - u * 1.76, u * .04, u * .05, L1('#e8c070')); } }
     // one roof: the eave over a body (half a, top hb + bh) at he, eave half-size r, rising to the next body (half a1 at h hi). sd: 0 front, 1 side
     const TH = .14, LIFT = .2;
@@ -556,16 +981,20 @@
       if(up) for(let q = 0; q < RT * 2; q++){ const u0 = q / RT - 1, u1 = (q + 1) / RT - 1; Q4(P(u0, r, he + TH + LIFT * RF[q]), P(u1, r, he + TH + LIFT * RF[q + 1]), P(u1, a1, hi), P(u0, a1, hi), F(q & 1 ? '#1c1e2a' : '#20222e')); }
       // the underside: rafter strips lit warm, the hot bracket band against the wall (it rises outward to the eave, so from the street it always faces you)
       { for(let q = 0; q < RT * 2; q++){ const u0 = q / RT - 1, u1 = (q + 1) / RT - 1; Q4(P(u0, r, he + LIFT * RF[q]), P(u1, r, he + LIFT * RF[q + 1]), P(u1, a, hw + .02), P(u0, a, hw + .02), L1(fine ? (q & 1 ? '#6a3416' : '#82401c') : '#74391a')); }
-        if(!small){ Q4(P(-1, a + .07, hw + .03), P(1, a + .07, hw + .03), P(1, a, hw + .02), P(-1, a, hw + .02), L1('#ffb860')); Q4(P(-1, a + .16, hw + .055), P(1, a + .16, hw + .055), P(1, a + .09, hw + .035), P(-1, a + .09, hw + .035), L1('#e0903a')); } }
+        if(!small){ Q4(P(-1, a + .07, hw + .03), P(1, a + .07, hw + .03), P(1, a, hw + .02), P(-1, a, hw + .02), L1('#ffb860')); Q4(P(-1, a + .16, hw + .055), P(1, a + .16, hw + .055), P(1, a + .09, hw + .035), P(-1, a + .09, hw + .035), L1('#e0903a'));
+          if(fine && GA2.ready){ const A = GA2.gate.pBrk, ab = a + .015; if(sd) gPicS(A, X0 + side * ab, ZF(-ab), ZF(ab), hw - .07, hw + .03, cs, false); else gPicF(A, ZF(-ab), X0 - ab, X0 + ab, hw - .07, hw + .03, cs); } } }   // the bracket sets (tokyō), floodlit from below
       // the eave's edge: a thick dark tile band following the curve, its lower lip catching the floodlight, the corners lifting
       for(let q = 0; q < RT * 2; q++){ const u0 = q / RT - 1, u1 = (q + 1) / RT - 1, h0 = he + LIFT * RF[q], h1 = he + LIFT * RF[q + 1];
-        Q4(P(u0, r, h0), P(u1, r, h1), P(u1, r, h1 + TH), P(u0, r, h0 + TH), F('#262836')); if(!small) Q4(P(u0, r, h0), P(u1, r, h1), P(u1, r, h1 + .025), P(u0, r, h0 + .025), L1('#d88a3c')); if(fine) Q4(P(u0, r, h0 + TH - .015), P(u1, r, h1 + TH - .015), P(u1, r, h1 + TH), P(u0, r, h0 + TH), F('#5a5e70')); }
+        Q4(P(u0, r, h0), P(u1, r, h1), P(u1, r, h1 + TH), P(u0, r, h0 + TH), F('#262836')); if(!small) Q4(P(u0, r, h0), P(u1, r, h1), P(u1, r, h1 + .025), P(u0, r, h0 + .025), L1('#d88a3c')); if(fine) Q4(P(u0, r, h0 + TH - .015), P(u1, r, h1 + TH - .015), P(u1, r, h1 + TH), P(u0, r, h0 + TH), F('#5a5e70'));
+        if(fine && GA2.ready) eaveTiles(P(u0, r, h0 + .03), P(u1, r, h1 + .03), TH - .045, cs, q); }   // (the round ends of the cover tiles along the eave)
+      if(!small) for(const u of [-1, 1]){ const c = P(u, r, he + LIFT); if(c[0] > cs + ZNEAR) bell(c, cs); }   // the wind bells at the corners
       // the hips: a pale moonlit line from each lifted corner up to the next body (drawn only where the slope shows)
-      if(up && !small) for(const u of [-1, 1]){ const c0 = P(u, r, he + TH + LIFT), c1 = P(u, a1, hi); PJ(c0[0], c0[1], c0[2]); const x0 = PJX, y0 = PJY; PJ(c1[0], c1[1], c1[2]); if(c0[0] > cs + ZNEAR && c1[0] > cs + ZNEAR) pline(x0, y0, PJX, PJY, F('#6a7088'), 1); } }
+      if(up && !small) for(const u of [-1, 1]){ const c0 = P(u, r, he + TH + LIFT), c1 = P(u, a1, hi); PJ(c0[0], c0[1], c0[2]); const x0 = PJX, y0 = PJY; PJ(c1[0], c1[1], c1[2]); if(c0[0] > cs + ZNEAR && c1[0] > cs + ZNEAR){ pline(x0, y0, PJX, PJY, F('#3a3e4e'), PJU > 30 ? 3 : 2); pline(x0, y0 - PX, PJX, PJY - PX, F('#7a8098'), 1); } } }   // the hips: a ridge of caps, moonlit on top
     // one body: dark timber frame, white plaster panels glowing warm, the middle bay's door
     function bodySide(t, sd){ const a = t.a, hb = t.hb, h1 = t.hb + t.bh, P = (u, h) => sd ? [ZF(u * a), X0 + side * a, h] : [ZF(-a), X0 + u * a, h];
       const Q4 = (p1, p2, p3, p4, col) => wq(p1[0], p1[1], p1[2], p2[0], p2[1], p2[2], p3[0], p3[1], p3[2], p4[0], p4[1], p4[2], col), B = (u0, u1, h0, hh, col) => Q4(P(u0, h0), P(u1, h0), P(u1, hh), P(u0, hh), col);
       if(small){ B(-1, 1, hb, h1, L1(sd ? '#9a7a5a' : '#c8a070')); return; }
+      if(GA2.ready && !GX.includes('art')){ const A = GA2.gate.pBody; if(sd) gPicS(A, X0 + side * a, ZF(-a), ZF(a), hb, h1, cs, side < 0); else gPicF(A, ZF(-a), X0 - a, X0 + a, hb, h1, cs); return; }   // (round 3: timber grain, floodlit plaster, the studded door)
       B(-1, 1, hb, h1, F('#2a1810'));   // the timber frame
       for(const [u0, u1] of [[-.92, -.4], [.4, .92]]) B(u0, u1, hb + .08, h1 - .08, L1(sd ? '#b89870' : '#ecd0a0'));   // the plaster panels
       B(-.3, .3, hb + .04, h1 - .06, F('#3a1a10')); if(fine){ B(-.3, .3, h1 - .09, h1 - .06, L1('#d89048')); B(-.02, .02, hb + .04, h1 - .09, F('#1a0c08')); for(const u of [-.22, .22]) B(u - .01, u + .01, hb + .1, h1 - .14, L1('#c07a3a')); }   // the door: a lit head, the leaves' seam, the studs' lit line
@@ -577,7 +1006,7 @@
     if(front) wq(ZF(-.8), X0 - .8, 0, ZF(-.8), X0 + .8, 0, ZF(-.8), X0 + .8, .3, ZF(-.8), X0 - .8, .3, F('#6a6058'));
     if(side) wq(ZF(-.8), X0 + side * .8, 0, ZF(.8), X0 + side * .8, 0, ZF(.8), X0 + side * .8, .3, ZF(-.8), X0 + side * .8, .3, F('#4e4640'));
     wq(ZF(-2.4), X0 + 1.3, 0, ZF(1.6), X0 + 1.3, 0, ZF(1.6), X0 + 1.3, .3, ZF(-2.4), X0 + 1.3, .3, F('#4a4650')); wq(ZF(-2.4), X0 + 1.3, .3, ZF(1.6), X0 + 1.3, .3, ZF(1.6), X0 + 1.24, .36, ZF(-2.4), X0 + 1.24, .36, F(TILE));
-    if(fog < .8 && !small){ PJ(ZF(-.6), X0, 1.4); glow(PJX, PJY, Math.min(H * .2, PJU * 1.6), '#ff9a3a', .08 * (1 - fog)); } }
+    if(fog < .8 && !small && ZF(-.6) > cs + ZNEAR){ PJ(ZF(-.6), X0, 1.4); glow(PJX, PJY, Math.min(H * .2, PJU * 1.6), '#ff9a3a', .08 * (1 - fog)); } }
   function heroes(L, far, fogAt){ cam(); const cs = camSeg();
     for(const hz of [[L.ZG, 'g'], [L.ZP, 'p']]){ const d = hz[0] - cs; if(d < -2) continue; const isFar = d > DRAW - 40; if(isFar !== far) continue; if(d > NX - 2) continue;
       const fog = HFOG(d); if(hz[1] === 'g') gate(hz[0], L.XG, fog); else pagoda(hz[0], L.XP, fog, 0); } }
@@ -626,10 +1055,14 @@
     if(sec !== 'shijo' || (i >= L.JX - 4 && i < L.JX + CW + 4)) s.zeb = true;   // (no side lane on the lanes or at the junction: the core calls a lane off where a segment carries zeb)
     if((i >= L.JX - 8 && i < L.JX + CW + 8) || i >= L.GT - 50) s.gnNoHz = true;   // (round 2: none from the gate's bend on: a rainbow slick on the stone lanes, the canal or the climb read as a stray shape)
     // the far land's heroes as props of their own segments (each draws itself only once inside the props' reach)
-    if(i === Math.floor(L.ZG)) sp.push({ env:KEY, type:'hero', x:0, k:i, L, h:'g' }); if(i === Math.floor(L.ZP)) sp.push({ env:KEY, type:'hero', x:0, k:i, L, h:'p' });
+    /* (round 3: Kellan, "when you get half passed the 3d [pagoda] and it is still in sight, it disappears". Root cause: each landmark was one
+       prop on its centre's segment, and the core draws a segment's props only while that segment is ahead of the camera; and pagoda() gave
+       up as soon as its front crossed the near plane. Now each is a prop on every segment of its depth, drawn once, from the nearest of
+       them still ahead (heroAnc), with its geometry clipped at the near plane by wq, so it stays until it has wholly left the view.) */
+    if(i >= Math.floor(L.ZG) - HLO.g && i <= Math.floor(L.ZG) + 16) sp.push({ env:KEY, type:'hero', x:0, k:i, L, h:'g' }); if(i >= Math.floor(L.ZP) - HLO.p && i <= Math.floor(L.ZP) + 16) sp.push({ env:KEY, type:'hero', x:0, k:i, L, h:'p' });
     for(const side of [-1, 1]){ const Bk = bAt(L.back[side < 0 ? 0 : 1], i); if(Bk) sp.push({ env:KEY, type:'b', x:side * Bk.x0, k:i, b:Bk }); }
     if(L.kawa){ const Bw = bAt(L.kawa, i); if(Bw) sp.push({ env:KEY, type:'b', x:-Bw.x0, k:i, b:Bw }); }
-    for(const side of [-1, 1]){ const B = bAt(L.rows[side < 0 ? 0 : 1], i); if(B) sp.push({ env:KEY, type:'b', x:side * B.x0, k:i, b:B }); }
+    for(const side of [-1, 1]){ const B = bAt(L.rows[side < 0 ? 0 : 1], i); if(B){ sp.push({ env:KEY, type:'b', x:side * B.x0, k:i, b:B }); if(B.kan !== undefined && i === Math.floor(B.kz)) sp.push({ env:KEY, type:'kan', x:side * B.x0, k:i, b:B }); } }
     // the street's furniture, by stretch
     if(sec === 'shijo'){ if(i % 18 === 0 && !(i >= L.JX - 2 && i < L.JX + CW + 2)) for(const side of [-1, 1]) sp.push({ env:KEY, type:'slamp', x:side * 1.1, k:i });
       if(i % PSPAN === 10 && i < L.GT - 50) for(const side of [-1, 1]) sp.push({ env:KEY, type:'pole', x:side * 1.18, k:i }); if(i < L.GT - 40) for(const side of [-1, 1]) sp.push({ env:KEY, type:'w', x:side * 1.3, side, k:i });
@@ -676,6 +1109,22 @@
         if(ok) for(const X of [-2.15, -2.45, -2.7]) if(H1(Bw.sd + X + i * .01) < .75) Q(X - .07, X + .07, col, -WL, -WL); else if(((i + ph) & 3) === 0) Q(X - .03, X + .03, f('#6a4a30'), -WL, -WL); }
       if((i % 22) > 8 && (i % 22) < 14 && ((i + (reduce ? 0 : Math.floor(now / 300))) & 1)) Q(-1.3, -1.36, f('#ffd89a'), -WL, -WL); } }
 
+  /* ---------------------------------------------------------------- after the rain (round 3): the stone holds every light (env/roadmat.js
+     pools, as Akihabara's). References: Pontochō after rain, the Ninenzaka slope at night, a wet Gion lane: each lit lattice lays a warm
+     amber column down the paving toward you, every chōchin a red one, every andon a cream one; the floodlit gate the brightest image on
+     Shijō, the pagoda's gold on the climb. The road between stays dark and blue (the sky's sheen, roadmat). */
+  function wetSrc(s, n, a, P){ if(n > 90 || GX.includes('wet')) return; const L = s.gnV !== undefined ? s.gnV : (s.gnV = visitOf(s.index) || null); if(!L) return; const i = s.index, uw = a.w; if(!(uw > .5)) return;
+    const st = n < 12 ? 2 : n < 36 ? 4 : 8, fa = 1 - Math.pow(n / DRAW, 1.6) * .9, lx = laneDX(i);
+    if(i === Math.floor(L.ZG - .55 * GS * ZU) && !GX.includes('hero')){ const x = a.x + (L.XG + lx) * uw; P(x, a.y, uw, .42 * GS, 1.9 * GS, 1.1 * uw, '#ec6a26', .75 * fa); P(x, a.y, uw, .5 * GS, 1.0 * GS, .45 * uw, '#ffe0b0', .6 * fa); }
+    if(i === Math.floor(L.ZP - 6) && !GX.includes('hero')) P(a.x + (L.XP + lx) * uw, a.y, uw, .4, 3.2, .9 * uw, '#ff9a3a', .6 * fa);
+    for(let side = -1; side <= 1; side += 2){ const B = bAt(L.rows[side < 0 ? 0 : 1], i); if(!B) continue; const X = side * B.x0 + lx;
+      if(B.lan && B.door !== undefined){ const zl = B.b0 + B.door - .4; if(zl >= i && zl < i + 1){ const xl = a.x + (side * (B.x0 - .15) + lx) * uw; P(xl, a.y, uw, .33, .44, .12 * uw, B.k === 'ochaya' || B.k === 'kawa' ? '#ff4a2a' : '#fff0c8', .95 * fa); } }
+      if(!B.lit || i % st) continue; const t = segs[i + st]; if(!t || !t.p1.screen.scale) continue; const q = t.p1.screen, xa = a.x + X * uw, xb = q.x + (side * B.x0 + laneDX(i + st)) * q.w, xc = (xa + xb) / 2, w0 = Math.abs(xb - xa) * .4;
+      if(B.k === 'shop') P(xc, a.y, uw, .04, .58, w0, '#f8d8a0', .6 * fa); else if(B.k !== 'back' && B.k !== 'minamiza') P(xc, a.y, uw, .06, .5, w0, B.fk === 'mise' ? '#ffc070' : '#f09a48', (B.fk === 'mise' ? .7 : .5) * fa); }
+    const sps = s.sprites; for(let k = 0; k < sps.length; k++){ const o = sps[k]; if(o.env !== KEY) continue; const ty = o.type, x = a.x + (o.x + lx) * uw;
+      if(ty === 'andon') P(x, a.y, uw, .62, .84, .16 * uw, '#fff0c8', .9 * fa); else if(ty === 'lamp') P(x, a.y, uw, .86, 1.02, .12 * uw, '#ffe0a0', .85 * fa); else if(ty === 'slamp') P(x, a.y, uw, 1.4, 1.5, .2 * uw, '#fff4dc', .7 * fa);
+      else if(P.dark && n < 30 && (ty === 'ped' || ty === 'pole')) P.dark(x, a.y, uw, ty === 'ped' ? .5 : 1.9, ty === 'ped' ? .09 * uw : Math.max(PX, uw * .045), .5); } }
+
   // ---------------------------------------------------------------- the far land: Higashiyama's ridges, the low city, the heroes
   const SW = 640, SH = 120; let RIDGE = null, CITY = null;
   function buildStrips(){ RIDGE = RIDGE || mk(SW, SH); CITY = CITY || mk(SW, SH); const k = RIDGE.getContext('2d'); k.clearRect(0, 0, SW, SH);
@@ -704,9 +1153,14 @@
     if(t === 'b') return drawB(sp, x, y, uw, fog, now); if(t === 'w') return drawWire(sp, x, y, uw, fog, now); if(t === 'lamp') return drawLamp(sp, x, y, uw, fog, now); if(t === 'slamp') return drawSLamp(sp, x, y, uw, fog, now);
     if(t === 'andon') return drawAndon(sp, x, y, uw, fog, now); if(t === 'pole') return drawPole(sp, x, y, uw, fog, now); if(t === 'ped') return drawPed(sp, x, y, uw, fog, now); if(t === 'rick') return drawRick(sp, x, y, uw, fog, now);
     if(t === 'willow') return drawWillow(sp, x, y, uw, fog, now); if(t === 'tb') return drawBridge(sp, x, y, uw, fog, now); if(t === 'shrine') return drawShrine(sp, x, y, uw, fog, now);
-    if(t === 'str') return drawString(sp, x, y, uw, fog, now);
+    if(t === 'str') return drawString(sp, x, y, uw, fog, now); if(t === 'kan') return drawKan(sp, x, y, uw, fog, now);
     if(t === 'float'){ if(sp.L.sp && SPA.L === sp.L && !GX.includes('float')) floatDraw(sp.L, fog, now); return; }
-    if(t === 'hero'){ if(GX.includes('hero')) return; cam(); const d = (sp.h === 'g' ? sp.L.ZG : sp.L.ZP) - camSeg(); if(d > DRAW - 40) return; const L = sp.L, fg = HFOG(d); if(sp.h === 'g') gate(L.ZG, L.XG, fg); else pagoda(L.ZP, L.XP, fg, 0); } }
+    if(t === 'hero'){ if(GX.includes('hero')) return; cam(); const zH = sp.h === 'g' ? sp.L.ZG : sp.L.ZP, d = zH - camSeg(); if(d > DRAW - 40) return; if(sp.k !== heroAnc(zH, HLO[sp.h])) return; const L = sp.L, fg = HFOG(Math.max(0, d)); if(sp.h === 'g') gate(L.ZG, L.XG, fg); else pagoda(L.ZP, L.XP, fg, 0); } }
+  /* The segment a landmark is drawn from: its nearest (the core clips each segment's props to the rows above the road in front of it, so a
+     landmark drawn from its centre's segment loses whatever stands nearer and lower: the gate's steps, the pagoda's base and wall), or,
+     once that has passed, the first segment ahead of the camera. HLO: how far toward you each reaches, in segments. */
+  const HLO = { g:18, p:25 };
+  function heroAnc(zH, lo){ return Math.max(Math.floor(zH) - lo, BI + 2); }
 
   /* ---------------------------------------------------------------- the set piece: 宵山 YOIYAMA, the festival float
      On Shijō before the gate (S0 .. GT), driven by the rider's distance s past S0, never the clock:
@@ -742,12 +1196,13 @@
     if(!ATL){ ATL = mk(512, 1); AG = ATL.getContext('2d'); SC = mk(40, 40); SG = SC.getContext('2d', { willReadFrequently:true }); } yield;
     buildText(); INK = INK || mk(512, 1); if(INK.height !== ATL.height) INK.height = ATL.height; { const k = INK.getContext('2d'); k.clearRect(0, 0, INK.width, INK.height); k.drawImage(ATL, 0, 0); k.globalCompositeOperation = 'source-in'; k.fillStyle = '#1a0c0c'; k.fillRect(0, 0, INK.width, INK.height); k.globalCompositeOperation = 'source-over'; }
     if(!FONT){ try{ if(document.fonts && document.fonts.load) document.fonts.load('16px DotGothic16').then(() => { if(!FONT){ buildText(); const k = INK.getContext('2d'); if(INK.height !== ATL.height) INK.height = ATL.height; k.clearRect(0, 0, INK.width, INK.height); k.drawImage(ATL, 0, 0); k.globalCompositeOperation = 'source-in'; k.fillStyle = '#1a0c0c'; k.fillRect(0, 0, INK.width, INK.height); k.globalCompositeOperation = 'source-over'; } }, () => {}); }catch(e){} } yield;
+    yield* artSteps(); lanCycBuild(); yield;
     buildStrips(); buildPeople(); if(!LEAF.length) for(let q = 0; q < 18; q++) LEAF.push([H1(q * 3.1), H1(q * 7.3), .4 + H1(q * 1.9) * .6, q % 3]); yield;
     try{ if(typeof MUSIC !== 'undefined' && MUSIC.ROAD_THEME && !MUSIC.ROAD_THEME[KEY]) MUSIC.ROAD_THEME[KEY] = 'snow'; }catch(e){}
-    try{ cx.save(); cx.globalAlpha = .004; for(const c of [INK, RIDGE, CITY].concat(PEOPLE)) if(c) cx.drawImage(c, 0, 0, 1, 1); cx.restore(); }catch(e){ try{ cx.restore(); }catch(e2){} }
+    try{ cx.save(); cx.globalAlpha = .004; for(const c of [INK, RIDGE, CITY, GAT, LCY[0] && LCY[0].cv, LCY[1] && LCY[1].cv].concat(PEOPLE)) if(c) cx.drawImage(c, 0, 0, 1, 1); cx.restore(); }catch(e){ try{ cx.restore(); }catch(e2){} }
     cx.clearRect(0, 0, W, H); }
 
   ENV.gion = { _lay:lay, _visit:visitOf, _spa:SPA, _PJ:(z, x, h) => { cam(); PJ(z, x, h); return [PJX, PJY, PJU]; },
     kerbs:true, moonDX:.12, road:['#24222c', '#22202a'], lampCol:'#6a5038',
-    warm(){ for(const _ of warmSteps()); }, warmSteps, place, lit, draw, roadFX, backdrop, overlay, hingeIn:() => 'sign' };
+    warm(){ for(const _ of warmSteps()); }, warmSteps, place, lit, draw, roadFX, backdrop, overlay, wetSrc, _art:GA2, hingeIn:() => 'sign' };
 })();
