@@ -2675,7 +2675,7 @@ function titleOpts(){ if(PSE.on || !titleUp()) return; PSE.on = true; PSE.lobby 
   PSE.sel = PSE.tsel && PSE.tsel !== 'tback' ? PSE.tsel : 'customise';   // the row used last time
   PSE.pad = pzPadState() || {}; if(PSE.pad.resume) UI_IN = 'pad'; PSE.bannerLeft = 0; $('#pzTitle').textContent = 'Options'; if(window.SFX) SFX.ui('ok'); document.body.classList.add('paused'); const el = $('#pause'); el.hidden = false; el.classList.add('lobby'); el.classList.remove('in'); void el.offsetWidth; el.classList.add('in');
   const gb = $('#goBtn'); if(gb) gb.disabled = true; PSE.pzKey = ''; pzLcd(); drawPzHead(); pzRender(); pzFx(true); }
-const PZ_TITLE = [['customise', '改造', 'Customise', 'g'], ['assists', '補助', 'Assists', 'n'], ['journal', '手帖', 'Journal', ''], ['settings', '設定', 'Settings', 'g'], ['tback', '戻る', 'Back', 'n']];
+const PZ_TITLE = [['customise', '改造', 'Customise', 'g'], ['assists', '補助', 'Assists', 'n'], ['journal', '手帖', 'Journal', ''], ['settings', '設定', 'Settings', 'g'], ['demo', '見本', (new URLSearchParams(location.search).get('demo') ? 'Exit demo night' : 'Demo night'), ''], ['tback', '戻る', 'Back', 'n']];   // Kellan 2026-11-23: the curated demo night (levels/default.json) is opt-in from here, not the default
 const PZ_MAIN = [['resume', '再開', 'Resume', 'n'], ['restart', '再走', 'Restart night', ''], ['settings', '設定', 'Settings', 'g'], ['journal', '手帖', 'Journal', ''], ['quit', '終了', 'Quit to title', 'n']];
 const PZ_ASK = { restart:['Restart the night?', 'This ride ends here and is not recorded. A fresh road from sundown.', 'Yes, restart'], quit:['Quit to the title?', 'This ride ends here and is not recorded.', 'Yes, quit'] };
 let PZ_IMG = null;
@@ -2741,6 +2741,7 @@ function pzAct(id, e){ const go = (panel, sel, confirm) => { PSE.panel = panel; 
   else if(id === 'yes-restart') pzRestart(); else if(id === 'yes-quit') pzQuit(); else if(id === 'settings') go('settings', 'rm', null); else if(id === 'journal'){ if(window.JOURNAL) JOURNAL.show({ from:'pause', back:() => { if(PSE.on){ PSE.sel = 'journal'; pzRender(); } } }); } else if(id === 'back') go('main', 'settings', null);
   else if(id === 'assists'){ PSE.asFrom = PSE.panel; go('assists', 'as_speed', null); } else if(id === 'as_back') go(PSE.asFrom === 'main' ? 'main' : 'settings', 'assists', null);
   else if(id === 'customise'){ if(window.COS && COS.show){ COS.onClose = () => { if(PSE.on && PSE.lobby){ const gb = $('#goBtn'); if(gb) gb.disabled = true; PSE.sel = 'customise'; pzRender(); } }; COS.show(); } }
+  else if(id === 'demo'){ const q = new URLSearchParams(location.search); if(q.get('demo') && q.get('demo') !== 'off') q.delete('demo'); else q.set('demo', 'default'); q.delete('land'); location.search = q.toString(); }
   else if(id === 'tback') pauseClose(true);
   else if(id === 'as_remap') go('remap', 'rb_left', null); else if(id === 'rb_back') go('assists', 'as_remap', null);
   else if(id === 'rb_reset'){ ASSIST.kb = {}; ASSIST.pad = {}; asSave(); pzRender(); } else if(id && id.startsWith('rb_')){ PSE.wait = id.slice(3); PSE.waitPrev = null; pzRender(); }
@@ -2938,7 +2939,7 @@ if(!/[?&]con=off(&|$)/.test(location.search)){   /* Kellan 2026-11-23: the in-ga
    A new version downloads in the background and waits. It is applied only on the title (never mid-ride): by itself once
    the title has sat untouched for a few seconds, or at once when the player taps "Update ready". Tap the version to check now. */
 (() => {
-  const VER = 'v42 · ed4e3f', $id = (i) => document.getElementById(i);
+  const VER = 'v43 · 17aa14', $id = (i) => document.getElementById(i);
   const SDU = window.SDUPDATE = { version: VER, waiting: null, applied: false, checks: 0 };
   let reg = null, applying = false, asked = false, needReload = false, note = '', noteT = 0, lastInput = performance.now();
   ['keydown', 'pointerdown', 'touchstart', 'wheel'].forEach((t) => addEventListener(t, () => { lastInput = performance.now(); }, { capture: true, passive: true }));
@@ -3000,5 +3001,5 @@ if(!/[?&]con=off(&|$)/.test(location.search)){   /* Kellan 2026-11-23: the in-ga
   }, 1000);
 })();
 </script>
-<!-- __sdbuild:42 ed4e3f86ae1f --></body>
+<!-- __sdbuild:43 17aa14e0ffb3 --></body>
 </html>

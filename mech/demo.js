@@ -61,7 +61,7 @@ const E = window.SD_EVENTS = [
 const EV = {}; for(const e of E) EV[e.id] = e;
 const ROAD_DEF = 2400, LEN_MIN = 600, LEN_MAX = 9000, CP_END = 260, FB_CP = 580, AFTER_LAST = 1600;
 
-const QS = new URLSearchParams(location.search), NAME = QS.get('demo') === 'off' ? '' : (QS.get('demo') || (!QS.has('land') && !QS.has('force') && !QS.has('roadlab') ? 'default' : ''));   // Kellan 2026-11-22: a plain URL rides levels/default.json; ?land=N / ?force= / ?demo=off give normal play
+const QS = new URLSearchParams(location.search), NAME = QS.get('demo') === 'off' ? '' : (QS.get('demo') || '');   // Kellan 2026-11-23: normal play by default again; the demo night is opt-in (title Options → Demo night, or ?demo=default)
 window.DEMO = null;
 if(!NAME) return;
 let RAW = null, ERR = '';

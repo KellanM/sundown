@@ -756,6 +756,7 @@
   const INTS = { on:false, clip:false };   /* round 4: both tested in motion and left off: integer texels misalign the layers; the contour clip costs too much at the scale where it shows */
   // (INTS.on / INTS.clip turn them on for tests)   /* integer texel snapping for near slices (A/B in tests: MECH.sp_kaiju.INTS.on) */
   const CQ = { x0:new Float64Array(8), x1:new Float64Array(8), y0:new Float64Array(8), y1:new Float64Array(8), fx:new Float64Array(8), fy:new Float64Array(8), tk:new Float64Array(8), sh:new Float64Array(8) };
+  const tsOpaque = () => { if(!(cx.globalAlpha >= 1 && (typeof EDGE === 'undefined' || EDGE >= 1) && cx.globalCompositeOperation === 'source-over')) return false; const t = cx.getTransform(); return t.b === 0 && t.c === 0; };   // (the slices' texels are all opaque or empty; not under the jump's roll, whose tilted edges are antialiased)
   function tsSlice(T, P, j, zc){ const st = P.st, vs = st.vs, L = P.lv, c = L.g === 1 ? P.c : 1, rw = L.rw[j]; if(!rw) return; const rh = L.rh[j], sx = L.rx[j], sy = L.ry[j], ax = st.x0 + L.ox[j], at = st.y0 + st.h - L.oy[j];
     let n = 0, big = false;
     for(let q = c - 1; q >= 0; q--){ const pr = proj(c > 1 ? zc + ((q + .5) / c - .5) * st.vz : zc); if(!pr) continue; const k = pr.sc * W / 2;
@@ -766,6 +767,7 @@
       // the waterline: they wade in the bay, so each slice is cut at the sea (the road's own level at the slice's depth: the bay is drawn
       // flush with the deck), by whole texel rows; the foam collar (wakeAt) covers the cut
       const wl = snap(pr.y); if(y0 >= wl) continue; let yb = y1, sh = rh; if(y1 > wl){ sh = Math.max(1, Math.floor(rh * (wl - y0) / (y1 - y0))); yb = y0 + (y1 - y0) * sh / rh; }
+      if(n && CQ.x0[n - 1] === x0 && CQ.x1[n - 1] === x1 && CQ.y0[n - 1] === y0 && CQ.y1[n - 1] === yb && CQ.sh[n - 1] === sh && tsOpaque()) continue;   /* a copy that lands on the last one's very pixels (snapped): opaque texels drawn twice at full alpha are the same pixels (~70 of ~400 draws a frame in the air) */
       CQ.x0[n] = x0; CQ.x1[n] = x1; CQ.y0[n] = y0; CQ.y1[n] = yb; CQ.sh[n] = sh; CQ.fx[n] = pr.x + (T.X0 + ax * vs) * k; CQ.fy[n] = pr.y - (at * vs - T.sink) * k; CQ.tk[n] = vs * k; if((x1 - x0) * cv.width / W > rw * 1.9) big = true; n++; }
     if(!n) return; const ct = big && L.ct && (P.name === 'leg' || P.name === 'hips') && INTS.clip ? L.ct[j] : null;   /* (only the legs, the silhouettes nearest the camera: a clip costs) */
     if(ct){ cx.save(); cx.beginPath();   /* near: one clip for all the copies, the union of their smoothed outlines */
