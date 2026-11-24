@@ -2,6 +2,7 @@
   "version": 1,
   "fields": {},
   "roads": {
-    "neon": { "pools": 1.75, "refl": 1, "sheen": 0.9, "sheenCol": "#4a5cb0" }
+    "neon": { "pools": 1.75, "refl": 1, "sheen": 0.9, "sheenCol": "#4a5cb0" },
+    "shuto": { "pools": 2.2, "hot": 1, "sheenN": 0.3, "refl": 0.9, "sheen": 0.6, "sheenCol": "#6a4a5a" }
   }
 }

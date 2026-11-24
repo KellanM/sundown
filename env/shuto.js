@@ -646,9 +646,11 @@
     if(o.pier && j >= o.b0 && j < o.b0 + o.dep) for(let sd = -1; sd <= 1; sd += 2){ const X = sd * o.pier; poly(x + X * uw, y, x2 + X * u2, y2, x2 + X * u2, y2 - h0 * u2, x + X * uw, y - h0 * uw, F(j & 1 ? CON.L : CON.M)); }
     if(j !== o.b0) return;
     // the front: pier faces, then the fascia across the whole view
-    if(o.pier) for(let sd = -1; sd <= 1; sd += 2){ const X = sd * o.pier, pw = .32 * uw; R(sd < 0 ? x + X * uw - pw : x + X * uw, y - h0 * uw, pw, h0 * uw, F(CON.H)); R(sd < 0 ? x + X * uw - pw : x + X * uw, y - h0 * uw, pw, Math.max(PX, uw * .03), F(CON.W)); }
+    if(o.pier) for(let sd = -1; sd <= 1; sd += 2){ const X = sd * o.pier, pw = .32 * uw; pierArt(sd < 0 ? x + X * uw - pw : x + X * uw, y - h0 * uw, pw, h0 * uw, uw, F, o.b0 + sd, sd < 0); }
     const fy0 = y - h1 * uw, fh = (h1 - h0) * uw, xl = Math.max(-PX, x - L * uw), xr = Math.min(W + PX, x + L * uw);
     R(xl, fy0, xr - xl, fh, F(o.street ? '#3a3a48' : '#c8ccd4')); R(xl, fy0 + fh * .82, xr - xl, fh * .18, F(o.street ? '#24242e' : '#8a8e9e')); R(xl, fy0, xr - xl, Math.max(PX, fh * .08), F(o.street ? '#5a5a6a' : '#eef0f4'));
+    if(!o.street && uw > 5){ const gb = fy0 + fh, gf = Math.max(PX, snp(uw * .035)); R(xl, gb, xr - xl, gf, F('#353a48')); R(xl, gb, xr - xl, PX, F('#6a7488'));   // the steel girder's bottom flange under the fascia
+      if(uw > 10){ const st = .45 * uw; for(let k = Math.ceil((xl - x) / st); x + k * st < xr; k++) R(x + k * st, fy0 + fh * .82, Math.max(PX, snp(uw * .012)), fh * .18, F('#5a6070')); } }   // its web stiffeners
     if(!o.street && uw > 6){ const sx = 1.1 * uw; for(let k = Math.ceil((xl - x) / sx); x + k * sx < xr; k++) R(x + k * sx, fy0 + fh * .08, Math.max(PX, uw * .012), fh * .74, F('#9a9eae')); }   // the panel seams
     // on top: its own railing and lamps (a street bridge: pedestrians' railing and street lamps)
     R(xl, fy0 - uw * .12, xr - xl, Math.max(PX, uw * .02), F(STL[2])); if(uw > 6) for(let k = -8; k <= 8; k++){ const px = x + k * .55 * uw; if(px < xl || px > xr) continue; R(px, fy0 - uw * .12, Math.max(PX, uw * .012), uw * .12, F(STL[1])); }
@@ -663,6 +665,17 @@
     if(o.signs && fog < .8){ const sw = .6 * uw; for(let qq = 0; qq < o.signs.length; qq++){ const pair = SIGN[o.signs[qq]]; if(!pair) continue; const spr = sw > pair[0].width * 2.2 ? pair[1] : pair[0], k = sw / spr.width, px = x + (qq ? .5 : -.5) * uw;
         const a0 = cx.globalAlpha; cx.globalAlpha = a0 * (1 - fog * .75); blit(spr, px, fy0 + fh * .9, k); cx.globalAlpha = a0; } }
     if(o.name && uw > 10 && fog < .6) R(x - uw * .5, fy0 + fh * .2, uw, fh * .45, F('#1a1c26')); }
+  /* A concrete pier face (round 2; Hamazakibashi and Nihonbashi at pixel zoom): board-formed lifts with tie holes, a cap beam, water and
+     rust stains running down from the bearings, a drain pipe on brackets, the deck lamps' warm light on one edge; plain when small. */
+  function pierArt(x0, y0, pw, ph, uw, F, seed, litR){ if(pw < PX || ph < PX) return; R(x0, y0, pw, ph, F(CON.M));
+    const le = Math.max(PX, snp(pw * .12)); R(litR ? x0 + pw - le : x0, y0, le, ph, F(CON.W)); R(litR ? x0 : x0 + pw - le * 1.5, y0, le * 1.5, ph, F(CON.D));
+    const cap = Math.max(PX, snp(Math.min(ph * .08, uw * .1))); R(x0 - pw * .1, y0, pw * 1.2, cap, F(CON.H)); R(x0 - pw * .1, y0 + cap, pw * 1.2, PX, F(CON.K));
+    if(pw < PX * 5) return;
+    const lift = Math.max(PX * 4, snp(uw * .26)); for(let yy = y0 + cap + lift; yy < y0 + ph - PX; yy += lift){ R(x0, yy, pw, PX, F(CON.D));   // the formwork's lifts
+      if(pw > PX * 14) for(const u of [.28, .52, .76]) R(x0 + pw * u, yy - lift / 2, PX, PX, F(CON.K)); }   // tie holes
+    for(let q = 0; q < 3; q++){ const hv = hash(seed * 3.1 + q * 7.7); if(hv > .7) continue; R(x0 + pw * (.15 + q * .25 + hv * .08), y0 + cap, Math.max(PX, snp(pw * .05)), ph * (.18 + hv * .5), F(q === 1 ? '#3a2a26' : '#262430')); }   // stains from the bearings
+    const pxp = x0 + pw * (litR ? .14 : .8), pwp = Math.max(PX, snp(pw * .06)); R(pxp, y0 + cap, pwp, ph - cap, F('#4a505e')); R(pxp, y0 + cap, Math.max(PX, pwp / 2), ph - cap, F('#6e7486'));   // the drain pipe
+    for(let yy = y0 + cap + lift * .5; yy < y0 + ph; yy += lift) R(pxp - PX, yy, pwp + PX * 2, PX, F(STL[1])); }   // its brackets
   // the parallel ramp of the junction: it climbs beside the road, then crosses over it on the skew. Each segment of it carries one slice:
   // the soffit (when above the eye), the fascia facing the camera's side, its parapet with a lit coping, its lamps and its piers.
   function rampAt(m){ // m: segments into the jct zone -> { x (centre), h (deck top) } or null
@@ -681,12 +694,13 @@
       const pe = P1(fx, top), re = P2(fx2, top2); poly(pe[0], pe[1], re[0], re[1], r[0], r[1], p[0], p[1], F('#9a9eae')); }
     else { const p = P1(a.x - RW2, a.h + .22), pp = P1(a.x + RW2, a.h + .22), pb = P1(a.x + RW2, bot), pa = P1(a.x - RW2, bot); if(sp.m % 3 === 0) poly(p[0], p[1], pp[0], pp[1], pb[0], pb[1], pa[0], pa[1], F('#a8acb8')); }
     // an expansion joint every 10 segments (a dark seam down the fascia)
-    if(sp.m % 10 === 0 && Math.abs(a.x) > RW2 + .1 && uw > 6){ const p = P1(fx, Math.max(0, bot)), pt = P1(fx, top + .2), pw = Math.max(PX, uw * .012); R(p[0] - pw / 2, pt[1], pw, p[1] - pt[1], F('#4a4e5e')); }
+    if(sp.m % 10 === 0 && Math.abs(a.x) > RW2 + .1 && uw > 6){ const p = P1(fx, Math.max(0, bot)), pt = P1(fx, top + .2), pw = Math.max(PX, uw * .012); R(p[0] - pw / 2, pt[1], pw, p[1] - pt[1], F('#4a4e5e')); R(p[0] + pw, pt[1] + (p[1] - pt[1]) * .3, Math.max(PX, uw * .025), (p[1] - pt[1]) * .7, F('#5a4a44')); }   // (and the rust stain that runs down from it)
+    if(Math.abs(a.x) > RW2 + .1 && bot > 0 && uw > 4){ const p = P1(fx, bot), r = P2(fx2, bot2), g = Math.max(PX, uw * .03); poly(p[0], p[1] - g, r[0], r[1] - g * u2 / uw, r[0], r[1], p[0], p[1], F('#3a4050')); }   // the girder's bottom flange along the fascia
     // its traffic: tail lights going up the ramp (two cars on a 140-segment loop), seen over its parapet
     for(let k = 0; k < 2; k++){ const cm = 18 + (((now / 1000) * (reduce ? 8 : 14) + k * 70) % 140); if(Math.floor(cm) !== sp.m) continue; const cxm = a.x - (a.x > 0 ? .2 : -.2), [tx, ty] = P1(cxm, top + .26), sz = Math.max(PX, Math.min(PX * 2, Math.round(uw * .03 / PX) * PX));
       R(tx - uw * .1, ty, sz, sz, '#ff3030'); R(tx + uw * .1 - sz, ty, sz, sz, '#ff3030'); glow(tx, ty, Math.min(H * .05, uw * .25), '#ff2a2a', .25 * (1 - fog)); }
     // piers under it, every 12 segments, while it is above the parapet
-    if(sp.m % 12 === 0 && bot > .35){ const pw = .26 * uw, px = x + a.x * uw; R(px - pw / 2, y - bot * uw, pw, bot * uw, F(CON.L)); R(px - pw / 2, y - bot * uw, Math.max(PX, pw * .25), bot * uw, F(CON.H)); }
+    if(sp.m % 12 === 0 && bot > .35){ const pw = .26 * uw, px = x + a.x * uw; pierArt(px - pw / 2, y - bot * uw, pw, bot * uw, uw, F, sp.m * 1.7, a.x < 0); }
     // lamps on its parapet, every 16 segments
     if(sp.m % 16 === 8){ const [lx, ly] = P1(a.x + (a.x > 0 ? -RW2 : RW2), top + .9), pw = Math.max(PX, uw * .02); R(lx - pw / 2, ly, pw, uw * .68, F(STL[1])); R(lx - uw * .06, ly, uw * .12, Math.max(PX, uw * .03), fog < .5 ? SOD.core : F(SOD.hot)); glow(lx, ly, Math.min(H * .1, uw * .35), SOD.glow, .25 * (1 - fog)); } }
 
@@ -826,7 +840,7 @@
       if(side > 0 && i % 150 === 75 && kd !== 'rail') o.km = ((i - Z.B) / 150 * .2 + 1.2);
       sp.push(o); }
     if(Z.k !== 'jct' && Z.k !== 'trench'){ for(const side of [-1, 1]) if(((i + (side > 0 ? LAMP_EVERY / 2 : 0)) % LAMP_EVERY) === 0){ sp.push({ env:KEY, type:'lamp', x:side * 1.16, k:i, h:parKind(i, side, Z) === 'snd' ? 2 : 1.85 });
-        if(wetVisit(Z.B)) addReflection(s, side * .8, .05, .55, '#ffd080', .26, '#a05020'); } }
+        } }   // (their images on the wet deck: wetSrc, through env/roadmat.js's pools)
     // the junction: the stack of crossing decks, the climbing ramp; the trench: street bridges every 22 segments
     if(Z.k === 'jct'){ const m = Z.m;
       if(m >= 52 && m < 60) sp.push({ env:KEY, type:'xd', x:0, k:i, o:{ b0:Z.a + 52, dep:8, h0:1.3, h1:1.72, span:9, pier:1.45, signs:[PANELS.indexOf(PANELS[4]), PANELS.indexOf(PANELS[5])] } });
@@ -838,7 +852,7 @@
     // gantries: every 220 segments where the deck is plain, and one at the junction's entry
     if((Z.k === 'canyon' || Z.k === 'towers') && (i - Z.B) % 220 === 110 && Z.m > 10 && Z.b - i > 10) sp.push({ env:KEY, type:'gant', x:0, k:i, v:Math.floor(hash(i * .13) * GANTRIES.length) });
     if(Z.k === 'jct' && Z.m === 10) sp.push({ env:KEY, type:'gant', x:0, k:i, v:2 });
-    if(wetVisit(Z.B) && ((Z.k === 'jct' && Z.m === 52) || ((i - Z.B) % 220 === 110 && Z.k !== 'jct'))) addReflection(s, 0, .5, .7, '#2adf80', .18, '#0a5a30'); }
+  }
   function lit(i, s){ const k = s.shK; if(k === 1){ const m = s.shM; if((m >= 52 && m < 60) || (m >= 138 && m < 146)) return .55; return Math.max(0, 1 - Math.min(Math.abs((m % LAMP_EVERY) - 4), LAMP_EVERY - Math.abs((m % LAMP_EVERY) - 4)) / 3) * .7; }
     if(k === 5) return .45 + .3 * Math.max(0, 1 - Math.abs((s.shM % LAMP_EVERY) - 6) / 3);
     const d = Math.min(i % (LAMP_EVERY / 2), LAMP_EVERY / 2 - i % (LAMP_EVERY / 2)); return Math.max(0, 1 - d / 3.2) * .85; }
@@ -897,6 +911,15 @@
           if(sx > -dw && sx < W + dw){ cx.imageSmoothingEnabled = false; cx.drawImage(RFA, r.x, r.y, r.w, r.h, sx - (sd < 0 ? dw : 0), sy - dh, dw, dh);
             if(id === 'mast' && (reduce || ((now / 1000) * .55 + hv * 3) % 1 < .55)){ const ls = Math.max(PX, Math.min(PX * 2, snp(kk * 2))); R(sx - (sd < 0 ? dw : 0) + dw / 2 - ls / 2, sy - dh - ls, ls, ls, AVL); } } } }
       X += w; } }
+  /* The wet deck's light (round 2; the roadmat preset 'shuto' turns the pools on): every light that stands over the deck lays its image on
+     it through env/roadmat.js's POOL: the sodium heads of the lamps, the gantries' green panels and red message boards, the junction's soffit
+     lights. Harder and longer on drizzle visits. */
+  function wetSrc(s, n, a, P){ const uw = a.w; if(!(uw > .5)) return; const wv = s.shB !== undefined && wetVisit(s.shB) ? 1 : .55;
+    for(const sp of s.sprites){ if(sp.env !== KEY) continue;
+      if(sp.type === 'lamp'){ const dir = -Math.sign(sp.x), h = sp.h || 1.85, lx = a.x + (sp.x + dir * (sp.arm || .36)) * uw; P(lx, a.y, uw, h - .06, h, uw * .16, '#ffb060', .85 * wv); }
+      else if(sp.type === 'gant' && sp.v >= 0){ const G = GANTRIES[sp.v % GANTRIES.length], pos = G.length === 2 ? GPOS2 : GPOS3; for(let q = 0; q < G.length; q++) P(a.x + pos[q] * uw, a.y, uw, 1.28, 1.6, uw * .62, '#2adf80', .32 * wv);
+        P(a.x - .55 * uw, a.y, uw, 1.72, 1.92, uw * 1.3, '#ff4a20', .28 * wv); }
+      else if(sp.type === 'xd' && !sp.o.street && sp.k === sp.o.b0 + 1) for(let k = -4; k <= 4; k += 2) P(a.x + k * .8 * uw, a.y, uw, sp.o.h0 - .02, sp.o.h0, uw * .14, '#ffd080', .4 * wv); } }
   const RED = '#4e2624';
   function roadFX(s, a, b, fog, f, now){ if(a.y - b.y < .5) return;
     // the deck's margin beyond the road edge, out to the parapet foot (concrete, lit warm under the lamps)
@@ -1023,6 +1046,7 @@
     roadFX,
     backdrop(o){ if(!ABL.includes('sky')) backdrop(o); if(FR !== DRAWN){ FR = DRAWN; hostPrep(); const e = segs[segAt(position).index + 40]; if(e && e.p1.screen.w) EYE = Math.max(.05, (e.p1.screen.y - HZ) / e.p1.screen.w); } },
     overlay,
+    wetSrc,
     // for setpiece/screenfall.js and tests
     zoneAt, claim, bldAt, mkBld, riverSide, wetVisit, DBG, PANELS, SIGN, face, FQ, fpt, FPT, fc, KBT, KBC, _parSpan:parSpan
   };
