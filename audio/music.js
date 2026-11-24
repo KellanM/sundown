@@ -1005,7 +1005,7 @@ function publishClock(now){ const D = S.deck, M = S.M; if(!D || !M) return; cons
 function enterMode(mode, prev, A, now){ const E = S.E;
   if(mode === 'count' || mode === 'wait' || mode === 'title') S.sp = null;   // a new ride: the set pieces' memory starts clean
   if(mode === 'title'){ E.route(S.M.out); const og = S.M.out.gain; if(og.value < .5){ og.cancelScheduledValues(now); og.setTargetAtTime(.85, now, .3); }   // home from the results: M.resolve faded M.out (as the Again button does)
-    if(S.deck && S.deck.alive) killDeck(S.deck, now, .6); S.deck = null; amb(true, now, 1.2); return; }   // first 60 s: the title is the city and the wind only; the music waits for 走れ
+    amb(false, now, .6); startSong('title', now + .15, { energy:3, crash:false }); S.deck.lp.frequency.value = 20000; return; }   // Kellan 2026-11-23: the 日没 title song is back on the title (the city-and-wind bed is gone from here)
   if(mode === 'count'){ E.route(S.M.out); if(S.deck && S.deck.alive) killDeck(S.deck, now, .15); S.deck = null;
     const L = A.land0() || A.land(), key = themeForLand(L), root = 48 + comp(key).keyPc - (comp(key).keyPc > 6 ? 12 : 0);
     S.countT = now; S.countBus = E.ac.createGain(); S.countBus.connect(E.bus); playSting(E, ST.count, now + CD_0, root, S.countBus); amb(.8, now, .4);
