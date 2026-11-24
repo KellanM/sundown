@@ -907,6 +907,13 @@ function ditherC(src, n){ const c = mk(src.width, src.height), g = ctx(c); g.dra
 function cutBelow(c, yb){ const g = c.getContext('2d'), im = g.getImageData(0, 0, c.width, c.height), D = im.data;
   for(let x = 0; x < c.width; x++){ const y0 = Math.max(0, Math.floor(yb(x))); for(let y = y0; y < c.height; y++) D[(y * c.width + x) * 4 + 3] = 0; } g.putImageData(im, 0, 0); return c; }
 // a tape label: an ink parallelogram, a hairline rule in the accent along its foot, the title on it (the caption is typed in separately)
+// the first canvas column clear of env/hud.js's road tag (#roadTag: a DOM plate at the top left, 16 CSS px in, over the canvas; hidden on
+// narrow screens): a title set at the band's left edge starts right of it, not under it
+function tagClear(cw, nar){ if(nar) return 0; try{ const t = document.getElementById('roadTag'); if(t && getComputedStyle(t).display === 'none') return 0;
+    const cssW = (cx && cx.canvas.getBoundingClientRect().width) || innerWidth, w = t && t.offsetWidth ? t.offsetWidth : 52; return Math.ceil((16 + w + 6) * cw / cssW); }catch(e){ return 0; } }
+// the first canvas row clear of the page's "← Arcade" link (sundown.html .top a.home, top left, shown in standalone play; hidden embedded)
+function homeClear(ch, nar){ if(nar) return 0; try{ const a = document.querySelector('.top a.home'); if(!a || getComputedStyle(a).display === 'none') return 0;
+    const r = a.getBoundingClientRect(), cr = cx && cx.canvas.getBoundingClientRect(), cssH = (cr && cr.height) || innerHeight, bot = r.height ? r.bottom - ((cr && cr.top) || 0) : 44; return Math.max(0, Math.ceil((bot + 3) * ch / cssH)); }catch(e){ return 0; } }
 // a caption, letter-spaced 3x5, typed on its own thin ink plate (readable over any scene)
 function capC(s, col, ink){ const m = paint(t3M(s, 1, 1), col), c = mk(m.width + 5, 9), g = ctx(c); g.fillStyle = ink; g.fillRect(0, 0, c.width, 9); g.drawImage(m, 3, 2); return c; }
 function tapeC(tt, ink, acc){ const sl = Math.max(4, Math.round(tt.height * .35)), c = mk(tt.width + sl * 2 + 12, tt.height + 8), g = ctx(c);
@@ -939,7 +946,7 @@ CARDS.teiden = { dur:2.4, out:.4, exit:'fade', hold:1.55, kanji:['停電'],
     const moonF = (x, y) => !at(km, x, y + 1) ? K.rim : !at(km, x, y - 1) ? K.m3 : y < km.h * .38 ? K.m3 : y < km.h * .7 ? K.m2 : K.m1; yield;
     const full = (yield* inkedG(km, { fill:moonF, line:K.ink, lw:1, line2:K.m1, lw2:1, sh:K.ink, sx:3, sy:3 })); yield;
     L.kjL = [ditherC(full, 1)]; yield; L.kjL.push(ditherC(full, 2)); yield; L.kjL.push(ditherC(full, 3)); yield; L.kjL.push(full); yield;
-    L.kx = nar ? Math.round((cw - full.width) / 2) : Math.round(cw * .04); yield; L.ky = nar ? Math.round(PH * .17) : Math.round((yb(L.kx + full.width / 2) - full.height) * .42); yield;   // (phones: under the moon)
+    L.kx = nar ? Math.round((cw - full.width) / 2) : Math.max(Math.round(cw * .04), tagClear(cw, nar)); yield; L.ky = nar ? Math.round(PH * .17) : Math.max(Math.round((yb(L.kx + full.width / 2) - full.height) * .42), Math.min(homeClear(ch, nar), Math.floor(yb(L.kx + full.width) - full.height))); yield;   // (phones: under the moon)
     // the neon: the same strokes as a tube sign. A hot core along each stroke's edge, the yellow tube inside it, the dark backing, an ink
     // keyline round the whole glyph (it holds it off the lit street), an amber halo beyond. Small type gets a thinner tube (the strokes stay open)
     const pd = 6, P = padM(km0, pd), tw = ks < 60 ? 1.6 : 2.5; yield; const Din = distM(P, 0); yield; const Dout = distM(P, 1); yield;
@@ -964,7 +971,7 @@ CARDS.teiden = { dur:2.4, out:.4, exit:'fade', hold:1.55, kanji:['停電'],
     else { L.lx = L.kx + full.width + Math.round(cw * .02); yield; L.ly = L.ky + full.height - L.lab.height - L.sub.height - 4; yield; } yield;
     L.sx = nar ? Math.max(2, Math.round((cw - L.sub.width) / 2)) : L.lx + 4; yield; L.sy = L.ly + L.lab.height + 1; yield;
     // the moon: behind the far roofs (washed out by the haze while the street is lit)
-    const mr = Math.max(4, Math.round(PH * (nar ? .065 : .12))), mx = Math.round(nar ? cw - mr - 6 : cw * .87), my = Math.round(nar ? mr + 3 : PH * .3); yield;
+    const mr = Math.max(4, Math.round(PH * (nar ? .065 : .12))), mx = Math.round(nar ? cw - mr - 6 : cw * .75), my = Math.round(nar ? mr + 3 : PH * .3); yield;
     // the street: building faces with window grids; on each (right of the title) a backlit box sign under the roof and a tategaki board on an edge
     const R = rnd(61), WV = ['電気街', 'ラジオ', '無線', '部品', 'パソコン', '家電', '音響', 'ゲーム', '中古', '免税'], WH = ['電気', '無線', '部品', '家電', '中古', '免税', '音響'], NEON = [K.red, K.grn, K.cy, K.mg, K.tube, K.am]; yield;
     const blds = [], signs = [], tR = nar ? -1 : L.kx + full.width + 4; yield;   // (no boards behind the title; the tape covers the ones under it once it lands)
@@ -1028,7 +1035,7 @@ CARDS.teiden = { dur:2.4, out:.4, exit:'fade', hold:1.55, kanji:['停電'],
     g.restore(); } };
 
 /* ---------------------------------------------------------------- lava (setpiece/lavabreach.js, director id 'lava'): 溶岩流, Sakurajima breaks.
-   crust black x2 / night ash x3 / lava red / orange / yellow / white-hot / burnt shadow
+   ink / crust x3 / night ash x3 / lava red / orange / yellow / white-hot / burnt shadow
    Studied: Sakurajima from Kagoshima (the clear 2017 shot traced at pixel zoom for the profile; the sunset eruption for the plume; the night
    shot for the dark): a broad low cone, about 7:1 at the waterline, a long gentle foot to the north, Kitadake's notched double summit left
    of centre, Minamidake's lower shoulder to its right where the plume leaves; the plume a cauliflower column wider than the summit, leaning
@@ -1039,12 +1046,12 @@ CARDS.teiden = { dur:2.4, out:.4, exit:'fade', hold:1.55, kanji:['停電'],
    typed in. Exit: a screentone dissolve (the ash settles). Reduced motion: one held frame, the bombs parked mid-arc. */
 CARDS.lava = { dur:2.2, out:.36, exit:'tone', hold:1.3, kanji:['溶岩流'],
   *build(cw, ch, nar){ const L = {}, K = { ink:'#0a0406', cr:'#4a1c12', cr2:'#7a3624', ht:'#7a2812', sky:'#1e1016', a1:'#3a2a30', a2:'#76626a', a3:'#b4a2a2', red:'#c41c0c', or:'#ff6a14', yel:'#ffc83a', hot:'#fff2c4', sh:'#4a0e06' }; yield;
-    const top = nar ? Math.round(ch * .2) : 0, PH0 = Math.round(ch * (nar ? .31 : .34)), sk = Math.round(ch * (nar ? .03 : .06)), PH = PH0 + sk, H = PH + 14; yield;
+    const top = nar ? Math.round(ch * .2) : 0, PH0 = Math.round(ch * (nar ? .31 : .36)), sk = Math.round(ch * (nar ? .03 : .06)), PH = PH0 + sk, H = PH + 14; yield;
     L.top = top; yield; L.PH = PH; yield; L.PH0 = PH0; yield; const yb = x => PH0 + sk * x / cw; yield;
     // the volcano's place and Minamidake's crater first (the sky's ash gathers over it)
-    const vw = Math.round(nar ? cw * .92 : cw * .46), vh = Math.round(vw * (nar ? .2 : .17)), vx = Math.round(nar ? cw - vw * .82 : cw * .53), vb = Math.round(yb(vx + vw * .5)); yield;
+    const vw = Math.round(nar ? cw * .92 : cw * .46), vh = Math.round(vw * (nar ? .2 : .17)), vx = Math.round(nar ? cw - vw * .82 : cw * .47), vb = Math.round(yb(vx + vw * .5)); yield;
     L.vy = vb - vh - 2; yield; const cxv = Math.round(.615 * vw), cyv = Math.round(vh + 2 - .85 * vh); yield; L.crx = vx + cxv; yield; L.cry = L.vy + cyv; yield;
-    const plH = Math.max(16, L.cry - 3), lean = .5; yield;
+    const plH = Math.max(16, L.cry - 3), lean = nar ? .5 : .32; yield;   // (wide screens: a steeper column, its head clear of the HUD's checkpoint panel)
     // the band: night under ash, darker toward the top; the ash haze gathering over the plume (halftone); a red glow rising off the molten foot
     const bg = mk(cw, H); yield;
     yield* toneG(bg, K.sky, () => 1, 'bay'); yield;
@@ -1104,7 +1111,7 @@ CARDS.lava = { dur:2.2, out:.36, exit:'tone', hold:1.3, kanji:['溶岩流'],
     L.rim = rim; yield;
     // 溶岩流: woodblock (Zen Antique) thickened a pixel and nicked with the chisel; crust split by Voronoi seams that glow white-hot to red,
     // a red seep under every stroke; three heat frames (the seams' heat moves round them)
-    const ks = Math.round(nar ? Math.min((cw - 10) / 3.1, PH0 * .5) : Math.min(PH0 * .56, cw * .105)); yield;
+    const ks = Math.round(nar ? Math.min((cw - 10) / 3.1, PH0 * .5) : Math.min(PH0 * .52, cw * .1)); yield;
     let km = textM('溶岩流', 'ant', ks, { track:Math.round(ks * .03) }); yield; if(ks >= 40){ km = trim(grow(km, 1), 0); yield; } km = carve(km, 41, Math.round(ks * .5)); yield;
     const cs = Math.max(6, Math.round(ks * .32)), gw = Math.ceil(km.w / cs) + 2, gh = Math.ceil(km.h / cs) + 2, Rv = rnd(77), SX = new Float32Array(gw * gh), SY = new Float32Array(gw * gh), SH = new Float32Array(gw * gh); yield;
     for(let j = 0; j < gh; j++) for(let i = 0; i < gw; i++){ const n = j * gw + i; SX[n] = (i - 1 + .15 + Rv() * .7) * cs; SY[n] = (j - 1 + .15 + Rv() * .7) * cs; SH[n] = Rv(); } yield;
@@ -1119,17 +1126,20 @@ CARDS.lava = { dur:2.2, out:.36, exit:'tone', hold:1.3, kanji:['溶岩流'],
         if(!at(km, x, y + 1)) return K.red; if(!at(km, x, y - 1)) return K.cr2; return e < w + 2.4 ? K.ht : K.cr; };   // (each plate heated along its seams: the glyph's mass reads)
       const c = mk(base.width, base.height), g = ctx(c); g.drawImage(base, 0, 0); g.drawImage(paint(km, fill), 2, 2); L.kjL.push(c); yield; }
     L.kjW = whiteOf(L.kjL[0]); yield;
-    L.kx = nar ? Math.round((cw - L.kjL[0].width) / 2) : Math.round(cw * .04); yield; L.ky = Math.round(nar ? 4 : PH0 * .06); yield;
+    L.kx = nar ? Math.round((cw - L.kjL[0].width) / 2) : Math.max(Math.round(cw * .04), tagClear(cw, nar)); yield; L.ky = nar ? 4 : Math.max(Math.round(PH0 * .1), homeClear(ch, nar)); yield;   // (headroom: a road lift may raise the card a few rows)
     // LAVA BREACH on an ink tape with an orange hairline; the caption letter-spaced on its plate in pale ash
     const tpx = Math.round(nar ? Math.min(cw * .1, ch * .045) : Math.min(ch * .056, cw * .042)), tm = textM('LAVA BREACH', 'dela', tpx, { track:Math.max(1, Math.round(tpx * .1)), max:cw - 24 }); yield;
     const tt = (yield* inkedG(tm, { fill:(x, y) => y < tm.h * .5 ? K.yel : K.or, sh:K.red, sx:1, sy:2 })); yield;
     L.lab = tapeC(tt, K.ink, K.or); yield;
     const caps = ['SAKURAJIMA  //  DODGE THE BOMBS, RIDE THE HEAVE', 'DODGE THE BOMBS, RIDE THE HEAVE', 'RIDE THE HEAVE', 'SAKURAJIMA']; let cp = caps[caps.length - 1]; yield;
-    for(const s of caps) if(s.length * 5 <= (nar ? cw - 12 : cw * .55)){ cp = s; break; } yield; L.sub = capC(cp, K.a3, K.ink); yield;
-    L.lx = nar ? 2 : L.kx; yield; L.ly = nar ? PH + 8 : L.ky + L.kjL[0].height + 1; yield; L.sx = L.lx + 4; yield; L.sy = L.ly + L.lab.height + 1; yield;
-    // the bombs. One big bread-crust bomb flung from the crater high over the band, landing on the band's foot past the title (its trail drawn
+    // one title row: the tape and its caption beside the kanji, their foot on the kanji's (stacked under it, the titles ran so low that Sakurajima's
+    // climbing road lifted the card into the HUD's corner). Phones: the tape under the band
+    const kw0 = L.kjL[0].width, kh0 = L.kjL[0].height; yield; L.lx = nar ? 2 : L.kx + kw0 + 4; yield;
+    for(const s of caps) if(s.length * 5 + 5 <= (nar ? cw - 12 : cw * .74 - L.lx - 4)){ cp = s; break; } yield; L.sub = capC(cp, K.a3, K.ink); yield;
+    L.ly = nar ? PH + 8 : L.ky + kh0 - 3 - L.lab.height - 1 - L.sub.height; yield; L.sx = L.lx + 4; yield; L.sy = L.ly + L.lab.height + 1; yield;
+    // the bombs. One big bread-crust bomb flung from the crater high over the band, landing on the band's foot under the title (its trail drawn
     // as it flies, cooling from white-hot to ash); two small ones on short arcs over the volcano, again and again
-    const lnx = Math.round(nar ? cw * .12 : Math.max(L.lx + L.lab.width + 14, cw * .4)), lny = Math.floor(yb(lnx)) - 3, Hh = Math.max(10, L.cry - (nar ? PH * .3 : PH * .06)); yield;
+    const lnx = Math.round(nar ? cw * .12 : L.kx + kw0 * .5), lny = Math.floor(yb(lnx)) - 3, Hh = Math.max(10, L.cry - (nar ? PH * .3 : PH * .06)); yield;
     const AP = u => [Math.round(L.crx + (lnx - L.crx) * u), Math.round(L.cry + (lny - L.cry) * u - 4 * Hh * u * (1 - u))]; yield;
     L.arc = []; yield; for(let k = 0; k < 64; k++) L.arc.push(AP(k / 63)); yield;
     { const c = mk(cw, H), g = ctx(c), n = Math.ceil(Math.hypot(lnx - L.crx, Hh) * 3); let q = 0; yield;   // the trail it leaves, drawn once: hot at the landing, cooling back toward the crater
