@@ -494,7 +494,7 @@
     const HT = 3.45, L0 = -6.9, R0 = 3.1;
     // the headwall, both mouths cut out
     cx.fillStyle = M(PW.wall); cx.beginPath(); cx.rect(X(L0), Y(HT), X(R0) - X(L0), Y(0) - Y(HT)); for(const [m0, m1] of MO) cx.rect(X(m0 - .2), Y(BOXH + .2), X(m1 + .2) - X(m0 - .2), Y(0) - Y(BOXH + .2)); cx.fill('evenodd');
-    if(uw > W * .025 && fog < .7){ cx.save(); cx.clip('evenodd'); cx.fillStyle = M(PW.joint);   // (clipped to the slab: the joints used to run on across both mouths) pxRect(X(L0), Y(1.15), X(R0) - X(L0), lw); pxRect(X(L0), Y(2.3), X(R0) - X(L0), lw);   // panel joints (skipping the mouths: the frames are drawn over them)
+    if(uw > W * .025 && fog < .7){ cx.save(); cx.clip('evenodd'); cx.fillStyle = M(PW.joint);   /* (clipped to the slab: the joints used to run on across both mouths) */ pxRect(X(L0), Y(1.15), X(R0) - X(L0), lw); pxRect(X(L0), Y(2.3), X(R0) - X(L0), lw);   // panel joints
       for(let v = L0 + .9; v < R0; v += 1.15) pxRect(X(v), Y(HT - .05), lw, Y(0) - Y(HT - .05)); cx.restore(); }
     // the other carriageway's mouth: dark, its own lamp lines converging inside, a faint lit floor
     { const [m0, m1] = MO[1], mc = (m0 + m1) / 2; cx.fillStyle = M(PW.mouth); pxRect(X(m0), Y(BOXH), X(m1) - X(m0), Y(0) - Y(BOXH));
@@ -538,16 +538,24 @@
     if(a.y - b.y < PX * .5){ const rd = C(T.road[0]); poly(a.x - a.w * OW, a.y, a.x + a.w * OW, a.y, b.x + b.w * OW, yb, b.x - b.w * OW, yb, rd);
       const cv = Math.max(.35, Math.min(1, (a.w + b.w) / 46 / PX)), l1 = a.w / 46, l2 = b.w / 46, ed = mixc(rd, C(T.edge), cv);
       for(const lx of [-.95, .95]) poly(a.x + a.w * lx - l1, a.y, a.x + a.w * lx + l1, a.y, b.x + b.w * lx + l2, yb, b.x + b.w * lx - l2, yb, ed); return; }
-    if(portalAhead(now) >= 0){ const water = fc(s.stripe ? '#081a28' : '#0a1d2c', fog * .9); poly(-PX * 4, a.y + 1, a.x - a.w * ow, a.y + 1, b.x - b.w * ow, yb, -PX * 4, yb, water); poly(a.x + a.w * ow, a.y + 1, W + PX * 4, a.y + 1, W + PX * 4, yb, b.x + b.w * ow, yb, water); }
+    { const pa = portalAhead(now); if(pa >= 0){ const water = fc(s.stripe ? '#081a28' : '#0a1d2c', fog * .9), P = segs[pa].p1.screen;
+      /* seen from outside, behind the portal: where the headwall's slab stands in front of these rows only its sides can show water (two
+         rects, not two full-width polys a ring: those were ~7,000 canvas ops a frame from the top of the dive, all hidden by the slab) */
+      if(i > pa && P.w && b.y >= P.y - 3.45 * P.w && a.y <= P.y + 1){ const sl = Math.min(q(P.x - 6.9 * P.w), q(a.x - a.w * ow)), sr = Math.max(q(P.x + 3.1 * P.w), q(a.x + a.w * ow)), r0 = q(b.y), r1 = q(a.y) + PX;
+        if(r1 > r0){ cx.fillStyle = water; if(sl > -PX * 4) pxRect(-PX * 4, r0, sl + PX * 4, r1 - r0); if(sr < W + PX * 4) pxRect(sr, r0, W + PX * 4 - sr, r1 - r0); } }
+      else { poly(-PX * 4, a.y + 1, a.x - a.w * ow, a.y + 1, b.x - b.w * ow, yb, -PX * 4, yb, water); poly(a.x + a.w * ow, a.y + 1, W + PX * 4, a.y + 1, W + PX * 4, yb, b.x + b.w * ow, yb, water); } } }
     poly(a.x - a.w, a.y, a.x + a.w, a.y, b.x + b.w, yb, b.x - b.w, yb, bk >= 2 && i % 2 === 0 ? C(BX.roadLit[s.stripe]) : C(T.road[s.stripe]));   // (under the box's luminaires, a paler band)
     poly(a.x - a.w * ow, a.y, a.x - a.w, a.y, b.x - b.w, yb, b.x - b.w * ow, yb, C(bk >= 0 ? BX.walk : T.kerb)); poly(a.x + a.w, a.y, a.x + a.w * ow, a.y, b.x + b.w * ow, yb, b.x + b.w, yb, C(bk >= 0 ? BX.walk : T.kerb));
-    const e1 = a.w * .03, e2 = b.w * .03; cx.fillStyle = C(T.kerbHi); quad(a.x - a.w - e1, a.y, a.x - a.w + e1, a.y, b.x - b.w + e2, yb, b.x - b.w - e2, yb); quad(a.x + a.w - e1, a.y, a.x + a.w + e1, a.y, b.x + b.w + e2, yb, b.x + b.w - e2, yb);
+    QTHIN = a.y - b.y < PX * 6;   /* (a thin far ring: its strips go on the pixel grid as a row or two of rects, not as path fills: ~40 canvas ops a ring fewer) */
+    const e1 = a.w * .03, e2 = b.w * .03; const kh = C(T.kerbHi); tq(kh, a.x - a.w - e1, a.y, a.x - a.w + e1, a.y, b.x - b.w + e2, yb, b.x - b.w - e2, yb); tq(kh, a.x + a.w - e1, a.y, a.x + a.w + e1, a.y, b.x + b.w + e2, yb, b.x + b.w - e2, yb);
     // the LED strips mirrored softly in the polished concrete: two continuous pale bands
-    cx.fillStyle = C(T.sheenRd); for(const sd of [-1, 1]) quad(a.x + sd * a.w * .66, a.y, a.x + sd * a.w * .9, a.y, b.x + sd * b.w * .9, yb, b.x + sd * b.w * .66, yb);
+    const sh = C(T.sheenRd); for(let sd = -1; sd <= 1; sd += 2) tq(sh, a.x + sd * a.w * .66, a.y, a.x + sd * a.w * .9, a.y, b.x + sd * b.w * .9, yb, b.x + sd * b.w * .66, yb);
     const l1 = Math.max(.6, a.w / 46), l2 = Math.max(.6, b.w / 46);
     // (the lane dashes are the engine's own, drawn after this on every road: laneMark)
-    cx.fillStyle = C(T.edge); for(const lx of [-.95, .95]) quad(a.x + a.w * lx - l1, a.y, a.x + a.w * lx + l1, a.y, b.x + b.w * lx + l2, yb, b.x + b.w * lx - l2, yb);
+    const ec = C(T.edge); for(let sd = -1; sd <= 1; sd += 2){ const lx = sd * .95; tq(ec, a.x + a.w * lx - l1, a.y, a.x + a.w * lx + l1, a.y, b.x + b.w * lx + l2, yb, b.x + b.w * lx - l2, yb); }
   }
+  let QTHIN = false;
+  function tq(col, x1, y1, x2, y2, x3, y3, x4, y4){ if(QTHIN){ poly(x1, y1, x2, y2, x3, y3, x4, y4, col); return; } cx.fillStyle = col; quad(x1, y1, x2, y2, x3, y3, x4, y4); }
   function quad(x1, y1, x2, y2, x3, y3, x4, y4){ cx.beginPath(); cx.moveTo(x1, y1); cx.lineTo(x2, y2); cx.lineTo(x3, y3); cx.lineTo(x4, y4); cx.closePath(); cx.fill(); }
 
   // ================================================================ sprites outside
@@ -771,6 +779,9 @@
     poly(x, y - rh, x, y - rh - t, fx2, fy - frh - ft, fx2, fy - frh, fc(mixc('#9aa6bc', '#ffd8a0', warm), fog));
     if(sp.k % 4 === 0){ cx.fillStyle = fc('#4a5468', fog); pxRect(Math.round(x), y - rh, Math.max(PX * .7, uw * .014), rh - h); } }
 
+  // segments to a wall run at segment i (by its distance from the camera), and whether a run starting at g can be drawn whole
+  function trenchRun(i){ const n = i - Math.floor(position / SEG); return n < 150 ? 1 : n < 240 ? 2 : 4; }
+  function runOK(g, m){ for(let j = g; j < g + m; j++){ const t = segs[j]; if(!t || !t.aqTr || t.tunnel || !t.p2.screen.scale || t.p2.camera.z <= 0 || t.p1.camera.z <= DEPTH) return false; } return true; }
   // the retaining walls of the cutting and the sea beyond them, for one segment. The wall's coping sits FB above sea level (never lower
   // than the bridge parapet); the sea is drawn at sea level, so on the ramp it lies above the road and level with the coping
   let WALLC = null;   // (built on first use: mixc belongs to the game script, which loads after this file)
@@ -788,6 +799,12 @@
     // the sea, seen over the walls while your eye is above it
     if(above && sA - sB > -PX) seaBand(i, k, sA, sB - 1, a, b, fog, now, Math.max(DECK, wA + .06));
     const swell = v => reduce ? 80 : 50 + 170 * Math.max(0, Math.sin(v * .45 - now / 2600)) * (.6 + .4 * H0(v * .7));
+    // far away the walls go in runs of 2 or 4 segments, one poly per band for the run (as env/harbour.js does its walls): the cutting's
+    // walls were ~2,400 canvas ops a frame from the dive's top. A run is drawn by its first segment only when all of it is cutting and
+    // in front of the camera; otherwise each of its segments draws itself, so a run never leaves a hole.
+    const m = trenchRun(i); if(m > 1 && i % m && runOK(i - i % m, m)) return trenchLamps(s, i, k, a, b, kA, hA, sA, sB, cA, wA, above, uw, fog, now);
+    const e = m > 1 && !(i % m) && runOK(i, m) ? segs[i + m - 1] : s;
+    { const b = e.p2.screen, kB = b.w * f, hB = wallH(e.aqD2 || 0), cB = b.y - hB * kB, wB = wallX(e, 1), sB = b.y - (e.aqD2 || 0) * kB, i1 = e.index + 1;
     for(let sd = -1; sd <= 1; sd += 2){ const xa = a.x + sd * a.w * wA, xb = b.x + sd * b.w * wB, oa = a.x + sd * a.w * Math.max(DECK, wA + .06), ob = b.x + sd * b.w * Math.max(DECK, wB + .06);
       // where the walls flare out past the deck: the walkway between the deck's edge and the wall's foot (else the ground showed there)
       if(wA > DECK + .01 || wB > DECK + .01){ const dA = a.x + sd * a.w * DECK, dB = b.x + sd * b.w * DECK; poly(dA, a.y + 1, xa, a.y + 1, xb, b.y - 1, dB, b.y - 1, fc(BX.walk, fog));
@@ -795,7 +812,7 @@
       // foam where the sea laps the wall (only seen from above it), shifting slowly
       if(above && fog < .85){ const fo = (i + (reduce ? 0 : Math.floor(now / 700))) % 3; if(fo) poly(oa, sA + 1, oa + sd * a.w * (fo === 1 ? .1 : .05), sA + 1, ob + sd * b.w * (fo === 1 ? .06 : .1), sB, ob, sB, fc(fo === 1 ? '#8ab8c8' : '#4a7a90', fog)); }
       // a swell crest showing just behind the coping (over the wall top once your eye is below the sea)
-      if(fog < .8 && (s.aqD1 || s.aqD2) && a.w > W * .012){ const wA = swell(i) * kA, wB = swell(i + 1) * kB;   /* (LOD: under ~15 px a half-width the crest is a pixel or two) */ poly(oa, cA, oa, cA - wA, ob, cB - wB, ob, cB, fc('#0e2a3e', fog));
+      if(fog < .8 && (s.aqD1 || s.aqD2) && a.w > W * .012){ const wA = swell(i) * kA, wB = swell(i1) * kB;   /* (LOD: under ~15 px a half-width the crest is a pixel or two) */ poly(oa, cA, oa, cA - wA, ob, cB - wB, ob, cB, fc('#0e2a3e', fog));
         if(wA > PX * .6 && a.w > W * .02) poly(oa, cA - wA, oa, cA - wA - Math.max(PX * 2, wA * .3), ob, cB - wB - Math.max(PX * 1.2, wB * .3), ob, cB - wB, fc('#bfe2ee', fog)); }
       // the coping's top, then the face: base kerb, concrete, a wet band under the lip, the pale lip
       poly(xa, cA, oa, cA, ob, cB, xb, cB, fc(wc.top, fog));
@@ -803,13 +820,18 @@
       if(fog > .6 || a.w < W * .05) band(() => 0, h => h, fc(wc.face, fog));   // (LOD: far, one band; its four would each be a row or two)
       else { band(() => 0, () => 60, fc('#1e2430', fog)); band(() => 60, h => h - 150, fc(wc.face, fog)); band(h => h - 150, h => h - 45, fc('#2c3646', fog)); band(h => h - 45, h => h, fc(wc.lip, fog));
         // panel joints, and a row of cyan delineators leading into the portal
-        if(uw > W * .04 && i % 3 === 0){ cx.fillStyle = fc('#323a4c', fog); pxRect(q(xa), q(cA + 45 * kA), PX, q((hA - 105) * kA)); }
-        if(i % 2 === 0 && uw > W * .015){ const d = Math.max(PX, q(uw * .028)); cx.fillStyle = fog > .5 ? fc('#4ab8d8', fog) : '#8ae8ff'; pxRect(q(xa - d / 2), q(a.y - 200 * kA), d, d); } }
+        if(uw > W * .04 && i % 3 === 0){ cx.fillStyle = fc('#323a4c', fog); pxRect(q(xa), q(cA + 45 * kA), PX, q((hA - 105) * kA)); } }
+      // a row of cyan delineators leading into the portal: one every 2 segments, each from its own segment (also inside a run)
+      if(fog <= .6) for(let j = i; j < i1; j++) if(j % 2 === 0){ const t = segs[j].p1.screen, tw = t.w; if(tw <= W * .015) continue; const d = Math.max(PX, q(tw * .028));
+        cx.fillStyle = fog > .5 ? fc('#4ab8d8', fog) : '#8ae8ff'; pxRect(q(t.x + sd * tw * wallX(segs[j], 0) - d / 2), q(t.y - 200 * tw * f), d, d); }
       // the parapet's slim rail carries on along the coping, the same gap above it as on the bridge (.08 half-widths) and its posts every
       // 4 segments: one unbroken rail from the bridge, down the cutting and up again (world-anchored, nothing switches as you pass)
       if(fog <= .8){ const gA = a.w * .08, gB = b.w * .08, t = Math.max(PX * .7, a.w * .014), ft = Math.max(PX * .4, b.w * .014);
         poly(xa, cA - gA, xa, cA - gA - t, xb, cB - gB - ft, xb, cB - gB, fc(wc.rail, fog));
-        if(i % 4 === 0){ cx.fillStyle = fc('#4a5468', fog); pxRect(Math.round(xa), cA - gA, Math.max(PX * .7, a.w * .014), gA); } } }
+        if(i % 4 === 0){ cx.fillStyle = fc('#4a5468', fog); pxRect(Math.round(xa), cA - gA, Math.max(PX * .7, a.w * .014), gA); } } } }
+    trenchLamps(s, i, k, a, b, kA, hA, sA, sB, cA, wA, above, uw, fog, now); }
+  // the cutting's lamps, glitter, spray, tide gauge and approach furniture: per segment, also where a run drew the walls
+  function trenchLamps(s, i, k, a, b, kA, hA, sA, sB, cA, wA, above, uw, fog, now){
     // sodium lamps on the wall faces (the cutting has no poles, so the sky over the walls stays open), the sea's glitter and spray
     if(i % LAMP === 4 && fog < .9) for(const sd of [-1, 1]){ const lx = a.x + sd * a.w * (wA - .01), ly = a.y - Math.min(hA - 120, 900) * kA, lw = Math.max(PX, q(uw * .09)), lh = Math.max(PX, q(uw * .035));
       cx.fillStyle = fc('#0e1220', fog); pxRect(q(lx - (sd > 0 ? lw : 0)) - PX, q(ly) - PX, lw + PX * 2, lh + PX * 2); cx.fillStyle = '#ffd890'; pxRect(q(lx - (sd > 0 ? lw : 0)), q(ly + lh * .4), lw, Math.max(PX, q(lh * .6)));

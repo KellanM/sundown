@@ -135,9 +135,10 @@
   /* Two rows each side, world-anchored like the engine's pbAt: a street row standing a few metres off the deck and a back row of taller
      towers. A building belongs to the zone at both its ends (it never straddles the river or the open side). */
   /* The rows (2026-11-24, Kellan: "we want to make it so the buildings look layered and you can't see the ground texture"): the street
-     row abuts along the deck, broken only by a cross street now and then; the back row of towers stands with narrow gaps; a deep row of
-     mid-rise blocks (row 2) runs unbroken behind them, so every gap between near buildings opens onto deeper buildings, never onto
-     ground (the C1 from its deck at night: Route 5 / Ginza / Kyobashi photos, a carpet of blocks with no street showing). */
+     row and the back row keep their approved rhythm, and a deep row of mid-rise blocks (row 2) runs unbroken behind them, so every gap
+     between near buildings opens onto deeper buildings, and below them onto the street and the low roofs (belowDeck), never onto ground
+     (the C1 from its deck at night: Route 5 / Ginza / Kyobashi photos, a carpet of blocks with no street showing). Measured: an
+     abutting street row cost 3x the street row's fills (+12k canvas ops a frame) for no gain once the floor covers the ground. */
   const RUN2 = new Map();
   function runAt(i, side, row){ const per = row === 2 ? 40 : row ? 46 : 34, c = Math.floor(i / per), h = k => hash(c * 7.31 + side * 13.7 + row * 31.1 + k);
     if(row === 0){ const L = run0(c, side); for(let q = 0; q < L.length; q++){ const r = L[q]; if(i >= r.b0 && i < r.b0 + r.len) return r; } return null; }
@@ -165,7 +166,8 @@
     const Za = zoneAt(r.b0), Zb = zoneAt(r.b0 + r.len - 1), rs = riverSide(Za.B), h = k => hash(r.b0 * 1.37 + side * 5.1 + row * 9.7 + k);
     B = null;
     const open = Z => (Z.k === 'river' && side === rs) || (Z.k === 'ginza' && side === -rs);
-    { const far = open(Za) || open(Zb), k = far ? (open(Za) ? Za.k : Zb.k) : Za.k;
+    if(Za.k === Zb.k || (Za.k !== 'river' && Zb.k !== 'river' && Za.k !== 'ginza' && Zb.k !== 'ginza') || row === 2){   // (a street or back-row building over a river or Ginza edge is left out, as approved; the deep row and the floor fill that gap)
+      const far = open(Za) || open(Zb), k = far ? (open(Za) ? Za.k : Zb.k) : Za.k;
       if(far){ if(row === 1) B = { x0:k === 'river' ? 29.5 : 44 + h(3) * 6, h:5 + h(4) * (k === 'river' ? 9 : 14), st:h(5) < .5 ? 'office' : k === 'river' ? 'tile' : 'glass', lo:true, depth:2 }; }
       else if(row === 2){ const x0 = (k === 'towers' ? 9 : k === 'jct' ? 8.5 : 7.4) + h(3) * 4.5, tall = k === 'towers' ? 9 + h(4) * 16 : 4.5 + h(4) * h(11) * 13;
         B = { x0, h:tall, st:pickK(k === 'towers' ? [['glass', 3], ['ministry', 2], ['office', 2]] : [['office', 4], ['tile', 3], ['hotel', 2], ['band70', 2], ['glass', 1]], h(5)), lo:true, depth:2.6, deep:true }; }

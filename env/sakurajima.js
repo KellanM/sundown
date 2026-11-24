@@ -397,8 +397,11 @@
   // (a merged far slice never spans a stretch where the wall is buried (a lava leap's flow): it stops at the first buried segment, and the
   // first standing segment after one always draws, so the wall can't bridge the flow far away nor start late beyond it)
   const wUp = (j, side) => { const t = segs[j]; return !!(t && t.skW && t.skW[side] >= .005); };
-  function drawWall(sp, x, y, uw, fog, now){ let n = WSPAN(fog); const side = Math.sign(sp.x), k = sp.k; if(k % n && wUp(k - 1, side)) return; const s = sp.s;
-    { let e = 1; const e1 = n - k % n; while(e < e1 && wUp(k + e, side)) e++; n = e; }
+  // (each segment's span from its own distance, and a slice runs on to the next start, as env/pass.js's cliff does: running to the start's own
+  // span left a hole of up to several segments wherever the tiers changed, which slid along with the camera, so far walls blinked; 2026-11-24)
+  const wSpan = (j, b0) => WSPAN(clamp(Math.pow((j - b0) / DRAW_N, 1.6), 0, 1));
+  function drawWall(sp, x, y, uw, fog, now){ const side = Math.sign(sp.x), k = sp.k, b0 = k - Math.round(DRAW_N * Math.pow(fog, 1 / 1.6)); let n; if(k % wSpan(k, b0) && wUp(k - 1, side)) return; const s = sp.s;
+    { let e = 1; while(e < 16 && (k + e) % wSpan(k + e, b0) && wUp(k + e, side)) e++; n = e; }
     const t = segs[s.index + n - 1] || s, nx = segs[s.index + n], p = (t.p2.screen.w ? t : s).p2.screen; if(!p.w) return;
     const x2 = p.x + sp.x * p.w, y2 = p.y, u2 = p.w, h1 = s.skW[side], h2 = nx && nx.skW ? nx.skW[side] : h1; if(h1 < .005 && h2 < .005) return;
     const H1 = uw * h1, H2 = u2 * h2, o1 = side * uw * .12, o2 = side * u2 * .12;

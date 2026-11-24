@@ -531,7 +531,12 @@
   // one continuous wall that rises and falls smoothly and arrives/leaves with the road's ramp.
   const SPANF = f => { f = fogPx(f); return f > .7 ? 4 : f > .45 ? 3 : f > .25 ? 2 : 1; };   // tiers by screen size (fogPx: the fog the old 260-segment draw distance gave here)   // far away one quad spans several segments
   const wallH = t => t ? (t.coR === undefined ? 0 : t.coR * lerp(.035, .22, t.coM)) : 0;
-  function drawWall(sp, x, y, uw, fog){ const s = segs[sp.k], nS = SPANF(fog); if(!s || sp.k % nS) return; const t = segs[sp.k + nS - 1], qq = t && t.p2.screen.w ? t.p2 : s.p2, q = qq.screen; if(!q.scale) return; const fx = q.x + sp.x * q.w, fy = q.y; if(fy >= y) return;
+  // Span LOD without holes (the scheme env/pass.js's cliff uses): each segment's span from its own distance (b0, the camera's segment, recovered
+  // from the fog), a slice runs on to the next start. Running to the start's own span left a one-to-three-segment hole wherever the tiers
+  // changed, which slid along with the camera, so far walls and rails blinked (2026-11-24). runC: the slice's length, 0 = not a start
+  const spanC = (j, b0) => SPANF(clamp(Math.pow((j - b0) / DRAW_N, 1.6), 0, 1));
+  function runC(k, fog){ const b0 = k - Math.round(DRAW_N * Math.pow(fog, 1 / 1.6)); if(k % spanC(k, b0)) return 0; let e = k + 1; while(e < k + 6 && e % spanC(e, b0)) e++; return e - k; }
+  function drawWall(sp, x, y, uw, fog){ const s = segs[sp.k], nS = runC(sp.k, fog); if(!s || !nS) return; const t = segs[sp.k + nS - 1], qq = t && t.p2.screen.w ? t.p2 : s.p2, q = qq.screen; if(!q.scale) return; const fx = q.x + sp.x * q.w, fy = q.y;   // (no cull when the far end sits lower: over a crest the face still stands above the road, and it vanished)
     const n = segs[sp.k + nS], w1 = wallH(s), w2 = n && n.coR !== undefined ? wallH(n) : w1, h = uw * w1, fh = q.w * w2; if(h < .4 && fh < .4) return;
     const lit = (s.lit || 0) * .6, cw = uw * CAPW * s.coR, fcw = q.w * CAPW * (n && n.coR !== undefined ? n.coR : s.coR);
     poly(x, y + 1, x, y - h, fx, fy - fh, fx, fy + 1, fc(mixc(CONC.M, '#5a7488', lit), fog));
@@ -549,7 +554,7 @@
     if(sp.k % 4 === 0 && fog < .6){ cx.fillStyle = fc(RAIL.post, fog); cx.fillRect(Math.round(x - uw * .008), y - h - rh, Math.max(PX * .7, uw * .016), rh); }
     cx.globalAlpha = 1; }
   // land-side guardrail: a white W-beam on posts; far away one rect spans several segments
-  function drawRail(sp, x, y, uw, fog){ const s = segs[sp.k], nS = SPANF(fog); if(!s || sp.k % nS) return; const t = segs[sp.k + nS - 1], nx = t && t.p2.screen.w ? t.p2 : s.p2, p = nx.screen; if(!p.w) return;
+  function drawRail(sp, x, y, uw, fog){ const s = segs[sp.k], nS = runC(sp.k, fog); if(!s || !nS) return; const t = segs[sp.k + nS - 1], nx = t && t.p2.screen.w ? t.p2 : s.p2, p = nx.screen; if(!p.w) return;
     const e1 = clamp(s.coR * 6, 0, 1), e2 = t ? clamp((t.coR !== undefined ? t.coR : s.coR) * 6, 0, 1) : e1;   // the end terminal slopes down to the ground
     const x2 = p.x + sp.x * p.w, y2 = p.y, u2 = p.w, h1 = uw * .17 * e1, h2 = u2 * .17 * e2, t1 = Math.max(PX, uw * .07), t2 = Math.max(PX, u2 * .07);
     if(sp.post && e1 > .5){ cx.fillStyle = fc(RAIL.post, fog); cx.fillRect(x - uw * .012, y - h1 - t1 * .2, Math.max(PX, uw * .025), h1 + t1 * .2); }
