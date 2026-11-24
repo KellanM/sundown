@@ -242,6 +242,7 @@
   // filled on whole canvas pixels by gridFill (below), so bands sharing an edge tile with no seam or overlap. No antialiased edge pixels:
   // nothing shimmers as the camera creeps, and the ~1,000 bands a frame go out as batched fillRects instead of path fills
   function gpoly(x1, y1, x2, y2, x3, y3, x4, y4, col){ const m = W * .5, lo = -m, hiX = W + m, loY = -H * .5, hiY = H * 1.5; let a = CA, n = 4;
+    if(x1 === x4 && x2 === x3 && x1 >= lo && x1 <= hiX && x2 >= lo && x2 <= hiX && Math.abs(x2 - x1) <= PX * 48 && y1 >= loY && y1 <= hiY && y2 >= loY && y2 <= hiY && y3 >= loY && y3 <= hiY && y4 >= loY && y4 <= hiY){ vfill(x1, y1, y4, x2, y2, y3, col); return; }   // most bands
     a[0] = x1; a[1] = y1; a[2] = x2; a[3] = y2; a[4] = x3; a[5] = y3; a[6] = x4; a[7] = y4;
     if(!(x1 >= lo && x2 >= lo && x3 >= lo && x4 >= lo && x1 <= hiX && x2 <= hiX && x3 <= hiX && x4 <= hiX && y1 >= loY && y2 >= loY && y3 >= loY && y4 >= loY && y1 <= hiY && y2 <= hiY && y3 <= hiY && y4 <= hiY)){
       let b = CB; for(let e = 0; e < 4 && n; e++){ let o = 0; const ax = e < 2, sg = e % 2 ? -1 : 1, lim = e === 0 ? lo : e === 1 ? hiX : e === 2 ? loY : hiY;
@@ -249,6 +250,16 @@
           if(pin){ b[o++] = px; b[o++] = py; } if(pin !== qin){ const t = (L - pv) / (qv - pv); b[o++] = px + (qx - px) * t; b[o++] = py + (qy - py) * t; } }
         n = o / 2; const t = a; a = b; b = t; } }
     if(n >= 3) gridFill(a, n, col); }
+  // a band with both ends vertical (x1: y1..y4, x2: y2..y3), the usual facade band: by columns straight from its two edge lines, the same pixels
+  // gridFill's column scan gives (centre inside), with no edge search (measured: as cheap on the CPU as the antialiased path fill it replaces)
+  function vfill(xa, ya0, ya1, xb, yb0, yb1, col){ if(xb < xa){ let t = xa; xa = xb; xb = t; t = ya0; ya0 = yb0; yb0 = t; t = ya1; ya1 = yb1; yb1 = t; }
+    const dx = xb - xa; if(!(dx > 0)) return; const c0 = Math.max(0, Math.ceil(xa / PX - .5)), c1 = Math.min(cv.width - 1, Math.floor(xb / PX - .5)); if(c1 < c0) return;
+    const sa = (yb0 - ya0) / dx, sb = (yb1 - ya1) / dx, ymn = -PX, ymx = H + PX; cx.fillStyle = col; let ql = 0, qr = 0, qs = 0, qe = 0;
+    for(let c = c0; c <= c1; c++){ const d = (c + .5) * PX - xa; let lo = ya0 + sa * d, hi = ya1 + sb * d; if(lo > hi){ const t = lo; lo = hi; hi = t; } if(lo < ymn) lo = ymn; if(hi > ymx) hi = ymx; if(hi < lo) continue;
+      let yt = Math.round(lo / PX), yb = Math.round(hi / PX); if(yb <= yt){ yt = Math.floor((lo + hi) / 2 / PX); yb = yt + 1; }
+      if(yt === ql && yb === qr && c === qe){ qe = c + 1; continue; }
+      if(qe > qs) cx.fillRect(qs * PX, ql * PX, (qe - qs) * PX, (qr - ql) * PX); ql = yt; qr = yb; qs = c; qe = c + 1; }
+    if(qe > qs) cx.fillRect(qs * PX, ql * PX, (qe - qs) * PX, (qr - ql) * PX); }
   // A pixel is filled when its centre is inside the polygon, the core pxPoly rule, run by rows or by columns, whichever needs fewer rects: a band
   // whose top and bottom run across the slice at a slant (the roofs, the eaves seen near) changes its span every row but every column only once,
   // so it goes out column by column. Both scans give the same pixels, so neighbouring bands tile whichever way each was cut. A band thinner than

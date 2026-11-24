@@ -101,7 +101,7 @@
        first visit (st 40) needs 320, and its checkpoint (gate 0, at 520) must then stand well before the lead-in gallery: the JZ0 segments
        GATE_EXTRA adds to the first visit (warmSteps) give both, with the 320 crest it had. A later visit keeps round 13's order (the ledge
        first): the jump comes where room 200 fits, which in normal play is from the fourth road on (the second and third roads' visits are
-       too short to have the reveal clear of their checkpoint and the jump before it; see kurobe.md §7n). */
+       too short to have the reveal clear of their checkpoint and the jump before it: the checkpoint has to stand on the crest). */
     const ORD = z === 0 ? [[LED, 320], [0, 320], [LED, 200], [LED, 0], [0, 200], [0, 0]] : [[LED, 200], [LED, 0], [0, 200], [0, 0]];
     outer: for(const [led, room] of ORD) for(let C = 520; C >= (led ? 180 : 240); C -= 20) for(let h0 = B1 - 130 - 108 - led - (led ? 90 : 0) - C; h0 >= B0 + st + LEAD + REV + 76 + room; h0 -= 2){ if(clear(h0 - 76 - REV - LEAD - 10, h0 + C + 108 + (led ? led + 100 : 0)) && gateOK(h0, C) && (!led || G === undefined || G < h0 + C)){ L.ok = true; L.C = C; L.H0 = h0; L.H1 = h0 + C; L.led = led; break outer; } }
     let aEnd = B1 - 170;
@@ -110,8 +110,9 @@
       L.zo = [H0 + Math.round(L.C * .44), H0 + Math.round(L.C * .58)]; }
     /* the gorge leap (黒部峡谷越え, round 14; research/sundown-craft/jumps.md §4): setpiece/jump.js's landmark jump, at the visit's start +
        JLEAD as on every road, where it fits clear: its run-up (210), ramp, gap and far leaf, then 64 open segments before any gallery, bore or
-       the reveal's lead-in; never over the checkpoint, never in a fork's split window. jumpAt() hands it to jump.js; null: this visit has none. */
-    { const T = JTOT(), jb = B0 + JLEAD, je = jb + T + 64, lim = L.ok ? L.R0 - LEAD : B1 - 170; if(je <= lim && clear(jb - 210, jb + T + 30) && (G === undefined || G < jb - 230 || G > jb + T + 20)) L.jb = jb; }
+       the reveal's lead-in; never over the checkpoint, never in a fork's split window, not where a demo level turned the road's jump off.
+       jumpAt() hands it to jump.js; null: this visit has none. */
+    if(!(window.DEMO && DEMO.jumpOff && DEMO.jumpOff(B0))){ const T = JTOT(), jb = B0 + JLEAD, je = jb + T + 64, lim = L.ok ? L.R0 - LEAD : B1 - 170; if(je <= lim && clear(jb - 210, jb + T + 30) && (G === undefined || G < jb - 230 || G > jb + T + 20)) L.jb = jb; }
     // the approach: a rock tunnel given room, then galleries between open stretches
     let g = Math.max(B0 + 175, L.jb ? L.jb + JTOT() + 64 : 0); const span = aEnd - g;
     if(span > 560){ const ta = g + Math.round(span * .46), tb = ta + 70 + Math.round(H1(B0 * .11) * 30); if(clear(ta - 10, tb + 10)) L.bores.push({ a:ta, b:tb, kind:2 }); }
@@ -271,16 +272,16 @@
       if(k === 0 ? ny > 0 : nx * JA[k - 1] + ny * JB[k - 1] < 0){ nx = -nx; ny = -ny; } JA[k] = nx; JB[k] = ny; }
     const fl = reduce ? 0 : now * .0026, sd = seed * 17.3, C4 = F(FOAM[4]), C3 = F(FOAM[3]), C2 = F(FOAM[2]);
     // the veil: the torn translucent edge (25% outside, 50% inside); the curtain hangs wider on its underside as it falls
-    if(Rm > PX * 2.2){ ribbon(n, N, .85, .4, 1.3, .6, ditherPat(C3, .25), fl, sd, .18, 1, 2, 0); ribbon(n, N, .95, .3, 1.05, .4, ditherPat(C3, .5), fl * 1.1, sd + 9, 0, 1, 2, .45); }
+    if(Rm > PX * 2.2){ if(Rm > PX * 3.5) ribbon(n, N, .85, .4, 1.3, .6, ditherPat(C3, .25), fl, sd, .18, 1, 2, 0); ribbon(n, N, .95, .3, 1.05, .4, ditherPat(C3, .5), fl * 1.1, sd + 9, 0, 1, 2, .45); }
     // the body, then the core
     ribbon(n, N, .62, .28, .7, .3, C3, fl * 1.2, sd + 21, 0, 1, 2, .8);
     ribbon(n, N, .5, .14, .2, .12, C4, fl * 1.3, sd + 33, 0, 1, 1.5, 1.15);
     // fall streaks: dashed lines along the curtain (grey in its shadowed underside, white on its upper face), the dashes running with the water
-    if(Rm > PX * 4.5){ const ph = Math.floor(fl * 2.2); for(let s = 0; s < 4; s++){ const o = [-.52, -.22, .12, .4][s], col = o < 0 ? C2 : C4;
+    if(Rm > PX * 5.5){ const ph = Math.floor(fl * 2.2); for(let s = 0; s < 4; s++){ const o = [-.52, -.22, .12, .4][s], col = o < 0 ? C2 : C4;
         for(let k = 1; k < n; k++){ if(k / N < .18 || (k + ph + s * 2) % 3 === 0) continue; const oa = JR[k] * o, ob = JR[k + 1] * o, w = PX * .5;
           poly(JX[k] + JA[k] * (oa - w), JY[k] + JB[k] * (oa - w), JX[k + 1] + JA[k + 1] * (ob - w), JY[k + 1] + JB[k + 1] * (ob - w), JX[k + 1] + JA[k + 1] * (ob + w), JY[k + 1] + JB[k + 1] * (ob + w), JX[k] + JA[k] * (oa + w), JY[k] + JB[k] * (oa + w), col); } } }
     // strands hanging off the underside of the curtain, and short wisps torn up off the crown (one pixel wide, dithered, never the same twice)
-    if(Rm > PX * 2.5){ const half = ditherPat(C3, .5); for(let k = 1; k <= n; k++){ const t = k / N; for(let j = 0; j < 2; j++){ const u = (j + .35) / 2, kk = k - 1 + u, X = JX[k - 1] + (JX[k] - JX[k - 1]) * u, Y = JY[k - 1] + (JY[k] - JY[k - 1]) * u, R0 = JR[k - 1] + (JR[k] - JR[k - 1]) * u, A = JA[k], B = JB[k];
+    if(Rm > PX * 2.5){ const half = ditherPat(C3, .5); for(let k = 1; k <= n; k++){ const t = k / N; for(let j = 0, nj = Rm > PX * 6 ? 2 : 1; j < nj; j++){ const u = (j + .35) / nj, kk = k - 1 + u, X = JX[k - 1] + (JX[k] - JX[k - 1]) * u, Y = JY[k - 1] + (JY[k] - JY[k - 1]) * u, R0 = JR[k - 1] + (JR[k] - JR[k - 1]) * u, A = JA[k], B = JB[k];
           const e = vn(kk * 2.3 - fl * 1.6 + sd + j * 5); if(t > .16){ const L = R0 * (.25 + 1.1 * e * e), d = R0 * (1.05 + .5 * vn(kk * 1.37 - fl + sd)); if(L >= PX){ cx.fillStyle = half; pxRect(snp(X - A * d), snp(Y - B * d), PX, snp(L)); cx.fillStyle = C2; pxRect(snp(X - A * d), snp(Y - B * d + L), PX, PX); } }
           if(t < .5 && e > .55){ const L = R0 * .5 * (e - .4), d = R0 * (.95 + .3 * vn(kk * 1.37 - fl + sd)); if(L >= PX){ cx.fillStyle = half; pxRect(snp(X + A * d), snp(Y + B * d - L), PX, snp(L)); } } } } }
     // spray: droplets fired out of both flanks, fanning down the jet and falling (stateless: each lives on a loop of its own period)
@@ -828,8 +829,8 @@
       const sg = typeof segs !== 'undefined' && segs.length ? segAt(position + PZ) : null, here = (state === 'play' || state === 'pulled') && !!sg && !!LANDS[sg.land] && LANDS[sg.land].key === KEY;
       cam(); const cs = camSeg(), L = here ? visitOf(Math.floor(cs)) : null, k = here ? roarAt(L, cs) : 0, tun = !!(sg && sg.tunnel);
       if(!RB.src){ if(k <= 0) return; const ac = M.ac, s = ac.createBufferSource(); s.buffer = M.noiseBuf; s.loop = true;
-        const lo = ac.createBiquadFilter(); lo.type = 'lowpass'; lo.frequency.value = 150; lo.Q.value = .7; const lg = ac.createGain(); lg.gain.value = .085;
-        const bp = ac.createBiquadFilter(); bp.type = 'bandpass'; bp.frequency.value = 400; bp.Q.value = .55; const bg = ac.createGain(); bg.gain.value = .05;
+        const lo = ac.createBiquadFilter(); lo.type = 'lowpass'; lo.frequency.value = 150; lo.Q.value = .7; const lg = ac.createGain(); lg.gain.value = .055;
+        const bp = ac.createBiquadFilter(); bp.type = 'bandpass'; bp.frequency.value = 400; bp.Q.value = .55; const bg = ac.createGain(); bg.gain.value = .032;
         const hp = ac.createBiquadFilter(); hp.type = 'highpass'; hp.frequency.value = 2400; const hg = ac.createGain(); hg.gain.value = 0;
         RB.g = ac.createGain(); RB.g.gain.value = 0; s.connect(lo); lo.connect(lg); lg.connect(RB.g); s.connect(bp); bp.connect(bg); bg.connect(RB.g); s.connect(hp); hp.connect(hg); hg.connect(RB.g);
         s.start(0, Math.random() * 1.5); RB.src = s; RB.bp = bp; RB.hg = hg; RB.lo = lo; }
@@ -874,7 +875,7 @@
     try{ cx.save(); cx.globalAlpha = .004; for(const c of [PEAK, PEAKM, GORGE, SHORE, SHOREM, VB]) if(c) cx.drawImage(c, 0, 0, 1, 1); for(const L of [PUFF, MIST]) for(const a of L) for(const c of a) cx.drawImage(c, 0, 0, 1, 1); for(const ch in GLY) cx.drawImage(GLY[ch], 0, 0, 1, 1); cx.restore(); }catch(e){}
     cx.clearRect(0, 0, W, H); }
 
-  ENV.kurobe = { _lay:lay, _visit:visitOf, _vb:() => VB, _PJ:(z, x, h) => { cam(); PJ(z, x, h); return { x:PJX, y:PJY, u:PJU }; },
+  ENV.kurobe = { _lay:lay, _visit:visitOf, _roar:() => ({ gain:RB.g ? +RB.g.gain.value.toFixed(4) : 0, wired:RB.wired, bp:RB.bp ? Math.round(RB.bp.frequency.value) : 0 }),   /* (test hook: the roar bed) */ _vb:() => VB, _PJ:(z, x, h) => { cam(); PJ(z, x, h); return { x:PJX, y:PJY, u:PJU }; },
     barrier:1.1, kerbs:true, moonDX:-.22, road:['#1d1e27', '#1b1c24'], lampCol:'#8a6442',
     warm(){ for(const _ of warmSteps()); }, warmSteps, tunOver, drawTunnel, place, lit, draw, roadFX, backdrop, overlay,
     jumpAt, jumpKeep, jumpBelow, jumpFloor:[1.32, 1.32], jumpEdge:false,   // the gorge leap (setpiece/jump.js THEMES.kurobe)
