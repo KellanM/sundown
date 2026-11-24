@@ -392,7 +392,7 @@
     if(bk < 2){ for(let sd = -1; sd <= 1; sd += 2) bWall(sd, 0, t1, C(BX.bare[blk])); }
     else { const lampOn = i % 2 === 0, lc = lampOn ? (fog > .55 ? C(BX.lampLo) : BX.lamp) : C(BX.house);
       for(let sd = -1; sd <= 1; sd += 2){
-        if(far){ bWall(sd, 0, 1.06, C(BX.wain[blk])); bWall(sd, 1.06, t1 - .36, C(BX.upper[blk])); bWall(sd, t1 - .36, t1 - .22, lc); bWall(sd, t1 - .22, t1, C(BX.top)); continue; }
+        if(far){ bWall(sd, 0, 1.06, C(BX.wain[blk])); bWall(sd, 1.06, t1 - .36, C(BX.upper[blk])); bWall(sd, t1 - .36, t1, lampOn ? lc : C(BX.top)); continue; }   // (far: three bands, the lamps riding the top one)
         bWall(sd, 0, .1, C(BX.kerb)); bWall(sd, .1, .98, C(BX.wain[blk])); bWall(sd, .98, 1.02, C(BX.wainHi)); bWall(sd, 1.02, 1.1, C(BX.stripe));
         bWall(sd, 1.1, t1 - .36, C(BX.upper[blk])); bWall(sd, t1 - .36, t1 - .22, lc); bWall(sd, t1 - .22, t1, C(BX.top)); } }
     poly(a.x - BOXW * a.w, a.y - t1 * a.w, a.x + BOXW * a.w, a.y - t1 * a.w, b.x + BOXW * b.w, b.y - t1 * b.w, b.x - BOXW * b.w, b.y - t1 * b.w, C(bk < 2 ? BX.bareTop : BX.ceil[blk]));
@@ -796,11 +796,11 @@
       if(above && fog < .85){ const fo = (i + (reduce ? 0 : Math.floor(now / 700))) % 3; if(fo) poly(oa, sA + 1, oa + sd * a.w * (fo === 1 ? .1 : .05), sA + 1, ob + sd * b.w * (fo === 1 ? .06 : .1), sB, ob, sB, fc(fo === 1 ? '#8ab8c8' : '#4a7a90', fog)); }
       // a swell crest showing just behind the coping (over the wall top once your eye is below the sea)
       if(fog < .8 && (s.aqD1 || s.aqD2) && a.w > W * .012){ const wA = swell(i) * kA, wB = swell(i + 1) * kB;   // (LOD: under ~15 px a half-width the crest is a pixel or two) poly(oa, cA, oa, cA - wA, ob, cB - wB, ob, cB, fc('#0e2a3e', fog));
-        if(wA > PX * .6) poly(oa, cA - wA, oa, cA - wA - Math.max(PX * 2, wA * .3), ob, cB - wB - Math.max(PX * 1.2, wB * .3), ob, cB - wB, fc('#bfe2ee', fog)); }
+        if(wA > PX * .6 && a.w > W * .02) poly(oa, cA - wA, oa, cA - wA - Math.max(PX * 2, wA * .3), ob, cB - wB - Math.max(PX * 1.2, wB * .3), ob, cB - wB, fc('#bfe2ee', fog)); }
       // the coping's top, then the face: base kerb, concrete, a wet band under the lip, the pale lip
       poly(xa, cA, oa, cA, ob, cB, xb, cB, fc(wc.top, fog));
       const band = (h0, h1, col) => poly(xa, a.y - h0(hA) * kA, xa, a.y - h1(hA) * kA, xb, b.y - h1(hB) * kB, xb, b.y - h0(hB) * kB, col);
-      if(fog > .6 || a.w < W * .03) band(() => 0, h => h, fc(fog > .6 ? wc.face : wc.face, fog));   // (LOD: far, one band; its four would each be a row or two)
+      if(fog > .6 || a.w < W * .05) band(() => 0, h => h, fc(wc.face, fog));   // (LOD: far, one band; its four would each be a row or two)
       else { band(() => 0, () => 60, fc('#1e2430', fog)); band(() => 60, h => h - 150, fc(wc.face, fog)); band(h => h - 150, h => h - 45, fc('#2c3646', fog)); band(h => h - 45, h => h, fc(wc.lip, fog));
         // panel joints, and a row of cyan delineators leading into the portal
         if(uw > W * .04 && i % 3 === 0){ cx.fillStyle = fc('#323a4c', fog); pxRect(q(xa), q(cA + 45 * kA), PX, q((hA - 105) * kA)); }

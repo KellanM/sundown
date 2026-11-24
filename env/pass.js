@@ -321,6 +321,10 @@
     // one continuous ridge that grows out of the shoulder where the cliff starts and sinks back where it ends. Shaded like the backdrop
     // ridges: a dark underside by the crest, a mid slope, a lit top and a moon rim along the skyline. Drawn at every distance (no pop).
     { const s1 = uw * hillS(k) * sh, s2 = u2 * hillS(k + n) * sh2, e1 = tx1 + side * uw * HD, e2 = tx2 + side * u2 * HD;
+      // the forest beyond the summit line, out to the screen edge, wherever we look down onto it (the road climbs, or the slope rises away from us
+      // out of the ravine's lip): it used to stop at the summit line, so the ground (or the sky, above the farthest road) showed through past
+      // the slope's front top (Kellan, 2026-11-23: hills missing geometry in the front top parts, after the pass's jump)
+      { const o1 = ty1 - s1, o2 = ty2 - s2; if(o1 > o2 + .5){ const ex = side < 0 ? -4 : W + 4; poly(e1, o1, e2, o2, ex, o2, ex, o1, fc(HILL.m, fog, low)); } }
       // (the dark underside and lit top grow out of the mid tone over fog .3 to .22 in four steps (hillTone), instead of switching on at once
       // across the whole slope as each slice crossed fog .3: far slopes changed shade in blocks as you rode)
       if(fog > .3) hillQ(tx1, ty1, tx2, ty2, e1, e2, s1, s2, 0, 1, HILL.m, fog, low); else { const T = hillTone(Math.min(4, Math.round((.3 - fog) * 50))); hillQ(tx1, ty1, tx2, ty2, e1, e2, s1, s2, 0, .3, T[0], fog, low); hillQ(tx1, ty1, tx2, ty2, e1, e2, s1, s2, .3, .74, HILL.m, fog, low); hillQ(tx1, ty1, tx2, ty2, e1, e2, s1, s2, .74, 1, T[1], fog, low); }
@@ -553,6 +557,21 @@
       try{ g0.apply(this, arguments); } finally { delete cx.ellipse; delete cx.fill; }
       cx.globalAlpha = 1 - fog * .6; for(let i = 0; i < lqN; i++) chochin(LQ[i]); cx.globalAlpha = 1; }; }
   const DRAW = { sign:drawSign, mirror:drawMirror, rail:drawRail, wall:drawWall, tree:drawTree, toro:drawToro, jizo:drawJizo, torii:drawTorii, chev:drawChev, ff:drawFF, sakura:drawSakura };
+  /* The valley beside the road (Kellan, 2026-11-24: no ground texture should show). Beyond the guard rail the land falls away into wooded
+     valley, so what you see from the road at night is the forest canopy from above, not grass: on the ground rows of each segment, from just
+     behind the rail out to the screen edge, three canopy bands, darker toward the valley and hazed there (the valley mist), and near by a few
+     world-anchored crowns with a moonlit cap, so the canopy has depth and moves with the road. Drawn in the road pass, under every prop. */
+  const CAN = { a:'#0c1816', b:'#0a1414', c:'#070e10', crown:'#12221f', cap:'#24403e' };
+  function canopy(s, a, b, fog){ if(!a.w || !b.w) return; let ax = a.x, ay = a.y, aw = a.w; const by = b.y, bx = b.x, bw = b.w, cl = s.clip;
+    if(ay > cl){ const t = (ay - cl) / (ay - by); ax += (bx - ax) * t; aw += (bw - aw) * t; ay = cl; }   // (only the rows the nearer road left open, as the ground fill)
+    if(!(ay - by >= .5)) return; const low = fogLow, i = s.index, fm = Math.max(fog, .3);
+    for(let sd = -1; sd <= 1; sd += 2){ const ex = sd < 0 ? -4 : W + 4, x0a = ax + sd * 1.2 * aw, x0b = bx + sd * 1.2 * bw; if(sd < 0 ? x0a < ex && x0b < ex : x0a > ex && x0b > ex) continue;
+      if(fog > .35){ poly(x0a, ay, ex, ay, ex, by, x0b, by, fc(CAN.b, fm, low)); continue; }
+      const x1a = ax + sd * 2.1 * aw, x1b = bx + sd * 2.1 * bw, x2a = ax + sd * 3.6 * aw, x2b = bx + sd * 3.6 * bw;
+      poly(x0a, ay, x1a, ay, x1b, by, x0b, by, fc(CAN.a, fog, low)); poly(x1a, ay, x2a, ay, x2b, by, x1b, by, fc(CAN.b, fog, low)); poly(x2a, ay, ex, ay, ex, by, x2b, by, fc(CAN.c, fm, low));
+      if(fog > .2 || aw < 40) continue;
+      for(let j = 0; j < 3; j++){ const h = hash(i * 3.7 + j * 1.31 + sd * .71), X = 1.35 + h * 3, t = hash(i * 5.3 + j * 2.9 + sd), w = aw + (bw - aw) * t, x = ax + (bx - ax) * t + sd * X * w, y = ay + (by - ay) * t, u = w * (.12 + .1 * hash(i * 1.9 + j + sd * 3));
+        if(u < PX * 3) continue; cx.fillStyle = fc(CAN.crown, X > 3.6 ? fm : fog, low); pxRect(x - u / 2, y - u * .3, u, u * .3); pxRect(x - u * .32, y - u * .42, u * .64, u * .14); cx.fillStyle = fc(CAN.cap, X > 3.6 ? fm : fog, low); pxRect(x - u * .2, y - u * .42, u * .4, PX); } } }
   ENV.pass = {
     // build every sprite (both moon sides) up front so crossing into the pass never stalls on cache building
     warm(){ for(const _ of ENV.pass.warmSteps()); },
@@ -594,7 +613,7 @@
       treeline(skyPar('edge'), hz + PX, c3, mixc(c3, moonCol, .45), moonX);
       return false; },
     // the headlight: a warm pool on the road ahead of the bike, in hard steps, under the traffic
-    roadFX(s, a, b, fog, f, now){ if(a.y < H * .6) return; const lv = a.y > H * .8 ? .08 : a.y > H * .7 ? .055 : .03, wa = a.w * .42, wb = b.w * .42;
+    roadFX(s, a, b, fog, f, now){ canopy(s, a, b, fog); if(a.y < H * .6) return; const lv = a.y > H * .8 ? .08 : a.y > H * .7 ? .055 : .03, wa = a.w * .42, wb = b.w * .42;
       cx.globalCompositeOperation = 'lighter'; poly(W / 2 - wa, a.y, W / 2 + wa, a.y, W / 2 + wb, b.y, W / 2 - wb, b.y, `rgba(255,236,200,${lv})`); cx.globalCompositeOperation = 'source-over'; },
     // headlight-lit fog: a faint beam of dithered motes ahead of the bike, only where it rakes the near road
     overlay(al, now, sk){ const bs = Math.min(W * .2, H * .27), by = snap(H - bs * .62), top = snap(H * .6); cx.globalCompositeOperation = 'lighter';

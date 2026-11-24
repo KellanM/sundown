@@ -298,7 +298,7 @@
   function fpt(t, h){ const u = FU1 + (FU2 - FU1) * t; FPT[0] = FX1 + (FX2 - FX1) * t; FPT[1] = FY1 + (FY2 - FY1) * t - u * h; FPT[2] = u; return FPT; }
   // the span a slice draws far away (1 near .. up to N), anchored to the run start; 0 if a nearer slice of the run covers this segment
   const SPANF = f => { f = fogPx(f); return f < .022 ? 1 : f < .06 ? 2 : f < .14 ? 4 : f < .3 ? 8 : 16; };   // (measured: building slices were 6.8 ms a frame at the finer tiers)
-  function spanOf(j, b0, end, fog){ const bse = j - Math.round(DRAW * Math.pow(fog, 1 / 1.6)), at = k => SPANF(clamp(Math.pow((k - bse) / DRAW, 1.6), 0, 1)), lx = laneDX(j), lcut = j > b0 && laneDX(j - 1) !== lx;
+  function spanOf(j, b0, end, fog, mn){ mn = mn || 1; const bse = j - Math.round(DRAW * Math.pow(fog, 1 / 1.6)), at = k => Math.max(mn, SPANF(clamp(Math.pow((k - bse) / DRAW, 1.6), 0, 1))), lx = laneDX(j), lcut = j > b0 && laneDX(j - 1) !== lx;
     if(j > b0 && !lcut && (j - b0) % at(j)) return 0; let n = 1; while(j + n < end && n < 16 && (j + n - b0) % at(j + n) && laneDX(j + n) === lx) n++; return n; }
   // the far end of a slice of n segments at lateral X: sets FX2/FY2/FU2 relative to the engine's projection of segment j + n - 1's far edge
   function farEnd(j, n, X){ const t = segs[j + n - 1]; if(!t || !t.p2.screen.scale) return false; const q = t.p2.screen; FX2 = q.x + X * q.w; FY2 = q.y; FU2 = q.w; return true; }
@@ -313,7 +313,7 @@
   let BCUR = 0, BHV = 0, BFCOL = '';
   function bandB(a, b, col){ if(b > BHV) b = BHV; if(b <= a) return; if(a > BCUR) FQ(BCUR, a, BFCOL); FQ(a, b, col); BCUR = b; }
   function flushB(f0, st0, f1, S, wb0, wb1){ if(st0 > 0 && f0 >= 0){ const col = st0 === 1 ? S.lit[0] : st0 === 2 ? S.warm : S.dim; bandB(f0 * FH + wb0, (f1 - 1) * FH + wb1, F0(col)); } }   // a run of same-state floors f0..f1 as one band
-  function drawBld(sp, x, y, uw, fog, now){ const B = sp.b, j = sp.k, end = B.b0 + B.len, n = spanOf(j, B.b0, end, fog); if(!n) return; if(hidden(B, j, n)) return;
+  function drawBld(sp, x, y, uw, fog, now){ const B = sp.b, j = sp.k, end = B.b0 + B.len, n = spanOf(j, B.b0, end, fog, B.deep ? 4 : 1);   // (the deep row, seen only through gaps, never slices finer than 4 segments) if(!n) return; if(hidden(B, j, n)) return;
     FX1 = x; FY1 = y; FU1 = uw; if(!farEnd(j, n, sp.x)) return; KBD = -1;
     if(B.side < 0 ? Math.max(FX1, FX2) < -PX * 2 : Math.min(FX1, FX2) > W + PX * 2){ if(B.kbs.length) kbSlice(B, j, n, fog, now); if(!(j === B.b0)) return; KBD = j; }   // beside the camera, off the screen edge (its signs and the end wall may still show)
     const S = B.S, K = B.k, side = B.side, fq = fog; FF = fq; const F = F0;
