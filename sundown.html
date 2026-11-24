@@ -1436,7 +1436,7 @@ function backdrop(L, hz, far, near, now, sk){ const E = ENV[L.key]; if(E && E.ba
   else if(L.bg === 'pass'){ hills(skyPar('mid'), hz, H * .2, .003, far, rimF); hills(skyPar('edge') + 900, hz + 4, H * .1, .006, near, rimN); for(let i = 0; i < 16; i++){ cx.fillStyle = rgbaA('255,200,120', .4 + .4 * hash(i)); cx.fillRect(Math.round(((i * 97 - skyPar('edge')) % W + W) % W / PX) * PX, hz - PX - Math.round(hash(i * 3) * H * .02 / PX) * PX, PX, PX); } }
   else { if(L.bg === 'bay') hills(skyPar('far'), hz, H * .03, .002, mixc(far, '#05040a', .2), rimF); skyline(skyPar('mid'), hz, H * .05, H * .16, far, 'rgba(255,214,150,.3)', 7, now, false); if(L.bg !== 'bay') skyline(skyPar('edge') + 900, hz + 3, H * .03, H * .12, near, 'rgba(255,224,170,.55)', 19, now, L.bg === 'neon'); }
   cx.fillStyle = mixc(L.grass[0], sk.low, .25); cx.fillRect(0, hz, W, H - hz); }
-function draw(now){ DRAWN++;
+function draw(now){ DRAWN++; const ROLL = MECH.sp_jump && MECH.sp_jump.rollBegin ? MECH.sp_jump.rollBegin() : false;   // the jump's mid-air roll: a transform on cx for the world pass, no frame copy (setpiece/jump.js)
   const t = clamp(1 - sunShown / SUN_MAX, 0, 1), sk = skyAt(t * .97), L = LANDS[landIdx(zone())];
   // (speed, flow and boost show in the world's own lights, mech/speedfx.js; the poster rings round the moon are gone: Kellan, 2026-11-19, too distracting)
   const base = segAt(position), basePct = (position % SEG) / SEG, pseg = segAt(position + PZ), ppct = ((position + PZ) % SEG) / SEG, py = lerp(pseg.p1.world.y, pseg.p2.world.y, ppct);
@@ -1510,7 +1510,7 @@ function draw(now){ DRAWN++;
   cx.globalCompositeOperation = 'lighter'; for(const p of sparks){ cx.globalAlpha = clamp(p.life * 3, 0, 1); cx.fillStyle = p.c; cx.fillRect(p.x, p.y, 4, 4); } cx.globalAlpha = 1; cx.globalCompositeOperation = 'source-over';
   if(drift && tier > 0){ cx.strokeStyle = TIER_COL[tier]; cx.lineWidth = 4; cx.globalAlpha = .85; cx.beginPath(); cx.arc(W / 2, H - bs * .45, bs * .62, Math.PI * 1.15, Math.PI * (1.15 + .7 * clamp(charge / TIERS[3], 0, 1))); cx.stroke(); cx.globalAlpha = 1; }
   // (the radial boost-line overlay was removed: mech/speedfx.js now shows boost as light trails in the scene; Kellan, 2026-11-19)
-  cx.restore(); mech('post', now);   // camera roll and zoom, letterbox, moment cards (mech/director.js)
+  cx.restore(); if(ROLL) MECH.sp_jump.rollEnd(); mech('post', now);   // camera roll and zoom, letterbox, moment cards (mech/director.js)
   // the next checkpoint, so you always know how far the next stretch of night is
   if(ENV.hud && ENV.hud.draw) ENV.hud.draw(now);   // env/hud.js may draw instruments on the pixel canvas
   const ng = gates[gatesHit], nm = ng !== undefined && state === 'play' ? Math.max(0, Math.round((ng * SEG - position - PZ) / 100)) : -1;   // the string is rebuilt only when the metres change
@@ -1590,7 +1590,7 @@ function drawRoadPass(base, now){ const RM = MECH.roadmat; if(!RM || !RM.on || !
       EDGE = 1; cx.restore(); } }
   finally { EDGE = 1; RM.gb = null; }
   RM.glEnd(GLR, glComp); RM.pass = 2; }
-function glComp(){ const c = GLR.canvas; cx.globalCompositeOperation = 'lighter'; cx.globalAlpha = 1; cx.drawImage(c, 0, 0, c.width * PX, c.height * PX); cx.globalCompositeOperation = 'source-over'; }
+function glComp(){ if(!GLR.stats.instances) return;   /* an empty layer: no drawImage of #cgl (a canvas-to-canvas copy WebKit handles badly; roadmat's glEnd already skips the call) */ const c = GLR.canvas; cx.globalCompositeOperation = 'lighter'; cx.globalAlpha = 1; cx.drawImage(c, 0, 0, c.width * PX, c.height * PX); cx.globalCompositeOperation = 'source-over'; }
 function drawSprites(base, now, sk, fga, FK_G, FK_L, FK_K, FK_A, fkB){ segHooks(); oilSpan(base);
   for(let n = DRAW - 1; n > 0; n--){ const s = segs[base.index + n]; if(!s || !s.p1.screen.scale || s.p1.camera.z <= DEPTH) continue; const sc = s.p1.screen.scale, sx0 = s.p1.screen.x, sy0 = s.p1.screen.y, uw = sc * ROADW * W / 2, fog = clamp(Math.pow(n / DRAW, 1.6), 0, 1);
     cx.save(); cx.beginPath(); cx.rect(0, 0, W, s.clip); cx.clip();
@@ -2937,7 +2937,7 @@ if(!/[?&]prof=off(&|$)/.test(location.search)){   /* Kellan 2026-11-23: the FPS 
    A new version downloads in the background and waits. It is applied only on the title (never mid-ride): by itself once
    the title has sat untouched for a few seconds, or at once when the player taps "Update ready". Tap the version to check now. */
 (() => {
-  const VER = 'v39 · e8a7b8', $id = (i) => document.getElementById(i);
+  const VER = 'v40 · ae92f1', $id = (i) => document.getElementById(i);
   const SDU = window.SDUPDATE = { version: VER, waiting: null, applied: false, checks: 0 };
   let reg = null, applying = false, asked = false, needReload = false, note = '', noteT = 0, lastInput = performance.now();
   ['keydown', 'pointerdown', 'touchstart', 'wheel'].forEach((t) => addEventListener(t, () => { lastInput = performance.now(); }, { capture: true, passive: true }));
@@ -2999,5 +2999,5 @@ if(!/[?&]prof=off(&|$)/.test(location.search)){   /* Kellan 2026-11-23: the FPS 
   }, 1000);
 })();
 </script>
-<!-- __sdbuild:39 e8a7b8265873 --></body>
+<!-- __sdbuild:40 ae92f1c775c8 --></body>
 </html>

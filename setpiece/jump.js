@@ -388,7 +388,7 @@
   function build(){ for(const k in THEMES){ leafSignSprite(THEMES[k]); warnSprite(THEMES[k]); gantrySprite(true, THEMES[k]); gantrySprite(false, THEMES[k]); cardSprite(THEMES[k]); } floodSprite(); for(const w of [90, 250]){ sideFor(w * PX, false); sideFor(w * PX, true); } pierSprite(); SP.pierR = flip(SP.pier); cwSprite(); signalSprite(); SP.signalR = flip(SP.signal); armSprite(); armUpSprite(); cushionSprite(); drumSprite();
     for(let i = 0; i < ANG.length; i++){ for(let l = 0; l < LODR.length; l++) jetSpr(i, l); } for(let l = 0; l < LODR.length; l++) jetTop(l); frontSprite(); for(const h of [8, 14, 20]) mastSprite(h); gateArmSprite();
   }
-  function warm(){ pbuf(); if(!buf) buf = document.createElement('canvas'); if(!dbuf) dbuf = document.createElement('canvas'); if(warmed) return;   // every buffer up front: no canvas is made mid-ride
+  function warm(){ pbuf(); if(!dbuf) dbuf = document.createElement('canvas'); if(warmed) return;   // every buffer up front: no canvas is made mid-ride
    warmed = true; build();
     if(document.fonts && document.fonts.load) document.fonts.load('16px DotGothic16').then(() => { for(const k in SP) if(/^(pier|warn|gantry|leafsign|card|clos)/.test(k)) delete SP[k]; pierSprite(); SP.pierR = flip(SP.pier); for(const k in THEMES){ leafSignSprite(THEMES[k]); warnSprite(THEMES[k]); gantrySprite(true, THEMES[k]); gantrySprite(false, THEMES[k]); cardSprite(THEMES[k]); } }).catch(() => {}); }
   J.warm = warm;
@@ -1276,20 +1276,39 @@
   J.drawBackdrop = o => { low = o.sk.low; camDown(); frameItems(o.now); };   // once per frame, before any segment
 
   // ---------------------------------------------------------------- overlay: the camera lifts and rolls in the air; jet up close
-  let buf = null;
+  /* The mid-air roll is a transform on cx, not a copy of the finished frame. (The copy, the game canvas drawn into a buffer and back rotated,
+     twice a frame, was cheap here but stalled WebKit: about 2 fps in the air on an iPhone, draw() itself 13 ms.) sundown.html's draw() calls
+     J.rollBegin() before the sky and J.rollEnd() after the world's restore; the overlay below levels it again before its wind lines, so what rolls
+     is what the copy rolled (the sky through the set-piece overlays before this one), and the wind, rain, sparks, the director's band, cut-ins and
+     the HUD stay level. RQ: rotate by ang and zoom about the backing canvas's centre, in device pixels (RI its inverse). While it is on, cx's
+     setTransform / resetTransform are own-property shims that put RQ first, so a module drawing in device pixels (setTransform(1, 0, 0, 1, 0, 0))
+     rolls with the rest; they call through whatever was there (?prof's op counter) and are removed at the overlay. The zoom is the copy's, raised
+     only as far as covering the frame needs (a tall phone: the copy left the level frame showing in the corners; nothing is under them now). */
+  const RQ = [1, 0, 0, 1, 0, 0], RI = [1, 0, 0, 1, 0, 0], RN = ['setTransform', 'resetTransform'], RPREV = [null, null];
+  let rollOn = 0, rollSaved = false;
+  const rollMul = (set, Q, a, b, c, d, e, f) => set.call(cx, Q[0] * a + Q[2] * b, Q[1] * a + Q[3] * b, Q[0] * c + Q[2] * d, Q[1] * c + Q[3] * d, Q[0] * e + Q[2] * f + Q[4], Q[1] * e + Q[3] * f + Q[5]);
+  function rollAng(){ if(jh <= 0 || !air || air.att || reduce) return 0; const u = clamp(((position + PZ) / SEG - air.lip) / air.len, 0, 1), ang = tiltSgn * .045 * Math.sin(Math.PI * u); return Math.abs(ang) < .002 ? 0 : ang; }
+  function rollShimOff(){ if(rollOn !== 1) return; RN.forEach((nm, i) => { delete cx[nm]; if(RPREV[i]) Object.defineProperty(cx, nm, RPREV[i]); RPREV[i] = null; }); rollOn = 2; }
+  J.rollEnd = () => { rollShimOff(); rollOn = 0; if(rollSaved){ rollSaved = false; cx.restore(); } };
+  J.rollBegin = () => { J.rollEnd(); const ang = rollAng(); if(!ang) return false;
+    const cw = cv.width, ch = cv.height, k = Math.abs(ang), z = Math.max(1 + k * 1.5 + .015, Math.cos(k) + Math.max(cw / ch, ch / cw) * Math.sin(k) + 2 / Math.min(cw, ch)), px = cw / 2, py = ch / 2;
+    const co = Math.cos(ang) * z, si = Math.sin(ang) * z, ci = Math.cos(ang) / z, sn = Math.sin(ang) / z;
+    RQ[0] = co; RQ[1] = si; RQ[2] = -si; RQ[3] = co; RQ[4] = px - (co * px - si * py); RQ[5] = py - (si * px + co * py);
+    RI[0] = ci; RI[1] = -sn; RI[2] = sn; RI[3] = ci; RI[4] = px - (ci * px + sn * py); RI[5] = py - (-sn * px + ci * py);
+    cx.save(); rollSaved = true; const set = cx.setTransform, t = cx.getTransform(); rollMul(set, RQ, t.a, t.b, t.c, t.d, t.e, t.f);
+    RN.forEach((nm, i) => RPREV[i] = Object.getOwnPropertyDescriptor(cx, nm) || null);
+    cx.setTransform = function(a, b, c, d, e, f){ if(arguments.length < 6){ const m = DOMMatrix.fromMatrix(a || {}); return rollMul(set, RQ, m.a, m.b, m.c, m.d, m.e, m.f); } return rollMul(set, RQ, a, b, c, d, e, f); };
+    cx.resetTransform = function(){ return set.call(cx, RQ[0], RQ[1], RQ[2], RQ[3], RQ[4], RQ[5]); };
+    rollOn = 1; return true; };
   J.overlay = (now, sk) => {
     for(const it of depthItems) if(!it.done){ it.done = true; it.fn(it); }
     drawShards();
     // (the jet routes itself here when it is overhead or above the skyline at its depth: see frameItems)
     camApply();
+    if(rollOn === 1){ rollShimOff(); const t = cx.getTransform(); rollMul(cx.setTransform, RI, t.a, t.b, t.c, t.d, t.e, t.f); }   // level again (keeps the shake)
     if(jh <= 0 || !air || air.att) return;
-    const u = clamp(((position + PZ) / SEG - air.lip) / air.len, 0, 1), lift = 0, ang = reduce ? 0 : tiltSgn * .045 * Math.sin(Math.PI * u);
+    const u = clamp(((position + PZ) / SEG - air.lip) / air.len, 0, 1), ang = reduce ? 0 : tiltSgn * .045 * Math.sin(Math.PI * u);
     if(Math.abs(ang) < .002) return;
-    if(!buf) buf = document.createElement('canvas'); if(buf.width !== cv.width || buf.height !== cv.height){ buf.width = cv.width; buf.height = cv.height; }
-    const b = buf.getContext('2d'); b.clearRect(0, 0, buf.width, buf.height); b.drawImage(cv, 0, 0);
-    cx.save(); cx.setTransform(1, 0, 0, 1, 0, 0); cx.imageSmoothingEnabled = false; cx.drawImage(buf, 0, 0);
-    const zoom = 1 + Math.abs(ang) * 1.5 + .015; cx.translate(cv.width / 2, cv.height / 2 + Math.round(lift / PX)); cx.rotate(ang); cx.scale(zoom, zoom); cx.drawImage(buf, -cv.width / 2, -cv.height / 2);
-    cx.restore();
     // wind lines at the top of the arc
     if(!reduce){ const k = Math.sin(Math.PI * u); cx.fillStyle = `rgba(255,240,220,${.18 * k})`; for(let n = 0; n < 14; n++){ const yy = (hash(n * 3.3) * H + now * .9 * (1 + hash(n))) % H, xx = hash(n * 7.1) < .5 ? hash(n) * W * .25 : W - hash(n) * W * .25; cx.fillRect(Math.round(xx), Math.round(yy), PX, Math.round(H * .06)); } }
   };

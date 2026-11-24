@@ -193,8 +193,9 @@ function create(canvas, opts){
 
   B.begin = function(w, h, px){ if(!B.ok) return false; W = w | 0; H = h | 0; PXu = px || 1;
     if(canvas.width !== W) canvas.width = W; if(canvas.height !== H) canvas.height = H;
-    n = 0; smask = 0; stage = 0; blend = 0; alpha = 1; cx0 = 0; cy0 = 0; cx1 = W; cy1 = H; inFrame = true;
-    gl.viewport(0, 0, W, H); gl.clearColor(0, 0, 0, 0); gl.clear(gl.COLOR_BUFFER_BIT); return true; };
+    n = 0; smask = 0; stage = 0; blend = 0; alpha = 1; cx0 = 0; cy0 = 0; cx1 = W; cy1 = H; inFrame = true; return true; };
+  // the clear waits for flush: a frame with no instances makes no GL call at all (and clears only if the last flush left pixels: held)
+  let held = true; const clr = () => { gl.viewport(0, 0, W, H); gl.clearColor(0, 0, 0, 0); gl.clear(gl.COLOR_BUFFER_BIT); held = false; };
   B.blend = function(m){ const v = BLEND[m]; blend = v === undefined ? 0 : v; };
   B.stage = function(i){ stage = Math.max(0, Math.min(7, i | 0)); };
   B.alpha = function(a){ alpha = a > 1 ? 1 : a; };
@@ -217,7 +218,7 @@ function create(canvas, opts){
     push(3, x0 + Math.min(0, e), y0, Math.abs(e) + tw, h, col, 0, 0, 0, x0, num, den, tw, Math.max(1, S), 0, 0, 0); };
   B.setAtlas = function(src){ atlas = src; atlasB = null; if(B.ok) upload(src); };   // (a changed atlas: call again; the bytes are kept for a context restore)
 
-  B.flush = function(){ const st = B.stats; st.draws = 0; st.instances = n; st.bytes = 0; if(!B.ok || !inFrame){ n = 0; inFrame = false; return st; } inFrame = false; if(!n) return st;
+  B.flush = function(){ const st = B.stats; st.draws = 0; st.instances = n; st.bytes = 0; if(!B.ok || !inFrame){ n = 0; inFrame = false; return st; } inFrame = false; if(!n){ if(held) clr(); return st; } clr(); held = true;
     let SU = AU, SB = BLD;
     if(smask & (smask - 1)){   // more than one stage: a stable counting sort by stage (copied as uint32s, so packed bytes are never touched as floats)
       let j = 0; for(let sg = 0; sg < 8; sg++){ if(!(smask & (1 << sg))) continue; for(let i = 0; i < n; i++){ if(STG[i] !== sg) continue; const a = i * FS, b = j * FS; for(let q = 0; q < FS; q++) A2U[b + q] = AU[a + q]; BLD2[j++] = BLD[i]; } }

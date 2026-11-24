@@ -4,6 +4,8 @@
    What it shows, live, in the top-left corner (` (Backquote) cycles the detail level: 1 unit line, 2 subsystems, 3 ops and per-road / per-mech
    detail, 0 hidden; ?prof=N starts at level N):
    - fps, the frame interval, and the draw and update times (median of the last second, and its worst frame);
+   - cv→cv: drawImage calls per frame whose source is a canvas drawn to this frame (live; WebKit stalls on these), all canvas sources, and
+     getImageData readbacks (see cvInstall);
    - milliseconds per subsystem (self time: a bracket's children are subtracted from it): sky, road and ground, roadmat, sprites and buildings,
      the env's own draw hooks (per road at level 3), set pieces, cars, bike, HUD, post/cutin, other mechs, and the core's own remainder;
    - canvas ops per frame on the game canvas: fillRect, drawImage, other draws, state changes (save / restore / transforms / clips / style and
@@ -28,7 +30,7 @@ const CI = {}; CATS.forEach((c, i) => CI[c] = i);
 const LABEL = { sky:'sky+backdrop', road:'road+ground', roadmat:'roadmat', sprites:'sprites+bldg', env:'env hooks', setpiece:'set pieces', cars:'cars', bike:'bike', hud:'HUD', post:'post/cutin', mech:'other mechs', core:'core rest' };
 const OPS = ['fillRect', 'drawImage', 'draw', 'state', 'comp'];
 const N = 600;   // ring of frames
-const R = { i:0, n:0, t:new Float64Array(N), dt:new Float32Array(N), draw:new Float32Array(N), upd:new Float32Array(N), cat:CATS.map(() => new Float32Array(N)), op:OPS.map(() => new Float32Array(N)) };
+const R = { i:0, n:0, t:new Float64Array(N), dt:new Float32Array(N), draw:new Float32Array(N), upd:new Float32Array(N), cvl:new Float32Array(N), cva:new Float32Array(N), rb:new Float32Array(N),cat:CATS.map(() => new Float32Array(N)), op:OPS.map(() => new Float32Array(N)) };
 const P = window.PROF = { level:QP.has('prof') ? (v => v >= 0 && v <= 3 ? v : 2)(parseInt(QP.get('prof'), 10)) : 1, ops:true, sub:true, R, CATS, OPS, keys:new Map(), installed:false };
 
 // ---------------------------------------------------------------- the per-frame accumulators and the bracket stack
@@ -88,14 +90,31 @@ function opsRemove(){ if(!opsOn) return; const g = opsCtx;
   for(const k in SAVED){ const d = SAVED[k], nm = k.startsWith('p:') ? k.slice(2) : k; delete g[nm]; if(d) Object.defineProperty(g, nm, d); delete SAVED[k]; }
   opsOn = false; }
 
+// ---------------------------------------------------------------- canvas-to-canvas draws and readbacks, on every 2D context (the WebKit line)
+/* WebKit (Safari, every iOS browser) is slow at drawImage whose source is a canvas drawn to in the same frame: the game canvas copied into a
+   buffer, a buffer filled this frame, the GL layer (#cgl). Each such call syncs the GPU, outside draw()'s own time (WebKit bugs 267291, 234920).
+   Counted per frame: `live` (source = the game canvas, #cgl, or a canvas that had drawImage / putImageData / clearRect this frame), `all`
+   (any canvas source: prebuilt sprite canvases are most of these and are cheap) and `rb` (getImageData readbacks). Prototype wrappers, installed
+   with the op counter (before it, so cx's own wrappers call through them) and removed with it. */
+let cvOn = false, FRM = 1, CVL = 0, CVA = 0, RBN = 0; const CVS = {};
+function cvInstall(){ if(cvOn) return; const proto = CanvasRenderingContext2D.prototype, HC = HTMLCanvasElement, game = typeof cv !== 'undefined' ? cv : null;
+  const di = CVS.drawImage = proto.drawImage, pi = CVS.putImageData = proto.putImageData, cr = CVS.clearRect = proto.clearRect, gi = CVS.getImageData = proto.getImageData;
+  proto.drawImage = function(src){ if(src instanceof HC){ CVA++; if(src === game || src.__pf === FRM || src.id === 'cgl') CVL++; } const c = this.canvas; if(c) c.__pf = FRM; return di.apply(this, arguments); };
+  proto.putImageData = function(){ const c = this.canvas; if(c) c.__pf = FRM; return pi.apply(this, arguments); };
+  proto.clearRect = function(){ const c = this.canvas; if(c) c.__pf = FRM; return cr.apply(this, arguments); };
+  proto.getImageData = function(){ RBN++; return gi.apply(this, arguments); };
+  cvOn = true; }
+function cvRemove(){ if(!cvOn) return; const proto = CanvasRenderingContext2D.prototype; for(const k in CVS){ proto[k] = CVS[k]; delete CVS[k]; } cvOn = false; }
+
 // ---------------------------------------------------------------- end of frame: into the ring, then the overlay now and then
 let lastShow = 0, scanN = 0;
 function endFrame(t0, drawMs){ const i = R.i; R.t[i] = t0; R.draw[i] = drawMs; R.upd[i] = updMs; updMs = 0;
   for(let c = 0; c < CATS.length; c++){ R.cat[c][i] = P.sub ? CUR[c] : 0; CUR[c] = 0; }
   for(let o = 0; o < OPS.length; o++){ R.op[o][i] = opsOn ? OPC[o] : -1; OPC[o] = 0; }
+  R.cvl[i] = cvOn ? CVL : -1; R.cva[i] = cvOn ? CVA : -1; R.rb[i] = cvOn ? RBN : -1; CVL = CVA = RBN = 0; FRM++;
   if(P.sub){ for(const [k, e] of P.keys) P.keys.set(k, e * .97 + (KEYS.get(k) || 0) * .03); for(const [k, v] of KEYS) if(!P.keys.has(k)) P.keys.set(k, v); KEYS.clear(); }   // (smoothed per hook; a hook that stops running decays away)
   R.i = (i + 1) % N; if(R.n < N) R.n++;
-  const want = P.ops && P.level > 0 || P.forceOps; if(want && !opsOn) opsInstall(typeof cx !== 'undefined' ? cx : null); else if(!want && opsOn) opsRemove();
+  const want = P.ops && P.level > 0 || P.forceOps; if(want && !opsOn){ cvInstall(); opsInstall(typeof cx !== 'undefined' ? cx : null); } else if(!want && (opsOn || cvOn)){ opsRemove(); cvRemove(); }
   if(++scanN % 120 === 0 && P.sub) rescan();
   if(t0 - lastShow > 250){ lastShow = t0; show(); } }
 const q = (a, f) => { if(!a.length) return 0; const s = Float64Array.from(a).sort(); return s[Math.min(s.length - 1, Math.floor(s.length * f))]; };
@@ -105,7 +124,9 @@ P.window = n => { n = Math.min(n || 60, R.n); const idx = []; for(let k = 1; k <
   const out = { n, dt:{ med:q(dt, .5), p95:q(dt, .95), max:q(dt, 1) }, draw:{ med:q(dr, .5), p95:q(dr, .95), max:q(dr, 1), mean:mean(dr) }, upd:{ med:q(up, .5), p95:q(up, .95) }, fps:dt.length ? 1000 / mean(dt) : 0, cat:{}, ops:{} };
   CATS.forEach((c, k) => out.cat[c] = mean(col(R.cat[k])));
   OPS.forEach((o, k) => { const v = col(R.op[k]).filter(x => x >= 0); out.ops[o] = v.length ? mean(v) : null; });
-  out.ops.total = out.ops.fillRect === null ? null : OPS.slice(0, 4).reduce((a, o) => a + out.ops[o], 0); return out; };
+  out.ops.total = out.ops.fillRect === null ? null : OPS.slice(0, 4).reduce((a, o) => a + out.ops[o], 0);
+  { const l = col(R.cvl).filter(x => x >= 0); out.cv = l.length ? { live:mean(l), liveMax:Math.max(...l), all:mean(col(R.cva).filter(x => x >= 0)), rb:mean(col(R.rb).filter(x => x >= 0)) } : null; }   // (canvas-to-canvas, per frame)
+  return out; };
 P.reset = () => { R.i = 0; R.n = 0; R.dt.fill(0); P.keys.clear(); };
 
 // ---------------------------------------------------------------- the overlay (a DOM block: it never touches the game canvas)
@@ -116,6 +137,7 @@ function show(){ if(!el){ el = document.createElement('pre'); el.id = 'profOverl
   if(P.level === 0){ el.style.display = 'none'; return; } el.style.display = '';
   const w = P.window(60), f1 = v => v.toFixed(1), pad = (s, n) => (s + '').padStart(n), bar = (v, max) => '█'.repeat(Math.max(0, Math.min(16, Math.round(v / max * 16))));
   const L = [`${pad(w.fps.toFixed(0), 3)} fps  frame ${f1(w.dt.med)} (p95 ${f1(w.dt.p95)})  draw ${f1(w.draw.med)} (max ${f1(w.draw.max)})  upd ${f1(w.upd.med)} ms`];
+  if(w.cv) L.push(`cv→cv ${f1(w.cv.live)} live (max ${w.cv.liveMax})  ${w.cv.all.toFixed(0)} all  rb ${f1(w.cv.rb)} /f`);   // (WebKit: live should be 0 in normal play)
   { const G = window.GLR; if(G || window.GLR_OFF) L.push(G ? `gl ${G.on ? 'on' : 'off'} ${G.kind}${G.ok ? '' : ' (' + G.reason + ')'}  last layer ${G.stats.instances} inst / ${G.stats.draws} draws` : 'gl off: ' + window.GLR_OFF); }   // (?gl)
   if(P.level >= 2){ const tot = CATS.reduce((a, c) => a + w.cat[c], 0), mx = Math.max(2, ...CATS.map(c => w.cat[c]));
     for(const c of CATS){ const v = w.cat[c]; if(v < .005 && P.level < 3) continue; L.push(`${LABEL[c].padEnd(13)}${pad(f1(v), 5)} ${bar(v, mx)}`); }
