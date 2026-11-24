@@ -866,10 +866,10 @@
     // the roofs: cells across, each its own tone, a parapet line on its near edge
     let X = XV; for(let k = 0; X < XF; k++){ const w = 2.2 + hash(cl * 3.7 + k * 1.9 + sd) * 2.4, X2 = Math.min(XF, X + w), hv = hash(cl * 5.1 + k * 2.3 + sd * 7);
       bq(a, b, sd, X, X2, f(ROOFC[Math.floor(hv * 5)]));
-      if(fog < .06 && k < 6){ if(i % 9 === 0) bq(a, b, sd, X, X2, f('#2c2834'));   // the cell's parapet toward you
+      if(fog < .06 && k < 4){ if(i % 9 === 0) bq(a, b, sd, X, X2, f('#2c2834'));   // the cell's parapet toward you
         bq(a, b, sd, X, X + .08, f('#2a2632'));
         if(hv > .7 && (i % 9) >= 3 && (i % 9) < 5) bq(a, b, sd, X + w * .3, X + w * .3 + .5, f(hv > .9 ? '#e8c890' : '#34303c')); }   // a plant box, or a lit stair hatch
-      X = X2; if(k > 7 || fog > .06 && k > 2){ if(X < XF) bq(a, b, sd, X, XF, f(ROOFC[Math.floor(hash(cl * 1.3 + sd) * 5)])); break; } } }
+      X = X2; if(k > 4 || fog > .06 && k > 1){ if(X < XF) bq(a, b, sd, X, XF, f(ROOFC[Math.floor(hash(cl * 1.3 + sd) * 5)])); break; } } }
   const RED = '#4e2624';
   function roadFX(s, a, b, fog, f, now){ if(a.y - b.y < .5) return;
     // the deck's margin beyond the road edge, out to the parapet foot (concrete, lit warm under the lamps)
