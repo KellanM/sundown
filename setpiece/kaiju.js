@@ -486,7 +486,13 @@
      267291), and the titans are the game's only ImageBitmaps, up to ~400 slice draws a frame near the gap (2 fps on an iPhone 13 at the ramp
      and over the jump); the atlases stay canvases, which WebKit draws as cheaply as every other sprite. ?bmp=1 / ?bmp=0 force either way. */
   const NO_BMP = true;   // Kellan 2026-11-23: no ImageBitmaps on any browser (they crawled on iOS Safari); the titan atlases stay plain canvases like every other sprite
-  function toBitmap(L){ if(NO_BMP || !window.createImageBitmap) return; try{ createImageBitmap(L.cv).then(b => { L.cv = b; try{ cx.drawImage(b, 0, 0, 1, 1); }catch(e){} }).catch(() => {}); }catch(e){} }
+  function toBitmap(L){ if(NO_BMP || !window.createImageBitmap) return; L.cvs.forEach((c, i) => { try{ createImageBitmap(c).then(b => { L.cvs[i] = b; if(!i) L.cv = b; try{ cx.drawImage(b, 0, 0, 1, 1); }catch(e){} }).catch(() => {}); }catch(e){} }); }
+  /* 頁 pages: each level's slices are packed into small canvases, at most PGS x PGS (65,536 px), never one long atlas (they were up to
+     4092 px wide and 1024 tall, 54 MB in all). WebKit keeps a canvas under 257 x 256 px in plain memory, like the game canvas (130 x 282 on
+     a phone) and every other sprite, and puts a larger one on an IOSurface that the game canvas then reads from on every slice draw; and no
+     page comes near an iOS texture limit. A slice too big for a page (the near builds' largest, up to 325 x 402) gets a canvas of its own.
+     The pixels and every draw are the same; only the source canvas of each slice changes (L.cvs[L.pg[j]], at L.rx/ry[j] inside it). */
+  const PGS = 256;
   function* vBake(key, G, MAT, HT, res, fine, kz = 1){ const C = yield* vShade(G, MAT, HT * res, res, kz), { w, h, d } = G, wh = w * h;
     // trim: the slices that hold anything
     let k0 = 0, k1 = d - 1; const any = k => { for(let i = k * wh, e = i + wh; i < e; i++) if(C[i]) return true; return false; }; while(k0 < k1 && !any(k0)) k0++; while(k1 > k0 && !any(k1)) k1--;
@@ -497,10 +503,16 @@
         if(x1 < 0){ bufs.push(null); continue; } if(!pack){ x0 = 0; y0 = 0; x1 = w - 1; y1 = h - 1; } ox[j] = x0; oy[j] = y0; rw[j] = x1 - x0 + 1; rh[j] = y1 - y0 + 1;
         { const cb = new Uint32Array(rw[j] * rh[j]); for(let y = 0; y < rh[j]; y++) cb.set(B.subarray((y0 + y) * w + x0, (y0 + y) * w + x0 + rw[j]), y * rw[j]); bufs.push(cb); }   /* keep only the slice's own pixels */
         if(late()){ yield; YT = performance.now(); } }
-      let px = 0, py = 0, sh = 0, cw = 1; for(let j = 0; j < ng; j++){ if(!rw[j]) continue; if(px && px + rw[j] > 4096){ px = 0; py += sh + 1; sh = 0; } rx[j] = px; ry[j] = py; px += rw[j] + 1; sh = Math.max(sh, rh[j]); cw = Math.max(cw, px); }
-      TSTEP = 'pack' + g; const cv = document.createElement('canvas'); cv.width = cw; cv.height = Math.max(1, py + sh); const k = cv.getContext('2d'), img = k.createImageData(cv.width, cv.height), U = new Uint32Array(img.data.buffer);
-      for(let j = 0; j < ng; j++){ if(!rw[j]) continue; const B = bufs[j]; for(let y = 0; y < rh[j]; y++) for(let x = 0; x < rw[j]; x++){ const c = B[y * rw[j] + x]; if(c) U[(ry[j] + y) * cv.width + rx[j] + x] = c; } if(late()){ yield; YT = performance.now(); } }
-      TSTEP = 'put' + g + ':' + cw + 'x' + cv.height; for(let y0 = 0; y0 < cv.height; y0 += 64){ k.putImageData(img, 0, 0, 0, y0, cv.width, Math.min(64, cv.height - y0)); if(late()){ yield; YT = performance.now(); } } const L = { g, ng, cv, rx, ry, rw, rh, ox, oy }; toBitmap(L);
+      const pg = new Uint16Array(ng), PG = [];   // shelf-packed into pages (PGS): [w, h, x, y, shelf height]
+      { let c = -1; for(let j = 0; j < ng; j++){ if(!rw[j]) continue;
+          if(rw[j] + 1 > PGS || rh[j] > PGS){ pg[j] = PG.length; rx[j] = 0; ry[j] = 0; PG.push([rw[j] + 1, rh[j], 0, 0, 0]); continue; }   // too big for a page: its own canvas
+          let q = c >= 0 ? PG[c] : null; if(q && q[2] && q[2] + rw[j] + 1 > PGS){ q[2] = 0; q[3] += q[4] + 1; q[4] = 0; } if(!q || q[3] + rh[j] > PGS){ c = PG.length; PG.push(q = [1, 1, 0, 0, 0]); }
+          pg[j] = c; rx[j] = q[2]; ry[j] = q[3]; q[2] += rw[j] + 1; q[4] = Math.max(q[4], rh[j]); q[0] = Math.max(q[0], q[2]); q[1] = Math.max(q[1], q[3] + q[4]); } }
+      if(!PG.length) PG.push([1, 1, 0, 0, 0]); const cvs = [];
+      for(let p = 0; p < PG.length; p++){ TSTEP = 'pack' + g + ':' + p; const cv = document.createElement('canvas'); cv.width = PG[p][0]; cv.height = Math.max(1, PG[p][1]); const k = cv.getContext('2d'), img = k.createImageData(cv.width, cv.height), U = new Uint32Array(img.data.buffer);
+        for(let j = 0; j < ng; j++){ if(!rw[j] || pg[j] !== p) continue; const B = bufs[j]; for(let y = 0; y < rh[j]; y++) for(let x = 0; x < rw[j]; x++){ const c = B[y * rw[j] + x]; if(c) U[(ry[j] + y) * cv.width + rx[j] + x] = c; } if(late()){ yield; YT = performance.now(); } }
+        TSTEP = 'put' + g + ':' + p + ':' + cv.width + 'x' + cv.height; for(let y0 = 0; y0 < cv.height; y0 += 64){ k.putImageData(img, 0, 0, 0, y0, cv.width, Math.min(64, cv.height - y0)); if(late()){ yield; YT = performance.now(); } } cvs.push(cv); }
+      const L = { g, ng, cv:cvs[0], cvs, pg, rx, ry, rw, rh, ox, oy }; toBitmap(L);   /* (L.cv: the first page; the whole view, one slice at 0, 0, is all of it: ui/cutin.js reads that) */
       if(cont){ L.ct = []; for(let j = 0; j < ng; j++){ if(!rw[j]){ L.ct.push(null); continue; } const M = new Uint8Array(rw[j] * rh[j]), B = bufs[j]; for(let i = 0; i < M.length; i++) M[i] = B[i] ? 1 : 0; L.ct.push(contours(M, rw[j], rh[j], 1)); } }
       return L; };
     // a merged level: each group of g slices composited front to back (the nearest voxel wins, as the camera sees it)
@@ -714,7 +726,7 @@
     POOL = { u8:[], u32:null, sb:null };   /* the scratch arrays go with the warm-up */
     /* memory: where a fine build takes over near, the coarse build's full-resolution level is never the one drawn; drop it */
     for(const id in TT) for(const k in TT[id].parts){ const P = TT[id].parts[k]; if(!P.fine) continue; for(const ps in P.poses){ const st = P.poses[ps]; if(P.fine[ps] && st.L.length > 2 && st.L[0].g === 1) st.L.shift(); } }
-    cx.save(); for(const id in TT) for(const k in TT[id].parts){ const P = TT[id].parts[k]; for(const st of [...Object.values(P.poses), ...Object.values(P.fine || {})]){ for(const L of st.L) cx.drawImage(L.cv, 0, 0, 1, 1); if(st.backL) cx.drawImage(st.back, 0, 0, 1, 1); if(st.glow) for(const g of st.glow) cx.drawImage(g, 0, 0, 1, 1); } } cx.drawImage(S.toeN, 0, 0, 1, 1); cx.drawImage(S.toeF, 0, 0, 1, 1); cx.restore();   // upload now, not mid-ride
+    cx.save(); for(const id in TT) for(const k in TT[id].parts){ const P = TT[id].parts[k]; for(const st of [...Object.values(P.poses), ...Object.values(P.fine || {})]){ for(const L of st.L) for(const c of L.cvs) cx.drawImage(c, 0, 0, 1, 1); if(st.backL) cx.drawImage(st.back, 0, 0, 1, 1); if(st.glow) for(const g of st.glow) cx.drawImage(g, 0, 0, 1, 1); } } cx.drawImage(S.toeN, 0, 0, 1, 1); cx.drawImage(S.toeF, 0, 0, 1, 1); cx.restore();   // upload now, not mid-ride
     TS.built = true; }
   function tsBuild(){ if(TS.built) return; if(!TS.it) TS.it = tsSteps(); for(const _ of TS.it); }
   /* first 60 s (research/sundown-craft/first60.md): the stacked titans and the card's titan are the night's heaviest build (about 1.2 s on a
@@ -759,7 +771,7 @@
     if(ct){ cx.save(); cx.beginPath();   /* near: one clip for all the copies, the union of their smoothed outlines */
       for(let i = 0; i < n; i++){ const fx = CQ.fx[i], fy = CQ.fy[i], tk = CQ.tk[i]; for(const lp of ct){ cx.moveTo(fx + lp[0] * tk, fy + lp[1] * tk); for(let e = 2; e < lp.length; e += 2) cx.lineTo(fx + lp[e] * tk, fy + lp[e + 1] * tk); cx.closePath(); } }
       cx.clip('nonzero'); }
-    for(let i = 0; i < n; i++){ cx.drawImage(L.cv, sx, sy, rw, CQ.sh[i], CQ.x0[i], CQ.y0[i], CQ.x1[i] - CQ.x0[i], CQ.y1[i] - CQ.y0[i]); TDRAWS++; }
+    const src = L.cvs[L.pg[j]]; for(let i = 0; i < n; i++){ cx.drawImage(src, sx, sy, rw, CQ.sh[i], CQ.x0[i], CQ.y0[i], CQ.x1[i] - CQ.x0[i], CQ.y1[i] - CQ.y0[i]); TDRAWS++; }
     if(ct) cx.restore(); }
   // per frame: each part's pose and depth LOD (the coarsest merged level whose slices stay under a pixel apart; else gap-filling copies)
   function tsFrame(F, st, d){ const A = F.kj + STAND, camX = playerX * ROADW;
@@ -981,7 +993,17 @@
   function P(s, f, X, h){ const a = s.p1.screen, b = s.p2.screen, sc = a.scale + (b.scale - a.scale) * f;
     return [a.x + (b.x - a.x) * f + X * (a.w + (b.w - a.w) * f), a.y + (b.y - a.y) * f - sc * h * H / 2]; }
   function quad(p1, p2, p3, p4, col){ cx.fillStyle = col; cx.beginPath(); cx.moveTo(p1[0], p1[1]); cx.lineTo(p2[0], p2[1]); cx.lineTo(p3[0], p3[1]); cx.lineTo(p4[0], p4[1]); cx.closePath(); cx.fill(); }
-  function pline(a, b, col, w){ const n = Math.min(200, Math.max(1, Math.ceil(Math.hypot(b[0] - a[0], b[1] - a[1]) / PX))); cx.fillStyle = col; for(let i = 0; i <= n; i++){ const t = i / n; cx.fillRect(snap(a[0] + (b[0] - a[0]) * t - w / 2), snap(a[1] + (b[1] - a[1]) * t - w / 2), w, w); } }
+  /* a stepped line of w x w squares, one a pixel along it; squares in one row or one column go out as one rect (a cable, a crack: ~2000
+     fillRects a frame over the gap became a few hundred). Opaque and source-over, overlapping squares merge; otherwise only squares that
+     abut exactly (an overlap or a repeat would have blended twice), so the pixels are the same either way. */
+  function pline(a, b, col, w){ const n = Math.min(200, Math.max(1, Math.ceil(Math.hypot(b[0] - a[0], b[1] - a[1]) / PX))); cx.fillStyle = col;
+    const ov = cx.globalAlpha >= 1 && (typeof EDGE === 'undefined' || EDGE >= 1) && cx.globalCompositeOperation === 'source-over'; let rx = 0, ry = 0, rw = 0, rh = 0, on = false;
+    for(let i = 0; i <= n; i++){ const t = i / n, x = snap(a[0] + (b[0] - a[0]) * t - w / 2), y = snap(a[1] + (b[1] - a[1]) * t - w / 2);
+      if(on){ if(y === ry && rh === w && (ov ? x <= rx + rw && x + w >= rx : x === rx + rw || x + w === rx)){ const nx = Math.min(rx, x); rw = Math.max(rx + rw, x + w) - nx; rx = nx; continue; }
+        if(x === rx && rw === w && (ov ? y <= ry + rh && y + w >= ry : y === ry + rh || y + w === ry)){ const ny = Math.min(ry, y); rh = Math.max(ry + rh, y + w) - ny; ry = ny; continue; }
+        cx.fillRect(rx, ry, rw, rh); }
+      rx = x; ry = y; rw = w; rh = w; on = true; }
+    if(on) cx.fillRect(rx, ry, rw, rh); }
   const CONC = ['#121420', '#262a3a', '#3e4458', '#6a7290', '#a8b0c8'];
   // debris chunks: fixed launch vectors per chunk (world units per second), flown by the distance since the blast
   const CHUNKS = Array.from({ length:34 }, (_, i) => ({ x0:(H1(i * 3.1) - .5) * 2.2, vz:(H1(i * 5.7) - .4) * 5200, vx:(H1(i * 7.3) - .5) * 2.4, vy:2600 + H1(i * 9.1) * 4200, v:i % 3, sz:.5 + H1(i * 2.2) * .9 }));
@@ -1292,8 +1314,11 @@
       const px0 = Math.max(0, Math.floor(Math.min(ax2, bx, cx2))), px1 = Math.min(w - 1, Math.ceil(Math.max(ax2, bx, cx2))), py0 = Math.max(0, Math.floor(Math.min(ay2, by, cy2))), py1 = Math.min(h - 1, Math.ceil(Math.max(ay2, by, cy2))), id2 = 1 / det, Va = a * 3, Vb = b * 3, Vc = c * 3;
       for(let py = py0; py <= py1; py++){ const yc = py + .5; for(let px = px0; px <= px1; px++){ const xc = px + .5, l2 = ((xc - ax2) * (cy2 - ay2) - (yc - ay2) * (cx2 - ax2)) * id2, l3 = ((bx - ax2) * (yc - ay2) - (by - ay2) * (xc - ax2)) * id2, l1 = 1 - l2 - l3;
         if(l1 < -1e-4 || l2 < -1e-4 || l3 < -1e-4) continue; const i = py * DRW + px; DFID[i] = id; DOX[i] = l1 * V[Va] + l2 * V[Vb] + l3 * V[Vc]; DOY[i] = l1 * V[Va + 1] + l2 * V[Vb + 1] + l3 * V[Vc + 1]; DOZ[i] = l1 * V[Va + 2] + l2 * V[Vb + 2] + l3 * V[Vc + 2]; } } }
-    const T = dPal(fog), dd = DRI.data, big = w > 18;
-    for(let y = 0; y < h; y++) for(let x = 0; x < w; x++){ const i = y * DRW + x, o = i * 4, k = DFID[i]; let ci = -1;
+    /* straight onto the game canvas, a fillRect per run of one colour along each row: no putImageData into a buffer that is then drawn the
+       same frame (a live canvas copy, which WebKit stalls on). The same pixels at the same alpha: canvas pixel (x0 + x, y0 + y) each. */
+    const T = dPal(fog), big = w > 18, CS = T.cs || (T.cs = Array.from({ length:T.length / 3 }, (_, q) => `rgb(${T[q * 3]},${T[q * 3 + 1]},${T[q * 3 + 2]})`)), u = 1 / cr; let rc = -1, rs = 0, fc = -1;
+    cx.globalAlpha = al; const run = (x, y) => { if(rc !== fc){ cx.fillStyle = CS[rc]; fc = rc; } cx.fillRect((x0 + rs) * u, (y0 + y) * u, (x - rs) * u, u); DRUNS++; };
+    for(let y = 0; y < h; y++){ for(let x = 0; x < w; x++){ const i = y * DRW + x, k = DFID[i]; let ci = -1;
       if(k === 255){ if((x > 0 && DFID[i - 1] !== 255) || (x + 1 < w && DFID[i + 1] !== 255) || (y > 0 && DFID[i - DRW] !== 255) || (y + 1 < h && DFID[i + DRW] !== 255)) ci = 18; }   // the 1 px outline
       else { const mt = DFM[k], t = DFT[k], oxp = DOX[i], oyp = DOY[i], ozp = DOZ[i], ku = y > 0 ? DFID[i - DRW] : 255, kr = x + 1 < w ? DFID[i + 1] : 255, kd = y + 1 < h ? DFID[i + DRW] : 255;
         let base = mt === 0 ? 0 : mt === 2 ? 10 : 5;
@@ -1304,8 +1329,9 @@
         else if((kr !== 255 && DFP[kr] !== DFP[k]) || (kd !== 255 && DFP[kd] !== DFP[k])){ const ot = kd !== 255 && DFP[kd] !== DFP[k] ? kd : kr; ci = DFT[k] > DFT[ot] && dh3(oxp * .03, oyp * .03, ozp * .03) < .4 ? base + Math.min(4, t + 1) : base + Math.max(0, t - 2); }   // crack and lit chips
         else if(mt === 2 && big){ const g = dh3(Math.floor(oxp * .025), Math.floor(oyp * .025), Math.floor(ozp * .025)); if(g > .9) ci = base + Math.max(0, t - 1); }   // grit clusters on the break
         else if(big && dh3(Math.floor(oxp * .012), Math.floor(oyp * .012), Math.floor(ozp * .012)) > .93) ci = base + Math.max(0, t - 1); }   // a few spalls
-      if(ci < 0){ dd[o + 3] = 0; continue; } dd[o] = T[ci * 3]; dd[o + 1] = T[ci * 3 + 1]; dd[o + 2] = T[ci * 3 + 2]; dd[o + 3] = 255; }
-    DRG.putImageData(DRI, 0, 0, 0, 0, w, h); cx.globalAlpha = al; cx.imageSmoothingEnabled = false; cx.drawImage(DRC, 0, 0, w, h, x0 / cr, y0 / cr, w / cr, h / cr); }
+      if(ci !== rc){ if(rc >= 0) run(x, y); rc = ci; rs = x; } }
+      if(rc >= 0) run(w, y); rc = -1; } }
+  let DRUNS = 0;   // (fillRects the debris pieces drew: tests)
   // a projected 3D stroke (rebar, railing, lamp post, cable): points in world units from the anchor
   const SP = [0, 0];
   function spt(X0, Y0, pw, cz, x, y, z){ const f = cz / Math.max(60, cz + z), kw = pw / ROADW, PY0 = H / 2 - PITCH; SP[0] = W / 2 + (X0 + x * kw - W / 2) * f; SP[1] = PY0 + (Y0 - y * kw - PY0) * f; return SP; }
@@ -1380,8 +1406,8 @@
     probe(){ return { tsP:K.tsP.filter(q => q.r === segs).map(q => q.pk), pass:PASS, kj:kjTrig.slice(), ty:tyTrig.slice(), p:Math.round(pSeg()), zones:zones.map(z => ({ pk:z.pk, B:z.B, blown:z.blown, launched:z.launched, landed:z.landed, helper:!!z.helper, live:!!zoneLive(z) })) }; },
     _rewarm(){ TS.built = false; TS.it = null; for(const id in TT) TT[id].parts = {}; const it = tsSteps(), ts = []; let a = performance.now(); for(;;){ const r = it.next(), b = performance.now(); ts.push([b - a, TSTEP]); a = b; if(r.done) break; } ts.sort((x, y) => y[0] - x[0]); return { total:Math.round(ts.reduce((x, y) => x + y[0], 0)), steps:ts.length, max:+ts[0][0].toFixed(1), top:ts.slice(0, 8).map(v => v[1] + ' ' + v[0].toFixed(0)) }; },   // tests: rebuild the stacks step by step, timing each step
     _full(){ const F = FR; if(F.kj < 0 || !F.st || !TS.built) return 0; const a = F.st.alpha; let q = tsPt(TT.s, 18, 150, 0); if(!q) return 0; const top = q[1], cxp = q[0]; q = tsPt(TT.s, 0, 0, 0); if(!q) return 0; const bot = q[1]; return a > .9 && top >= 0 && bot <= H && bot - top >= H * .12 && cxp > 0 && cxp < W ? 1 : 0; },   // tests: Sairyu whole on screen
-    _mem(){ let px = 0; const add = c => { if(c) px += c.width * c.height; }; for(const id in TT) for(const k in TT[id].parts){ const P = TT[id].parts[k]; for(const st of [...Object.values(P.poses), ...Object.values(P.fine || {})]){ for(const L of st.L) add(L.cv); if(st.backL) add(st.backL.cv); if(st.glow) st.glow.forEach(add); } } return { px, mb:+(px * 4 / 1048576).toFixed(1), parts:Object.values(TT).flatMap(T => Object.values(T.parts).flatMap(P => [...Object.entries(P.poses).map(([k, st]) => [T.id + P.name + ':' + k, st]), ...Object.entries(P.fine || {}).map(([k, st]) => [T.id + P.name + ':' + k + 'F', st])])).map(([n, st]) => n + ' ' + st.L.map(L => L.g + ':' + Math.round(L.cv.width * L.cv.height / 1000)).join(',') + (st.backL ? ' b' + Math.round(st.backL.cv.width * st.backL.cv.height / 1000) : '')) }; },
-    _ts(){ const q = TT.s.Z0 ? proj(TT.s.Z0) : null; return { far:FR.tsFar, built:TS.built, kj:FR.kj, sZ0:TT.s.Z0, sX0:TT.s.X0, fX0:TT.f.X0, rearToe:Math.round(TT.s.X0 + (TT.s.rearToe || 0)), hp:[HP.seg, HP.d0], pos:position, draws:TDRAWS, pr:q ? [Math.round(q.x), Math.round(q.y), +q.sc.toExponential(2)] : null, lv:Object.values(TT.s.parts).map(P => P.name + ':' + (P.lv ? P.lv.g : '-') + 'x' + P.c) }; },   // testing
+    _mem(){ let px = 0; const add = c => { if(c) px += c.width * c.height; }; for(const id in TT) for(const k in TT[id].parts){ const P = TT[id].parts[k]; for(const st of [...Object.values(P.poses), ...Object.values(P.fine || {})]){ for(const L of st.L) L.cvs.forEach(add); if(st.backL) add(st.backL.cv); if(st.glow) st.glow.forEach(add); } } return { px, mb:+(px * 4 / 1048576).toFixed(1), parts:Object.values(TT).flatMap(T => Object.values(T.parts).flatMap(P => [...Object.entries(P.poses).map(([k, st]) => [T.id + P.name + ':' + k, st]), ...Object.entries(P.fine || {}).map(([k, st]) => [T.id + P.name + ':' + k + 'F', st])])).map(([n, st]) => n + ' ' + st.L.map(L => L.g + ':' + Math.round(L.cvs.reduce((a, c) => a + c.width * c.height, 0) / 1000) + 'p' + L.cvs.length).join(',') + (st.backL ? ' b' + Math.round(st.backL.cv.width * st.backL.cv.height / 1000) : '')) }; },
+    _ts(){ const q = TT.s.Z0 ? proj(TT.s.Z0) : null; return { far:FR.tsFar, built:TS.built, kj:FR.kj, sZ0:TT.s.Z0, sX0:TT.s.X0, fX0:TT.f.X0, rearToe:Math.round(TT.s.X0 + (TT.s.rearToe || 0)), hp:[HP.seg, HP.d0], pos:position, draws:TDRAWS, druns:DRUNS, pr:q ? [Math.round(q.x), Math.round(q.y), +q.sc.toExponential(2)] : null, lv:Object.values(TT.s.parts).map(P => P.name + ':' + (P.lv ? P.lv.g : '-') + 'x' + P.c) }; },   // testing
     dbgBreak(t){ return addZone(t); },   // testing: a bridge break for a kaiju trigger at segment t
     dbgTy(t0){ for(let i = Math.max(0, t0); i <= t0 + TY_LEN && i < segs.length; i++) tyPlace(i, segs[i], i - t0); if(segs[t0]) segs[t0].tyStart = true; },   // testing: a typhoon stretch from segment t0
     warm(){ build(); if(titansNear()) tsBuild(); },

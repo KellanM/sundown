@@ -1,8 +1,9 @@
-/* ui/prof.js: the built-in profiler overlay (?prof), after Unreal's `stat unit` and Unity's Frame Debugger. Loaded only with ?prof (the loader
-   line at the end of sundown.html), so it costs nothing when off.
+/* ui/prof.js: the built-in profiler overlay (?prof), after Unreal's `stat unit` and Unity's Frame Debugger. Loaded by default (the loader
+   line at the end of sundown.html); ?prof=off doesn't load it, and the console's `prof off` takes every wrapper out again (PROF.uninstall).
 
-   What it shows, live, in the top-left corner (` (Backquote) cycles the detail level: 1 unit line, 2 subsystems, 3 ops and per-road / per-mech
-   detail, 0 hidden; ?prof=N starts at level N):
+   What it shows, live, in the top-left corner (the detail level: 1 unit line, 2 subsystems, 3 ops and per-road / per-mech detail, 0 hidden;
+   set from the developer console, ui/console.js: ` opens it, then `prof 0-3`, or `prof` alone to cycle; ?prof=N starts at level N, otherwise
+   the last level set in the console, localStorage 'sundown.prof', else 1):
    - fps, the frame interval, and the draw and update times (median of the last second, and its worst frame);
    - cv→cv: drawImage calls per frame whose source is a canvas drawn to this frame (live; WebKit stalls on these), all canvas sources, and
      getImageData readbacks (see cvInstall);
@@ -20,7 +21,8 @@
    jittered) in a page that is not cross-origin isolated, so single small brackets are noisy but their sums over a frame are sound.
 
    window.PROF (tools/perfgate.mjs reads it): PROF.ops / PROF.sub switch the op counting and the subsystem brackets (both on by default; off,
-   only draw / update / frame interval are taken); PROF.window(n) summarises the last n frames; PROF.reset() clears the record. */
+   only draw / update / frame interval are taken); PROF.window(n) summarises the last n frames; PROF.reset() clears the record;
+   PROF.uninstall() puts every wrapped function back and removes the overlay, PROF.install() brackets them again. */
 (function(){
 'use strict';
 if(window.PROF) return;
@@ -31,7 +33,8 @@ const LABEL = { sky:'sky+backdrop', road:'road+ground', roadmat:'roadmat', sprit
 const OPS = ['fillRect', 'drawImage', 'draw', 'state', 'comp'];
 const N = 600;   // ring of frames
 const R = { i:0, n:0, t:new Float64Array(N), dt:new Float32Array(N), draw:new Float32Array(N), upd:new Float32Array(N), cvl:new Float32Array(N), cva:new Float32Array(N), rb:new Float32Array(N),cat:CATS.map(() => new Float32Array(N)), op:OPS.map(() => new Float32Array(N)) };
-const P = window.PROF = { level:QP.has('prof') ? (v => v >= 0 && v <= 3 ? v : 2)(parseInt(QP.get('prof'), 10)) : 1, ops:true, sub:true, R, CATS, OPS, keys:new Map(), installed:false };
+const lvl0 = () => { try{ const v = parseInt(localStorage.getItem('sundown.prof'), 10); return v >= 0 && v <= 3 ? v : 1; }catch(e){ return 1; } };   // (the console's last level)
+const P = window.PROF = { level:QP.has('prof') ? (v => v >= 0 && v <= 3 ? v : 2)(parseInt(QP.get('prof'), 10)) : lvl0(), ops:true, sub:true, R, CATS, OPS, keys:new Map(), installed:false, dead:false };
 
 // ---------------------------------------------------------------- the per-frame accumulators and the bracket stack
 const CUR = new Float64Array(CATS.length), OPC = new Float64Array(OPS.length);
@@ -40,20 +43,21 @@ let KEYS = new Map();   // this frame's per-key self time (level 3): 'env:akiba'
 let lastFrameT = 0, updMs = 0;
 function enter(c, key){ if(SP < 255){ ST_C[SP] = c; ST_T[SP] = pnow(); ST_K[SP] = 0; ST_N[SP] = key; } SP++; }
 function leave(){ SP--; if(SP >= 255) return; const el = pnow() - ST_T[SP], self = el - ST_K[SP]; CUR[ST_C[SP]] += self; const k = ST_N[SP]; if(k) KEYS.set(k, (KEYS.get(k) || 0) + self); if(SP > 0) ST_K[SP - 1] += el; }
+const WR = [];   // every wrapper put in: [object, name, wrapper, original] (PROF.uninstall puts the originals back)
 function wrap(obj, name, cat, key){ const f = obj && obj[name]; if(typeof f !== 'function' || f.__prof) return false; const c = CI[cat];
-  const w = function(){ if(!P.sub) return f.apply(this, arguments); enter(c, key); try{ return f.apply(this, arguments); } finally { leave(); } };
-  try{ Object.assign(w, f); w.__prof = f; obj[name] = w; return true; }catch(e){ return false; } }
+  const w = function(){ if(!P.sub || P.dead) return f.apply(this, arguments); enter(c, key); try{ return f.apply(this, arguments); } finally { leave(); } };
+  try{ Object.assign(w, f); w.__prof = f; obj[name] = w; WR.push([obj, name, w, f]); return true; }catch(e){ return false; } }
 function wrapG(name, cat){ if(typeof window[name] === 'function') wrap(window, name, cat, null); }
 
 // ---------------------------------------------------------------- frame boundaries: draw (and the frame interval), update
 function install(){
   if(typeof window.draw !== 'function' || typeof window.update !== 'function') return false;
   const od = window.draw, ou = window.update;
-  window.draw = function(now){ const t0 = pnow(); R.dt[R.i] = lastFrameT ? t0 - lastFrameT : 0; lastFrameT = t0; SP = 0;
+  window.draw = function(now){ if(P.dead) return od.apply(this, arguments); const t0 = pnow(); R.dt[R.i] = lastFrameT ? t0 - lastFrameT : 0; lastFrameT = t0; SP = 0;
     if(P.sub){ ST_C[0] = CI.core; ST_T[0] = t0; ST_K[0] = 0; ST_N[0] = null; SP = 1; }
     try{ return od.apply(this, arguments); }
     finally { const t1 = pnow(); if(P.sub && SP > 0){ SP = 1; leave(); } SP = 0; endFrame(t0, t1 - t0); } };
-  window.update = function(){ const t0 = pnow(); try{ return ou.apply(this, arguments); } finally { updMs += pnow() - t0; } };
+  window.update = function(){ if(P.dead) return ou.apply(this, arguments); const t0 = pnow(); try{ return ou.apply(this, arguments); } finally { updMs += pnow() - t0; } };
   // the core's own passes (global function declarations: the core calls them by name, so the wrapper is what runs)
   ['pixelSky', 'backdrop'].forEach(n => wrapG(n, 'sky'));
   ['drawRoad', 'laneFlush', 'drawReflections'].forEach(n => wrapG(n, 'road'));
@@ -63,7 +67,13 @@ function install(){
   ['drawCar', 'fkCars'].forEach(n => wrapG(n, 'cars'));
   ['drawBike', 'oilBike'].forEach(n => wrapG(n, 'bike'));
   ['hud'].forEach(n => wrapG(n, 'hud'));
+  WR.push([window, 'draw', window.draw, od], [window, 'update', window.update, ou]);
   rescan(); P.installed = true; return true; }
+// the console's `prof off`: every original back where it was (only where our wrapper is still the one in place), the op counters off, no overlay
+P.uninstall = () => { if(!P.installed) return 0; P.dead = true; let n = 0;
+  for(const [o, nm, w, f] of WR.splice(0)) if(o[nm] === w){ try{ o[nm] = f; n++; }catch(e){} }
+  opsRemove(); cvRemove(); if(el){ el.remove(); el = null; } P.installed = false; return n; };
+P.install = () => { if(P.installed) return true; P.dead = false; lastFrameT = 0; return install(); };
 // env and mech hooks (re-scanned now and then: a module may add a hook after warm-up)
 const ENV_HK = /^(draw.*|backdrop|overlay|roadFX|wetSrc|wetFX|frontFX|drawTunnel)$/, MECH_HK = /^(draw.*|overlay|post)$/;
 const ENV_CAT = { sky:'sky', hud:'hud', cars:'cars', bikes:'bike', buildings:'sprites', bkit:'sprites' };
@@ -144,8 +154,8 @@ function show(){ if(!el){ el = document.createElement('pre'); el.id = 'profOverl
     L.push(`${'sum'.padEnd(13)}${pad(f1(tot), 5)}  (ms/frame, self)`); }
   if(P.level >= 3){ const o = w.ops; if(o.total !== null) L.push(`ops ${o.total.toFixed(0)}/f: fillRect ${o.fillRect.toFixed(0)} drawImage ${o.drawImage.toFixed(0)} draw ${o.draw.toFixed(0)}`, `    state ${o.state.toFixed(0)}  comp switches ${o.comp.toFixed(0)}`);
     const top = [...P.keys].filter(x => x[1] > .03).sort((a, b) => b[1] - a[1]).slice(0, 9); if(top.length) L.push('top hooks (ms, smoothed):'); for(const [k, v] of top) L.push(`  ${k.padEnd(18)}${pad(f1(v), 5)}`); }
-  L.push(`[\`] detail ${P.level}/3`); el.textContent = L.join('\n'); }
-addEventListener('keydown', e => { if(e.code !== 'Backquote' || e.repeat) return; P.level = (P.level + 1) % 4; e.preventDefault(); show(); }, true);
+  L.push(`[\`] console · prof ${P.level}/3`); el.textContent = L.join('\n'); }
+P.show = () => { if(P.installed) show(); };   // (the console redraws it at once after a level change; the backquote key is the console's now)
 
 if(!install()){ addEventListener('load', () => { if(!P.installed) install(); }); }
 })();

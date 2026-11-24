@@ -2931,13 +2931,14 @@ function frame(){ if(PSE.on){ pzPad(); if(PSE.dirty){ PSE.dirty = false; try{ dr
   if(SHEET.hidden || state === 'over'){ if(state !== 'ready') update(real * TIME.scale * ASSIST.speed); else pollPad(); }   // ASSIST.speed: game speed (1 by default), on top of any slow-mo
   if(state === 'play') hud(); draw(now); requestAnimationFrame(frame); }
 </script>
-<script>/* ?prof: the profiler overlay (ui/prof.js: per-subsystem ms and canvas op counts; ` cycles its detail). Loaded only when asked for, so it costs nothing when off. */
-if(!/[?&]prof=off(&|$)/.test(location.search)){   /* Kellan 2026-11-23: the FPS counter shows by default for live testing; ?prof=0 hides it (tools/perfgate.mjs relies on that), ?prof=off doesn't load it at all */ const s = document.createElement('script'); s.src = 'ui/prof.js'; document.body.appendChild(s); }</script>
+<script>/* ?prof: the profiler overlay (ui/prof.js: per-subsystem ms and canvas op counts; its detail is set from the console below). Then the developer console (ui/console.js: ` or a three-finger tap). async = false: they run in this order. */
+if(!/[?&]prof=off(&|$)/.test(location.search) && !(() => { try{ return !/[?&]prof=/.test(location.search) && localStorage.getItem('sundown.prof') === 'off'; }catch(e){ return false; } })()){   /* Kellan 2026-11-23: the FPS counter shows by default for live testing; ?prof=0 hides it (tools/perfgate.mjs relies on that), ?prof=off doesn't load it at all, nor does the console's `prof off` (remembered) unless ?prof= is given */ const s = document.createElement('script'); s.async = false; s.src = 'ui/prof.js'; document.body.appendChild(s); }
+if(!/[?&]con=off(&|$)/.test(location.search)){   /* Kellan 2026-11-23: the in-game console, loaded by default (tiny, nothing per frame while closed); ?con=off doesn't load it */ const s = document.createElement('script'); s.async = false; s.src = 'ui/console.js'; document.body.appendChild(s); }</script>
 <script>/* web app (added by tools/deploy-sundown.mjs, not in the source): the offline cache and quiet updates.
    A new version downloads in the background and waits. It is applied only on the title (never mid-ride): by itself once
    the title has sat untouched for a few seconds, or at once when the player taps "Update ready". Tap the version to check now. */
 (() => {
-  const VER = 'v40 · ae92f1', $id = (i) => document.getElementById(i);
+  const VER = 'v41 · 5dd4fb', $id = (i) => document.getElementById(i);
   const SDU = window.SDUPDATE = { version: VER, waiting: null, applied: false, checks: 0 };
   let reg = null, applying = false, asked = false, needReload = false, note = '', noteT = 0, lastInput = performance.now();
   ['keydown', 'pointerdown', 'touchstart', 'wheel'].forEach((t) => addEventListener(t, () => { lastInput = performance.now(); }, { capture: true, passive: true }));
@@ -2999,5 +3000,5 @@ if(!/[?&]prof=off(&|$)/.test(location.search)){   /* Kellan 2026-11-23: the FPS 
   }, 1000);
 })();
 </script>
-<!-- __sdbuild:40 ae92f1c775c8 --></body>
+<!-- __sdbuild:41 5dd4fbc1ec61 --></body>
 </html>
