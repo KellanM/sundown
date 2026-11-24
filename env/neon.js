@@ -123,6 +123,16 @@
   const LANT = ['..KK', '.Krr', 'Krro', 'Kroy', 'Kroy', 'Kroy', 'Krro', '.Krr', '..KK', '...K'];
   const lantern = w => C['lan' + w] || cache('lan' + w, () => makeSprite(LANT, w ? { K:'#1a0e08', r:'#c8b49a', o:'#efe0c8', y:'#fff8ea' } : { K:'#1a0608', r:'#a8162a', o:'#e83a3a', y:'#ffb070' }));
   const WALK = [['.KK.', '.KK.', 'KKKK', 'KKKK', 'KKKK', '.KK.', '.KK.', 'K..K', 'K..K'], ['.KK.', '.KK.', 'KKKK', 'KKKK', 'KKKK', '.KK.', '.KK.', '.KK.', '.KK.']];
+  /* The lantern strings (type 'lstr') by colour cycling (ui/cycle.js CYCLE.chain; proposal color-cycle-lights): the nine lanterns and their
+     halos are one layer from a ladder of pre-rasterised sizes, so a string is its cable plus two drawImages, not nine blits and nine
+     additive halos. The lanterns' paper and hot core are cycling ramps, one step apart from lantern to lantern: a slow warm swell runs along
+     each string (1.2 s round, never more than a shade either side of the old colours), the way a row of real chochin never burns quite even.
+     Reduced motion holds one frame. */
+  let LCH = null;
+  function lanternChain(){ if(LCH || !window.CYCLE) return; try{ LCH = CYCLE.chain({ sprites:[lantern(0), lantern(1)], kind:j => j % 3 === 1 ? 1 : 0, n:9, span:3.1, sag:.38, kU:.19 / 8, drop:10, ms:200,
+      ramps:[{ '#e83a3a':['#e83a3a', '#f0443c', '#f84e42', '#f0443c', '#e83a3a', '#da3436'], '#ffb070':['#ffb070', '#ffbe80', '#ffcc92', '#ffbe80', '#ffb070', '#f2a062'] },
+             { '#efe0c8':['#efe0c8', '#f4e8d2', '#faf0dc', '#f4e8d2', '#efe0c8', '#e4d4ba'], '#fff8ea':['#fff8ea', '#fffbf2', '#ffffff', '#fffbf2', '#fff8ea', '#f6ecd8'] }],
+      glow:{ r:.14, dy:5, cols:['#ff7a4a', '#fff0d0'], a:.4, sprite:haloS } }); }catch(e){ console.warn('neon lantern chain', e); } }
   const walker = f => C['wk' + f] || cache('wk' + f, () => makeSprite(WALK[f], { K:'#0b0612' }, false));
   // shotengai street lamp: a pole, a globe on an arm over the pavement and a street banner
   const lampS = () => C['lamp'] || cache('lamp', () => { const [c, k] = canvas(16, 50), R = (x, y, w, h, cc) => { k.fillStyle = cc; k.fillRect(x, y, w, h); };
@@ -575,7 +585,7 @@
   // (stepped finely, the same build in the same order: first 60 s, research/sundown-craft/first60.md)
   function* warmAllSteps(){ yield* warmTilesSteps(); yield;
     for(let v = 0; v < 12; v++){ facade(v); yield; mirror(facade(v)); yield; } for(let v = 0; v < 60; v++){ for(let f = 0; f < 3; f++){ blade(v, f); yield; } } yield* bladeAtlasSteps();
-    lampS(); yield; mirror(lampS()); yield; yatai(); yield; mirror(yatai()); yield; for(let v = 0; v < 3; v++){ vend(v); yield; vendHi(v, 2); yield; vendHi(v, 4); yield; vendHi(v, 8); yield; } lantern(0); yield; lantern(1); yield; walker(0); yield; walker(1); yield; for(let f = 0; f < 2; f++){ crowd(f); yield; mirror(crowd(f)); yield; }
+    lampS(); yield; mirror(lampS()); yield; yatai(); yield; mirror(yatai()); yield; for(let v = 0; v < 3; v++){ vend(v); yield; vendHi(v, 2); yield; vendHi(v, 4); yield; vendHi(v, 8); yield; } lantern(0); yield; lantern(1); yield; lanternChain(); yield; walker(0); yield; walker(1); yield; for(let f = 0; f < 2; f++){ crowd(f); yield; mirror(crowd(f)); yield; }
     for(const ch of EXTRA){ glyph(ch); yield; } for(let f = 0; f < 3; f++){ gate(f); yield; } bridgeS(); yield; for(let f = 0; f <= 32; f++){ screenFrame(f); yield; } jumbo(); yield; jumboWin(); yield; tickS(); yield;
     for(const art of [neko, paw, plinth]){ const c = art(); yield; artSizes(c, false); yield; artSizes(c, true); yield; } for(let v = 0; v < 5; v++){ trainCar(v); yield; }
     const cols = new Set(['#ffc070', '#ffe6b0', '#fff4c0', '#ffb070', '#ff3a4a', '#ff8a4a', '#e8f0ff', '#ffd04a', '#3a7aff', '#ffd890', '#ff6aa8', '#ffe8f0', ...NEON]);
@@ -787,6 +797,7 @@
       else if(t === 'lstr'){ const x0 = x - uw * 1.55, x1 = x + uw * 1.55, ya = y - uw * 1.95, sag = uw * .38, n = 9, st = Math.max(PX, Math.round(uw * .04 / PX) * PX);
         cx.fillStyle = mixc('#0c0812', sk.low, fog * .5); const nq = uw > 60 ? 24 : 10; for(let q = 0; q <= nq; q++){ const tt = q / nq; cx.fillRect(Math.round((x0 + (x1 - x0) * tt) / PX) * PX, Math.round((ya + sag * 4 * tt * (1 - tt)) / PX) * PX, Math.ceil((x1 - x0) / nq / PX + 1) * PX, Math.max(PX, st / 2)); }
         const k = uw * .19 / 8, sw = reduce ? 0 : Math.sin(now / 600 + sp.k) * uw * .01;
+        if(LCH && !CYCLE.off && LCH.draw(cx, now, x, ya, uw, a, fog < .3 ? a * a * Math.min(1, (.3 - fog) / .08) : 0, sw)) return;   // the lanterns and their halos as one colour-cycled layer (ui/cycle.js); the cable above stays exact
         cx.globalAlpha = a; for(let j = 0; j < n; j++){ const tt = (j + .5) / n, lx = x0 + (x1 - x0) * tt + sw, ly = ya + sag * 4 * tt * (1 - tt) + 10 * k; blitF(lantern(j % 3 === 1 ? 1 : 0), lx, ly, k, false);
           if(fog < .3) glow(lx, ly - 5 * k, uw * .14, j % 3 === 1 ? '#fff0d0' : '#ff7a4a', .4 * a * Math.min(1, (.3 - fog) / .08)); } cx.globalAlpha = 1; }
       else if(t === 'bridge'){ const k = uw * 4.4 / BW, spr = bridgeS(); glow(x, y - 64 * k, uw * 1.2, '#ffd04a', .18 * a); cx.globalAlpha = a; blitF(spr, x, y, k, false);

@@ -1055,6 +1055,36 @@
   let CFX = 0, CFY = 0, CFU = 0;
   function CF(z){ const i = Math.floor(z), sg = segs[i]; if(!sg) return false; const a = sg.p1.screen, b = sg.p2.screen; if(!a.w || !b.w) return false; const f = z - i; CFX = a.x + (b.x - a.x) * f; CFY = a.y + (b.y - a.y) * f; CFU = a.w + (b.w - a.w) * f; return fin(CFX + CFY + CFU); }
   function CR(X0, X1, h0, h1, col){ const xa = CFX + X0 * CFU, xb = CFX + X1 * CFU; R(Math.min(xa, xb), CFY - h1 * CFU, Math.abs(xb - xa), (h1 - h0) * CFU, col); }
+  /* Chasing bulbs by colour cycling (ui/cycle.js; proposal color-cycle-lights, after Mark Ferrari): the bulbs down a blade's edges and
+     along the hero screen's marquee are baked at warm-up into two strips, one column (blades) or row (marquee) per bulb spacing and per haze
+     step fc can give the bulb (q 0..10 of 24), with the chase as rotating palette slots. A row of bulbs is then one drawImage at 1:1 canvas
+     pixels instead of a fillRect per bulb, the same pixels in the same places on the same 110 / 90 ms steps. When the street's fog colour
+     moves, the palette is swapped and a column is re-baked in place (a few hundred pixels) the first time it is drawn again. Spacings past
+     the strips (a blade right at the camera) and ?cyc=0 keep the per-bulb path. */
+  const VCN0 = 3, VCN = 24, HCN0 = 2, HCN = 12, CQ = 11, VCH = 480, HCW = 640; let VC = null, HC = null, CYLOW = '', CYV = 1; const VCV = new Int32Array(VCN * CQ), HCV = new Int32Array(HCN * CQ);
+  const cyPal = (base, per, o) => { o = o || ['#0000']; for(let q = 0; q < CQ; q++){ o[1 + q * per] = '#0000'; for(let j = 1; j < per; j++) o[1 + q * per + j] = fc(base, q / 24); } return o; };
+  function chaseBuild(){ if(VC || !window.CYCLE) return; const rng = per => { const r = []; for(let q = 0; q < CQ; q++) r.push([1 + q * per, per + q * per, -1]); return r; };
+    { const w = VCN * CQ, idx = new Uint8Array(w * VCH); for(let q = 0; q < CQ; q++) for(let n = 0; n < VCN; n++){ const x = q * VCN + n, st = n + VCN0; for(let k = 0; k * st < VCH; k++) idx[k * st * w + x] = 1 + q * 3 + k % 3; }
+      VC = CYCLE.make({ w, h:VCH, idx, pal:cyPal('#fff2b0', 3), ranges:rng(3), ms:110 }); }
+    { const h = HCN * CQ, idx = new Uint8Array(HCW * h); for(let q = 0; q < CQ; q++) for(let n = 0; n < HCN; n++){ const y = q * HCN + n, st = n + HCN0; for(let k = 0; k * st < HCW; k++) idx[y * HCW + k * st] = 1 + q * 4 + k % 4; }
+      HC = CYCLE.make({ w:HCW, h, idx, pal:cyPal('#ffb02a', 4), ranges:rng(4), ms:90 }); }
+    CYLOW = fogLow; VCV.fill(CYV); HCV.fill(CYV); }
+  function cySync(){ if(CYLOW === fogLow) return; CYLOW = fogLow; CYV++; VC.recolor(cyPal('#fff2b0', 3, {}), 0, 0); HC.recolor(cyPal('#ffb02a', 4, {}), 0, 0); }   // (a new fog colour: new slots now, columns re-baked as they are used)
+  const cyQ = () => Math.round(clamp(FF * .4, 0, 1) * 24);   // the haze step fc(c, FF * .4) uses
+  // a column of chasing bulbs: the left edge x, the first bulb's top y, bulbs every step while under len (canvas units); false: not handled
+  function chaseV(x, y, len, step, now){ const n = Math.round(step / PX) - VCN0; if(!VC || CYCLE.off || n < 0 || n >= VCN) return false; if(!(x > -PX * 2 && x < W + PX)) return true;
+    cySync(); const col = cyQ() * VCN + n, st = n + VCN0, x0 = Math.round(x / PX), top = Math.round(y / PX), rows = cv.height;
+    let k0 = Math.max(0, Math.ceil(-top / st)); k0 -= k0 % 3; const k1 = Math.min(Math.ceil(len / step), Math.floor((rows - 1 - top) / st) + 1); if(k1 <= k0) return true;
+    const sy = k0 * st, sh = Math.min(VCH - sy, (k1 - 1 - k0) * st + 1); if(sh <= 0) return true;
+    if(VCV[col] !== CYV){ VCV[col] = CYV; VC.recolor(null, col, 1); }
+    cx.drawImage(VC.cv, VC.sx(now) + col, sy, 1, sh, x0 * PX, (top + sy) * PX, PX, sh * PX); return true; }
+  // a row of chasing bulbs: the first bulb's left x, top y, bulbs every step while under len
+  function chaseH(x, y, len, step, now){ const n = Math.round(step / PX) - HCN0; if(!HC || CYCLE.off || n < 0 || n >= HCN) return false; if(!(y > -PX * 2 && y < H + PX)) return true;
+    cySync(); const row = cyQ() * HCN + n, st = n + HCN0, y0 = Math.round(y / PX), left = Math.round(x / PX), cols = cv.width, per = Math.floor((HCW - 1) / (st * 4)) * 4;
+    let k0 = Math.max(0, Math.ceil(-left / st)); k0 -= k0 % 4; const k1 = Math.min(Math.ceil(len / step), Math.floor((cols - 1 - left) / st) + 1); if(k1 <= k0 || per < 4) return true;
+    if(HCV[row] !== CYV){ HCV[row] = CYV; HC.recolor(null, 0, HCW, row, 1); }
+    const fx = HC.sx(now); for(let k = k0; k < k1; k += per){ const kn = Math.min(k1, k + per), sw = (kn - 1 - k) * st + 1; cx.drawImage(HC.cv, fx, row, sw, 1, (left + k * st) * PX, y0 * PX, sw * PX, PX); }   // (a piece starts on a multiple of four bulbs, so the chase's phase carries across)
+    return true; }
   function blades(B, j, n, now){ const Lb = B.bl; if(!Lb.length || AKX.includes('blade')) return; for(let q = 0; q < Lb.length; q++){ const b = Lb[q], z = B.b0 + b.z; if(z >= j && z < j + n) blade(B, b, z, now); } }
   function blade(B, b, z, now){ if(!CF(z + .5)) return; const A = b.ban !== undefined ? ART.ban[b.ban] : b.plate ? ART.plate[b.ic * PAN.length + b.p] : null; if(A) return bladeArt(B, b, z, now, A);
     const side = B.side, lx = laneP(Math.floor(z)), Xo = side * (B.x0 - .03) + lx, Xi = Xo - side * b.pr, u = CFU;
@@ -1073,6 +1103,7 @@
     else if(cell > PX * 2.5) for(let c = 0; c < m; c++){ const yc = CFY - (ht - (c + .5) * (ht - hb) / m) * u; cx.fillStyle = F('#141018'); pxRect(xm - cell * .25, yc - cell * .12, cell * .5, Math.max(PX, cell * .24)); }
     if(b.chase && ON && pw >= PX * 6){ // chasing bulbs down both edges of the arcade's blade (steady, every other bulb, under reduced motion)
       const step = Math.max(PX * 3, snp(ph / 22)), ph0 = reduce ? 0 : Math.floor(now / 110); cx.fillStyle = fc('#fff2b0', FF * .4);
+      if(chaseV(CFX + Xi * u - PX / 2, CFY - ht * u, ph, step, now)){ chaseV(CFX + (Xo - side * .05) * u - PX / 2, CFY - ht * u, ph, step, now); return; }   // (colour cycling: a strip per edge)
       for(let yy = 0, k = 0; yy < ph; yy += step, k++) if((k + ph0) % 3 !== 0) for(const X of [Xi, Xo - side * .05]){ const xx = CFX + X * u; if(xx > -PX && xx < W + PX) pxRect(xx - PX / 2, CFY - ht * u + yy, PX, PX); } } }
   /* A blade as a picture (round 4): a character banner or a tenant plate, a lightbox standing off the wall on two steel brackets (each
      blade its own offset, so the stack has depth), its edge seen as a strip of the box's side, a bezel with a lit top, the shadow it throws
@@ -1092,6 +1123,7 @@
     R(left - t, top - t, aw + t * 2, ah + t * 2, F('#16121c')); art(A, left, top, k);
     if(pw >= PX * 5) R(left - t, top - t, aw + t * 2, PX, ON ? fc(mixc(A.avg, '#ffffff', .6), FF * .5) : F('#1c1a24'));   // the bezel's lit top
     if(b.chase && ON && pw >= PX * 6){ const step = Math.max(PX * 3, snp(ah / 22)), ph0 = reduce ? 0 : Math.floor(now / 110); cx.fillStyle = fc('#fff2b0', FF * .4);
+      if(chaseV(left - t, top, ah, step, now)){ chaseV(left + aw + t - PX, top, ah, step, now); return; }   // (colour cycling: a strip per edge)
       for(let yy = 0, q = 0; yy < ah; yy += step, q++) if((q + ph0) % 3 !== 0) for(const xx of [left - t, left + aw + t - PX]) if(xx > -PX && xx < W + PX) pxRect(xx, top + yy, PX, PX); } }
   /* The roof billboard (round 4): key art or a brand block on a steel lattice, its bezel, three spotlights on arms throwing a warm wash down
      its top (the references' boards are front-lit, not backlit). */
@@ -1130,6 +1162,7 @@
     // under it, a marquee strip of amber bulbs chasing (steady under reduced motion)
     const th = Math.max(PX * 2, snp(sh * .07)), my = sy + sh + t; R(sx - t, my, sw + t * 2, th + PX * 2, F('#141220'));
     if(ON && th >= PX * 2){ const st = Math.max(PX * 2, snp(th * .8)), ph0 = reduce ? 0 : Math.floor(now / 90), by = my + PX + snp((th - PX) / 2); cx.fillStyle = fc('#ffb02a', FF * .4);
+      if(chaseH(sx, by, sw, st, now)) return;   // (colour cycling: one strip)
       for(let xx = sx, q = 0; xx < sx + sw; xx += st, q++) if((q + ph0) % 4) pxRect(xx, by, PX, PX); } }
   function endWall0(B, x, y, uw, now){ if(AKX.includes('end')) return; const side = B.side, dx = side * B.depth * uw, xl = Math.min(x, x + dx), wd = Math.abs(dx), h1 = Math.min(B.h, y / Math.max(uw, .01) + .1); if(h1 <= 0 || wd < 1 || !fin(xl + wd)) return;
     if(xl > W + PX || xl + wd < -PX) return; const S = B.S;
@@ -1643,12 +1676,12 @@
     if(AKX.includes('cnt') && !warmSteps.cnt){ warmSteps.cnt = true; const f0 = cx.fillRect; cx.fillRect = function(){ AKC[CAT] = (AKC[CAT] || 0) + 1; return f0.apply(this, arguments); }; }
     if(!ATL){ ATL = mk(1024, 1); AG = ATL.getContext('2d'); SC = mk(80, 80); SG = SC.getContext('2d', { willReadFrequently:true }); TK = mk(2048, 16); } yield;
     yield* buildTextG(); yield* artSteps(); if(!FONT){ try{ if(document.fonts && document.fonts.load) document.fonts.load('16px DotGothic16').then(() => { if(!FONT) buildText(); }, () => {}); }catch(e){} } yield;
-    buildStrips(); yield; buildPeople(); buildProps(); yield;
+    buildStrips(); yield; buildPeople(); buildProps(); yield; chaseBuild(); yield;
     if(ENV.akibaAds && ENV.akibaAds.warmSteps) yield* ENV.akibaAds.warmSteps();
     { const f = adFrame('whale', 0); if(f && f.c){ upW(f.c); yield; try{ cx.save(); cx.globalAlpha = .004; cx.drawImage(f.c, 0, 0, 1, 1); cx.restore(); }catch(e){ try{ cx.restore(); }catch(e2){} } } } yield; buildRain(); yield; upW(RSH[2][3]); yield; yield* hazeWarm(); yield;
     try{ if(typeof MUSIC !== 'undefined' && MUSIC.ROAD_THEME && !MUSIC.ROAD_THEME[KEY]) MUSIC.ROAD_THEME[KEY] = 'neon'; }catch(e){}
     // (perf pass: one texture upload per step, the clear in its own: the single final step of all of them cost 400+ ms on a re-run)
-    for(const c of [ATL, TK, FAR, MID, MIDD].concat(PEOPLE, PROPS, RSH ? [].concat(...RSH, ...RSHT) : [])){ if(!c) continue; upW(c); yield; try{ cx.save(); cx.globalAlpha = .004; cx.drawImage(c, 0, 0, 1, 1); cx.restore(); }catch(e){ try{ cx.restore(); }catch(e2){} } yield; }
+    for(const c of [ATL, TK, FAR, MID, MIDD, VC && VC.cv, HC && HC.cv].concat(PEOPLE, PROPS, RSH ? [].concat(...RSH, ...RSHT) : [])){ if(!c) continue; upW(c); yield; try{ cx.save(); cx.globalAlpha = .004; cx.drawImage(c, 0, 0, 1, 1); cx.restore(); }catch(e){ try{ cx.restore(); }catch(e2){} } yield; }
     try{ cx.save(); cx.globalAlpha = .004; cx.fillStyle = ditherPat('#235250', .25); cx.fillRect(0, 0, PX, PX); cx.restore(); }catch(e){ try{ cx.restore(); }catch(e2){} } yield;
     cx.clearRect(0, 0, W, H); }
 

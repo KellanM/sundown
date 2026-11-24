@@ -380,9 +380,21 @@
     if(s.fx_xs === 2 && a.y - b.y >= 1){ cx.fillStyle = mixc('#d8d0c0', '#3a1a40', fog * .7); const yy = sn((a.y + b.y) / 2), hh = Math.max(PX, sn((a.y - b.y) * .25));
       for(const sd of [-1, 1]) for(let q = 0; q < 8; q++){ const x0 = a.x + sd * a.w * (1.25 + q * .6), x1 = a.x + sd * a.w * (1.55 + q * .6); if(Math.min(x0, x1) > W || Math.max(x0, x1) < 0) continue; cx.fillRect(sn(Math.min(x0, x1)), yy, sn(Math.abs(x1 - x0)), hh); } } }
 
+  /* The strings by colour cycling (ui/cycle.js CYCLE.chain; proposal color-cycle-lights): the eleven chochin and their glows are one layer
+     from a ladder of pre-rasterised sizes (three ladders, for the three ways the red and white lanterns fall along a string), so a string is
+     its cord plus two drawImages instead of eleven blits and thirty-three glow arcs. The paper is a cycling ramp one step apart from lantern
+     to lantern: a slow warm swell runs along the string (1.2 s round, a shade either side of the old colour). Reduced motion holds one frame. */
+  const LCH = [];
+  function lanternChains(){ if(LCH.length || !window.CYCLE) return; const H3 = (g, x, y, r, col, a) => { const [R, G, B] = hx(col);
+      if(r <= 1.2){ g.fillStyle = `rgba(${R},${G},${B},${Math.min(1, a * .5)})`; g.fillRect(Math.round(x) - 1, Math.round(y) - 1, 2, 2); return; }   // (as the core's glow: a tiny halo is a 2x2 square)
+      for(let i = 0; i < 3; i++){ g.fillStyle = `rgba(${R},${G},${B},${a * GLOW_W[i]})`; g.beginPath(); g.arc(x, y, Math.max(1, r * GLOW_F[i]), 0, 6.283); g.fill(); } };
+    try{ for(let o = 0; o < 3; o++) LCH.push(CYCLE.chain({ sprites:[chochin(0), chochin(1)], kind:j => (j + o) % 3 === 1 ? 1 : 0, n:11, span:3.5, sag:.3, kU:.16 / 7, drop:11, ms:200,
+        ramps:[{ '#ee3a2a':['#ee3a2a', '#f4443a', '#fa5040', '#f4443a', '#ee3a2a', '#de3428'] }, { '#fff6e4':['#fff6e4', '#fffaee', '#fffff8', '#fffaee', '#fff6e4', '#f4e8d0'] }],
+        glow:{ r:.13, dy:5, cols:['#ff6a3a', '#fff0d0'], a:.42, first:true, paint:H3 } })); }catch(e){ console.warn('festival lantern chains', e); LCH.length = 0; } }
   function drawString(s, sx0, sy0, uw, fog, now){ if(uw < 3) return; const x0 = sx0 - uw * 1.75, x1 = sx0 + uw * 1.75, ya = sy0 - uw * 1.7, sag = uw * .3, n = 11, a = 1 - fog * .7;
     cx.fillStyle = '#0c0812'; const nq = uw > 60 ? 22 : 8; for(let q = 0; q <= nq; q++){ const t = q / nq; cx.fillRect(sn(x0 + (x1 - x0) * t), sn(ya + sag * 4 * t * (1 - t)), Math.ceil((x1 - x0) / nq / PX + 1) * PX, PX); }
     const k = uw * .16 / 7, sw = reduce ? 0 : Math.sin(now / 700 + s.index) * uw * .008;
+    { const ch = LCH[s.index % 3]; if(ch && !CYCLE.off && ch.draw(cx, now, sx0, ya, uw, a, fog < .5 ? a : 0, sw)) return; }   // the chochin and their glows as one colour-cycled layer (ui/cycle.js); the cord above stays exact
     for(let j = 0; j < n; j++){ const t = (j + .5) / n, lx = x0 + (x1 - x0) * t + sw, ly = ya + sag * 4 * t * (1 - t) + 11 * k, v = (j + s.index) % 3 === 1 ? 1 : 0;
       if(fog < .5) glow(lx, ly - 5 * k, uw * .13, v ? '#fff0d0' : '#ff6a3a', .42 * a); cx.globalAlpha = a; blitF(chochin(v), lx, ly, k, false); cx.globalAlpha = 1; } }
 
@@ -473,6 +485,7 @@
       if(reduce || !CUR_SHOW) return; let best = null, br = 0; for(const b of bursts){ const a = (beat - b.tb) * SPB; if(a >= 0 && a < .3 && b.R > br){ br = b.R; best = b; } }
       if(!best) return; const a = (beat - best.tb) * SPB; cx.globalCompositeOperation = 'lighter'; cx.fillStyle = best.pal[1]; cx.globalAlpha = (a < .1 ? .08 : .04) * clamp(best.R / (40 * unitC()), .3, 1); cx.fillRect(0, 0, W, H); cx.globalAlpha = 1; cx.globalCompositeOperation = 'source-over'; },
     warm(){ SPB = 60 / BPM; for(let f = 0; f < 2; f++){ nebuta(f); bearers(f); haneto(f); for(let v = 0; v < 4; v++) crowd(v, f); farWall(f); chochin(f); }
+      lanternChains(); for(const ch of LCH){ C['lch' + LCH.indexOf(ch)] = ch.body.cv; C['lchg' + LCH.indexOf(ch)] = ch.glow; }   // (in C, so the upload pass below draws them once)
       for(let f = 0; f < 3; f++){ taiko(f); smoke(f); } cache('nebR', () => reflOf(nebuta(0)));
       for(const n of [16, 24, 40, 56, 72]) for(let v = 0; v < 2; v++) dirs(n, v); for(const k in FP) for(let n = 0; n < HALO_R.length; n++) halo(FP[k][1], n); for(let n = 0; n < HALO_R.length; n++) halo('#ffffff', n);
       cx.save(); cx.setTransform(1, 0, 0, 1, 0, 0); for(const k in C){ const c = C[k]; if(c && c.getContext) cx.drawImage(c, 0, 0, 1, 1); } cx.restore(); }
