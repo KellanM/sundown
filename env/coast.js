@@ -538,6 +538,7 @@
   function runC(k, fog){ const b0 = k - Math.round(DRAW_N * Math.pow(fog, 1 / 1.6)); if(k % spanC(k, b0)) return 0; let e = k + 1; while(e < k + 6 && e % spanC(e, b0)) e++; return e - k; }
   function drawWall(sp, x, y, uw, fog){ const s = segs[sp.k], nS = runC(sp.k, fog); if(!s || !nS) return; const t = segs[sp.k + nS - 1], qq = t && t.p2.screen.w ? t.p2 : s.p2, q = qq.screen; if(!q.scale) return; const fx = q.x + sp.x * q.w, fy = q.y;   // (no cull when the far end sits lower: over a crest the face still stands above the road, and it vanished)
     const n = segs[sp.k + nS], w1 = wallH(s), w2 = n && n.coR !== undefined ? wallH(n) : w1, h = uw * w1, fh = q.w * w2; if(h < .4 && fh < .4) return;
+    if(Math.min(y - h - uw * .25, fy - fh - q.w * .25) >= s.clip) return;   // (wholly behind a crest, railing included: every pixel would be clipped)
     const lit = (s.lit || 0) * .6, cw = uw * CAPW * s.coR, fcw = q.w * CAPW * (n && n.coR !== undefined ? n.coR : s.coR);
     poly(x, y + 1, x, y - h, fx, fy - fh, fx, fy + 1, fc(mixc(CONC.M, '#5a7488', lit), fog));
     if(fog < .6 && h > PX * 3){ // a darker tide band low on the face, and the board-formwork seam across the middle
@@ -557,6 +558,7 @@
   function drawRail(sp, x, y, uw, fog){ const s = segs[sp.k], nS = runC(sp.k, fog); if(!s || !nS) return; const t = segs[sp.k + nS - 1], nx = t && t.p2.screen.w ? t.p2 : s.p2, p = nx.screen; if(!p.w) return;
     const e1 = clamp(s.coR * 6, 0, 1), e2 = t ? clamp((t.coR !== undefined ? t.coR : s.coR) * 6, 0, 1) : e1;   // the end terminal slopes down to the ground
     const x2 = p.x + sp.x * p.w, y2 = p.y, u2 = p.w, h1 = uw * .17 * e1, h2 = u2 * .17 * e2, t1 = Math.max(PX, uw * .07), t2 = Math.max(PX, u2 * .07);
+    if(Math.min(y - h1 - t1, y2 - h2 - t2) >= s.clip) return;   // (wholly behind a crest)
     if(sp.post && e1 > .5){ cx.fillStyle = fc(RAIL.post, fog); cx.fillRect(x - uw * .012, y - h1 - t1 * .2, Math.max(PX, uw * .025), h1 + t1 * .2); }
     if(fog > .25){ const l = Math.min(x, x2), r = Math.max(x, x2), tp = Math.min(y - h1, y2 - h2), bt = Math.max(y - h1 + t1, y2 - h2 + t2); cx.fillStyle = fc(fog > .45 ? RAIL.top : RAIL.body, fog); cx.fillRect(l, tp, Math.max(PX, r - l), Math.max(PX, bt - tp)); if(fog <= .45){ cx.fillStyle = fc(RAIL.top, fog); cx.fillRect(l, tp, Math.max(PX, r - l), PX); } return; }
     poly(x, y - h1, x2, y2 - h2, x2, y2 - h2 + t2, x, y - h1 + t1, fc(RAIL.body, fog));

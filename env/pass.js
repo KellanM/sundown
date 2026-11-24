@@ -285,6 +285,15 @@
   // the slope above the cut: summit height over the crest (x the cliff profile h, in half-road widths), smooth along the road
   const HD = 2.2, HB = 4, hillS = k => .5 + .8 * vn(k * .022 + 3.7) + .3 * vn(k * .061 + 9.1);
   const HILL = { d:'#071012', m:'#0b181b', l:'#112326', rims:['#1c3234', '#2c4648', '#456a6a', '#6a9294'] };
+  // cedar tips for the forest shoulder's top edge: a tileable strip twice TIPW wide, so any TIPW-wide window of it is whole
+  const TIPW = 96, TIPH = 12; let TIPS = null;
+  function tipStrip(){ if(TIPS) return TIPS; const c = document.createElement('canvas'); c.width = TIPW * 2; c.height = TIPH; const k = c.getContext('2d');
+    for(let x0 = 0; x0 < TIPW; ){ const w = 5 + (hash(x0 * 1.7) * 4 | 0), h = 4 + (hash(x0 * 2.9) * (TIPH - 5) | 0), cxm = x0 + w / 2;
+      for(let r = 0; r < h; r++){ const half = Math.max(.5, (r + 1) / h * w / 2), l = Math.round(cxm - half), rr = Math.round(cxm + half), y = TIPH - h + r;
+        for(const o of [0, TIPW]){ k.fillStyle = HILL.m; k.fillRect(l + o, y, rr - l, 1); k.fillStyle = HILL.l; k.fillRect(l + o, y, 1, 1); if(r % 3 === 2){ k.fillStyle = HILL.d; k.fillRect(Math.round(cxm) + o, y, rr - Math.round(cxm), 1); } } }
+      for(const o of [0, TIPW]){ k.fillStyle = HILL.rims[1]; k.fillRect(Math.round(cxm) + o, TIPH - h, 1, 1); }
+      x0 += w - 1 - (hash(x0 * 4.1) * 2 | 0); }
+    k.fillStyle = HILL.m; k.fillRect(0, TIPH - 1, TIPW * 2, 1); return TIPS = c; }
   const HQ = [], hillTone = q => HQ[q] || (HQ[q] = [mixc(HILL.m, HILL.d, q / 4), mixc(HILL.m, HILL.l, q / 4)]);   // the slope's underside and lit top, q/4 of the way out of the mid tone
   // huge off-screen coordinates (slices right beside the camera) push the canvas onto its slow path renderer, so clamp them well outside the view
   const CL = (v, lo, hi) => v < lo ? lo : v > hi ? hi : v;
@@ -316,6 +325,7 @@
     const H1 = uw * WALLH * sh, H2 = u2 * WALLH * sh2, L1 = side * uw * LEAN * sh, L2 = side * u2 * LEAN * sh2;
     WX = x; WY = y; WX2 = x2; WY2 = y2; WL1 = L1; WL2 = L2; WH1 = H1; WH2 = H2; WFOG = fog; WLOW = low;   // the slice's face, for wBand / wP / wSeep
     const tx1 = x + L1, ty1 = y - H1, tx2 = x2 + L2, ty2 = y2 - H2;
+    if(Math.min(ty1 - uw * hillS(k) * sh, ty2 - u2 * hillS(k + n) * sh2) - uw * .3 >= s.clip) return;   // (wholly behind a crest: under the nearer road, every pixel would be clipped)
     // the mountain behind the cut (studied: Snow Onsen's banks, Irohazaka's slopes): a forested slope that rises from the rock's crest to a
     // summit line HD road half-widths further out. Its height is smooth world-anchored noise (no per-slice randomness), so the skyline is
     // one continuous ridge that grows out of the shoulder where the cliff starts and sinks back where it ends. Shaded like the backdrop
@@ -325,7 +335,10 @@
       // lip): a wooded shoulder HB road half-widths deeper (near by that is past the screen edge). It used to stop at the summit line, so the
       // ground (or the sky, above the farthest road) showed through past the slope's front top (Kellan, 2026-11-23: hills missing geometry in the
       // front top parts, after the pass's jump). Not to the screen edge at every distance: a far ridge's shoulder would hide the ranges behind it.
-      { const o1 = ty1 - s1, o2 = ty2 - s2; if(o1 > o2 + .5) poly(e1, o1, e2, o2, e2 + side * u2 * HB, o2, e1 + side * uw * HB, o1, fc(HILL.m, fog, low)); }
+      { const o1 = ty1 - s1, o2 = ty2 - s2; if(o1 > o2 + .5){ poly(e1, o1, e2, o2, e2 + side * u2 * HB, o2, e1 + side * uw * HB, o1, fc(HILL.m, fog, low));
+        // its top edge breaks into cedar tips (a strip baked at warm-up, world-anchored by the slice), so the shoulder reads as forest, not a plateau
+        if(fog < .14 && TIPS){ const kp = Math.max(PX, Math.round(u2 * .045 / PX) * PX), sw = Math.min(TIPW, Math.ceil(u2 * HB / kp)), sx = (k * 37) % TIPW, dx = side > 0 ? e2 : e2 - sw * kp;
+          cx.globalAlpha = Math.min(1, (.14 - fog) * 25); cx.drawImage(TIPS, sx, 0, sw, TIPH, Math.round(dx / PX) * PX, Math.round((o2 - (TIPH - 1) * kp) / PX) * PX, sw * kp, TIPH * kp); cx.globalAlpha = 1; } } }
       // (the dark underside and lit top grow out of the mid tone over fog .3 to .22 in four steps (hillTone), instead of switching on at once
       // across the whole slope as each slice crossed fog .3: far slopes changed shade in blocks as you rode)
       if(fog > .3) hillQ(tx1, ty1, tx2, ty2, e1, e2, s1, s2, 0, 1, HILL.m, fog, low); else { const T = hillTone(Math.min(4, Math.round((.3 - fog) * 50))); hillQ(tx1, ty1, tx2, ty2, e1, e2, s1, s2, 0, .3, T[0], fog, low); hillQ(tx1, ty1, tx2, ty2, e1, e2, s1, s2, .3, .74, HILL.m, fog, low); hillQ(tx1, ty1, tx2, ty2, e1, e2, s1, s2, .74, 1, T[1], fog, low); }
@@ -563,16 +576,26 @@
      behind the rail out to the screen edge, three canopy bands, darker toward the valley and hazed there (the valley mist), and near by a few
      world-anchored crowns with a moonlit cap, so the canopy has depth and moves with the road. Drawn in the road pass, under every prop. */
   const CAN = { a:'#0c1816', b:'#0a1414', c:'#070e10', crown:'#12221f', cap:'#24403e' };
-  function canopy(s, a, b, fog){ if(!a.w || !b.w) return; let ax = a.x, ay = a.y, aw = a.w; const by = b.y, bx = b.x, bw = b.w, cl = s.clip;
+  /* Far away a segment is a row or two, so one quad each cost a fill per segment: there the field quads of consecutive segments that share a
+     colour and touch are merged into one run (up to 8 segments or 6 pixel rows; the rail's edge is a chord across it, under a pixel off), and a
+     run is drawn when the next one starts. The last run of the road pass is drawn by the first prop of the sprite pass (runFlush in draw):
+     every prop is drawn after the road pass, and the far run lies beyond them all. */
+  const RUN = [{ on:false }, { on:false }]; let RUNF = -1;
+  function runEmit(R){ if(!R.on) return; R.on = false; poly(R.nx, R.ny, R.ex, R.ny, R.ex, R.fy, R.fx, R.fy, R.col); }
+  function runQ(sd, col, xa, ya, xb, yb, ex, f){ if(f !== RUNF){ RUNF = f; RUN[0].on = RUN[1].on = false; } const R = RUN[sd < 0 ? 0 : 1];
+    if(R.on && R.col === col && Math.abs(R.fy - ya) < .5 && R.n < 8 && R.ny - yb < PX * 6){ R.fx = xb; R.fy = yb; R.n++; return; }
+    runEmit(R); R.on = true; R.col = col; R.nx = xa; R.ny = ya; R.fx = xb; R.fy = yb; R.ex = ex; R.n = 1; }
+  function runFlush(){ runEmit(RUN[0]); runEmit(RUN[1]); }
+  function canopy(s, a, b, fog, now){ if(!a.w || !b.w) return; let ax = a.x, ay = a.y, aw = a.w; const by = b.y, bx = b.x, bw = b.w, cl = s.clip;
     if(ay > cl){ const t = (ay - cl) / (ay - by); ax += (bx - ax) * t; aw += (bw - aw) * t; ay = cl; }   // (only the rows the nearer road left open, as the ground fill)
     if(!(ay - by >= .5)) return; const low = FOG_COL || fogLow, i = s.index, fm = Math.max(fog, .3); if(!low) return;   // (the road pass's haze colour, sk.low: set before the road is drawn)
     for(let sd = -1; sd <= 1; sd += 2){ const ex = sd < 0 ? -4 : W + 4, x0a = ax + sd * 1.12 * aw, x0b = bx + sd * 1.12 * bw; if(sd < 0 ? x0a < ex && x0b < ex : x0a > ex && x0b > ex) continue;
-      if(fog > .35){ poly(x0a, ay, ex, ay, ex, by, x0b, by, fc(CAN.b, fm, low)); continue; }
+      if(fog > .35){ if(s.bm < 1 && s.bA !== s.bB) poly(x0a, ay, ex, ay, ex, by, x0b, by, fc(CAN.b, fm, low)); else runQ(sd, fc(CAN.b, fm, low), x0a, ay, x0b, by, ex, now); continue; }   // (in a border blend the other road's far props may draw before ours: no deferred run there)
       const x2a = ax + sd * 3.6 * aw, x2b = bx + sd * 3.6 * bw;   // (two bands: the canopy below the rail, and the hazed valley beyond)
       poly(x0a, ay, x2a, ay, x2b, by, x0b, by, fc(i % 2 ? CAN.a : CAN.b, fog, low)); poly(x2a, ay, ex, ay, ex, by, x2b, by, fc(CAN.c, fm, low));
-      if(fog > .2 || aw < 40) continue;
-      for(let j = 0; j < 3; j++){ const h = hash(i * 3.7 + j * 1.31 + sd * .71), X = 1.35 + h * 3, t = hash(i * 5.3 + j * 2.9 + sd), w = aw + (bw - aw) * t, x = ax + (bx - ax) * t + sd * X * w, y = ay + (by - ay) * t, u = w * (.12 + .1 * hash(i * 1.9 + j + sd * 3));
-        if(u < PX * 3) continue; cx.fillStyle = fc(CAN.crown, X > 3.6 ? fm : fog, low); pxRect(x - u / 2, y - u * .3, u, u * .3); pxRect(x - u * .32, y - u * .42, u * .64, u * .14); cx.fillStyle = fc(CAN.cap, X > 3.6 ? fm : fog, low); pxRect(x - u * .2, y - u * .42, u * .4, PX); } } }
+      if(fog > .2 || aw < 60) continue;
+      for(let j = 0; j < 2; j++){ const h = hash(i * 3.7 + j * 1.31 + sd * .71), X = 1.35 + h * 2.2, t = hash(i * 5.3 + j * 2.9 + sd), w = aw + (bw - aw) * t, x = ax + (bx - ax) * t + sd * X * w, y = ay + (by - ay) * t, u = w * (.12 + .1 * hash(i * 1.9 + j + sd * 3));
+        if(u < PX * 3) continue; cx.fillStyle = fc(CAN.crown, fog, low); pxRect(x - u / 2, y - u * .3, u, u * .3); pxRect(x - u * .32, y - u * .42, u * .64, u * .14); cx.fillStyle = fc(CAN.cap, fog, low); pxRect(x - u * .2, y - u * .42, u * .4, PX); } } }
   ENV.pass = {
     // build every sprite (both moon sides) up front so crossing into the pass never stalls on cache building
     warm(){ for(const _ of ENV.pass.warmSteps()); },
@@ -580,7 +603,7 @@
     // the game-canvas part (uploads, the backdrop sweep) is cut into steps that each restore the canvas state before yielding (a slice runs just
     // after a frame is shown, and the next frame paints over whatever it drew)
     *warmSteps(){ for(const d of [-1, 1]){ for(let v = 0; v < 3; v++){ sugi(v, d); yield; } kusu(0, d); kusu(1, d); yield; toro(d); jizo(d); torii(d); yield; sakura(d); chevron(d); yield; }
-      for(let v = 0; v < 6; v++) rockSpr(v); for(let v = 0; v < 3; v++) tuftSpr(v); yield; for(let v = 0; v < 6; v++){ rockHi(v, 2); rockHi(v, 4); } yield; signSpr(-1); signSpr(1); mirrorSpr(); yield; mirrorHi(2); mirrorHi(4); yield; for(const d of [-1, 1]) for(const R of [2, 4]){ toriiHi(d, R); yield; sakuraHi(d, R); signHi(d, R); yield; }
+      for(let v = 0; v < 6; v++) rockSpr(v); tipStrip(); for(let v = 0; v < 3; v++) tuftSpr(v); yield; for(let v = 0; v < 6; v++){ rockHi(v, 2); rockHi(v, 4); } yield; signSpr(-1); signSpr(1); mirrorSpr(); yield; mirrorHi(2); mirrorHi(4); yield; for(const d of [-1, 1]) for(const R of [2, 4]){ toriiHi(d, R); yield; sakuraHi(d, R); signHi(d, R); yield; }
       const up = c => { cx.drawImage(c, 0, 0, PX, PX); cx.drawImage(c, 0, 0, c.width * PX, c.height * PX); }; if(document.fonts && document.fonts.load) document.fonts.load('16px DotGothic16').then(() => { try{ plate(); plateTexts(); }catch(e){} }, () => {});   // the road-name plate needs the pixel font: build it as soon as the font is in, not when first seen   // draw each once so the GPU texture upload happens now, not mid-ride
       // (first 60 s, research/sundown-craft/first60.md: the upload pass in four steps, each its own save/restore, so the ride can take it)
       for(const d of [-1, 1]){ cx.save(); for(let v = 0; v < 3; v++) up(sugi(v, d)); up(kusu(0, d)); up(kusu(1, d)); up(toro(d)); up(jizo(d)); up(torii(d)); up(sakura(d)); up(chevron(d)); cx.restore(); yield; }
@@ -598,7 +621,7 @@
     // the landmark jump keeps the roadside (setpiece/jump.js keepSides): the guard rail stands at 1.12, inside the default keep line
     jumpKeep:sp => sp.type === 'rail' ? true : undefined,
     lit:(i, s) => s.passLit || 0,
-    draw(sp, x, y, uw, fog, now, sk){ if(sk.low !== fogLow){ fogLow = sk.low; FC.clear(); } const f = DRAW[sp.type]; if(f) f(sp, x, y, uw, fog, now); },
+    draw(sp, x, y, uw, fog, now, sk){ if(RUN[0].on || RUN[1].on) runFlush(); if(sk.low !== fogLow){ fogLow = sk.low; FC.clear(); } const f = DRAW[sp.type]; if(f) f(sp, x, y, uw, fog, now); },
     backdrop(o){ const { hz, sk, now, moonX, moonY, t } = o; passNow = now; if(!gateHooked) hookGate(); const dawn = clamp((t - .7) / .3, 0, 1), moonCol = mixc('#dfe8f0', '#ffb070', dawn);
       const teal = c => mixc(c, '#0c2a34', .22);
       const c0 = mixc('#2a4660', sk.low, .3), c1 = mixc('#1a3044', sk.low, .22), c2 = mixc('#0e1c28', sk.low, .14), c3 = mixc('#060c12', sk.low, .08);
@@ -614,7 +637,7 @@
       treeline(skyPar('edge'), hz + PX, c3, mixc(c3, moonCol, .45), moonX);
       return false; },
     // the headlight: a warm pool on the road ahead of the bike, in hard steps, under the traffic
-    roadFX(s, a, b, fog, f, now){ canopy(s, a, b, fog); if(a.y < H * .6) return; const lv = a.y > H * .8 ? .08 : a.y > H * .7 ? .055 : .03, wa = a.w * .42, wb = b.w * .42;
+    roadFX(s, a, b, fog, f, now){ canopy(s, a, b, fog, now); if(a.y < H * .6) return; const lv = a.y > H * .8 ? .08 : a.y > H * .7 ? .055 : .03, wa = a.w * .42, wb = b.w * .42;
       cx.globalCompositeOperation = 'lighter'; poly(W / 2 - wa, a.y, W / 2 + wa, a.y, W / 2 + wb, b.y, W / 2 - wb, b.y, `rgba(255,236,200,${lv})`); cx.globalCompositeOperation = 'source-over'; },
     // headlight-lit fog: a faint beam of dithered motes ahead of the bike, only where it rakes the near road
     overlay(al, now, sk){ const bs = Math.min(W * .2, H * .27), by = snap(H - bs * .62), top = snap(H * .6); cx.globalCompositeOperation = 'lighter';
