@@ -263,7 +263,7 @@
       const ea = vn(k * 1.37 - fl + sd), eb = vn((k + 1) * 1.37 - fl + sd), ga = vn(k * 1.61 - fl * 1.2 + sd + 40), gb = vn((k + 1) * 1.61 - fl * 1.2 + sd + 40);
       const ra = JR[k] * fa, rb = JR[k + 1] * fb, ua = ra * (wt + at * ea), ub = rb * (wt + at * eb), da = ra * (wb + ab * ga), db = rb * (wb + ab * gb);
       poly(JX[k] + JA[k] * ua, JY[k] + JB[k] * ua, JX[k + 1] + JA[k + 1] * ub, JY[k + 1] + JB[k + 1] * ub, JX[k + 1] - JA[k + 1] * db, JY[k + 1] - JB[k + 1] * db, JX[k] - JA[k] * da, JY[k] - JB[k] * da, col); } }
-  function jet(pt, rw, q, now, seed, F){ if(q <= .02) return;
+  function jet(pt, rw, q, now, seed, F, mk){ if(q <= .02) return; if(mk === undefined) mk = 1;   // mk: the tail mist's size (the dam's jets 1)
     pt(.5); PJ(JP[0], JP[1], JP[2]); const Rm = rw(.5) * PJU * (.4 + .6 * q) * JW, N = Rm > PX * 12 ? 18 : Rm > PX * 4 ? 13 : 9, n = Math.max(2, Math.round(N * (.35 + .65 * q)));
     for(let k = 0; k <= n; k++){ const t = k / N; pt(t); PJ(JP[0], JP[1], JP[2]); JX[k] = PJX; JY[k] = PJY; JR[k] = rw(t) * PJU * (.4 + .6 * q) * JW / (1 + .9 * t); }
     // normals: the crown side (screen up) first, then kept continuous along the jet so a falling stretch never twists
@@ -291,9 +291,9 @@
         const v = .9 + .9 * H1(m * 6.1 + seed), d = R0 * (1 + v * 1.7 * a), x = X + side * A * d + tx * R0 * 1.4 * a, y = Y + side * B * d + ty * R0 * 1.4 * a + R0 * 2.4 * a * a;
         const sz = R0 > PX * 7 && a < .45 ? PX * 2 : PX; cx.fillStyle = a < .28 ? C4 : a < .62 ? C3 : C2; cx.fillRect(snp(x - sz / 2), snp(y - sz / 2), sz, sz); } }
     // the crown: a few lobes of white water boiling along its top near the outlet
-    if(Rm > PX * 3){ const ch = reduce ? 0 : Math.floor(now / 160); for(let m = 0; m < 3; m++){ const t = .05 + m * .1, k0 = t * N; if(k0 >= n) continue; const k = Math.floor(k0), d = JR[k] * .7; puffAt(PUFF, JX[k] + JA[k] * d, JY[k] + JB[k] * d, JR[k] * (.5 + .15 * m), m + ch + seed); } }
+    if(Rm > PX * 3 && mk === 1){ const ch = reduce ? 0 : Math.floor(now / 160); for(let m = 0; m < 3; m++){ const t = .05 + m * .1, k0 = t * N; if(k0 >= n) continue; const k = Math.floor(k0), d = JR[k] * .7; puffAt(PUFF, JX[k] + JA[k] * d, JY[k] + JB[k] * d, JR[k] * (.5 + .15 * m), m + ch + seed); } }
     // the tail goes to mist, wider than the jet, dithered (it reads as a value of its own in grey)
-    cx.globalAlpha = Math.min(1, .8 * q); for(let m = 0; m < 3; m++){ const t = Math.min(n / N, .74 + m * .11); pt(t); PJ(JP[0], JP[1], JP[2] + 1 + m); const r = rw(t) * PJU * (.85 + m * .3); if(r >= PX) puffAt(MIST, PJX + (m - 1) * r * .6, PJY, r, m + seed); } cx.globalAlpha = 1; }
+    if(mk > 0){ cx.globalAlpha = Math.min(1, .8 * q); for(let m = 0; m < 3; m++){ const t = Math.min(n / N, .74 + m * .11); pt(t); PJ(JP[0], JP[1], JP[2] + (1 + m) * mk); const r = rw(t) * PJU * (.85 + m * .3) * mk; if(r >= PX) puffAt(MIST, PJX + (m - 1) * r * .6, PJY, r, m + seed); } cx.globalAlpha = 1; } }
   const JP = new Float64Array(3), JOV = { dz:22, dx:12, up:3, land:-1 }, LOV = { dz:5, dx:-9, up:8, land:-5, wm:1.8 };   // (JOV: the jets over the road on the reveal: thrown 24 units toward you and 14 across the road, falling beyond the left wall)
 
   // ---------------------------------------------------------------- the dam from downstream (the approach): a camera-facing arch across the gorge
@@ -785,8 +785,8 @@
   /* the gully's torrent coming down the cut face into the gap (the side falls of the real gorge, "S-ji-kyo in Kurobe Gorge"): a small
      cousin of the dam's jets, drawn with jet() as a feathered fall from a notch below the upper tier's lip to the gully floor, its spray
      and mist hanging at the foot. It marks the leap from far up the road: where the water comes down, the road is gone. */
-  function drawCasc(sp, uw, fog, now){ if(uw < PX * 1.5 || fog > .9) return; cam(); const z = sp.k + .5, F = c => fc(c, fog * .7);
-    jet(t => { JP[0] = z + .4 * t; JP[1] = -1.3 + .12 * Math.sin(t * 3.1) + .1 * t; JP[2] = 2.7 * (1 - t) - .1; }, t => .5 + .55 * t, .85, now, 7, F); }
+  function drawCasc(sp, uw, fog, now){ if(uw < PX * 1.5 || fog > .9) return; cam(); const z = sp.k + .5, F = c => fc(c, fog * .7); if(z - camSeg() < 3) return;   // (not once it is beside you: the projection clamps there)
+    jet(t => { JP[0] = z + .3 * t; JP[1] = -1.31 + .07 * Math.sin(t * 9.4) + .08 * t; JP[2] = 3.6 * (1 - t) - .05; }, t => .12 + .42 * t, .85, now, 7, F, .25); }
   function jumpAt(i){ const L = lay(zoneOfSeg(i)); return L && L.jb ? L.jb : null; }
   function jumpKeep(sp, o, p){ const J = MECH.sp_jump; if(sp.type === 'mk' || sp.type === 'cliff' || sp.type === 'casc') return true; if(sp.type === 'rail') return !(J && J.inGap(p, o)); return undefined; }
   function jumpBelow(s, o, fog, p){ const J = MECH.sp_jump, a = s.p1.screen, b = s.p2.screen; if(!J || !(a.scale > 0) || !(b.scale > 0)) return false;

@@ -239,10 +239,8 @@
       n = o / 2; const t = a; a = b; b = t; }
     if(n < 3) return; cx.fillStyle = col; cx.beginPath(); cx.moveTo(a[0], a[1]); for(let i = 1; i < n; i++) cx.lineTo(a[i * 2], a[i * 2 + 1]); cx.closePath(); cx.fill(); }
   // the same quad on the canvas pixel grid, for the inn facades (Kellan, review card snow-facades: "Yes"): clipped to the margin as poly() is, then
-  // filled by the core pxPoly rule (each canvas row's span sampled at the row centre and rounded to whole pixels, so two bands sharing an edge
-  // tile with no seam or overlap, a sliver thinner than a pixel keeps the pixel under its centre, and a band over 32 rows goes out as one path
-  // with its corners on the grid). No antialiased edge pixels: nothing shimmers as the camera creeps, and the ~1,000 bands a frame cost
-  // batched fillRects instead of path fills
+  // filled on whole canvas pixels by gridFill (below), so bands sharing an edge tile with no seam or overlap. No antialiased edge pixels:
+  // nothing shimmers as the camera creeps, and the ~1,000 bands a frame go out as batched fillRects instead of path fills
   function gpoly(x1, y1, x2, y2, x3, y3, x4, y4, col){ const m = W * .5, lo = -m, hiX = W + m, loY = -H * .5, hiY = H * 1.5; let a = CA, n = 4;
     a[0] = x1; a[1] = y1; a[2] = x2; a[3] = y2; a[4] = x3; a[5] = y3; a[6] = x4; a[7] = y4;
     if(!(x1 >= lo && x2 >= lo && x3 >= lo && x4 >= lo && x1 <= hiX && x2 <= hiX && x3 <= hiX && x4 <= hiX && y1 >= loY && y2 >= loY && y3 >= loY && y4 >= loY && y1 <= hiY && y2 <= hiY && y3 <= hiY && y4 <= hiY)){
@@ -251,18 +249,36 @@
           if(pin){ b[o++] = px; b[o++] = py; } if(pin !== qin){ const t = (L - pv) / (qv - pv); b[o++] = px + (qx - px) * t; b[o++] = py + (qy - py) * t; } }
         n = o / 2; const t = a; a = b; b = t; } }
     if(n >= 3) gridFill(a, n, col); }
-  function gridFill(a, n, col){ let y0 = Infinity, y1 = -Infinity; for(let i = 0; i < n; i++){ const y = a[i * 2 + 1]; if(!(y === y)) return; if(y < y0) y0 = y; if(y > y1) y1 = y; }
-    const r0 = Math.max(0, Math.ceil(y0 / PX - .5)), r1 = Math.min(cv.height - 1, Math.floor(y1 / PX - .5)); if(r1 < r0) return; cx.fillStyle = col;
-    if(r1 - r0 > 32){ cx.beginPath(); cx.moveTo(snap(a[0]), snap(a[1])); for(let i = 1; i < n; i++) cx.lineTo(snap(a[i * 2]), snap(a[i * 2 + 1])); cx.closePath(); cx.fill(); return; }
-    const xmn = -PX, xmx = W + PX; let rl = 0, rr = 0, rs = 0, re = 0;
+  // A pixel is filled when its centre is inside the polygon, the core pxPoly rule, run by rows or by columns, whichever needs fewer rects: a band
+  // whose top and bottom run across the slice at a slant (the roofs, the eaves seen near) changes its span every row but every column only once,
+  // so it goes out column by column. Both scans give the same pixels, so neighbouring bands tile whichever way each was cut. A band thinner than
+  // a pixel keeps the pixel under its centre in each column (a shoji bar or an eave line far off stays one unbroken pixel line, never dotted).
+  // A band needing more than 48 rects either way (a wall right beside the camera) is one path with its corners on the grid, as in the core.
+  function gridFill(a, n, col){ let x0 = Infinity, x1 = -Infinity, y0 = Infinity, y1 = -Infinity, sr = 0;
+    for(let i = 0; i < n; i++){ const x = a[i * 2], y = a[i * 2 + 1]; if(!(x === x && y === y)) return; if(x < x0) x0 = x; if(x > x1) x1 = x; if(y < y0) y0 = y; if(y > y1) y1 = y;
+      const j = (i + 1) % n, dx = Math.abs(a[j * 2] - x), dy = Math.abs(a[j * 2 + 1] - y); if(dx > PX * .5) sr += dy; }   // sr: the rows a slanted edge spans (where a row scan needs a rect each)
+    const r0 = Math.max(0, Math.ceil(y0 / PX - .5)), r1 = Math.min(cv.height - 1, Math.floor(y1 / PX - .5)), c0 = Math.max(0, Math.ceil(x0 / PX - .5)), c1 = Math.min(cv.width - 1, Math.floor(x1 / PX - .5));
+    const thin = y1 - y0 < PX * 1.5, nr = Math.min(r1 - r0 + 1, sr / PX + 1), nc = c1 - c0 + 1; cx.fillStyle = col;
+    if(thin ? nc > 48 : Math.min(nr, nc) > 48){ if(r1 < r0 || c1 < c0) return; cx.beginPath(); cx.moveTo(snap(a[0]), snap(a[1])); for(let i = 1; i < n; i++) cx.lineTo(snap(a[i * 2]), snap(a[i * 2 + 1])); cx.closePath(); cx.fill(); return; }
+    let ql = 0, qr = 0, qs = 0, qe = 0;
+    if(thin || nc <= nr){ if(c1 < c0) return; const ymn = -PX, ymx = H + PX;   // by columns: each column's run, sampled at its centre
+      for(let c = c0; c <= c1; c++){ const xc = (c + .5) * PX; let lo = Infinity, hi = -Infinity;
+        for(let i = 0; i < n; i++){ const j = (i + 1) % n, px = a[i * 2], py = a[i * 2 + 1], qx = a[j * 2], qy = a[j * 2 + 1];
+          if((px <= xc && qx > xc) || (qx <= xc && px > xc)){ const yy = py + (xc - px) * (qy - py) / (qx - px); if(yy < lo) lo = yy; if(yy > hi) hi = yy; } }
+        if(!(hi >= lo)) continue; if(lo < ymn) lo = ymn; if(hi > ymx) hi = ymx; let yt = Math.round(lo / PX), yb = Math.round(hi / PX);
+        if(yb <= yt){ yt = Math.floor((lo + hi) / 2 / PX); yb = yt + 1; }
+        if(yt === ql && yb === qr && c === qe){ qe = c + 1; continue; }
+        if(qe > qs) cx.fillRect(qs * PX, ql * PX, (qe - qs) * PX, (qr - ql) * PX); ql = yt; qr = yb; qs = c; qe = c + 1; }
+      if(qe > qs) cx.fillRect(qs * PX, ql * PX, (qe - qs) * PX, (qr - ql) * PX); return; }
+    if(r1 < r0) return; const xmn = -PX, xmx = W + PX;   // by rows
     for(let r = r0; r <= r1; r++){ const yc = (r + .5) * PX; let lo = Infinity, hi = -Infinity;
       for(let i = 0; i < n; i++){ const j = (i + 1) % n, px = a[i * 2], py = a[i * 2 + 1], qx = a[j * 2], qy = a[j * 2 + 1];
         if((py <= yc && qy > yc) || (qy <= yc && py > yc)){ const xx = px + (yc - py) * (qx - px) / (qy - py); if(xx < lo) lo = xx; if(xx > hi) hi = xx; } }
       if(!(hi >= lo)) continue; if(lo < xmn) lo = xmn; if(hi > xmx) hi = xmx; let xl = Math.round(lo / PX), xr = Math.round(hi / PX);
       if(xr <= xl){ xl = Math.floor((lo + hi) / 2 / PX); xr = xl + 1; }
-      if(xl === rl && xr === rr && r === re){ re = r + 1; continue; }
-      if(re > rs) cx.fillRect(rl * PX, rs * PX, (rr - rl) * PX, (re - rs) * PX); rl = xl; rr = xr; rs = r; re = r + 1; }
-    if(re > rs) cx.fillRect(rl * PX, rs * PX, (rr - rl) * PX, (re - rs) * PX); }
+      if(xl === ql && xr === qr && r === qe){ qe = r + 1; continue; }
+      if(qe > qs) cx.fillRect(ql * PX, qs * PX, (qr - ql) * PX, (qe - qs) * PX); ql = xl; qr = xr; qs = r; qe = r + 1; }
+    if(qe > qs) cx.fillRect(ql * PX, qs * PX, (qr - ql) * PX, (qe - qs) * PX); }
   // sprite blits clipped to the screen in source pixels, so a sprite beside the camera (scaled to thousands of pixels) costs no more than one on screen
   function blitSrc(c, sx, sy, sw, sh, dx, dy, k){ let x0 = dx, y0 = dy, x1 = dx + sw * k, y1 = dy + sh * k; if(x1 <= 0 || y1 <= 0 || x0 >= W || y0 >= H) return;
     cx.imageSmoothingEnabled = false; if(x0 >= -1 && y0 >= -1 && x1 <= W + 1 && y1 <= H + 1){ cx.drawImage(c, sx, sy, sw, sh, x0, y0, x1 - x0, y1 - y0); return; }
