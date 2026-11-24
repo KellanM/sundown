@@ -73,7 +73,8 @@ CY.make = spec => { const w = spec.w | 0, h = spec.h | 0, idx = spec.idx, ranges
    lantern art exactly as a scaled drawImage would, and drawn at the nearest LOD at or below the wanted size, stretched by less than `ratio`.
    Colour cycling: each colour named in spec.ramps becomes a run of palette slots holding its ramp, and lantern j's pixels of that colour
    take slot j mod L, so as the run rotates the warmth travels from lantern to lantern along the string (a slow wave, not a blink).
-     spec.sprites   [canvas per kind]: the lantern art (read once with getImageData; small CPU canvases)
+     spec.arts      [{ w, h, at(x, y) -> '#rrggbb' | null } per kind]: the lantern art as data (preferred: no GPU read-back), or
+     spec.sprites   [canvas per kind]: the art read once with getImageData (a read-back can stall on a GPU canvas)
      spec.kind(j)   which sprite lantern j uses;  spec.n lanterns;  spec.span, spec.sag (in uw: the string runs -span/2 .. +span/2 about x)
      spec.kU        art pixels' size per uw (the module's k = uw * kU);  spec.drop: the lantern's bottom below the cable, in art pixels
      spec.ramps     [{ '#rrggbb': [L colours] } per kind]: the colours that cycle (all ramps the same length L)
@@ -88,8 +89,11 @@ CY.chain = spec => { const PXc = () => (typeof PX !== 'undefined' ? PX : 3), u0 
   const pal = ['#0000'], key = new Map(), ranges = [], arts = [];
   const slotOf = hex => { let s = key.get(hex); if(s === undefined){ s = pal.length; pal.push(hex); key.set(hex, s); } return s; };
   let L = 0; for(const r of spec.ramps || []) for(const c in r) L = Math.max(L, r[c].length);
-  spec.sprites.forEach((c, ki) => { const w = c.width, h = c.height, d = c.getContext('2d').getImageData(0, 0, w, h).data, base = new Int16Array(w * h), ramp = new Int16Array(w * h), R = (spec.ramps || [])[ki] || {}, runs = {};
-    for(let i = 0; i < w * h; i++){ const o = i * 4; if(d[o + 3] < 128) continue; const hex = '#' + [d[o], d[o + 1], d[o + 2]].map(v => v.toString(16).padStart(2, '0')).join('');
+  // the art: spec.arts [{ w, h, at(x, y) -> '#rrggbb' | null }] (no read-back), else the sprites read once with getImageData
+  const ARTS = spec.arts || spec.sprites.map(c => { const w = c.width, h = c.height, d = c.getContext('2d').getImageData(0, 0, w, h).data;
+    return { w, h, at:(x, y) => { const o = (y * w + x) * 4; return d[o + 3] < 128 ? null : '#' + [d[o], d[o + 1], d[o + 2]].map(v => v.toString(16).padStart(2, '0')).join(''); } }; });
+  ARTS.forEach((art, ki) => { const w = art.w, h = art.h, base = new Int16Array(w * h), ramp = new Int16Array(w * h), R = (spec.ramps || [])[ki] || {}, runs = {};
+    for(let i = 0; i < w * h; i++){ const hex0 = art.at(i % w, (i / w) | 0); if(!hex0) continue; const hex = hex0.toLowerCase();
       const rk = Object.keys(R).find(c2 => c2.toLowerCase() === hex); if(rk){ if(runs[rk] === undefined){ runs[rk] = pal.length; for(const cc of R[rk]) pal.push(cc); ranges.push([runs[rk], runs[rk] + R[rk].length - 1, 1]); } ramp[i] = runs[rk]; }
       else base[i] = slotOf(hex); }
     arts.push({ w, h, base, ramp }); });
@@ -109,15 +113,15 @@ CY.chain = spec => { const PXc = () => (typeof PX !== 'undefined' ? PX : 3), u0 
   const body = CY.make({ w:AW, h:AH, idx, pal, ranges, frames:L || 1, ms:spec.ms || 180, still:spec.still || 0 });
   let glow = null; if(G){ glow = document.createElement('canvas'); glow.width = AW; glow.height = AH; const g = glow.getContext('2d'); g.imageSmoothingEnabled = false; g.globalCompositeOperation = 'lighter'; g.globalAlpha = G.a;
     for(const D of lods) for(let j = 0; j < n; j++){ const [lx, ly, k] = geo(D.u, j), r = G.r * D.u, gx = D.x + D.ox + lx, gy = D.y + D.oy + ly - G.dy * k; if(r < 1) continue;
-      g.save(); g.beginPath(); g.rect(D.x, D.y, D.w, D.h); g.clip(); g.globalCompositeOperation = 'lighter'; g.globalAlpha = 1;
-      if(G.paint) G.paint(g, gx, gy, r, G.cols[spec.kind(j)], G.a); else { g.globalAlpha = G.a; g.drawImage(G.sprite(G.cols[spec.kind(j)]), Math.round(gx - r), Math.round(gy - r), Math.max(1, Math.round(r * 2)), Math.max(1, Math.round(r * 2))); } g.restore(); } }
+      g.globalAlpha = 1;   // (no clip: each box already holds its halos whole, plus a pixel)
+      if(G.paint) G.paint(g, gx, gy, r, G.cols[spec.kind(j)], G.a); else { g.globalAlpha = G.a; g.drawImage(G.sprite(G.cols[spec.kind(j)]), Math.round(gx - r), Math.round(gy - r), Math.max(1, Math.round(r * 2)), Math.max(1, Math.round(r * 2))); } } }
   const lnR = Math.log(ratio);
   const ch = { body, glow, lods, L,
     draw(cx, now, x, ya, uw, aBody, aGlow, dx){ const P = PXc(), uc = uw / P; if(!(uc >= u0) || uc >= lods[lods.length - 1].u * ratio) return false;
       const D = lods[Math.min(lods.length - 1, Math.floor(Math.log(uc / u0) / lnR + 1e-9))], s = uc / D.u, X = Math.round((x + (dx || 0)) / P - D.ox * s) * P, Y = Math.round(ya / P - D.oy * s) * P, w = Math.round(D.w * s) * P, h = Math.round(D.h * s) * P;
-      cx.imageSmoothingEnabled = false;
+      const sm0 = cx.imageSmoothingEnabled; cx.imageSmoothingEnabled = false;
       const gl = () => { if(!glow || !(aGlow > 0)) return; cx.globalCompositeOperation = 'lighter'; cx.globalAlpha = Math.min(1, aGlow); cx.drawImage(glow, D.x, D.y, D.w, D.h, X, Y, w, h); cx.globalCompositeOperation = 'source-over'; };
-      if(G && G.first) gl(); cx.globalAlpha = aBody; cx.drawImage(body.cv, body.frame(now) * AW + D.x, D.y, D.w, D.h, X, Y, w, h); if(!(G && G.first)) gl(); cx.globalAlpha = 1; return true; } };
+      if(G && G.first) gl(); cx.globalAlpha = aBody; cx.drawImage(body.cv, body.frame(now) * AW + D.x, D.y, D.w, D.h, X, Y, w, h); if(!(G && G.first)) gl(); cx.globalAlpha = 1; cx.imageSmoothingEnabled = sm0; return true; } };
   return ch; };
 window.CYCLE = CY;
 })();

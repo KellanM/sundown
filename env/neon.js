@@ -121,7 +121,7 @@
 
   /* ---------------------------------------------------------------- small sprites */
   const LANT = ['..KK', '.Krr', 'Krro', 'Kroy', 'Kroy', 'Kroy', 'Krro', '.Krr', '..KK', '...K'];
-  const lantern = w => C['lan' + w] || cache('lan' + w, () => makeSprite(LANT, w ? { K:'#1a0e08', r:'#c8b49a', o:'#efe0c8', y:'#fff8ea' } : { K:'#1a0608', r:'#a8162a', o:'#e83a3a', y:'#ffb070' }));
+  const lantern = w => C['lan' + w] || cache('lan' + w, () => makeSprite(LANT, w ? { K:'#1a0e08', r:'#c8b49a', o:'#efe0c8', y:'#fff8ea' } : { K:'#1a0608', r:'#a8162a', o:'#e83a3a', y:'#ffb070' }));   // (lanternArt below mirrors these colours for the cycled strings)
   const WALK = [['.KK.', '.KK.', 'KKKK', 'KKKK', 'KKKK', '.KK.', '.KK.', 'K..K', 'K..K'], ['.KK.', '.KK.', 'KKKK', 'KKKK', 'KKKK', '.KK.', '.KK.', '.KK.', '.KK.']];
   /* The lantern strings (type 'lstr') by colour cycling (ui/cycle.js CYCLE.chain; proposal color-cycle-lights): the nine lanterns and their
      halos are one layer from a ladder of pre-rasterised sizes, so a string is its cable plus two drawImages, not nine blits and nine
@@ -129,7 +129,9 @@
      each string (1.2 s round, never more than a shade either side of the old colours), the way a row of real chochin never burns quite even.
      Reduced motion holds one frame. */
   let LCH = null;
-  function lanternChain(){ if(LCH || !window.CYCLE) return; try{ LCH = CYCLE.chain({ sprites:[lantern(0), lantern(1)], kind:j => j % 3 === 1 ? 1 : 0, n:9, span:3.1, sag:.38, kU:.19 / 8, drop:10, ms:200,
+  const LANTP = [{ K:'#1a0608', r:'#a8162a', o:'#e83a3a', y:'#ffb070' }, { K:'#1a0e08', r:'#c8b49a', o:'#efe0c8', y:'#fff8ea' }];
+  const lanternArt = w => ({ w:LANT[0].length * 2, h:LANT.length, at:(x, y) => { const r = LANT[y], ch = x < r.length ? r[x] : r[r.length * 2 - 1 - x]; return ch === '.' ? null : LANTP[w][ch] || null; } });   // (LANT as data: the sprite's mirrored half, no read-back)
+  function lanternChain(){ if(LCH || !window.CYCLE) return; try{ LCH = CYCLE.chain({ arts:[lanternArt(0), lanternArt(1)], kind:j => j % 3 === 1 ? 1 : 0, n:9, span:3.1, sag:.38, kU:.19 / 8, drop:10, ms:200,
       ramps:[{ '#e83a3a':['#e83a3a', '#f0443c', '#f84e42', '#f0443c', '#e83a3a', '#da3436'], '#ffb070':['#ffb070', '#ffbe80', '#ffcc92', '#ffbe80', '#ffb070', '#f2a062'] },
              { '#efe0c8':['#efe0c8', '#f4e8d2', '#faf0dc', '#f4e8d2', '#efe0c8', '#e4d4ba'], '#fff8ea':['#fff8ea', '#fffbf2', '#ffffff', '#fffbf2', '#fff8ea', '#f6ecd8'] }],
       glow:{ r:.14, dy:5, cols:['#ff7a4a', '#fff0d0'], a:.4, sprite:haloS } }); }catch(e){ console.warn('neon lantern chain', e); } }

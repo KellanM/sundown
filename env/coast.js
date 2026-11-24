@@ -731,7 +731,31 @@
     cx.globalAlpha = 1; }
   // the moon's glitter path: a column under the moon, wider toward the viewer, made of stepped dashes whose places and widths are fixed by the
   // segment (world-anchored) and whose brightness eases on a slow clock; only drawn where there is water, never on the road or land
+  /* The glitter as colour cycling (ui/cycle.js; proposal color-cycle-lights, Mark Ferrari's water): one strip per frame holds GV variants of a
+     glitter row (the steady spine and three dashes, laid out across the path's width, 64 strip px to the half-width hw), each dash a run of
+     palette slots whose alpha ramp rotates, so every dash swells and fades on its own phase (two ramp lengths, 8 and 6 steps of 140 ms, so
+     the pattern only repeats every 3.4 s). A segment's row picks its variant by hash (world-anchored, as before) and is one drawImage,
+     stretched to the path's width and cut at the shore, instead of four alpha changes and four rects. Reduced motion holds one frame. */
+  const GV = 16, GW2 = 160, GC = 80, GSP = [4, 6, 8, 11]; let GLT = null, GLC = '';   // GSP: the spine's half-width classes in strip px (it is 2 * (PX + a.w * .03) wide: relatively wider far off)
+  const GRA = [0, 0, .15, .45, .8, 1, .65, .3], GRB = [0, .2, .6, 1, .55, .15], GAMP = [1, .78, .56];   // (two twinkle ramps; dashes toward the path's edges dimmer, as 1 - |dx| * .55)
+  const gltPal = (col, o) => { const [r, g, b] = hx(col); o = o || ['#0000']; const A = (k, al) => { o[k] = [r, g, b, Math.round(al * 255)]; }; A(1, .4);
+    for(let sp = 0; sp < 2; sp++){ const S = sp * 42, ov = al => sp ? 1 - .6 * (1 - al) : al;   // sp 1: a dash over the spine (the old rects stacked: 1 - (1 - .4)(1 - a))
+      for(let m = 0; m < 3; m++){ for(let q = 0; q < 8; q++) A(S + 2 + m * 8 + q, ov(GRA[q] * GAMP[m])); for(let q = 0; q < 6; q++) A(S + 26 + m * 6 + q, ov(GRB[q] * GAMP[m])); } } return o; };
+  function gltBuild(){ if(GLT || !window.CYCLE) return; const NR = GV * GSP.length, idx = new Uint8Array(GW2 * NR), ranges = [];
+    for(let sp = 0; sp < 2; sp++) for(let m = 0; m < 3; m++){ ranges.push([sp * 42 + 2 + m * 8, sp * 42 + 9 + m * 8, 1]); ranges.push([sp * 42 + 26 + m * 6, sp * 42 + 31 + m * 6, 1]); }
+    for(let R = 0; R < NR; R++){ const v = R % GV, hs = GSP[(R / GV) | 0], row = R * GW2; for(let x = GC - hs; x < GC + hs; x++) idx[row + x] = 1;   // the spine, either side of the moon's x
+      for(let g = 0; g < 3; g++){ const dx = (H0(v * 3.1 + g * 7.7 + 5) - .5) * 2, ww = Math.max(3, Math.round(17 * (.5 + H0(v * 1.7 + g + 9)))), c = Math.round(GC + dx * 64), m = Math.min(2, Math.floor(Math.abs(dx) * 3)), B = H0(v * 5.3 + g * 2.9) < .5;
+        const s = B ? 26 + m * 6 + Math.floor(H0(v + g * 13.1) * 6) : 2 + m * 8 + Math.floor(H0(v + g * 13.1) * 8);
+        for(let x = c - (ww >> 1); x < c - (ww >> 1) + ww; x++) if(x >= 0 && x < GW2) idx[row + x] = idx[row + x] === 1 ? s + 42 : s; } }   // (over the spine: the stacked slots)
+    GLC = moonCol || '#f0ead8'; GLT = CYCLE.make({ w:GW2, h:NR, idx, pal:gltPal(GLC), ranges, frames:24, ms:140 }); }
   function glitter(i, a, ay, by, fog, now, Lw, Rw, side){ const hw = PX * 6 + a.w * .45, mx = side < 0 ? Math.min(MOON.x, Lw - hw * 1.1) : Math.max(MOON.x, Rw + hw * 1.1), prox = clamp(1 - Math.abs(MOON.x - mx) / (W * .6), .5, 1), ph = reduce ? 0 : now / 1100, p0 = Math.floor(ph), fr = ph - p0, rows = ay - by > PX * 5 ? 2 : 1;
+    if(GLT && !CYCLE.off){ if(moonCol !== GLC){ GLC = moonCol; GLT.recolor(gltPal(GLC, {})); }   // (dawn warms the moon: the strip is re-baked in place, a few dozen times a night)
+      const sc = hw / 64, x0 = mx - GC * sc, fa = (1 - fog * .45) * prox, fx = GLT.sx(now), hs = (PX + a.w * .03) / sc; let sc0 = 0; for(let q = 1; q < GSP.length; q++) if(Math.abs(GSP[q] - hs) < Math.abs(GSP[sc0] - hs)) sc0 = q;
+      let s0 = 0, s1 = GW2; if(side < 0) s1 = Math.min(GW2, Math.floor((Lw - x0) / sc)); else s0 = Math.max(0, Math.ceil((Rw - x0) / sc));   // cut at the shore (the path lies wholly on its own side of it)
+      if(s1 - s0 < 1 || fa < .02) return; const X0 = snap(x0 + s0 * sc), X1 = snap(x0 + s1 * sc); if(X1 - X0 < PX || X1 <= 0 || X0 >= W) return;   // (off screen: nothing to draw)
+      const sm0 = cx.imageSmoothingEnabled; cx.globalAlpha = fa; cx.imageSmoothingEnabled = false;
+      for(let r = 0; r < rows; r++){ const yy = r ? snap((ay + by) / 2) : snap(ay) - PX, v = sc0 * GV + Math.floor(H0(i * 7.3 + r * 31) * GV) % GV; cx.drawImage(GLT.cv, fx + s0, v, s1 - s0, 1, X0, yy, X1 - X0, PX); }
+      cx.globalAlpha = 1; cx.imageSmoothingEnabled = sm0; return; }
     const put = (x0, ww, yy, al) => { let x1 = x0 + ww; if(x1 <= Lw || x0 >= Rw){} else if(x0 < Lw){ x1 = Lw; } else if(x1 > Rw){ x0 = Rw; } else return; x0 = snap(x0); x1 = snap(x1); if(x1 - x0 < PX || al < .02) return; cx.globalAlpha = al; cx.fillRect(x0, yy, x1 - x0, PX); };
     cx.fillStyle = moonCol;
     for(let r = 0; r < rows; r++){ const yy = r ? snap((ay + by) / 2) : snap(ay) - PX, fa = (1 - fog * .45) * prox;
@@ -745,7 +769,8 @@
     // the same build, resumable: the staged warm-up runs it about 4 ms per frame (yield = a safe place to stop); warm() runs it straight through
     *warmSteps(){ CIX = CI(); cSigns(); if(!FUJI){ buildFuji(); yield; buildEno(); yield; } for(let v = 0; v < 3; v++) for(let p = 0; p < 3; p++) for(let f = 0; f < 3; f++) for(let R = 1; R <= 3; R++){ pineSpr(v, p, f, R); palmSpr(v, p, f, R); yield; } tpUnit(0); tpUnit(1); yield; for(let v = 0; v < 4; v++){ tetra(v); for(let l = 1; l <= TF_LV; l++) tetraFoam(v, l); yield; } for(let f = 0; f < SPF; f++) for(let wd = 0; wd < 2; wd++) for(let R = 1; R <= 2; R++){ plume(f, wd, R); yield; } lampSprite(); shack(0); shack(1); yield; surfShop(); boat(); shield(); bikes(); vend(); yield;
       const up = c => { cx.drawImage(c, 0, 0, PX, PX); };   // first draw uploads the texture now, not mid-ride
-      yield* fogWarmSteps(); if(!HILLS){ buildHills(); yield; } cx.save(); for(const k in SPR) if(k.startsWith('co_')) up(SPR[k]); for(const arr of FOGS.values()) for(const e of arr) if(e) up(e.c); if(!HILLS) buildHills(); up(FUJI); up(ENO); up(HILLS); cx.restore(); },
+      gltBuild(); yield;
+      yield* fogWarmSteps(); if(!HILLS){ buildHills(); yield; } cx.save(); for(const k in SPR) if(k.startsWith('co_')) up(SPR[k]); for(const arr of FOGS.values()) for(const e of arr) if(e) up(e.c); if(!HILLS) buildHills(); up(FUJI); up(ENO); up(HILLS); if(GLT) up(GLT.cv); cx.restore(); },
     road:['#16182a', '#181a2d'],
     lampCol:'#5a7c90',
     lit(i){ const d = lampD(i); return d === 0 ? .3 : d === 1 ? .12 : 0; },

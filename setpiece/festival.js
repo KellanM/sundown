@@ -198,10 +198,11 @@
     for(let j = 0; j < 7; j++){ const x = 6 + j * 14 + H1(j + v * 9) * 6, hh = 8 + H1(j * 3 + v) * 3; r.rect(x, 50 - hh, 4, hh, 11); r.ell(x + 2, 50 - hh - 1, 1.8, 2, 11); }
     return bake(r, pal, {}); }); }
   // paper lanterns for the strings over the road: red with a white mark, white with a red mark
-  function chochin(v){ return cache('ch' + v, () => { const r = raster(7, 10), body = v ? 16 : 3, rib = v ? 4 : 4;
+  function chochinR(v){ const r = raster(7, 10), body = v ? 16 : 3, rib = v ? 4 : 4;
     r.ell(3.5, 5, 3.5, 4.5, body); for(let y = 2; y < 9; y += 2) for(let x = 0; x < 7; x++) if(r.get(x, y) === body) r.set(x, y, rib);
-    r.ell(3.5, 5, 3.5, 4.5, body, 0); r.rect(2, 4, 3, 2, v ? 17 : 16); r.rect(2, 0, 3, 1, 1); r.rect(2, 9, 3, 1, 1);
-    return bake(r, NP, { ink:1, outline:false }); }); }
+    r.ell(3.5, 5, 3.5, 4.5, body, 0); r.rect(2, 4, 3, 2, v ? 17 : 16); r.rect(2, 0, 3, 1, 1); r.rect(2, 9, 3, 1, 1); return r; }
+  function chochin(v){ return cache('ch' + v, () => bake(chochinR(v), NP, { ink:1, outline:false })); }   // (no outline or inner ink: the raster's colours as they are)
+  const chochinArt = v => { const r = chochinR(v); return { w:r.w, h:r.h, at:(x, y) => { const c = r.a[y * r.w + x]; return c ? NP[c] : null; } }; };   // (the same as data, for the cycled strings: no read-back)
   // smoke: a dithered disc in three density steps (Hiroshige's grey cloud behind the burst)
   function smoke(n){ return cache('sm' + n, () => { const s = [18, 30, 46][n], [c, k] = canvas(s, s), R0 = s / 2; k.fillStyle = '#4c4660';
     for(let y = 0; y < s; y++) for(let x = 0; x < s; x++){ const d = Math.hypot(x + .5 - R0, y + .5 - R0) / R0 + (H1(x * 3.1 + y * 7.7 + n) - .5) * .25; if(d >= 1) continue;
@@ -388,7 +389,7 @@
   function lanternChains(){ if(LCH.length || !window.CYCLE) return; const H3 = (g, x, y, r, col, a) => { const [R, G, B] = hx(col);
       if(r <= 1.2){ g.fillStyle = `rgba(${R},${G},${B},${Math.min(1, a * .5)})`; g.fillRect(Math.round(x) - 1, Math.round(y) - 1, 2, 2); return; }   // (as the core's glow: a tiny halo is a 2x2 square)
       for(let i = 0; i < 3; i++){ g.fillStyle = `rgba(${R},${G},${B},${a * GLOW_W[i]})`; g.beginPath(); g.arc(x, y, Math.max(1, r * GLOW_F[i]), 0, 6.283); g.fill(); } };
-    try{ for(let o = 0; o < 3; o++) LCH.push(CYCLE.chain({ sprites:[chochin(0), chochin(1)], kind:j => (j + o) % 3 === 1 ? 1 : 0, n:11, span:3.5, sag:.3, kU:.16 / 7, drop:11, ms:200,
+    try{ for(let o = 0; o < 3; o++) LCH.push(CYCLE.chain({ arts:[chochinArt(0), chochinArt(1)], kind:j => (j + o) % 3 === 1 ? 1 : 0, n:11, span:3.5, sag:.3, kU:.16 / 7, drop:11, ms:200,
         ramps:[{ '#ee3a2a':['#ee3a2a', '#f4443a', '#fa5040', '#f4443a', '#ee3a2a', '#de3428'] }, { '#fff6e4':['#fff6e4', '#fffaee', '#fffff8', '#fffaee', '#fff6e4', '#f4e8d0'] }],
         glow:{ r:.13, dy:5, cols:['#ff6a3a', '#fff0d0'], a:.42, first:true, paint:H3 } })); }catch(e){ console.warn('festival lantern chains', e); LCH.length = 0; } }
   function drawString(s, sx0, sy0, uw, fog, now){ if(uw < 3) return; const x0 = sx0 - uw * 1.75, x1 = sx0 + uw * 1.75, ya = sy0 - uw * 1.7, sag = uw * .3, n = 11, a = 1 - fog * .7;
