@@ -992,7 +992,27 @@
   // projection helper like the drawbridge's: segment s, fraction f along it, X half-road widths, h world units above the road
   function P(s, f, X, h){ const a = s.p1.screen, b = s.p2.screen, sc = a.scale + (b.scale - a.scale) * f;
     return [a.x + (b.x - a.x) * f + X * (a.w + (b.w - a.w) * f), a.y + (b.y - a.y) * f - sc * h * H / 2]; }
-  function quad(p1, p2, p3, p4, col){ cx.fillStyle = col; cx.beginPath(); cx.moveTo(p1[0], p1[1]); cx.lineTo(p2[0], p2[1]); cx.lineTo(p3[0], p3[1]); cx.lineTo(p4[0], p4[1]); cx.closePath(); cx.fill(); }
+  /* 穴 the gap's holes without path clips (WebKit pays for each; there were up to 48 a frame at the lip). Inside a hole, HC holds its
+     quad (convex, on screen) and every fill below is cut to it by geometry: a quad or a circle by Sutherland-Hodgman, a rect drawn as
+     it is when it lies inside, skipped when outside, cut when it crosses an edge. The same coverage as the clip; only the antialiased
+     edge pixels can round differently. */
+  let HC = null, HCS = 1;
+  function hcOn(q){ let a = 0; for(let i = 0; i < 4; i++){ const p = q[i], n = q[(i + 1) & 3]; a += p[0] * n[1] - n[0] * p[1]; } if(!(Math.abs(a) > 1e-6)) return false; HC = q; HCS = a > 0 ? 1 : -1; return true; }
+  const hSide = (i, x, y) => { const a = HC[i], b = HC[(i + 1) & 3]; return ((b[0] - a[0]) * (y - a[1]) - (b[1] - a[1]) * (x - a[0])) * HCS; };
+  function hCut(pts){ let out = pts; for(let i = 0; i < 4 && out.length; i++){ const inp = out; out = [];
+      for(let k = 0; k < inp.length; k++){ const p = inp[k], q = inp[(k + 1) % inp.length], dp = hSide(i, p[0], p[1]), dq = hSide(i, q[0], q[1]); if(dp >= 0) out.push(p); if((dp >= 0) !== (dq >= 0)){ const t = dp / (dp - dq); out.push([p[0] + (q[0] - p[0]) * t, p[1] + (q[1] - p[1]) * t]); } } }
+    return out; }
+  function hPoly(pts){ if(pts.length < 3) return; cx.beginPath(); cx.moveTo(pts[0][0], pts[0][1]); for(let k = 1; k < pts.length; k++) cx.lineTo(pts[k][0], pts[k][1]); cx.closePath(); cx.fill(); }
+  function hRect(x, y, w, h){ if(!HC) return cx.fillRect(x, y, w, h); let all = true;
+    for(let i = 0; i < 4; i++){ const a = hSide(i, x, y), b = hSide(i, x + w, y), c = hSide(i, x + w, y + h), d = hSide(i, x, y + h); if(a < 0 && b < 0 && c < 0 && d < 0) return; if(a < 0 || b < 0 || c < 0 || d < 0) all = false; }
+    if(all) return cx.fillRect(x, y, w, h); hPoly(hCut([[x, y], [x + w, y], [x + w, y + h], [x, y + h]])); }
+  // glow() (the core's three stepped discs), each disc a polygon cut to the hole
+  function hGlow(x, y, r, col, a){ if(!HC) return glow(x, y, r, col, a); if(r < 1 || a <= 0) return; const rgb = rgb3(col); cx.globalCompositeOperation = 'lighter';
+    if(r <= PX * 1.2){ cx.fillStyle = rgbaA(rgb, Math.min(1, a * .5)); hRect(snap(x) - PX, snap(y) - PX, PX * 2, PX * 2); cx.globalCompositeOperation = 'source-over'; return; }
+    for(let i = 0; i < 3; i++){ const R = Math.max(PX, r * GLOW_F[i]), n = Math.max(24, Math.min(96, Math.ceil(R / PX * 3))), pts = []; for(let k = 0; k < n; k++){ const an = k / n * 6.283185307; pts.push([x + Math.cos(an) * R, y + Math.sin(an) * R]); }
+      cx.fillStyle = rgbaA(rgb, a * GLOW_W[i]); hPoly(hCut(pts)); }
+    cx.globalCompositeOperation = 'source-over'; }
+  function quad(p1, p2, p3, p4, col){ cx.fillStyle = col; if(HC) return hPoly(hCut([p1, p2, p3, p4])); cx.beginPath(); cx.moveTo(p1[0], p1[1]); cx.lineTo(p2[0], p2[1]); cx.lineTo(p3[0], p3[1]); cx.lineTo(p4[0], p4[1]); cx.closePath(); cx.fill(); }
   /* a stepped line of w x w squares, one a pixel along it; squares in one row or one column go out as one rect (a cable, a crack: ~2000
      fillRects a frame over the gap became a few hundred). Opaque and source-over, overlapping squares merge; otherwise only squares that
      abut exactly (an overlap or a repeat would have blended twice), so the pixels are the same either way. */
@@ -1001,9 +1021,9 @@
     for(let i = 0; i <= n; i++){ const t = i / n, x = snap(a[0] + (b[0] - a[0]) * t - w / 2), y = snap(a[1] + (b[1] - a[1]) * t - w / 2);
       if(on){ if(y === ry && rh === w && (ov ? x <= rx + rw && x + w >= rx : x === rx + rw || x + w === rx)){ const nx = Math.min(rx, x); rw = Math.max(rx + rw, x + w) - nx; rx = nx; continue; }
         if(x === rx && rw === w && (ov ? y <= ry + rh && y + w >= ry : y === ry + rh || y + w === ry)){ const ny = Math.min(ry, y); rh = Math.max(ry + rh, y + w) - ny; ry = ny; continue; }
-        cx.fillRect(rx, ry, rw, rh); }
+        hRect(rx, ry, rw, rh); }
       rx = x; ry = y; rw = w; rh = w; on = true; }
-    if(on) cx.fillRect(rx, ry, rw, rh); }
+    if(on) hRect(rx, ry, rw, rh); }
   const CONC = ['#121420', '#262a3a', '#3e4458', '#6a7290', '#a8b0c8'];
   // debris chunks: fixed launch vectors per chunk (world units per second), flown by the distance since the blast
   const CHUNKS = Array.from({ length:34 }, (_, i) => ({ x0:(H1(i * 3.1) - .5) * 2.2, vz:(H1(i * 5.7) - .4) * 5200, vx:(H1(i * 7.3) - .5) * 2.4, vy:2600 + H1(i * 9.1) * 4200, v:i % 3, sz:.5 + H1(i * 2.2) * .9 }));
@@ -1015,7 +1035,7 @@
   let cardT = 0; const cardGo = () => { const QT = MECH.quiet; cardT = QT && QT.claim && !QT.claim(2, 2.8) ? 0 : 2.8; };   // the landing card asks the message arbiter (mech/arrival.js) first
   // (a flame near the camera fades out between 8x and 14x like any prop (scaleFade), instead of growing into screen-sized blocks)
   const flameAt = (pt, fk, seed, now) => { const sf = scaleFade(fk); if(sf <= 0) return; const ga = cx.globalAlpha; cx.globalAlpha = ga * sf; blit(S['fl' + (((Math.floor(now / 120 + seed * 7) % 3) + 3) % 3)], pt[0], pt[1] + PX, fk); cx.globalAlpha = ga; };
-  function drawBreakSeg(s, uw, fog, now, z, g){ if(uw > W * 1.1 || s.p1.camera.z <= DEPTH * 2) return;   // under or behind the camera: never draw
+  function drawBreakSeg(s, uw, fog, now, z, g){ HC = null; if(uw > W * 1.1 || s.p1.camera.z <= DEPTH * 2) return;   // under or behind the camera: never draw
     const o = s.index - z.B, a = (1 - fog * .85) * clamp((W * 1.1 - uw) / (W * .45), 0, 1), fc2 = c => mixc(c, '#0a0c1c', fog * .8);
     cx.globalAlpha = a;
     // the hole: the deck is gone; through it, the bay far below (stepped water, firelight streaks), the fallen section half sunk in churning
@@ -1023,16 +1043,16 @@
     if(o >= 0 && o < GAP && g >= 0){ const hole = [P(s, 0, -2.2, 0), P(s, 0, 2.2, 0), P(s, 1, 2.2, 0), P(s, 1, -2.2, 0)];
       quad(...hole, fc2(o % 2 ? '#181a3a' : '#1c1c40'));
       /* (a hole under a canvas pixel tall, far down the gap, shows only its quad: no path clip for it; WebKit pays for every path clip) */
-      if(Math.abs(hole[2][1] - hole[0][1]) >= PX){
-      cx.save(); cx.beginPath(); cx.moveTo(hole[0][0], hole[0][1]); for(const q of hole) cx.lineTo(q[0], q[1]); cx.closePath(); cx.clip();
+      if(Math.abs(hole[2][1] - hole[0][1]) >= PX && hcOn(hole)){
+      cx.save();   /* (no clip: HC cuts every fill below to the hole, until the restore) */
       // the water surface far below: a darker band where it sits, broken reflections of the fires and the beam
       quad(P(s, 0, -3, WATER), P(s, 0, 3, WATER), P(s, 1, 3, WATER), P(s, 1, -3, WATER), fc2(o % 3 ? '#1e2048' : '#26224a'));
       if(o % 3 === 1){ cx.globalCompositeOperation = 'lighter'; cx.globalAlpha = a * .3; quad(P(s, 0, -3, WATER), P(s, 0, 3, WATER), P(s, 1, 3, WATER), P(s, 1, -3, WATER), '#ff5a1a'); cx.globalAlpha = a; cx.globalCompositeOperation = 'source-over'; }
-      cx.globalCompositeOperation = 'lighter'; for(let k = 0; k < 6; k++){ const X = (H1(s.index * 3 + k) - .5) * 3.6, pt = P(s, H1(k * 1.7 + s.index), X, WATER), w = Math.max(PX * 2, snap(uw * .35)); cx.fillStyle = ['#ff7a2a', '#ffb04a', '#ff5a8a', '#ffd890'][k]; cx.globalAlpha = a * .6 * (.55 + .45 * Math.sin(now / 600 + s.index * 1.3 + k)); cx.fillRect(snap(pt[0] - w / 2), snap(pt[1]), w, PX); cx.fillRect(snap(pt[0] - w / 4), snap(pt[1] + PX * 2), snap(w / 2), PX); }
+      cx.globalCompositeOperation = 'lighter'; for(let k = 0; k < 6; k++){ const X = (H1(s.index * 3 + k) - .5) * 3.6, pt = P(s, H1(k * 1.7 + s.index), X, WATER), w = Math.max(PX * 2, snap(uw * .35)); cx.fillStyle = ['#ff7a2a', '#ffb04a', '#ff5a8a', '#ffd890'][k]; cx.globalAlpha = a * .6 * (.55 + .45 * Math.sin(now / 600 + s.index * 1.3 + k)); hRect(snap(pt[0] - w / 2), snap(pt[1]), w, PX); hRect(snap(pt[0] - w / 4), snap(pt[1] + PX * 2), snap(w / 2), PX); }
       { const heat = Math.max(1 - o / 8, 1 - (GAP - 1 - o) / 8, o >= 14 && o < 36 ? 1 - Math.abs(o - 24) / 12 : 0);   // near the torn edges and the slab
         if(heat > 0){ cx.globalAlpha = a * .5 * heat; quad(P(s, 0, -2.2, 0), P(s, 0, 2.2, 0), P(s, 1, 2.2, 0), P(s, 1, -2.2, 0), '#5a2008');
-          for(let k = 0; k < 5; k++){ const X = (H1(s.index * 5 + k) - .5) * 3.4, pt = P(s, H1(k * 2.3 + s.index * .7), X, WATER), w = Math.max(PX * 3, snap(uw * .5 * heat)); cx.fillStyle = k % 2 ? '#ffc04a' : '#ff8a2a'; cx.globalAlpha = a * heat * (.5 + .4 * Math.sin(now / 450 + k * 2 + s.index)); cx.fillRect(snap(pt[0] - w / 2), snap(pt[1]), w, PX * 2); }
-          if(o % 3 === 0){ const c0 = P(s, .5, 0, WATER); glow(c0[0], c0[1], uw * 1.4 * heat, '#ff7a2a', .35 * heat); } } }
+          for(let k = 0; k < 5; k++){ const X = (H1(s.index * 5 + k) - .5) * 3.4, pt = P(s, H1(k * 2.3 + s.index * .7), X, WATER), w = Math.max(PX * 3, snap(uw * .5 * heat)); cx.fillStyle = k % 2 ? '#ffc04a' : '#ff8a2a'; cx.globalAlpha = a * heat * (.5 + .4 * Math.sin(now / 450 + k * 2 + s.index)); hRect(snap(pt[0] - w / 2), snap(pt[1]), w, PX * 2); }
+          if(o % 3 === 0){ const c0 = P(s, .5, 0, WATER); hGlow(c0[0], c0[1], uw * 1.4 * heat, '#ff7a2a', .35 * heat); } } }
       cx.globalCompositeOperation = 'source-over'; cx.globalAlpha = a;
       // the fallen section: one end sunk, the other reared out of the water, lane paint still on it, foam churning where it meets the bay
       if(g >= 50 && o >= 16 && o < 34){ const rise = q => (q - 13) / 10 * 1500, h1 = WATER + rise(o - 16), h2 = WATER + rise(o - 15), sk = Math.min(1, (g - 50) / 30);
@@ -1042,11 +1062,11 @@
           for(const X of [-.5, .3]) quad(P(s, .1, X - .03, top0 + 4), P(s, .1, X + .03, top0 + 4), P(s, .6, X + .03, top1 + 4), P(s, .6, X - .03, top1 + 4), fc2('#c8c0a8'));
           quad(P(s, 0, -1.2, top0), P(s, 0, 1, top0), P(s, 0, 1, top0 - 40), P(s, 0, -1.2, top0 - 40), fc2(CONC[4])); }
         if(h1 <= WATER + 150 && h2 >= WATER - 150 || o === 16 || o === 33 || o % 3 === 0){ cx.fillStyle = '#ffffff'; for(let k = 0; k < 24; k++){ const X = -1.4 + 2.6 * H1(k * 3.7 + s.index), ph = (now / 900 + H1(k * 1.9)) % 1, pt = P(s, H1(k * 5.3), X, WATER + ph * 220);
-            cx.globalAlpha = a * sk * Math.min(1, ph * 5) * (1 - ph); cx.fillRect(snap(pt[0]), snap(pt[1]), PX * (k % 3 ? 1 : 2), PX); } cx.globalAlpha = a; } }
+            cx.globalAlpha = a * sk * Math.min(1, ph * 5) * (1 - ph); hRect(snap(pt[0]), snap(pt[1]), PX * (k % 3 ? 1 : 2), PX); } cx.globalAlpha = a; } }
       // the main cables, cut, hanging down into the gap from both sides
       for(const X of [-1.42, 1.42]){ const hang = q => DEEP + (q < GAP / 2 ? 3600 - Math.pow(q / 7, 1.4) * 6000 : 3600 - Math.pow((GAP - q) / 7, 1.4) * 6000);
         const h1 = Math.max(WATER, hang(o)), h2 = Math.max(WATER, hang(o + 1)); if(h1 > WATER || h2 > WATER){ pline(P(s, 0, X + (o % 3) * .01, h1), P(s, 1, X, h2), fc2('#a8b0c8'), Math.max(PX, snap(uw * .02))); pline(P(s, 0, X - .02, h1), P(s, 1, X - .02, h2), fc2('#3a4058'), Math.max(PX, snap(uw * .01))); } }
-      cx.restore(); }
+      HC = null; cx.restore(); }
       if(g < 60){ const dr = Math.pow(g / 60, 2) * 5200, rot = (o % 2 ? 1 : -1) * g / 60 * .5, sh = (h, X) => -dr + h + rot * X * 900;
         if(dr < 4800){ quad(P(s, 0, -1.5, sh(0, -1.5)), P(s, 0, 1.5, sh(0, 1.5)), P(s, 1, 1.5, sh(0, 1.5)), P(s, 1, -1.5, sh(0, -1.5)), fc2(o % 2 ? '#22202c' : '#1c1a26'));
           quad(P(s, 0, -1.5, sh(0, -1.5)), P(s, 0, 1.5, sh(0, 1.5)), P(s, 0, 1.5, sh(-260, 1.5)), P(s, 0, -1.5, sh(-260, -1.5)), fc2(CONC[1]));

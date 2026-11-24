@@ -26,7 +26,7 @@ const C = window.CON = { open:false };
 // ---------------------------------------------------------------- the panel (built on first open)
 let root = null, logEl = null, inp = null, greeted = false;
 const CSS = `#sdCon{position:fixed;left:0;right:0;top:0;z-index:10000;display:flex;flex-direction:column;max-height:min(46vh,440px);
- padding:env(safe-area-inset-top,0px) env(safe-area-inset-right,0px) 0 env(safe-area-inset-left,0px);background:rgba(7,6,12,.88);
+ padding:env(safe-area-inset-top,0px) env(safe-area-inset-right,0px) 0 env(safe-area-inset-left,0px);background:rgba(7,6,12,.94);
  border-bottom:2px solid #ff3b5c;box-shadow:0 1px 0 rgba(255,59,92,.25);color:#f4ecdf;font:13px/1.4 'DotGothic16','Courier New',monospace;
  animation:sdConIn .12s steps(3) both;touch-action:manipulation;-webkit-text-size-adjust:100%}
 @keyframes sdConIn{from{transform:translateY(-100%)}to{transform:none}}
@@ -102,17 +102,18 @@ addEventListener('keydown', e => {
 }, true);
 for(const t of ['keyup', 'keypress']) addEventListener(t, e => { if(C.open || isTick(e)) e.stopImmediatePropagation(); }, true);
 // outside the panel while it is open: the tap closes it and goes no further (no steering, no title button)
-addEventListener('pointerdown', e => { if(!C.open || (root && root.contains(e.target))) return; e.stopImmediatePropagation(); e.preventDefault(); clickGuard = rnow() + 700; close(); }, true);
+addEventListener('pointerdown', e => { if(!C.open || (root && root.contains(e.target))) return; e.stopImmediatePropagation(); e.preventDefault(); clickGuard = rnow() + 700;
+  if(e.pointerType === 'touch') T3.outside = true; else close(); }, true);   // (a touch closes it when the fingers lift, unless it was the three-finger tap, which toggles)
 addEventListener('click', e => { if(rnow() < clickGuard && !(root && root.contains(e.target))){ e.stopImmediatePropagation(); e.preventDefault(); } }, true);
 // phones: a three-finger tap toggles it (all three down within 250 ms, all up within 450 ms of the first, no finger moving over 24 px)
-const T3 = { pts:new Map(), t0:0, last:0, max:0, bad:false };
+const T3 = { pts:new Map(), t0:0, last:0, max:0, bad:false, outside:false };
 addEventListener('touchstart', e => { const T = T3; if(!T.pts.size){ T.t0 = e.timeStamp; T.max = 0; T.bad = false; }
   for(const t of e.changedTouches){ T.pts.set(t.identifier, [t.clientX, t.clientY]); T.last = e.timeStamp; }
   T.max = Math.max(T.max, e.touches.length); if(e.touches.length > 3 || T.last - T.t0 > 250) T.bad = true; }, { capture:true, passive:true });
 addEventListener('touchmove', e => { const T = T3; if(T.bad) return; for(const t of e.changedTouches){ const p = T.pts.get(t.identifier); if(p && Math.hypot(t.clientX - p[0], t.clientY - p[1]) > 24) T.bad = true; } }, { capture:true, passive:true });
 const t3end = e => { const T = T3; if(e.type === 'touchcancel') T.bad = true; for(const t of e.changedTouches) T.pts.delete(t.identifier);
-  if(e.touches.length) return; const ok = !T.bad && T.max === 3 && e.timeStamp - T.t0 < 450; T.pts.clear();
-  if(ok){ clickGuard = rnow() + 700; C.toggle(); } };   // (inside touchend: iOS lets the input's focus bring up the keyboard)
+  if(e.touches.length) return; const ok = !T.bad && T.max === 3 && e.timeStamp - T.t0 < 450, out = T.outside; T.pts.clear(); T.outside = false;
+  if(ok){ clickGuard = rnow() + 700; C.toggle(); } else if(out && C.open){ clickGuard = rnow() + 700; close(); } };   // (inside touchend: iOS lets the input's focus bring up the keyboard)
 addEventListener('touchend', t3end, { capture:true, passive:true }); addEventListener('touchcancel', t3end, { capture:true, passive:true });
 
 // ---------------------------------------------------------------- input: run, history, completion
