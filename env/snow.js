@@ -238,6 +238,31 @@
         if(pin){ b[o++] = px; b[o++] = py; } if(pin !== qin){ const t = (L - pv) / (qv - pv); b[o++] = px + (qx - px) * t; b[o++] = py + (qy - py) * t; } }
       n = o / 2; const t = a; a = b; b = t; }
     if(n < 3) return; cx.fillStyle = col; cx.beginPath(); cx.moveTo(a[0], a[1]); for(let i = 1; i < n; i++) cx.lineTo(a[i * 2], a[i * 2 + 1]); cx.closePath(); cx.fill(); }
+  // the same quad on the canvas pixel grid, for the inn facades (Kellan, review card snow-facades: "Yes"): clipped to the margin as poly() is, then
+  // filled by the core pxPoly rule (each canvas row's span sampled at the row centre and rounded to whole pixels, so two bands sharing an edge
+  // tile with no seam or overlap, a sliver thinner than a pixel keeps the pixel under its centre, and a band over 32 rows goes out as one path
+  // with its corners on the grid). No antialiased edge pixels: nothing shimmers as the camera creeps, and the ~1,000 bands a frame cost
+  // batched fillRects instead of path fills
+  function gpoly(x1, y1, x2, y2, x3, y3, x4, y4, col){ const m = W * .5, lo = -m, hiX = W + m, loY = -H * .5, hiY = H * 1.5; let a = CA, n = 4;
+    a[0] = x1; a[1] = y1; a[2] = x2; a[3] = y2; a[4] = x3; a[5] = y3; a[6] = x4; a[7] = y4;
+    if(!(x1 >= lo && x2 >= lo && x3 >= lo && x4 >= lo && x1 <= hiX && x2 <= hiX && x3 <= hiX && x4 <= hiX && y1 >= loY && y2 >= loY && y3 >= loY && y4 >= loY && y1 <= hiY && y2 <= hiY && y3 <= hiY && y4 <= hiY)){
+      let b = CB; for(let e = 0; e < 4 && n; e++){ let o = 0; const ax = e < 2, sg = e % 2 ? -1 : 1, lim = e === 0 ? lo : e === 1 ? hiX : e === 2 ? loY : hiY;
+        for(let i = 0; i < n; i++){ const j = (i + 1) % n, px = a[i * 2], py = a[i * 2 + 1], qx = a[j * 2], qy = a[j * 2 + 1], pv = (ax ? px : py) * sg, qv = (ax ? qx : qy) * sg, L = lim * sg, pin = pv >= L, qin = qv >= L;
+          if(pin){ b[o++] = px; b[o++] = py; } if(pin !== qin){ const t = (L - pv) / (qv - pv); b[o++] = px + (qx - px) * t; b[o++] = py + (qy - py) * t; } }
+        n = o / 2; const t = a; a = b; b = t; } }
+    if(n >= 3) gridFill(a, n, col); }
+  function gridFill(a, n, col){ let y0 = Infinity, y1 = -Infinity; for(let i = 0; i < n; i++){ const y = a[i * 2 + 1]; if(!(y === y)) return; if(y < y0) y0 = y; if(y > y1) y1 = y; }
+    const r0 = Math.max(0, Math.ceil(y0 / PX - .5)), r1 = Math.min(cv.height - 1, Math.floor(y1 / PX - .5)); if(r1 < r0) return; cx.fillStyle = col;
+    if(r1 - r0 > 32){ cx.beginPath(); cx.moveTo(snap(a[0]), snap(a[1])); for(let i = 1; i < n; i++) cx.lineTo(snap(a[i * 2]), snap(a[i * 2 + 1])); cx.closePath(); cx.fill(); return; }
+    const xmn = -PX, xmx = W + PX; let rl = 0, rr = 0, rs = 0, re = 0;
+    for(let r = r0; r <= r1; r++){ const yc = (r + .5) * PX; let lo = Infinity, hi = -Infinity;
+      for(let i = 0; i < n; i++){ const j = (i + 1) % n, px = a[i * 2], py = a[i * 2 + 1], qx = a[j * 2], qy = a[j * 2 + 1];
+        if((py <= yc && qy > yc) || (qy <= yc && py > yc)){ const xx = px + (yc - py) * (qx - px) / (qy - py); if(xx < lo) lo = xx; if(xx > hi) hi = xx; } }
+      if(!(hi >= lo)) continue; if(lo < xmn) lo = xmn; if(hi > xmx) hi = xmx; let xl = Math.round(lo / PX), xr = Math.round(hi / PX);
+      if(xr <= xl){ xl = Math.floor((lo + hi) / 2 / PX); xr = xl + 1; }
+      if(xl === rl && xr === rr && r === re){ re = r + 1; continue; }
+      if(re > rs) cx.fillRect(rl * PX, rs * PX, (rr - rl) * PX, (re - rs) * PX); rl = xl; rr = xr; rs = r; re = r + 1; }
+    if(re > rs) cx.fillRect(rl * PX, rs * PX, (rr - rl) * PX, (re - rs) * PX); }
   // sprite blits clipped to the screen in source pixels, so a sprite beside the camera (scaled to thousands of pixels) costs no more than one on screen
   function blitSrc(c, sx, sy, sw, sh, dx, dy, k){ let x0 = dx, y0 = dy, x1 = dx + sw * k, y1 = dy + sh * k; if(x1 <= 0 || y1 <= 0 || x0 >= W || y0 >= H) return;
     cx.imageSmoothingEnabled = false; if(x0 >= -1 && y0 >= -1 && x1 <= W + 1 && y1 <= H + 1){ cx.drawImage(c, sx, sy, sw, sh, x0, y0, x1 - x0, y1 - y0); return; }
@@ -398,8 +423,8 @@
   // a second snow eave, a plaster third floor on the tall ones, and the snow roof leaning back from the street, palest at its ridge
   function drawFac(sp, x, y, uw, fog, now){ const t = farEnd(sp, fog); if(!t) return; const p = t.p2.screen; if(!p.w) return; const side = sp.side, x2 = p.x + sp.x * p.w, y2 = p.y, u2 = p.w;
     const tall = sp.v % 2 === 1, k = sp.s.index, rel = k - sp.b0, top1 = tall ? 1.55 : 1.72, rb = tall ? 2.28 : top1 + .12, rt = rb + .7, j = H0(k * 1.37) * .05, j2 = H0(k * 2.9) * .05;
-    const Q = (h0, h1, col, l0, l1) => { l0 = l0 || 0; l1 = l1 || 0; poly(x + side * uw * l0, y - uw * h0, x2 + side * u2 * l0, y2 - u2 * h0, x2 + side * u2 * l1, y2 - u2 * h1, x + side * uw * l1, y - uw * h1, col); };
-    const sw = Math.abs(x2 - x), V = (tt, h0, h1, wd, col) => { const xx = lerp(x, x2, tt), yy = lerp(y, y2, tt), ww = lerp(uw, u2, tt), th = Math.max(PX, snap(Math.min(ww * wd, sw * wd * 2.5))); if(xx < -th || xx > W + th) return; const ya = Math.max(-PX, yy - ww * h1), yb = Math.min(H + PX, yy - ww * h0); if(yb <= ya) return; cx.fillStyle = col; cx.fillRect(Math.round(xx - th / 2), ya, th, yb - ya); };
+    const Q = (h0, h1, col, l0, l1) => { l0 = l0 || 0; l1 = l1 || 0; gpoly(x + side * uw * l0, y - uw * h0, x2 + side * u2 * l0, y2 - u2 * h0, x2 + side * u2 * l1, y2 - u2 * h1, x + side * uw * l1, y - uw * h1, col); };
+    const sw = Math.abs(x2 - x), V = (tt, h0, h1, wd, col) => { const xx = lerp(x, x2, tt), yy = lerp(y, y2, tt), ww = lerp(uw, u2, tt), th = Math.max(PX, snap(Math.min(ww * wd, sw * wd * 2.5))); if(xx < -th || xx > W + th) return; const ya = snap(Math.max(-PX, yy - ww * h1)), yb = snap(Math.min(H + PX, yy - ww * h0)); if(yb <= ya) return; cx.fillStyle = col; cx.fillRect(snap(xx - th / 2), ya, th, yb - ya); };
     const room = H0(sp.n * 7.3 + (rel >> 1) * 3.1), lit1 = room > .22, lit2 = H0(sp.n * 3.1 + (rel >> 1) * 5.7) > .4, door = rel === 1, wf = fog * .55;
     const WARM2 = fc(SJ[2], wf), DARKW = fc('#1a1218', fog), WALLC = fc(WD.M, fog), GRID = fc(SJ[0], wf);
     if(fog > .3){ Q(0, top1, WALLC); Q(.16, .74, lit1 ? WARM2 : DARKW); Q(1.12, top1 - .08, lit2 ? WARM2 : DARKW); Q(.86, 1.04, fc(SN.L, fog)); Q(top1, rb + .1, fc(SN.L, fog)); Q(rb, rt, fc(SN.L, fog), 0, .8); return; }

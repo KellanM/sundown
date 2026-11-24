@@ -237,6 +237,7 @@ function rcomp(li, ph, hang){ const key = li + ':' + ph + ':' + hang; if(RSP[key
   return RSP[key] = c; }
 const flipC = c => c._f || (c._f = (() => { const o = can(c.width, c.height), k = o.getContext('2d'); k.translate(c.width, 0); k.scale(-1, 1); k.drawImage(c, 0, 0); return o; })());
 // legs (the kick and its wind-up) from mech/gang.js's builders, in the boss's black trousers and brown engineer boots / the riders' gakuran
+const smear = u => !!(MECH.gang && MECH.gang.smearOn && MECH.gang._dbg.smearSprite && MECH.gang.smearOn(u));   // the kick's smear frame window (mech/gang.js)
 const LEGB = { id:'bossT', a:'#5a5478', b:'#2e2a44', c:'#1c1930', d:'#341e14', dl:'#6a4430', K:'#0c0710' };
 const LEGR = { id:'bossR', a:'#5a587e', b:'#3e3c58', c:'#24222e', d:'#121018', dl:'#3e3c58', K:'#140c04' };
 let WRK = [];   // wreck kits per look (mech/gang.js wreckKit), built at warm-up
@@ -274,7 +275,7 @@ function touch(){ try{ if(!TOUCH) TOUCH = can(4, 4); const g = TOUCH.getContext(
 function warm(){ if(warmed || !ART || typeof cx === 'undefined' || !cx) return; warmed = true;
   const G0 = MECH.gang;
   for(const li of [1, 2]) for(let ph = 0; ph < 3; ph++) for(let h = -1; h <= 1; h++) rcomp(li, ph, h);
-  if(G0 && G0._dbg){ const D = G0._dbg; for(const P of [LEGB, LEGR]){ flipC(D.cockSprite(P)); for(let n = 4; n <= 16; n += 2) flipC(D.legSprite(P, n)); } }
+  if(G0 && G0._dbg){ const D = G0._dbg; for(const P of [LEGB, LEGR]){ flipC(D.cockSprite(P)); for(let n = 4; n <= 16; n += 2) flipC(D.legSprite(P, n)); } if(D.smearSprite){ D.smearSprite(LEGB, 14, 1); D.smearSprite(LEGR, 12, 1); } }
   if(G0 && G0.wreckKit){ const P = Object.assign({}, RPAL); WRK = [null, G0.wreckKit(P, 1), G0.wreckKit(P, 2)]; }
   for(let p = 0; p < 2; p++){ bubble(p, false); bubble(p, true); }
   try{ buildAtlas(); }catch(e){ console.warn('boss atlas', e); }
@@ -539,7 +540,7 @@ function updateRider(r, dt, pz){ const gap = r.z - pz, dx = r.x - playerX; r.fla
 function drawBoss(b, x, y, k, fog, now, am){ if(!ATL) return; const a = (1 - fog * .6) * (am === undefined ? 1 : am); if(a <= .01) return; const dk = !!ATLD && darkAt(b.z); SRC = dk ? ATLD : null;
   const f = poseOf(b.lean), F = FR[Math.abs(f)], res = clamp(b.lean - F.t * Math.sign(f), -.14, .14), ph = Math.floor(now / 45) % 3, fph = Math.floor(now / 110 + b.flagPh) % 3;
   const g = cx; g.save(); g.globalAlpha = a; g.imageSmoothingEnabled = false;
-  g.fillStyle = 'rgba(0,0,0,.45)'; g.beginPath(); g.ellipse(x, y, 13 * k, Math.max(1, 1.8 * k), 0, 0, 6.283); g.fill();
+  pxShadow(g, x, y, 13, Math.max(1 / k, 1.8), k, .45);   // the core's stepped pixel shadow
   g.translate(Math.round(x), Math.round(y)); if(Math.abs(res) > .002) g.rotate(res);
   const rider = b.look < 0 ? 'riderLL' : b.look > 0 ? 'riderLR' : 'rider', top = POLE_TOP[f + 3] || [6, -58];
   // back to front: the cowl and screen, the pole (it stands behind him) and its cloth (lowered in steps for the salute), the tyre, the
@@ -557,8 +558,8 @@ function drawBoss(b, x, y, k, fog, now, am){ if(!ATL) return; const a = (1 - fog
   // the kick: his leg cocks out toward you, then shoots out
   const G0 = MECH.gang && MECH.gang._dbg, at = b.att;
   if(G0 && at && at.type === 'kick'){ const sd = at.side, hip = -12;
-    if(at.ph === 'go'){ const ext = Math.sin(clamp(at.t / .25, 0, 1) * Math.PI), len = Math.max(4, Math.round(ext * 14 / 2) * 2), s0 = G0.legSprite(LEGB, len), s = sd < 0 ? s0 : flipC(s0);
-      g.drawImage(s, sd < 0 ? (-9 - s.width) * k : 9 * k, (hip - 5) * k, s.width * k, s.height * k); }
+    if(at.ph === 'go'){ const u = clamp(at.t / .25, 0, 1), ext = Math.sin(u * Math.PI), len = Math.max(4, Math.round(ext * 14 / 2) * 2), sm = smear(u), s0 = G0.legSprite(LEGB, len), s = sm ? G0.smearSprite(LEGB, 14, sd) : sd < 0 ? s0 : flipC(s0);   // sm: gang.js's smear frame
+      g.drawImage(s, sd < 0 ? (-9 - s.width) * k : 9 * k, (hip - (sm ? 6 : 5)) * k, s.width * k, s.height * k); }
     else { const s0 = G0.cockSprite(LEGB), s = sd < 0 ? s0 : flipC(s0); g.drawImage(s, sd < 0 ? (-9 - s.width) * k : 9 * k, (hip - 10) * k, s.width * k, s.height * k); glow(sd * 15 * k, (hip - 6) * k, 8 * k, '#ffb35a', .5); } }
   g.restore();
   // the tell's bubble, upright, never smaller than 2 canvas pixels a sprite pixel
@@ -567,15 +568,15 @@ function drawBoss(b, x, y, k, fog, now, am){ if(!ATL) return; const a = (1 - fog
   g.globalAlpha = 1; SRC = null; }
 
 function drawRider(r, x, y, k, fog, now, am){ const a = (1 - fog * .6) * (am === undefined ? 1 : am); if(a <= .01) return; const hang = Math.round(clamp(r.lean / .5, -1, 1)), ph = Math.floor(now / 45 + r.id) % 3, c = CELL['r' + r.li + ph + hang]; if(!c || !ATL) return;
-  const g = cx; g.globalAlpha = a; g.fillStyle = 'rgba(0,0,0,.45)'; g.beginPath(); g.ellipse(x, y, 9 * k, Math.max(1, 1.6 * k), 0, 0, 6.283); g.fill();
+  const g = cx; g.globalAlpha = a; pxShadow(g, x, y, 9, Math.max(1 / k, 1.6), k, .45);
   const AS = ATLD && darkAt(r.z) ? ATLD : ATL;
   g.save(); g.translate(x, y); g.rotate(r.lean); g.imageSmoothingEnabled = false; g.drawImage(AS, c.sx, c.sy, c.w, c.h, Math.round(-RCW / 2 * k), Math.round(-RGY * k), RCW * k, RCH * k);
   const fl = CELL['gflag' + (Math.floor(now / 110 + r.flagPh) % 3)]; if(fl && ATL){ const fx0 = r.li === 1 ? 8 : 6; g.drawImage(AS, fl.sx, fl.sy, fl.w, fl.h, Math.round((fx0 + fl.ox) * k), Math.round((-4 + fl.oy) * k), fl.w * k, fl.h * k); }
   const tl = r.li === 1 ? [0, -7.5, 5] : [0, -5, 4], bright = r.brakeT > 0 && Math.floor(now / 110) % 2 === 0 || r.brk > 0; glow(tl[0] * k, tl[1] * k, tl[2] * k * (bright ? 2.2 : 1), '#ff2a3a', (bright ? .95 : .55) * a);
   const G0 = MECH.gang && MECH.gang._dbg;
   if(G0 && (r.windT > 0 || r.kickT > 0)){ const sd = r.kickT > 0 ? r.kickSide : r.windSide, hip = -12;
-    if(r.kickT > 0){ const ext = Math.sin(clamp(1 - r.kickT / .25, 0, 1) * Math.PI), len = Math.max(4, Math.round(ext * 12 / 2) * 2), s0 = G0.legSprite(LEGR, len), s = sd < 0 ? s0 : flipC(s0);
-      g.drawImage(s, sd < 0 ? (-8 - s.width) * k : 8 * k, (hip - 5) * k, s.width * k, s.height * k); }
+    if(r.kickT > 0){ const u = clamp(1 - r.kickT / .25, 0, 1), ext = Math.sin(u * Math.PI), len = Math.max(4, Math.round(ext * 12 / 2) * 2), sm = smear(u), s0 = G0.legSprite(LEGR, len), s = sm ? G0.smearSprite(LEGR, 12, sd) : sd < 0 ? s0 : flipC(s0);
+      g.drawImage(s, sd < 0 ? (-8 - s.width) * k : 8 * k, (hip - (sm ? 6 : 5)) * k, s.width * k, s.height * k); }
     else { const s0 = G0.cockSprite(LEGR), s = sd < 0 ? s0 : flipC(s0); g.drawImage(s, sd < 0 ? (-8 - s.width) * k : 8 * k, (hip - 10) * k, s.width * k, s.height * k); glow(sd * 14 * k, (hip - 6) * k, 7 * k, '#ffb35a', .45); } }
   g.restore();
   if(r.windT > 0){ const bb = bubble(calm() ? 0 : Math.floor(now / 140) % 2, false), bk = Math.max(2 * PX, Math.round(k * .7 / PX) * PX); g.globalAlpha = 1; g.drawImage(bb, Math.round(x - bb.width * bk / 2), Math.round(y - 40 * k - bb.height * bk), bb.width * bk, bb.height * bk); }

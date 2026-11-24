@@ -408,7 +408,7 @@ if(MECH.gang){ if(MECH.gang.onPack) MECH.gang.onPack(onPack); MECH.gang.crew = {
 function drawRider(r, x, y, k, fog, now, am){ const a = (1 - fog * .6) * (am === undefined ? 1 : am); if(a <= .02 || !SP) return; const L = MECH.gang._dbg.LOOKS[r.look];
   const hang = Math.round(clamp(r.lean / .5, -1, 1)), moving = state !== 'ready' && r.speed > 30, ph = moving && !reduce ? Math.floor(now / 45 + r.id) % 3 : 0;
   const fd = Math.sign(r.x - playerX) || r.side, fph = reduce ? 0 : Math.floor(now / 110 + r.id * 1.3) % 3;
-  cx.globalAlpha = a; cx.fillStyle = 'rgba(0,0,0,.45)'; cx.beginPath(); cx.ellipse(x, y, L.shadow * k, Math.max(1, 1.6 * k), 0, 0, 6.283); cx.fill();
+  cx.globalAlpha = a; pxShadow(cx, x, y, L.shadow, Math.max(1 / k, 1.6), k, .45);   // the core's stepped pixel shadow
   cx.save(); cx.translate(x, y); cx.rotate(r.lean); cx.imageSmoothingEnabled = false;
   if(r.two){ const f = SP.hata[fd > 0 ? 0 : 1][fph], hx = fd > 0 ? 7 : -8;   // the pole rises from the pillion's upper hand
     cx.drawImage(f, (fd > 0 ? hx - 1 : hx - f.width + 2) * k, (-29 - f.height + 3) * k, f.width * k, f.height * k); }
@@ -424,7 +424,7 @@ function drawRider(r, x, y, k, fog, now, am){ const a = (1 - fog * .6) * (am ===
 // a crewmate's wreck (gang.js's beats): the bike holds its impact pose, cartwheels in quarter turns on a hop, then skids on its side
 function drawWreck(r, x, y, k, fog){ const W0 = SP.wreck && SP.wreck[r.look]; if(!W0) return; const D = r.dn, t = r.t, a = 1 - fog * .6; k *= 1.4;
   const cart = !reduce && t >= .07 && t < .55, u = cart ? (t - .07) / .48 : 0, q = cart ? (Math.floor(u * 7) * (D.side > 0 ? 1 : 3)) % 4 : 0, b = W0.bike[D.side < 0 ? 0 : 1][q], lift = cart ? Math.round(Math.sin(u * Math.PI) * 12) * k : 0;
-  cx.globalAlpha = a; cx.fillStyle = 'rgba(0,0,0,.4)'; cx.beginPath(); cx.ellipse(x, y, 11 * k, Math.max(1, 1.4 * k), 0, 0, 6.283); cx.fill();
+  cx.globalAlpha = a; pxShadow(cx, x, y, 11, Math.max(1 / k, 1.4), k, .4);
   cx.drawImage(b, Math.round(x - b.width * k / 2), Math.round(y - b.height * k - lift), b.width * k, b.height * k);
   if(t >= .55 && t < 1.5) glow(x, y - 2 * k, 9 * k, '#ffb040', .4 * a); cx.globalAlpha = 1; }
 function drawTumble(r, x, y, k, fog){ const W0 = SP.wreck && SP.wreck[r.look]; if(!W0) return; const t = r.t, a = 1 - fog * .6, f = Math.floor(t * (reduce ? 4 : 10)) % 4, s = W0.tumble[t < 1.6 ? f : 1];

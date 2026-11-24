@@ -84,6 +84,7 @@
      [T2a, T2b) just after; the reveal stretch [R0, T1a) before the Kanden portal, straightened so the dam stands dead ahead; before that the
      gorge road with galleries and, given room, a rock tunnel. Everything big keeps clear of a fork's split window and of the border blends.
      A visit with no room for the crest (a short fork zone) is all gorge. */
+  const JLEAD = 230, JZ0 = 540, JTOT = () => (window.MECH && MECH.sp_jump && MECH.sp_jump.TOT) || 66;   // the gorge leap: segments from the visit's start (jump.js's LEAD), the first visit's extra length, the jump's length
   const LAYS = new Map(), REV = 320, LEAD = 70, LED = 200;   // LED: the downstream viewing ledge after the west bore (a game liberty Kellan asked for)
   const clear = (a, b) => !(window.inForkWindow && inForkWindow(a, b));
   let LREF = null;
@@ -96,13 +97,23 @@
        approach for more galleries; a first visit (zone 0, no border blend at its start) may begin 40 segments in. */
     const st = z === 0 ? 40 : 160, G = gates[2 * z];
     const gateOK = (h0, C) => G === undefined || G < h0 - 76 - REV - LEAD - 90 || (G > h0 + 12 && G < h0 + C - 40) || G > h0 + C + 150;
-    outer: for(const led of [LED, 0]) for(const room of [200, 0]) for(let C = 520; C >= (led ? 180 : 240); C -= 20) for(let h0 = B1 - 130 - 108 - led - (led ? 90 : 0) - C; h0 >= B0 + st + LEAD + REV + 76 + room; h0 -= 2){ if(clear(h0 - 76 - REV - LEAD - 10, h0 + C + 108 + (led ? led + 100 : 0)) && gateOK(h0, C) && (!led || G === undefined || G < h0 + C)){ L.ok = true; L.C = C; L.H0 = h0; L.H1 = h0 + C; L.led = led; break outer; } }
+    /* round 14: room for the gorge leap (below) first. Room 200 leaves it 64 open segments before the lead-in gallery on a later visit; a
+       first visit (st 40) needs 320, and its checkpoint (gate 0, at 520) must then stand well before the lead-in gallery: the JZ0 segments
+       GATE_EXTRA adds to the first visit (warmSteps) give both, with the 320 crest it had. A later visit keeps round 13's order (the ledge
+       first): the jump comes where room 200 fits, which in normal play is from the fourth road on (the second and third roads' visits are
+       too short to have the reveal clear of their checkpoint and the jump before it; see kurobe.md §7n). */
+    const ORD = z === 0 ? [[LED, 320], [0, 320], [LED, 200], [LED, 0], [0, 200], [0, 0]] : [[LED, 200], [LED, 0], [0, 200], [0, 0]];
+    outer: for(const [led, room] of ORD) for(let C = 520; C >= (led ? 180 : 240); C -= 20) for(let h0 = B1 - 130 - 108 - led - (led ? 90 : 0) - C; h0 >= B0 + st + LEAD + REV + 76 + room; h0 -= 2){ if(clear(h0 - 76 - REV - LEAD - 10, h0 + C + 108 + (led ? led + 100 : 0)) && gateOK(h0, C) && (!led || G === undefined || G < h0 + C)){ L.ok = true; L.C = C; L.H0 = h0; L.H1 = h0 + C; L.led = led; break outer; } }
     let aEnd = B1 - 170;
     if(L.ok){ const H0 = L.H0, H1 = L.H1; L.T1a = H0 - 76; L.T1b = H0 - 4; L.T2a = H1 + 6; L.T2b = H1 + 108; L.R0 = L.T1a - REV; L.zc = L.T1b + 40;
       L.bores.push({ a:L.T1a, b:L.T1b, kind:0 }, { a:L.T2a, b:L.T2b, kind:1 }); aEnd = L.R0 - LEAD - 30; L.gal.push({ a:L.R0 - LEAD, b:L.R0, n:0, mouth:true });
       L.zo = [H0 + Math.round(L.C * .44), H0 + Math.round(L.C * .58)]; }
+    /* the gorge leap (黒部峡谷越え, round 14; research/sundown-craft/jumps.md §4): setpiece/jump.js's landmark jump, at the visit's start +
+       JLEAD as on every road, where it fits clear: its run-up (210), ramp, gap and far leaf, then 64 open segments before any gallery, bore or
+       the reveal's lead-in; never over the checkpoint, never in a fork's split window. jumpAt() hands it to jump.js; null: this visit has none. */
+    { const T = JTOT(), jb = B0 + JLEAD, je = jb + T + 64, lim = L.ok ? L.R0 - LEAD : B1 - 170; if(je <= lim && clear(jb - 210, jb + T + 30) && (G === undefined || G < jb - 230 || G > jb + T + 20)) L.jb = jb; }
     // the approach: a rock tunnel given room, then galleries between open stretches
-    let g = B0 + 175; const span = aEnd - g;
+    let g = Math.max(B0 + 175, L.jb ? L.jb + JTOT() + 64 : 0); const span = aEnd - g;
     if(span > 560){ const ta = g + Math.round(span * .46), tb = ta + 70 + Math.round(H1(B0 * .11) * 30); if(clear(ta - 10, tb + 10)) L.bores.push({ a:ta, b:tb, kind:2 }); }
     const gals = (from, to, seed) => { let x = from, n = 0; while(x < to - 50 && n < 40){ const gap = 34 + Math.round(H1(seed + n * 7.7) * 64), len = 46 + Math.round(H1(seed * 1.7 + n * 3.1) * 58); x += gap; const a = x, b = x + len;
         if(b < to && clear(a - 6, b + 6) && !L.bores.some(r => b > r.a - 34 && a < r.b + 34)) L.gal.push({ a, b, n:L.gal.length }); x = b; n++; } };
@@ -130,15 +141,18 @@
      lead-in gallery's mouth onto the reveal, with the arch across the gorge. The card; the floodlights strike on along the foot one by one;
      the left gate opens and its jet bursts from the face and grows into its full arc down into the pool; then the right; the mist surges up
      the gorge. From then on the jets run for the rest of the visit (the crest's view of the far half, the exit). On a visit where the moment
-     is not booked the dam stands dark and quiet: no jets, no floodlights (the crest's own lamps still burn). Driven by the rider's distance
+     is not booked the jets simply run (round 14, JQ0 below): lit, roaring, no card. Driven by the rider's distance
      from the gallery mouth (R0), never the clock. */
   const CARD = { kanji:'観光放水', name:'KANPŌ', sub:'the gates open', col:'#9ae0ff' };
   let DIRREG = false; const DIR = () => (window.MECH && MECH.director) || null;
   function regDir(){ if(DIRREG) return; const D = DIR(); if(!D) return; DIRREG = true; try{ D.register('kanpo', { tier:'hero', roads:[KEY], card:CARD }); }catch(e){} }
   function spS(L){ return camSeg() - L.R0; }
   // jet strength (0..1) for outlet j, and floodlight k of n lit?
-  function jetQ(L, j){ if(!L || !L.ok || !L.sp) return 0; const s = spS(L); return sm((s - (j ? 150 : 84)) / 62); }
-  function floodOn(L, k){ if(!L || !L.ok || !L.sp) return 0; return spS(L) >= 22 + k * 13 ? 1 : 0; }
+  /* Round 14 (Kellan: "jets running"): on a visit where the moment is not booked the dam is no longer dark. Its gates run at a steady
+     working discharge (JQ0: a little narrower than the kanpo's full throw), the floodlights burn, the mist rises: no card, no cinematic. */
+  const JQ0 = .8;
+  function jetQ(L, j){ if(!L || !L.ok) return 0; if(!L.sp) return JQ0; const s = spS(L); return sm((s - (j ? 150 : 84)) / 62); }
+  function floodOn(L, k){ if(!L || !L.ok) return 0; if(!L.sp) return 1; return spS(L) >= 22 + k * 13 ? 1 : 0; }
   // the crest's lamps, the deck and the stair: lit, except on the set piece's dark approach until the lights strike on
   function lampOn(L){ return !L || !L.ok || !L.sp || spS(L) >= 22; }
 
@@ -226,23 +240,60 @@
   function strip(c, tier, y){ if(!c || KBX.includes('strip')) return; const w = c.width, off = ((skyPar(tier) / PX) % w + w) % w, cw = Math.ceil(W / PX); cx.imageSmoothingEnabled = false;
     for(let sx = -Math.round(off); sx < cw; sx += w) cx.drawImage(c, sx * PX, snp(y), w * PX, c.height * PX); }
 
-  // ---------------------------------------------------------------- the jets: a ribbon of white water and foam puffs flowing along it
-  const JX = new Float64Array(12), JY = new Float64Array(12), JR = new Float64Array(12);
-  /* A kanpō jet: a dense white core leaving the outlet, breaking into fan-shaped spray along both flanks that widens and thins toward the
-     tail, and the tail drifting into mist. pt(t) writes the world point at t (0 outlet .. 1 the basin) into JP; rw(t) is the jet's half-width
-     there, in half-road widths. The spray flows outward along the jet (steady under reduced motion). */
-  function jet(pt, rw, q, now, seed, F){ if(q <= .02) return; const N = 10, n = Math.max(2, Math.round(N * (.35 + .65 * q)));
-    for(let k = 0; k <= n; k++){ const t = k / N; pt(t); PJ(JP[0], JP[1], JP[2]); JX[k] = PJX; JY[k] = PJY; JR[k] = rw(t) * PJU * (.4 + .6 * q); }
-    // the core: solid white, its shadowed underside a step cooler; it narrows into the spray as it falls
-    for(let k = 0; k < n; k++){ const f0 = Math.max(0, 1 - Math.pow(k / N, 1.5) * 1.15), f1 = Math.max(0, 1 - Math.pow((k + 1) / N, 1.5) * 1.15), a = JR[k] * .4 * f0, b = JR[k + 1] * .4 * f1; if(a < .5 && b < .5) continue;
-      poly(JX[k] - a, JY[k], JX[k] + a, JY[k], JX[k + 1] + b, JY[k + 1], JX[k + 1] - b, JY[k + 1], F(FOAM[4]));
-      poly(JX[k] + a * .3, JY[k], JX[k] + a, JY[k], JX[k + 1] + b, JY[k + 1], JX[k + 1] + b * .3, JY[k + 1], F(FOAM[3])); }
-    // the spray: feathered dither along both flanks, larger and looser toward the tail
-    const M = 9, fl = reduce ? 0 : now * .00038, ch = reduce ? 0 : Math.floor(now / 140);
-    for(let m = 0; m < M; m++){ const u = ((m / M + fl + seed * .37) % 1); if(u * N > n) continue; pt(u); PJ(JP[0], JP[1], JP[2]); const w = rw(u) * PJU * (.4 + .6 * q), r = w * (.16 + .45 * u * u) * (.75 + .5 * H1(m * 3.3 + seed)); if(r < PX) continue;
-      const side = (m & 1 ? 1 : -1) * (.25 + .5 * H1(m * 1.9 + seed)); puffAt(PUFF, PJX + side * w * .7, PJY - w * (.25 + .3 * H1(m * 7.3 + seed)), r, m + ch + seed); }
-    // the tail goes to mist
-    cx.globalAlpha = .55 * q; for(let m = 0; m < 3; m++){ const t = Math.min(n / N, .78 + m * .1); pt(t); PJ(JP[0], JP[1], JP[2] + 1 + m); const r = rw(t) * PJU * (.7 + m * .25); if(r >= PX) puffAt(MIST, PJX + (m - 1) * r * .5, PJY, r, m + seed); } cx.globalAlpha = 1; }
+  // ---------------------------------------------------------------- the jets: feathered white water, spray that fans and falls, mist
+  /* Round 14 (Kellan: "feathered jets"), from the 観光放水 photographs at zoom ("Kurobe Dam 20141012 130913", "...AlpineRoute6337",
+     "Kurobe Dam (9711128077)", "Kurobe Dam 01..06"): each jet leaves its outlet as a blunt white crown that arches out and over, then falls
+     as a widening curtain. Its value runs from a hard white core through a striated body (vertical fall streaks, white over a grey a step
+     down) to a torn edge: the dam shows through it in broken wisps, strands of water hang off the curtain, droplets fling out of it in fans
+     and drop. Below, the curtain dissolves into a cloud of mist wider than the jets. Rules taken:
+     - four values, no outline: core FOAM[4], body FOAM[3], streaks FOAM[2], veil = FOAM[3] in ordered dither (50%, then 25% outside);
+     - the edge is never a clean curve: its width is value noise travelling down the jet (the water moving), the veil breaks it into pixels;
+     - strands hang straight down (gravity, screen space) from the underside of the curtain, one pixel wide, dithered, varying in length;
+     - spray: stateless particles fired out of both flanks, fanning along the jet and falling, white -> pale -> grey as they age;
+     - all of it scales with the jet's own width, so it reads the same far up the gorge and right over the road (steady under reduced motion).
+     pt(t) writes the world point at t (0 outlet .. 1 the basin) into JP; rw(t) is the jet's half-width there, in half-road widths. */
+  const JNM = 18, JX = new Float64Array(JNM + 1), JY = new Float64Array(JNM + 1), JR = new Float64Array(JNM + 1), JA = new Float64Array(JNM + 1), JB = new Float64Array(JNM + 1);
+  const JW = .42;   // the solid water's half-width as a share of rw (the veil, the strands and the spray reach out past it)
+  const vn = x => { const i = Math.floor(x), f = x - i, a = H1(i * 7.13 + 3.1), b = H1((i + 1) * 7.13 + 3.1); return a + (b - a) * f * f * (3 - 2 * f); };   // smooth value noise, 0..1
+  /* one ribbon layer between the jet's samples: wt / wb (in units of the local half-width) on the top (crown) and under sides, each widened
+     by noise of amplitude at / ab that travels down the jet with the flow; t0..t1 limits it along the jet; it narrows as it falls by
+     1 - t^tp * ts (the solid water breaks up first: the core is gone by the basin, the body thins, the veil holds on) */
+  function ribbon(n, N, wt, at, wb, ab, col, fl, sd, t0, t1, tp, ts){ for(let k = 0; k < n; k++){ const ta = k / N, tb = (k + 1) / N; if(tb < t0 || ta > t1) continue;
+      const fa = Math.max(0, 1 - Math.pow(ta, tp) * ts), fb = Math.max(0, 1 - Math.pow(tb, tp) * ts); if(fa <= 0 && fb <= 0) continue;
+      const ea = vn(k * 1.37 - fl + sd), eb = vn((k + 1) * 1.37 - fl + sd), ga = vn(k * 1.61 - fl * 1.2 + sd + 40), gb = vn((k + 1) * 1.61 - fl * 1.2 + sd + 40);
+      const ra = JR[k] * fa, rb = JR[k + 1] * fb, ua = ra * (wt + at * ea), ub = rb * (wt + at * eb), da = ra * (wb + ab * ga), db = rb * (wb + ab * gb);
+      poly(JX[k] + JA[k] * ua, JY[k] + JB[k] * ua, JX[k + 1] + JA[k + 1] * ub, JY[k + 1] + JB[k + 1] * ub, JX[k + 1] - JA[k + 1] * db, JY[k + 1] - JB[k + 1] * db, JX[k] - JA[k] * da, JY[k] - JB[k] * da, col); } }
+  function jet(pt, rw, q, now, seed, F){ if(q <= .02) return;
+    pt(.5); PJ(JP[0], JP[1], JP[2]); const Rm = rw(.5) * PJU * (.4 + .6 * q) * JW, N = Rm > PX * 12 ? 18 : Rm > PX * 4 ? 13 : 9, n = Math.max(2, Math.round(N * (.35 + .65 * q)));
+    for(let k = 0; k <= n; k++){ const t = k / N; pt(t); PJ(JP[0], JP[1], JP[2]); JX[k] = PJX; JY[k] = PJY; JR[k] = rw(t) * PJU * (.4 + .6 * q) * JW / (1 + .9 * t); }
+    // normals: the crown side (screen up) first, then kept continuous along the jet so a falling stretch never twists
+    for(let k = 0; k <= n; k++){ const a = Math.max(0, k - 1), b = Math.min(n, k + 1), dx = JX[b] - JX[a], dy = JY[b] - JY[a], l = Math.hypot(dx, dy) || 1; let nx = -dy / l, ny = dx / l;
+      if(k === 0 ? ny > 0 : nx * JA[k - 1] + ny * JB[k - 1] < 0){ nx = -nx; ny = -ny; } JA[k] = nx; JB[k] = ny; }
+    const fl = reduce ? 0 : now * .0026, sd = seed * 17.3, C4 = F(FOAM[4]), C3 = F(FOAM[3]), C2 = F(FOAM[2]);
+    // the veil: the torn translucent edge (25% outside, 50% inside); the curtain hangs wider on its underside as it falls
+    if(Rm > PX * 2.2){ ribbon(n, N, .85, .4, 1.3, .6, ditherPat(C3, .25), fl, sd, .18, 1, 2, 0); ribbon(n, N, .95, .3, 1.05, .4, ditherPat(C3, .5), fl * 1.1, sd + 9, 0, 1, 2, .45); }
+    // the body, then the core
+    ribbon(n, N, .62, .28, .7, .3, C3, fl * 1.2, sd + 21, 0, 1, 2, .8);
+    ribbon(n, N, .5, .14, .2, .12, C4, fl * 1.3, sd + 33, 0, 1, 1.5, 1.15);
+    // fall streaks: dashed lines along the curtain (grey in its shadowed underside, white on its upper face), the dashes running with the water
+    if(Rm > PX * 4.5){ const ph = Math.floor(fl * 2.2); for(let s = 0; s < 4; s++){ const o = [-.52, -.22, .12, .4][s], col = o < 0 ? C2 : C4;
+        for(let k = 1; k < n; k++){ if(k / N < .18 || (k + ph + s * 2) % 3 === 0) continue; const oa = JR[k] * o, ob = JR[k + 1] * o, w = PX * .5;
+          poly(JX[k] + JA[k] * (oa - w), JY[k] + JB[k] * (oa - w), JX[k + 1] + JA[k + 1] * (ob - w), JY[k + 1] + JB[k + 1] * (ob - w), JX[k + 1] + JA[k + 1] * (ob + w), JY[k + 1] + JB[k + 1] * (ob + w), JX[k] + JA[k] * (oa + w), JY[k] + JB[k] * (oa + w), col); } } }
+    // strands hanging off the underside of the curtain, and short wisps torn up off the crown (one pixel wide, dithered, never the same twice)
+    if(Rm > PX * 2.5){ const half = ditherPat(C3, .5); for(let k = 1; k <= n; k++){ const t = k / N; for(let j = 0; j < 2; j++){ const u = (j + .35) / 2, kk = k - 1 + u, X = JX[k - 1] + (JX[k] - JX[k - 1]) * u, Y = JY[k - 1] + (JY[k] - JY[k - 1]) * u, R0 = JR[k - 1] + (JR[k] - JR[k - 1]) * u, A = JA[k], B = JB[k];
+          const e = vn(kk * 2.3 - fl * 1.6 + sd + j * 5); if(t > .16){ const L = R0 * (.25 + 1.1 * e * e), d = R0 * (1.05 + .5 * vn(kk * 1.37 - fl + sd)); if(L >= PX){ cx.fillStyle = half; pxRect(snp(X - A * d), snp(Y - B * d), PX, snp(L)); cx.fillStyle = C2; pxRect(snp(X - A * d), snp(Y - B * d + L), PX, PX); } }
+          if(t < .5 && e > .55){ const L = R0 * .5 * (e - .4), d = R0 * (.95 + .3 * vn(kk * 1.37 - fl + sd)); if(L >= PX){ cx.fillStyle = half; pxRect(snp(X + A * d), snp(Y + B * d - L), PX, snp(L)); } } } } }
+    // spray: droplets fired out of both flanks, fanning down the jet and falling (stateless: each lives on a loop of its own period)
+    { const M = Math.round((Rm < PX * 2 ? 4 : Rm < PX * 6 ? 12 : 22) * q); for(let m = 0; m < M; m++){ const t0 = .06 + .78 * H1(m * 1.71 + seed * 3.3), k0 = t0 * N; if(k0 >= n) continue;
+        const k = Math.floor(k0), f = k0 - k, X = JX[k] + (JX[k + 1] - JX[k]) * f, Y = JY[k] + (JY[k + 1] - JY[k]) * f, R0 = JR[k] + (JR[k + 1] - JR[k]) * f, A = JA[k], B = JB[k];
+        let tx = JX[k + 1] - JX[k], ty = JY[k + 1] - JY[k]; const tl = Math.hypot(tx, ty) || 1; tx /= tl; ty /= tl;
+        const side = H1(m * 2.93 + seed) < .6 ? -1 : 1, P = 700 + 600 * H1(m * 4.1 + seed), a = reduce ? .25 + .5 * H1(m * 5.7 + seed) : ((now / P + H1(m * 3.37 + seed)) % 1); if(a > .94) continue;
+        const v = .9 + .9 * H1(m * 6.1 + seed), d = R0 * (1 + v * 1.7 * a), x = X + side * A * d + tx * R0 * 1.4 * a, y = Y + side * B * d + ty * R0 * 1.4 * a + R0 * 2.4 * a * a;
+        const sz = R0 > PX * 7 && a < .45 ? PX * 2 : PX; cx.fillStyle = a < .28 ? C4 : a < .62 ? C3 : C2; cx.fillRect(snp(x - sz / 2), snp(y - sz / 2), sz, sz); } }
+    // the crown: a few lobes of white water boiling along its top near the outlet
+    if(Rm > PX * 3){ const ch = reduce ? 0 : Math.floor(now / 160); for(let m = 0; m < 3; m++){ const t = .05 + m * .1, k0 = t * N; if(k0 >= n) continue; const k = Math.floor(k0), d = JR[k] * .7; puffAt(PUFF, JX[k] + JA[k] * d, JY[k] + JB[k] * d, JR[k] * (.5 + .15 * m), m + ch + seed); } }
+    // the tail goes to mist, wider than the jet, dithered (it reads as a value of its own in grey)
+    cx.globalAlpha = Math.min(1, .8 * q); for(let m = 0; m < 3; m++){ const t = Math.min(n / N, .74 + m * .11); pt(t); PJ(JP[0], JP[1], JP[2] + 1 + m); const r = rw(t) * PJU * (.85 + m * .3); if(r >= PX) puffAt(MIST, PJX + (m - 1) * r * .6, PJY, r, m + seed); } cx.globalAlpha = 1; }
   const JP = new Float64Array(3), JOV = { dz:22, dx:12, up:3, land:-1 }, LOV = { dz:5, dx:-9, up:8, land:-5, wm:1.8 };   // (JOV: the jets over the road on the reveal: thrown 24 units toward you and 14 across the road, falling beyond the left wall)
 
   // ---------------------------------------------------------------- the dam from downstream (the approach): a camera-facing arch across the gorge
@@ -632,7 +683,7 @@
   // ---------------------------------------------------------------- props: one marker per segment (it puts the void back), then the slices
   function draw(sp, x, y, uw, fog, now, sk){ const t = sp.type; if(KBX && KBX.includes('t' + t)) return;
     if(t === 'mk'){ const s = segs[sp.k]; flush(s && s.clip !== undefined ? s.clip : H); return; }
-    if(t === 'cliff') return drawCliff(sp, x, y, uw, fog); if(t === 'rail') return drawRail(sp, x, y, uw, fog);
+    if(t === 'cliff') return drawCliff(sp, x, y, uw, fog); if(t === 'rail') return drawRail(sp, x, y, uw, fog); if(t === 'casc') return drawCasc(sp, uw, fog, now);
     if(t === 'gant'){ if(uw < 2 || fog > .85) return; const w = uw * 1.2, h = uw * 1.5, F = c => fc(c, fog * .8), e = Math.max(PX, snp(uw * .03));
       R(x - w - uw * .04, y - h, e, h, F(CO[5])); R(x + w - uw * .04, y - h, e, h, F(CO[4])); R(x - w - uw * .1, y - h - uw * .08, (w + uw * .1) * 2, e, F(CO[6]));
       R(x - w - uw * .1, y - h + uw * .02, (w + uw * .1) * 2, e, F(CO[3])); for(const sd of [-1, 1]) R(x + sd * w - uw * .08, y - uw * .06, uw * .16, uw * .06, F(CO[2])); return; }
@@ -693,13 +744,14 @@
       if(i % 10 === 0){ const d = Math.min(Math.abs(i - L.zo[0]), Math.abs(i - L.zo[1])), w = d < 90 ? 1 - d / 90 : 0; if(w > .05) s.sprites.push({ env:KEY, type:'mist', x:2.2 + H1(i * 1.3) * 4.5, k:i, w:.45 + .55 * w }); }
       const e = sm((i - L.H0 + 6) / 26) * sm((L.H1 - i) / 26); s.curve = s.curve * (1 - Math.max(e, i < L.H0 || i >= L.H1 ? 1 : 0)) * .2 + CREST_C * e; }
     else { s.kbR = 1.32; s.kbL = 0; const g = sec === 1 ? galOf(L, i) : null;
-      s.sprites.push({ env:KEY, type:'cliff', x:-1.32, k:i, g:!!g });
+      s.sprites.push({ env:KEY, type:'cliff', x:-1.32, k:i, g:!!g }); if(L && L.jb && MECH.sp_jump && i === L.jb + MECH.sp_jump.NL + 9) s.sprites.push({ env:KEY, type:'casc', x:-1.3, k:i });   // (the gorge leap's torrent, down the cut into the gap)
       if(g) s.sprites.push({ env:KEY, type:'gal', x:0, k:i, a:g.a, b:g.b, n:g.n }); else s.sprites.push({ env:KEY, type:'rail', x:1.2, k:i });
       if(g && g.mouth) s.curve = 2.4 * sm((i - g.a) / 22) * sm((g.b + 6 - i) / 22);
       if(sec === 2) s.curve = 0;
       if(sec === 4){ s.curve = 0; if(i % 12 === 6) s.sprites.push({ env:KEY, type:'lpost', x:1.3, k:i }); const bm = L.Lg0 + Math.round(L.led * .45); if(i >= bm && i < bm + 18) s.sprites.push({ env:KEY, type:'bay', x:1.6, k:i, a:bm }); } }
-    // the set piece is decided once, as the reveal is laid (the dam must stand dark on the approach of its visit)
-    if(L && L.ok && !L.req && i >= L.R0){ L.req = true; const D = DIR(); if(KBSP !== null){ L.sp = KBSP === '1'; return; } try{ L.sp = !!(D && D.request && D.request('kanpo', { tier:'hero', seg:L.H0, road:KEY })); }catch(e){ L.sp = false; } } }
+    // the set piece is decided once, as the visit's first segment is laid (round 14: the jets run on other visits, so the dam's state must be
+    // known before it can first be seen, far up the gorge; it was decided at the reveal while every unbooked dam stood dark)
+    if(L && L.ok && !L.req && i >= L.B0){ L.req = true; const D = DIR(); if(KBSP !== null){ L.sp = KBSP === '1'; return; } try{ L.sp = !!(D && D.request && D.request('kanpo', { tier:'hero', seg:L.H0, road:KEY, visit:L.B0 })); }catch(e){ L.sp = false; } } }
 
   // ---------------------------------------------------------------- overlay: cold haze in the gorge; on the crest, mist and spray off the plume
   function overlay(al, now, sk){ cam(); const cs = camSeg(), s0 = segAt(position + PZ); if(s0 && s0.tunnel) return; const L = visitOf(BI), hz = HZ, t = reduce ? 0 : now;
@@ -710,9 +762,9 @@
       cx.globalAlpha = al * v * .5; cx.fillStyle = '#d8e4f6';
       for(let k = 0; k < 36; k++){ const ph = reduce ? H1(k * 3.1) : ((t / 1000 * (.12 + H1(k) * .1) + H1(k * 3.1)) % 1), x = W * (.55 + H1(k * 7.7) * .5) - ph * W * .25, y = H * (.95 - ph * .7); if(x < 0 || x > W) continue; cx.fillRect(snp(x), snp(y), PX, PX); }
       cx.globalAlpha = 1; return; }
-    // under the jets (the set piece's reveal): spray streaks and a wet sheen at the screen's edges only (never over the road's middle), mist
+    // under the jets (the reveal): spray streaks and a wet sheen at the screen's edges only (never over the road's middle), mist
     // drifting across the sky; steady and sparser under reduced motion, never a flash
-    if(L && L.ok && L.sp){ const q = Math.max(jetQ(L, 0), jetQ(L, 1)), I = q * sm((cs - (L.T1a - 240)) / 60) * sm((L.T1a + 6 - cs) / 24);
+    if(L && L.ok){ const q = Math.max(jetQ(L, 0), jetQ(L, 1)), I = q * (L.sp ? 1 : .6) * sm((cs - (L.T1a - 240)) / 60) * sm((L.T1a + 6 - cs) / 24);   // (a working discharge on other visits: calmer)
       if(I > .02){ const n = Math.round((reduce ? 14 : 36) * I);
         cx.globalAlpha = al * .22 * I; cx.fillStyle = ditherPat('#9ab4d8', .25); cx.fillRect(0, 0, snp(W * .06), H); cx.fillRect(snp(W * .94), 0, W - snp(W * .94), H);
         cx.globalAlpha = al * .55 * I; cx.fillStyle = '#d4e2f4';
@@ -723,14 +775,76 @@
     // the gorge: a cold haze lying low over the void
     cx.globalAlpha = al * .5; cx.fillStyle = ditherPat('#5a6888', .25); for(let k = 0; k < 2; k++){ const y = snp(hz + (2 + k * 5) * PX), off = (skyPar('mid') * (1 + k * .3) + t * .004 * (k + 1)) % (W * .5); cx.fillRect(snp(W * .5 - off * .2), y, W, PX * (2 + k)); } cx.globalAlpha = 1; }
 
+  // ---------------------------------------------------------------- the gorge leap (jump.js hooks): the gully under the gap
+  /* 黒部峡谷越え (round 14; spec research/sundown-craft/jumps.md §4). Where a side gully comes down out of the granite on the left, the road's
+     deck is gone: the landmark ramp throws you across it to the far leaf. Below the gap, the gully as seen from the lip and in the air (the
+     floor is jump.js's illusion of depth, drawn flat under the road between the cut face and the valley edge; the gorge's own void shows on
+     past the edge, from VB as everywhere on this road): the near bank breaking away in rock shelves with moonlit lips, the torrent across the
+     bed in white water running right (it pours off the edge into the main gorge), boulders standing in it, mist lying in the gully, the far
+     bank in shadow under the landing leaf. Kurobe's palette: granite GR, water FOAM; nothing warm below. */
+  /* the gully's torrent coming down the cut face into the gap (the side falls of the real gorge, "S-ji-kyo in Kurobe Gorge"): a small
+     cousin of the dam's jets, drawn with jet() as a feathered fall from a notch below the upper tier's lip to the gully floor, its spray
+     and mist hanging at the foot. It marks the leap from far up the road: where the water comes down, the road is gone. */
+  function drawCasc(sp, uw, fog, now){ if(uw < PX * 1.5 || fog > .9) return; cam(); const z = sp.k + .5, F = c => fc(c, fog * .7);
+    jet(t => { JP[0] = z + .4 * t; JP[1] = -1.3 + .12 * Math.sin(t * 3.1) + .1 * t; JP[2] = 2.7 * (1 - t) - .1; }, t => .5 + .55 * t, .85, now, 7, F); }
+  function jumpAt(i){ const L = lay(zoneOfSeg(i)); return L && L.jb ? L.jb : null; }
+  function jumpKeep(sp, o, p){ const J = MECH.sp_jump; if(sp.type === 'mk' || sp.type === 'cliff' || sp.type === 'casc') return true; if(sp.type === 'rail') return !(J && J.inGap(p, o)); return undefined; }
+  function jumpBelow(s, o, fog, p){ const J = MECH.sp_jump, a = s.p1.screen, b = s.p2.screen; if(!J || !(a.scale > 0) || !(b.scale > 0)) return false;
+    const NL = J.NL, G = J.G, g = o - NL, i = s.index, now = reduce ? 0 : performance.now(), F = c => fc(c, fog * .6), XR = 1.32, XL = -1.32;
+    const xa = (f, X) => (a.x + (b.x - a.x) * f) + X * (a.w + (b.w - a.w) * f), ya = f => a.y + (b.y - a.y) * f;
+    const Q = (f0, f1, X0, X1, col) => poly(xa(f0, X0), ya(f0), xa(f0, X1), ya(f0), xa(f1, X1), ya(f1), xa(f1, X0), ya(f1), col);
+    if(g < 0 || g >= G) return false;
+    // the near bank (g 0..5) steps down in shelves, each a moonlit lip over a shadowed face; the far bank (g 16..21) rises in shadow
+    if(g < 6){ Q(0, 1, XL, XR, F(g % 2 ? GR[2] : GR[1])); if(g % 2 === 0){ Q(0, .18, XL, XR, F(GR[4])); for(let k = 0; k < 5; k++){ const X = XL + .2 + k * .55 + (H1(i * 1.3 + k) - .5) * .2; Q(.18, .7 + .3 * H1(k + i), X, X + .05, F(GR[0])); } } return true; }
+    if(g >= 16){ Q(0, 1, XL, XR, F(g % 2 ? GR[1] : GR[0])); if(g === 16) Q(0, .3, XL, XR, F(GR[2])); for(let k = 0; k < 4; k++){ const X = XL + .3 + k * .65 + (H1(i * 2.1 + k) - .5) * .3; Q(0, 1, X, X + .04, F('#0a0810')); } return true; }
+    // the bed: dark water; the torrent's white water runs right in hard flecks, thicker where the gully narrows, pouring off at the edge
+    Q(0, 1, XL, XR, F(g % 2 ? '#0c1520' : '#0e1824')); const deep = 1 - Math.abs(g - 10.5) / 5.5;
+    for(let k = 0; k < 7; k++){ const h = H1(i * 3.7 + k * 1.9), v = .16 + .18 * H1(k * 5.3 + i), ph = ((now / 1000 * v + h) % 1), X = XL + ph * (XR - XL + .4) - .2, len = .08 + .22 * H1(k * 2.3 + i * .7), f0 = .15 + .6 * H1(k * 7.1 + i);
+      if(X + len < XL || X > XR) continue; Q(f0, Math.min(1, f0 + .18 + .1 * deep), Math.max(XL, X), Math.min(XR, X + len), F(k % 3 ? FOAM[3] : k % 2 ? FOAM[4] : FOAM[2])); }
+    // standing waves below the boulders (white, fixed) and the boulders themselves (dark, a moonlit top)
+    for(let k = 0; k < 2; k++){ if(H1(i * 5.1 + k * 3) < .55) continue; const X = XL + .3 + 2.2 * H1(i * 1.7 + k * 4.3), w = .1 + .12 * H1(k + i * .3);
+      Q(.1, .8, X - w * .4, X + w * 1.6, F(FOAM[3])); Q(.35, .95, X - w * .5, X + w * .5, F(GR[1])); Q(.35, .5, X - w * .4, X + w * .4, F(GR[4])); }
+    // the lip where it pours into the main gorge, and the mist lying in the gully (dithered: a value of its own in grey)
+    Q(0, 1, XR - .1, XR, F(g % 2 ? FOAM[4] : FOAM[3]));
+    if(g === 7 || g === 9 || g === 13) Q(.2, .9, XL, XR, ditherPat(F(g === 9 ? '#8c9cbc' : '#6c7c9c'), .25));
+    return true; }
+
+  // ---------------------------------------------------------------- the roar (round 14, Kellan: "a roar of the water")
+  /* A looped noise bed on the SFX bus (env/akiba.js's rain bed is the pattern): a deep rumble (lowpass ~150 Hz), the body of falling water
+     (a bandpass that opens from ~350 Hz far off to ~1.1 kHz under the jets: distance takes the highs first) and a spray hiss up close.
+     Loudness follows the jets' strength and the rider's distance from the plunge pool: heard far up the gorge, full on the reveal under the
+     jets, a held roar from the crest (the plume is below you), the ledge's own dam. In the bores it ducks to a muffled 10 % (rock between
+     you and the water). It sits under the music (the bus peaks well below the engine), slowly surging; unwired off this road, so it costs
+     nothing there. Driven every frame; the gains are set on a 0.25 s tick with smooth targets (no zipper, no clicks). */
+  const RB = { src:null, g:null, lo:null, bp:null, hp:null, hg:null, wired:false, t:0, off:0 };
+  function roarAt(L, cs){ if(!L || !L.ok) return 0; const q = Math.max(jetQ(L, 0), jetQ(L, 1)); if(q < .03) return 0;
+    let k = 0; if(cs < L.T1a) k = sm((cs - (L.R0 - 760)) / 820);   // the gorge, then the reveal under the jets (full from about R0 + 60)
+    else if(cs < L.T2a) k = .62;   // the Kanden bore (ducked below), then the crest: the plume below the parapet
+    else if(L.led && cs < L.Lg1 + 80) k = cs < L.T2b ? .35 : .75;   // the west bore, then the ledge facing its own dam
+    else k = .45 * sm(1 - (cs - (L.led ? L.Lg1 + 80 : L.T2a)) / 420);
+    return k * q; }
+  MECH.kb_roar = { update(dt){ try{ if(typeof SFX === 'undefined' || !SFX.ready || !SFX.ready() || !SFX.bus || typeof M === 'undefined' || !M.ac || !M.noiseBuf) return;
+      if((RB.t -= dt || 0) > 0) return; RB.t = .25;
+      const sg = typeof segs !== 'undefined' && segs.length ? segAt(position + PZ) : null, here = (state === 'play' || state === 'pulled') && !!sg && !!LANDS[sg.land] && LANDS[sg.land].key === KEY;
+      cam(); const cs = camSeg(), L = here ? visitOf(Math.floor(cs)) : null, k = here ? roarAt(L, cs) : 0, tun = !!(sg && sg.tunnel);
+      if(!RB.src){ if(k <= 0) return; const ac = M.ac, s = ac.createBufferSource(); s.buffer = M.noiseBuf; s.loop = true;
+        const lo = ac.createBiquadFilter(); lo.type = 'lowpass'; lo.frequency.value = 150; lo.Q.value = .7; const lg = ac.createGain(); lg.gain.value = .085;
+        const bp = ac.createBiquadFilter(); bp.type = 'bandpass'; bp.frequency.value = 400; bp.Q.value = .55; const bg = ac.createGain(); bg.gain.value = .05;
+        const hp = ac.createBiquadFilter(); hp.type = 'highpass'; hp.frequency.value = 2400; const hg = ac.createGain(); hg.gain.value = 0;
+        RB.g = ac.createGain(); RB.g.gain.value = 0; s.connect(lo); lo.connect(lg); lg.connect(RB.g); s.connect(bp); bp.connect(bg); bg.connect(RB.g); s.connect(hp); hp.connect(hg); hg.connect(RB.g);
+        s.start(0, Math.random() * 1.5); RB.src = s; RB.bp = bp; RB.hg = hg; RB.lo = lo; }
+      if(k > 0 && !RB.wired){ RB.g.connect(SFX.bus()); RB.wired = true; }
+      const t = M.ac.currentTime, surge = reduce ? 1 : .9 + .1 * Math.sin(t * 1.4) + .05 * Math.sin(t * .53 + 1), duck = tun ? .1 : 1, near = clamp(k, 0, 1);
+      RB.g.gain.setTargetAtTime(k * duck * surge, t, tun ? .35 : .6);
+      RB.bp.frequency.setTargetAtTime(tun ? 220 : 350 + 750 * near * near, t, .5); RB.lo.frequency.setTargetAtTime(tun ? 110 : 150, t, .5);
+      RB.hg.gain.setTargetAtTime(tun ? 0 : .012 * near * near * near, t, .5);
+      if(k > 0) RB.off = 0; else if(++RB.off > 16 && RB.wired){ RB.g.disconnect(); RB.wired = false; } }catch(e){} } };
+
   // ---------------------------------------------------------------- the set piece's card (MECH: update runs on game time)
-  const ROAR = { t:0 };
   MECH.sp_kanpo = { update(dt){ if(typeof segs === 'undefined' || !segs.length || state !== 'play') return; cam(); const cs = camSeg(), L = visitOf(Math.floor(cs)); if(!L || !L.ok) return;
       // no boost pads where they would read as a stray coloured shape: the reveal, both tunnel mouths, the crest's ends (every visit)
       if(!L.padClr){ L.padClr = true; for(const [a, b] of [[L.R0 - 10, L.H0 + 40], [L.H1 - 30, L.T2b + 40]]) for(let i = Math.max(0, a); i < b && i < segs.length; i++) if(segs[i].hz && segs[i].hz.type === 'pad') segs[i].hz = null; }
-      // the roar of the discharge (the core's noise voice), rising as the jets open and loudest as you ride under them
-      if(L.sp && typeof M !== 'undefined' && M.ac && M.noise){ ROAR.t -= dt || 0; const q = Math.max(jetQ(L, 0), jetQ(L, 1)); if(q > .05 && ROAR.t <= 0){ ROAR.t = 1.3; const zm = L.T1a - 110, v = q * clamp(1.2 - Math.abs(cs - zm) / 260, .2, 1) * (crestView(L, cs) ? .5 : 1);
-          try{ const t0 = M.ac.currentTime; M.noise(1.6, 90, .1 * v, t0); M.noise(1.3, 240, .045 * v, t0 + .25); M.noise(1, 1800, .015 * v, t0 + .1); }catch(e){} } }
+      // (the roar of the discharge is a continuous bed now: MECH.kb_roar below)
       if(!L.sp) return; const s = cs - L.R0, D = DIR();
       // out of the gallery mouth: the card, the letterbox and the duck; the guard keeps the reveal and the Kanden mouth clear of traffic and oil
       if(!L.card && s >= 4 && s < REV - 60){ L.card = true; if(D && D.cine){ let card = CARD; if(MECH.cutin && MECH.cutin.show && MECH.cutin.has && MECH.cutin.has('kanpo')){ try{ if(MECH.cutin.show('kanpo') !== false && !MECH.cutin.skipped) card = null; }catch(e){} }
@@ -738,12 +852,17 @@
         // no boost pads under the moment either: their speed lines would cover the dam
         for(let i = Math.max(0, L.R0 - 10); i < L.T1a && i < segs.length; i++) if(segs[i].hz && segs[i].hz.type === 'pad') segs[i].hz = null; }
       // the gates: a deep shudder as each opens, and mild slow motion over the opening (none under reduced motion)
-      for(const [g, at] of [['g1', 84], ['g2', 150]]) if(!L[g] && s >= at){ L[g] = true; if(D && D.cine && !reduce) try{ D.cine({ letterbox:false, shake:2, slowmo:g === 'g1' ? { scale:.7, hold:2.6 } : false, dur:g === 'g1' ? 3.2 : .6 }); }catch(e){} }
+      for(const [g, at] of [['g1', 84], ['g2', 150]]) if(!L[g] && s >= at){ L[g] = true; if(D && D.cine && !reduce) try{ D.cine({ letterbox:false, shake:2, slowmo:g === 'g1' ? { scale:.7, hold:2.6 } : false, dur:g === 'g1' ? 3.2 : .6 }); }catch(e){}
+        try{ if(typeof M !== 'undefined' && M.ac && M.noise){ const t0 = M.ac.currentTime; M.noise(1.8, 70, .1, t0); M.noise(1.2, 260, .04, t0 + .15); } }catch(e){} }   // the gate's first thump into the bed
       if(!L.fin && s >= REV - 6){ L.fin = true; try{ if(L.cut) L.cut.end(); }catch(e){} try{ D && D.done && D.done('kanpo'); }catch(e){} } } };
 
   // ---------------------------------------------------------------- warm-up
   function* warmSteps(){ regDir();
-    if(KBLEDGE && !warmSteps.chained){ warmSteps.chained = true; const prev = window.GATE_EXTRA; window.GATE_EXTRA = n => (prev ? prev(n) || 0 : 0) + (n === 1 && typeof ROUTE !== 'undefined' && ROUTE[0] === landK() ? 360 : 0); }
+    // a night that starts on this road: its first visit is JZ0 longer, so the gorge leap fits before the reveal (+360 more for the ledge, ?kbledge=1);
+    // the checkpoint before that longer stretch pays its time back (GATE_TIME, as setpiece/boss.js does for its lengthened Akihabara)
+    if(!warmSteps.chained){ warmSteps.chained = true; const prev = window.GATE_EXTRA, pt = window.GATE_TIME, first = () => typeof ROUTE !== 'undefined' && ROUTE[0] === landK() && !window.DEMO;
+      window.GATE_EXTRA = n => (prev ? prev(n) || 0 : 0) + (n === 1 && first() ? JZ0 + (KBLEDGE ? 360 : 0) : 0);
+      window.GATE_TIME = n => (pt ? pt(n) || 0 : 0) + (n === 1 && first() ? Math.round(JZ0 / 55 * 1.1) : 0); }
     if(!VB){ VB = mkCanvas(Math.max(1, cv.width), Math.max(1, cv.height)); VG = VB.getContext('2d'); } vbOK(); yield;
     buildPeak(); yield; buildGorge(); yield; buildShore(); yield; buildPuffs(); yield;
     for(const ch of CHARS) if(!GLY[ch]) GLY[ch] = mkCanvas(13, 15); paintGlyphs(); try{ if(document.fonts && document.fonts.load) document.fonts.load('12px DotGothic16').then(paintGlyphs, () => {}); }catch(e){}
@@ -758,5 +877,6 @@
   ENV.kurobe = { _lay:lay, _visit:visitOf, _vb:() => VB, _PJ:(z, x, h) => { cam(); PJ(z, x, h); return { x:PJX, y:PJY, u:PJU }; },
     barrier:1.1, kerbs:true, moonDX:-.22, road:['#1d1e27', '#1b1c24'], lampCol:'#8a6442',
     warm(){ for(const _ of warmSteps()); }, warmSteps, tunOver, drawTunnel, place, lit, draw, roadFX, backdrop, overlay,
+    jumpAt, jumpKeep, jumpBelow, jumpFloor:[1.32, 1.32], jumpEdge:false,   // the gorge leap (setpiece/jump.js THEMES.kurobe)
     laneSolid:() => null };
 })();

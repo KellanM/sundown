@@ -4,7 +4,7 @@
 
    API
      MECH.cutin.has(id)            a card exists for this id ('kaiju', 'greatwave', 'fireball', 'avalanche', 'jetwash', 'typhoon', 'hanabi', 'matsuri',
-                                   'shinkansen', 'fuji', 'phantom', 'teiden', 'lava', 'jump:<road>' for harbour pass sakurajima haneda tunnels snow paddies refinery)
+                                   'shinkansen', 'fuji', 'phantom', 'teiden', 'lava', 'jump:<road>' for harbour pass sakurajima haneda tunnels snow paddies refinery kurobe)
      MECH.cutin.show(id, opts)     play it now (replaces any card on screen); false if there is no such card. opts.dur overrides the length.
                                    Sparse: true without playing when the ride has had its share (see spare()); .skipped then says why.
                                    opts.force skips that rule (tests).
@@ -1195,7 +1195,7 @@ const TRAIL = [null, '#ffc83a', '#ff6a14', '#ff6a14', '#c41c0c', '#c41c0c', '#76
 /* ---------------------------------------------------------------- landmark jumps: one compact air-time cut-in, a kanji and an accent per road */
 const JUMPS = { harbour:['港', '跳開橋', 'DRAWBRIDGE', '#ffb35a'], pass:['峠', '谷越え', 'RAVINE JUMP', '#e8e4d8'], sakurajima:['灰', '溶岩越え', 'LAVA LEAP', '#ff7a2a'],
   haneda:['空', '誘導路越え', 'TAXIWAY JUMP', '#6a9aff'], tunnels:['隧', '首都高越え', 'INTERCHANGE JUMP', '#ffb35a'], snow:['雪', 'ジャンプ台', 'SKI JUMP', '#bfe4ff'],
-  paddies:['田', '線路越え', 'RAILWAY JUMP', '#e8d890'], refinery:['油', '配管越え', 'PIPELINE JUMP', '#ff9a3a'] };
+  paddies:['田', '線路越え', 'RAILWAY JUMP', '#e8d890'], refinery:['油', '配管越え', 'PIPELINE JUMP', '#ff9a3a'], kurobe:['黒', '峡谷越え', 'GORGE LEAP', '#9ae0ff'] };
 for(const road in JUMPS){ const [kj1, word, name, acc] = JUMPS[road];
   CARDS['jump:' + road] = { dur:1.5, out:.26, exit:'left', hold:.8, kanji:[word],
     *build(cw, ch, nar){ const L = {}, K = { ink:'#0a0810', cr:'#f4ecdf', acc, dk:'#2a2230' }; yield;

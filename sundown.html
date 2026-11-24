@@ -889,8 +889,8 @@ function fkIsland(s, x, y, uw, fog, G, al){ const i = s.index; if(al <= .02 || i
 function fkGantry(x, y, uw, fog, now, L, sd){ drawGate(x, y, uw, fog, now, null, null); const h = uw * 1.5, ph = uw * .5, pw = uw * 1.5, py = y - h - uw * .2 - ph, a = 1 - fog * .6; cx.globalAlpha = a; fkPlate(x - pw / 2, py, pw, ph, uw, L, sd);
   cx.fillStyle = '#16121c'; pxRect(x - pw * .3, py + ph, uw * .04 + 1, uw * .12); pxRect(x + pw * .3 - uw * .04, py + ph, uw * .04 + 1, uw * .12); cx.globalAlpha = 1; }
 function fkPlate(px, py, pw, ph, uw, L, sd){ cx.fillStyle = '#e8e4d8'; pxRect(px - uw * .025, py - uw * .025, pw + uw * .05, ph + uw * .05); cx.fillStyle = '#17784a'; pxRect(px, py, pw, ph);
-  if(uw > 10){ cx.fillStyle = '#ffffff'; cx.textBaseline = 'middle'; cx.textAlign = 'center'; cx.font = dgFont(Math.max(8, Math.round(ph * .55))); cx.fillText((sd < 0 ? '← ' : '') + L.kanji + (sd > 0 ? ' →' : ''), px + pw / 2, py + ph * .38);
-    cx.font = dgFont(Math.max(8, Math.round(ph * .24))); cx.fillText(L.name, px + pw / 2, py + ph * .8); cx.textAlign = 'left'; cx.textBaseline = 'alphabetic'; } }
+  if(uw > 10){ cx.textBaseline = 'middle'; sgText((sd < 0 ? '← ' : '') + L.kanji + (sd > 0 ? ' →' : ''), Math.max(8, ph * .55), px + pw / 2, py + ph * .38, 'center');
+    sgText(L.name, Math.max(8, ph * .24), px + pw / 2, py + ph * .8, 'center'); cx.textAlign = 'left'; cx.textBaseline = 'alphabetic'; } }
 // the advance sign before the widening: a plain gantry with both roads' signs, each over the half of the road that becomes its branch
 function fkAdvance(x, y, uw, fog, fork){ const a = 1 - fog * .6, h = uw * 1.5, w = uw * 1.25, ph = uw * .46, pw = uw * 1.05, py = y - h - ph - uw * .02; if(a <= 0) return; cx.globalAlpha = a; cx.fillStyle = '#16121c';
   pxRect(x - w - uw * .04, y - h, uw * .08 + 1, h); pxRect(x + w - uw * .04, y - h, uw * .08 + 1, h); pxRect(x - w - uw * .1, y - h - uw * .02, (w + uw * .1) * 2, uw * .08 + 1);
@@ -1049,7 +1049,7 @@ const SEG_KEEP = 2000; let segDropped = 0;
 // a razor-close pass gets a small kick away from the car and, now and then, a 0.14 s breath of slow motion. Reduced motion: no kicks.
 const FEEL = { knock:0, kx:0, kv:0, stop:0, slow:0, slowCd:0,
   KNOCK_T:.05, STOP:.07, STOP_K:.08, K_HIT:330, K_CLOSE:240, SPRING:420, DAMP:16, RAZOR:.05, SLOW:.14, SLOW_K:.45, SLOW_GAP:12 };
-function reset(keep){ FEEL.knock = FEEL.kx = FEEL.kv = FEEL.stop = FEEL.slow = FEEL.slowCd = 0; const kf = keep === true && ROUTE[0] === START ? FORKS : null;   // reset(true), START: the night keeps the roads the title already rolled (and warmed)
+function reset(keep){ swvWarm(); FEEL.knock = FEEL.kx = FEEL.kv = FEEL.stop = FEEL.slow = FEEL.slowCd = 0; const kf = keep === true && ROUTE[0] === START ? FORKS : null;   // reset(true), START: the night keeps the roads the title already rolled (and warmed)
   segDropped = 0; segs = []; cars = []; gates = []; nextGateIdx = window.DEMO ? DEMO.gateAt(0) : GATE_GAP; lastSegIdx = 0; ROUTE = [START]; ROUTE_PICKS = []; FORKS = kf || []; SPLIT_LOCK = null; SL_RUN = null; AIR.h = 0; POSE.pitch = 0; POSE.squash = 0; segLand = landIdx(0); prevLandI = -1; landStart = 0; bgA = landIdx(0); bgB = landIdx(0); bgMix = 1; pullT = 0; extend(1200);
   position = 0; speed = 0; playerX = 0; steer = 0; drift = 0; charge = 0; tier = 0; boostT = 0; boostTier = 0; flow = 0; bestFlow = 0; sunLeft = SUN_START; sunShown = SUN_START;
   state = 'ready'; started = false; playT = 0; offT = 0; shake = 0; boosts = 0; bigBoosts = 0; closeCalls = 0; crashes = 0; gatesHit = 0; skyOff = 0; SKYR = 0; skyRV = 0; cool = 0; recov = 0; sparks = [];
@@ -1173,6 +1173,7 @@ function update(dt){ const rdt = dt; FEEL.slowCd -= rdt;   // FEEL: the kick's s
   if(state === 'pulled'){ pullT += dt; copT = COP_T; speed = Math.max(0, speed - MAXS * .75 * dt); playerX = lerp(playerX, Math.sign(playerX || 1) * (wallX() - .08), 1 - Math.exp(-1.8 * dt)); if(pullT > PULL_T) finish('caught'); }   // brake onto the shoulder, stopping at the barrier (never through it)
   const seg = segAt(position + PZ), sp = speed / MAXS, curve = seg.curve, WX = wallX() + fkWide(), onRoad = Math.abs(playerX) <= WX - .02 || !!(seg.lane && Math.sign(playerX) === seg.lane.sd);
   steer = state === 'play' ? (slideT <= 0 ? input : input * SLICK_STEER) : 0;   // on a slick the steering goes light, not dead: a counter-steer can still save it
+  swerveCheck(rdt, sp);   // a hard lane change (the steering flicked across at speed): the bike's smear frame (SWV)
   // drift: steering into a real bend at speed. It halves the outward pull and charges a boost in three tiers.
   const held1 = ASSIST.oneDrift && (keys.drift || padDrift);   // one-button drift: holding it in a bend drifts, whatever the steering
   if(ASSIST.autoFork && state === 'play' && !input && seg.gore > 0 && slideT <= 0 && Math.abs(playerX) < .5){ const sd = Math.sign(playerX) || 1; playerX += sd * Math.min(dt * .8, .5 - Math.abs(playerX)); }   // auto-steer into the nearer branch
@@ -1371,6 +1372,65 @@ function ditherPat(col, dens){ const k = col + '|' + dens + '|' + PX; let p = DP
 // a rect thinner than a pixel (a 1-CSS-pixel post, a hairline) keeps one pixel at its centre, like poly(); negative sizes flip as fillRect's do
 function pxRect(x, y, w, h){ if(w < 0){ x += w; w = -w; } if(h < 0){ y += h; h = -h; } if(!(w > 0 && h > 0)) return; let x0 = Math.round(x / PX), y0 = Math.round(y / PX), x1 = Math.round((x + w) / PX), y1 = Math.round((y + h) / PX);
   if(x1 <= x0){ x0 = Math.floor((x + w / 2) / PX); x1 = x0 + 1; } if(y1 <= y0){ y0 = Math.floor((y + h / 2) / PX); y1 = y0 + 1; } cx.fillRect(x0 * PX, y0 * PX, (x1 - x0) * PX, (y1 - y0) * PX); }
+/* Stepped pixel shadows (proposals.md #14; Super Hang-On's sprites sit on hard ground shadows): every car, rider and bike shadow is one
+   pre-built sprite, never a smooth antialiased ellipse. Each is an ellipse of whole cells, solid, with checkerboard tips at the ends of its
+   rows: two tones out of one colour, softening the ends without a single blended pixel (a full checker ring read as grit on dark asphalt;
+   top and bottom stay hard steps, as Super Hang-On's do). They are all built once, at load, into one atlas (every
+   width 2..PXSH_W cells, every height 1..PXSH_H rows), so a shadow is one drawImage (the old path fill was a tessellated AA ellipse).
+   pxShadow(g, x, y, rx, ry, k, a): centre x, y; half-width rx and half-height ry in the object's texels; k its texel size in g's units;
+   a the shadow's opacity (times g's globalAlpha). A cell is the texel rounded to whole canvas pixels (never under one), so the checker
+   is always a true checker on the art grid; far away, where a texel is under a pixel, the shadow is built at one pixel a cell instead.
+   A context without a canvas (police.js's light-map stand-in) gets no shadow, as its no-op ellipse() did. PXSH.off: none (tests). */
+const PXSH_W = 96, PXSH_H = 8, PXSH = { off:false, at:null, x:null, y:0 };
+(() => { const c = document.createElement('canvas'), X = new Int32Array((PXSH_H + 1) * (PXSH_W + 1)); let bw = 0; for(let w = 2; w <= PXSH_W; w++) bw += w + 1;
+  c.width = bw; c.height = (PXSH_H * (PXSH_H + 1)) / 2 + PXSH_H; const g = c.getContext('2d'); g.fillStyle = '#05040a'; let y0 = 0;
+  for(let h = 1; h <= PXSH_H; h++){ let x0 = 0;
+    for(let w = 2; w <= PXSH_W; w++){ X[h * (PXSH_W + 1) + w] = x0; const hw = w / 2, hh = h / 2;
+      for(let j = 0; j < h; j++){ const v = (j + .5 - hh) / hh, s = hw * Math.sqrt(Math.max(0, 1 - v * v)), a = Math.round(hw - s), b = Math.round(hw + s);
+        const i0 = Math.min(a, Math.floor(hw - .5)), i1 = Math.max(b, Math.ceil(hw + .5)), re = Math.max(1, Math.round((i1 - i0) * .1));
+        for(let i = i0; i < i1; i++){ if(Math.min(i - i0, i1 - 1 - i) < re && i1 - i0 > 3 && (i + j) % 2) continue;   // the row's tips: every other cell
+          g.fillRect(x0 + i, y0 + j, 1, 1); } }
+      x0 += w + 1; }
+    y0 += h + 1; }
+  PXSH.at = c; PXSH.x = X; PXSH.yOf = h => (h - 1) * h / 2 + (h - 1); })();
+function pxShadow(g, x, y, rx, ry, k, a){ if(PXSH.off || !g.canvas || !(a > 0) || !(k > 0)) return; const u = g === cx ? PX : 1;
+  let t = Math.max(u, Math.round(k / u) * u), w = Math.round(rx * 2 * k / t), h = Math.round(ry * 2 * k / t);
+  while(w > PXSH_W || h > PXSH_H){ t += u; w = Math.round(rx * 2 * k / t); h = Math.round(ry * 2 * k / t); }
+  w = Math.max(2, w); h = Math.max(1, h); const dw = w * t, dh = h * t, ga = g.globalAlpha;
+  g.globalAlpha = ga * Math.min(1, a); g.imageSmoothingEnabled = false;
+  g.drawImage(PXSH.at, PXSH.x[h * (PXSH_W + 1) + w], PXSH.yOf(h), w, h, Math.round((x - dw / 2) / u) * u, Math.round((y - dh / 2) / u) * u, dw, dh); g.globalAlpha = ga; }
+/* The swerve's smear frame (proposals.md #13; the anime smear: one stretched drawing stands in for motion blur). On a hard lane change,
+   the steering flicked from one side to the other at speed (a direction held within 0.3 s of the new one, over 60% speed, at most one a
+   0.45 s), the bike gets 40 ms of smear, a frame or two: its rear tyre and tail lamp stretched back along the motion, toward where it came
+   from. The tyre's bottom rows run back 2-4 texels in their own colours, ending in a checker; the lamp leaves a red streak (hot, dark,
+   then a checker). Hard-edged on the bike's own texels, drawn just after the bike in its pose this frame, with the same lean residual:
+   every smear cell lies outside the bike's silhouette, so the bike itself is never distorted. Every pose and side of the ridden bike is built from the bike's own pixels (one 64 x 64 getImageData each) by swvWarm(), in
+   warmEngine() and again in reset() (a new bike or new cosmetics), reusing the previous bike's canvases from a pool: nothing is created
+   mid-ride, and a frame the warm-up missed simply has no smear. Never under reduced motion. SWV.n counts them (tests). */
+const SWV = { t:0, dir:0, last:0, lastT:-9, cd:0, n:0, m:new Map(), pool:[], key:'', c:null, g:null };
+function swvWarm(){ try{ if(!ENV.bikes || !ENV.bikes.render || !ENV.bikes.poses) return; const id = BIKE.id || 'sport', key = id + '|' + (window.COS ? COS.sig : ''); if(key === SWV.key) return;
+  for(const c of SWV.m.values()) SWV.pool.push(c); SWV.m.clear(); SWV.key = key; const n = (ENV.bikes.poses - 1) / 2;
+  for(let f = -n; f <= n; f++) for(const d of [-1, 1]) swvSpr(id, f, d, true); }catch(e){ console.warn('swerve warm', e); } }
+function swerveCheck(rdt, sp){ SWV.t -= rdt; SWV.cd -= rdt; if(state !== 'play' || reduce){ SWV.last = 0; return; } const sd = Math.sign(steer);
+  if(sd && sd !== SWV.last){ if(SWV.last && playT - SWV.lastT < .3 && sp > .6 && SWV.cd <= 0){ SWV.t = .04; SWV.dir = sd; SWV.cd = .45; SWV.n++; } SWV.last = sd; }
+  if(sd) SWV.lastT = playT; }
+function swvSpr(id, f, dir, build){ const key = id + '|' + f + '|' + dir + '|' + (window.COS ? COS.sig : ''); let o = SWV.m.get(key); if(o || !build) return o || null;
+  if(!SWV.c){ SWV.c = document.createElement('canvas'); SWV.c.width = SWV.c.height = 64; SWV.g = SWV.c.getContext('2d', { willReadFrequently:true }); }
+  const g = SWV.g; g.setTransform(1, 0, 0, 1, 0, 0); g.clearRect(0, 0, 64, 64); PXSH.off = true;
+  try{ ENV.bikes.render(g, id, 32, 52, 1, ENV.bikes.poseLean(f), 0, null, f); } finally { PXSH.off = false; }
+  const D = g.getImageData(0, 0, 64, 64).data, op = (x, y) => x >= 0 && y >= 0 && x < 64 && y < 64 && D[(y * 64 + x) * 4 + 3] > 250, back = -dir;
+  o = SWV.pool.pop() || document.createElement('canvas'); o.width = 80; o.height = 64; const q = o.getContext('2d'), px = (x, y, col) => { q.fillStyle = col; q.fillRect(x + 8, y, 1, 1); };   // (setting the width clears a pooled canvas)
+  const edge = y => { if(back < 0){ for(let x = 0; x < 64; x++) if(op(x, y)) return x; } else for(let x = 63; x >= 0; x--) if(op(x, y)) return x; return -1; };
+  const rgb = (x, y) => { const i = (y * 64 + x) * 4; return 'rgb(' + D[i] + ',' + D[i + 1] + ',' + D[i + 2] + ')'; };
+  let yb = -1; for(let y = 63; y >= 0 && yb < 0; y--) for(let x = 0; x < 64; x++) if(op(x, y)){ yb = y; break; }
+  [2, 3, 4, 4, 3, 2].forEach((L, r) => { const y = yb - r, e = edge(y); if(e < 0) return; const col = op(e - back, y) ? rgb(e - back, y) : rgb(e, y);   // the tyre, run back
+    for(let i = 1; i <= L; i++){ const x = e + back * i; if(i === L && L > 2 && (x + y) % 2) continue; px(x, y, col); } });
+  let ly = -1; for(let y = yb - 13; y <= yb - 5; y++) for(let x = 0; x < 64; x++){ if(!op(x, y)) continue; const i = (y * 64 + x) * 4;   // the lamp row: red, nearest 10 up
+    if(D[i] > 200 && D[i + 1] < 90 && D[i + 2] < 120){ if(ly < 0 || Math.abs(y - (yb - 10)) < Math.abs(ly - (yb - 10))) ly = y; break; } }
+  for(const y of ly < 0 ? [] : [ly]){ const e = edge(y); if(e < 0) continue; for(let i = 1; i <= 7; i++){ const x = e + back * i; if(i > 5 && (x + y) % 2) continue; px(x, y, i <= 3 ? '#ff2a3a' : '#a01828'); } }   // the tail lamp's streak
+  SWV.m.set(key, o); return o; }
+function swerveSmear(id, x, y, k, lean){ if(!ENV.bikes || !ENV.bikes.render || !ENV.bikes._cur) return; const f = ENV.bikes._cur(), S = swvSpr(id, f, SWV.dir), res = clamp(lean - ENV.bikes.poseLean(f), -.14, .14); if(!S) return;
+  cx.save(); cx.translate(Math.round(x), Math.round(y)); if(Math.abs(res) > .002) cx.rotate(res); cx.imageSmoothingEnabled = false; cx.drawImage(S, -40 * k, -52 * k, 80 * k, 64 * k); cx.restore(); }
 function project(p, camX, camY, camZ){ p.camera.x = (p.world.x || 0) - camX; p.camera.y = p.world.y - camY; p.camera.z = p.world.z - camZ; p.screen.scale = DEPTH / p.camera.z;
   p.screen.x = Math.round(W / 2 + p.screen.scale * p.camera.x * W / 2); p.screen.y = Math.round(H / 2 - PITCH - p.screen.scale * p.camera.y * H / 2); p.screen.w = Math.round(p.screen.scale * ROADW * W / 2); }
 // a convex polygon (3 or 4 points) filled as whole canvas pixels: each row's span is sampled at the row centre and rounded to the grid, so two
@@ -1494,12 +1554,13 @@ function draw(now){ DRAWN++; const ROLL = MECH.sp_jump && MECH.sp_jump.rollBegin
   // the rider, low and centred: the bike leans with steering and leans hard in a drift
   const bob = speed > 10 ? Math.sin(now / 40) * (Math.abs(playerX) > 1 ? 2 : .6) : 0, bs = Math.min(W * .2, H * .27);
   mech('drawUnderBike', now);
-  if(AIR.h > 0){ cx.fillStyle = 'rgba(0,0,0,.35)'; cx.beginPath(); cx.ellipse(W / 2, H - 8, bs * .3, bs * .05, 0, 0, 6.283); cx.fill(); }
+  if(AIR.h > 0){ const kb = Math.max(PX, Math.round(bs / 30 / PX) * PX); pxShadow(cx, W / 2, H - 8, bs * .3 / kb, bs * .05 / kb, kb, .35); }   // stepped pixel shadow (pxShadow)
   if(POSE.pitch > .01){ cx.save(); cx.translate(W / 2, H - 8); cx.scale(1 - POSE.pitch * .06, 1 + POSE.pitch * .22); cx.translate(-W / 2, -(H - 8)); }
   const sq = Math.abs(POSE.squash) > .01 && !BIKE.hidden; if(sq){ const q = clamp(POSE.squash, -1, 1), ay = H - 8 + bob - AIR.h, sy = Math.max(PX, Math.round(bs * (1 - .22 * q) / PX) * PX) / bs, sx = Math.round(bs * (1 + .12 * q) / PX) * PX / bs;   // whole-pixel heights, so the squash steps cleanly
     cx.save(); cx.translate(W / 2, ay); cx.scale(sx, sy); cx.translate(-W / 2, -ay); }
   const ghA = recov > 0 && state === 'play' ? (reduce || (window.ASSIST && ASSIST.noFlash) ? .55 : (Math.floor(recov * 8) % 2 ? .4 : .9)) : 1; if(ghA < 1) cx.globalAlpha = ghA;   // recovery blink (steady half-alpha under reduced motion)
   if(!BIKE.hidden){ if(ENV.bikes && ENV.bikes.draw && BIKE.id !== 'sport') ENV.bikes.draw(BIKE.id, W / 2, H - 8 + bob - AIR.h, bs, leanV, now); else drawBike(W / 2, H - 8 + bob - AIR.h, bs, leanV, now); }   oilBike(W / 2, H - 8 + bob - AIR.h, bs, leanV, now);   // BIKE.hidden: a mech draws the bike itself (the arrest lays it on its side)
+  if(SWV.t > 0 && !reduce && !BIKE.hidden && state === 'play') swerveSmear(BIKE.id, W / 2, H - 8 + bob - AIR.h, Math.max(PX, Math.round(bs / 30 / PX) * PX), leanV);   // after the bike, in its pose this frame: every smear cell lies outside its silhouette
   if(ghA < 1) cx.globalAlpha = 1;
   if(POSE.pitch > .01) cx.restore();
   if(sq) cx.restore();
@@ -1667,18 +1728,22 @@ function blendFar(i, s, PF){ const sp = s.sprites; let n = 0; for(let k = 0; k <
   const E = ENV[PF.key]; if(!E || !E.place) return; const t = Object.assign({}, s); t.sprites = [];
   try{ E.place(i, t, PF); }catch(err){ console.error('blendFar', PF.key, err); return; }
   for(const q of t.sprites){ if(!(typeof q.x === 'number' && Math.abs(q.x) >= BL_NEAR) || q.lift > .05) continue; if(q.s === t) q.s = s; sp.push(q); } }   // (lifted props stand on their road's kerbside walls, which stay home)
+// border-sign lettering in fixed size steps (review card sign-steps): mech/arrival.js blits the nearest prebuilt size of the white glyphs on whole
+// canvas pixels (n: the font size in CSS px); before its atlases are built, or past its largest step, the text is drawn live as before.
+// Callers set textBaseline 'middle'; a fogged sign fades its text with globalAlpha.
+function sgText(s, n, x, y, al){ const A = MECH.arrival; if(A && A.signText && A.signText(s, n, x, y, al)) return; cx.fillStyle = '#ffffff'; cx.textAlign = al; cx.font = dgFont(Math.round(n)); cx.fillText(s, x, y); }
 function drawHinge(sp, x, y, uw, fog, now){ if(uw < 1) return; const f = fog * .7, F = c => mixc(c, FOG_COL, f), u = v => Math.max(PX, v);
   if(sp.hg === 'sign'){ const ph = uw * .42, pw = uw * .72, top = y - uw * .55 - ph, px = x - pw / 2;
     cx.fillStyle = F('#14121a'); pxRect(x - uw * .015, top + ph, u(uw * .03), y - top - ph); pxRect(x + pw * .3, top + ph, u(uw * .03), uw * .1);
     cx.fillStyle = F('#e8e4d8'); pxRect(px - uw * .025, top - uw * .025, pw + uw * .05, ph + uw * .05); cx.fillStyle = F('#1e4aa8'); pxRect(px, top, pw, ph);
-    if(uw > 16 && fog < .5){ const L = LANDS[sp.k]; cx.fillStyle = F('#ffffff'); cx.textAlign = 'center'; cx.textBaseline = 'middle'; cx.font = dgFont(Math.round(ph * .2)); cx.fillText('ようこそ', x, top + ph * .2);
-      cx.font = dgFont(Math.round(ph * .42)); cx.fillText(L.kanji, x - pw * .24, top + ph * .6); cx.font = dgFont(Math.max(8, Math.round(ph * .17))); cx.fillText(L.name, x + pw * .14, top + ph * .62); cx.textAlign = 'left'; cx.textBaseline = 'alphabetic'; }
+    if(uw > 16 && fog < .5){ const L = LANDS[sp.k], ga = cx.globalAlpha; cx.globalAlpha = ga * (1 - f); cx.textBaseline = 'middle'; sgText('ようこそ', ph * .2, x, top + ph * .2, 'center');
+      sgText(L.kanji, ph * .42, x - pw * .24, top + ph * .6, 'center'); sgText(L.name, Math.max(8, ph * .17), x + pw * .14, top + ph * .62, 'center'); cx.globalAlpha = ga; cx.textAlign = 'left'; cx.textBaseline = 'alphabetic'; }
     return; }
   if(sp.hg === 'toll'){ const h = uw * 1.12, th = uw * .2, w = uw * 2.3;   // the canopy on its columns, booths on the islands, a lane light under each lane
     cx.fillStyle = F('#2a2a34'); for(const c of HG_COL) pxRect(x + c * uw - uw * .04, y - h, u(uw * .08), h);
     for(const c of HG_BOOTH){ cx.fillStyle = F('#c8c4b4'); pxRect(x + c * uw - uw * .1, y - uw * .42, uw * .2, uw * .42); cx.fillStyle = F('#ffd87a'); pxRect(x + c * uw - uw * .06, y - uw * .34, uw * .12, uw * .1); }
     cx.fillStyle = F('#1a1a22'); pxRect(x - w, y - h, w * 2, u(uw * .03)); cx.fillStyle = F('#d8d2c0'); pxRect(x - w, y - h - th, w * 2, th); cx.fillStyle = F('#17784a'); pxRect(x - w, y - h - th * .62, w * 2, th * .34);
-    if(uw > 14 && fog < .5){ cx.fillStyle = F('#ffffff'); cx.textAlign = 'center'; cx.textBaseline = 'middle'; cx.font = dgFont(Math.max(8, Math.round(th * .32))); for(const c of HG_TXT) cx.fillText('料金所', x + c * uw, y - h - th * .45); cx.textAlign = 'left'; cx.textBaseline = 'alphabetic'; }
+    if(uw > 14 && fog < .5){ const ga = cx.globalAlpha; cx.globalAlpha = ga * (1 - f); cx.textBaseline = 'middle'; for(const c of HG_TXT) sgText('料金所', Math.max(8, th * .32), x + c * uw, y - h - th * .45, 'center'); cx.globalAlpha = ga; cx.textAlign = 'left'; cx.textBaseline = 'alphabetic'; }
     for(const c of LANES3){ cx.fillStyle = F('#101016'); pxRect(x + c * uw - uw * .05, y - h + uw * .03, uw * .1, uw * .07); cx.fillStyle = F('#5aff9a'); pxRect(x + c * uw - uw * .025, y - h + uw * .045, uw * .05, uw * .04); }
     glow(x, y - h + uw * .1, uw * 1.4, '#fff0c8', .16 * (1 - fog)); return; }
   if(sp.hg === 'over'){ const h = uw * 1.3, th = uw * .3, w = uw * 7;   // a deck across the whole view on two pairs of piers, its parapet and lights
@@ -1696,14 +1761,14 @@ function drawGate(x, y, uw, fog, now, next, fork){ const h = uw * 1.5, w = uw * 
   // at a border, a green expressway sign above the gantry names the road ahead
   if(next){ const pw = uw * 1.7, ph = uw * .5, px = x - pw / 2, py = y - h - uw * .1 - ph - uw * .12; cx.fillStyle = '#16121c'; cx.fillRect(x - pw * .3, py + ph, uw * .04 + 1, uw * .14); cx.fillRect(x + pw * .3, py + ph, uw * .04 + 1, uw * .14);
     cx.fillStyle = '#e8e4d8'; cx.fillRect(px - uw * .025, py - uw * .025, pw + uw * .05, ph + uw * .05); cx.fillStyle = '#17784a'; cx.fillRect(px, py, pw, ph);
-    if(uw > 12){ cx.fillStyle = '#ffffff'; cx.textBaseline = 'middle'; cx.font = dgFont(Math.round(ph * .62)); cx.textAlign = 'left'; cx.fillText(next.kanji, px + ph * .2, py + ph / 2);
-      cx.font = dgFont(Math.round(ph * .3)); cx.fillText(next.name, px + ph * .95, py + ph * .5); cx.textAlign = 'right'; cx.fillText('↑', px + pw - ph * .15, py + ph * .5); cx.textAlign = 'left'; cx.textBaseline = 'alphabetic'; } }
+    if(uw > 12){ cx.textBaseline = 'middle'; sgText(next.kanji, ph * .62, px + ph * .2, py + ph / 2, 'left');
+      sgText(next.name, ph * .3, px + ph * .95, py + ph * .5, 'left'); sgText('↑', ph * .3, px + pw - ph * .15, py + ph * .5, 'right'); cx.textAlign = 'left'; cx.textBaseline = 'alphabetic'; } }
   // a fork gate: two expressway signs, one over each half of the road, arrows pointing the way
   if(fork){ const ph = uw * .46, pw = uw * 1.05; for(let sd = 0; sd < 2; sd++){ const L2 = fork[sd], px = x + (sd ? uw * .1 : -uw * .1 - pw), py = y - h - uw * .12 - ph - uw * .1;
       cx.fillStyle = '#16121c'; cx.fillRect(px + pw / 2 - uw * .02, py + ph, uw * .04 + 1, uw * .14);
       cx.fillStyle = '#e8e4d8'; cx.fillRect(px - uw * .02, py - uw * .02, pw + uw * .04, ph + uw * .04); cx.fillStyle = '#17784a'; cx.fillRect(px, py, pw, ph);
-      if(uw > 12){ cx.fillStyle = '#ffffff'; cx.textBaseline = 'middle'; cx.textAlign = 'center'; cx.font = dgFont(Math.round(ph * .55)); cx.fillText((sd ? '' : '← ') + L2.kanji + (sd ? ' →' : ''), px + pw / 2, py + ph * .36);
-        cx.font = dgFont(Math.round(ph * .24)); cx.fillText(L2.name, px + pw / 2, py + ph * .78); cx.textAlign = 'left'; cx.textBaseline = 'alphabetic'; } } }
+      if(uw > 12){ cx.textBaseline = 'middle'; sgText((sd ? '' : '← ') + L2.kanji + (sd ? ' →' : ''), ph * .55, px + pw / 2, py + ph * .36, 'center');
+        sgText(L2.name, ph * .24, px + pw / 2, py + ph * .78, 'center'); cx.textAlign = 'left'; cx.textBaseline = 'alphabetic'; } } }
   cx.globalAlpha = 1; }
 function procSprite(key, w, h, fn){ if(SPR[key]) return SPR[key]; const c = document.createElement('canvas'); c.width = w; c.height = h; const k = c.getContext('2d');
   for(let y = 0; y < h; y++) for(let x = 0; x < w; x++){ const col = fn(x, y); if(col){ k.fillStyle = col; k.fillRect(x, y, 1, 1); } } return SPR[key] = c; }
@@ -1957,7 +2022,7 @@ function drawCar(x, y, w, c, fog, now){ const spr0 = carSprite(c, now), k = w * 
   // (kodawari audit: the cream smear in the Tunnels, the magenta block on the Coast). Cars still ahead are never faded.
   const pas = typeof position === 'number' && c.z - (position + PZ) < 150, fk = pas && k > 4.5 ? Math.max(0, 1 - (k - 4.5) / 1.5) : 1; if(fk <= 0) return;
   const spr = q ? fogTint(spr0, 'car:' + c.model + ':' + c.ci, q, CAR_FQ, FOG_COL, CAR_FS) : spr0;
-  cx.globalAlpha = a * fk; cx.fillStyle = 'rgba(0,0,0,.4)'; cx.beginPath(); cx.ellipse(x, y, w * .55, Math.max(1, w * .06), 0, 0, 6.283); cx.fill();
+  cx.globalAlpha = a * fk; pxShadow(cx, x, y, w * .55 / k, Math.max(1, w * .06) / k, k, .4);   // stepped pixel shadow at the car's own texel size
   cx.globalAlpha = (q || MODELS[c.model].make ? 1 : a) * fk; blit(spr, x, y, k); cx.globalAlpha = 1;
   // brake lights (trafficFlow sets c.brk while a car slows, stands still, or a driver ahead of you sees you closing): both lamps flare
   const L = MODELS[c.model].lights, bk = c.brk > 0, ga = (bk ? .85 : .5) * (1 - fog * .3) * fk, gr = Math.min(GLOW_CAP, bk ? w * .36 + 4 : w * .28 + 3);   // (the disc is capped: a near car's lamp never floods the frame)
@@ -1969,7 +2034,7 @@ function drawCar(x, y, w, c, fog, now){ const spr0 = carSprite(c, now), k = w * 
 // the rider: smooth lean, hanging off toward the inside of the bend
 function drawBike(x, y, s, lean, now){ if(ENV.bikes && ENV.bikes.frames) return ENV.bikes.draw('sport', x, y, s, lean, now);   // every bike, sport included, leans in drawn poses (env/bikes.js)
   const k = Math.max(PX, Math.round(s / 30 / PX) * PX), hang = clamp(lean / .5, -1, 1);
-  cx.save(); cx.translate(x, y); cx.fillStyle = 'rgba(0,0,0,.5)'; cx.beginPath(); cx.ellipse(0, 0, 9 * k, 1.6 * k, 0, 0, 6.283); cx.fill(); cx.rotate(lean);
+  cx.save(); cx.translate(x, y); pxShadow(cx, 0, 0, 9, 1.6, k, .5); cx.rotate(lean);
   blit(bikeSprite('top' + (Math.floor(now / 45) % 3)), 0, 0, k);
   blit(bikeSprite('rider'), Math.round(hang * 2) * k, -10 * k, k);
   blit(bikeSprite('tail'), 0, -6 * k, k); blit(bikeSprite('exh'), 5 * k, -1 * k, k);
@@ -2824,6 +2889,7 @@ function warmEngine(){ try{
   for(const m in MODELS) for(let ci = 0; ci < CAR_COLS.length; ci++){ const truck = m === 'truck'; for(let ph = 0; ph < (truck ? 4 : 1); ph++) carSprite({ model:m, ci, truck }, ph * 250); }
   for(let ph = 0; ph < 2; ph++){ copSprite(ph); if(MECH.police && MECH.police.copSprite) MECH.police.copSprite(ph); }
   for(const n of ['top0', 'top1', 'top2', 'rider', 'tail', 'exh']) bikeSprite(n);
+  swvWarm();   // the swerve's smear frames for the ridden bike
   for(let v = 0; v < 3; v++){ pineSprite(v); flameSprite(v); vendSprite(v); } tankSprite(); lanternSprite();   // (pine/vend variants: k is taken as a whole number, so a fractional k can't mint new sprites)
   // the built-in 'block' buildings are only placed by the default place() of a road that has none of its own (every road has one), so
   // their 48 variants and mirrored copies are built only if some road would use them (boot work saved otherwise)
@@ -2944,7 +3010,7 @@ if(!/[?&]con=off(&|$)/.test(location.search)){   /* Kellan 2026-11-23: the in-ga
    A new version downloads in the background and waits. It is applied only on the title (never mid-ride): by itself once
    the title has sat untouched for a few seconds, or at once when the player taps "Update ready". Tap the version to check now. */
 (() => {
-  const VER = 'v48 · b1bab4', $id = (i) => document.getElementById(i);
+  const VER = 'v49 · d6d265', $id = (i) => document.getElementById(i);
   const SDU = window.SDUPDATE = { version: VER, waiting: null, applied: false, checks: 0 };
   let reg = null, applying = false, asked = false, needReload = false, note = '', noteT = 0, lastInput = performance.now();
   ['keydown', 'pointerdown', 'touchstart', 'wheel'].forEach((t) => addEventListener(t, () => { lastInput = performance.now(); }, { capture: true, passive: true }));
@@ -3006,5 +3072,5 @@ if(!/[?&]con=off(&|$)/.test(location.search)){   /* Kellan 2026-11-23: the in-ga
   }, 1000);
 })();
 </script>
-<!-- __sdbuild:48 b1bab43e8f60 --></body>
+<!-- __sdbuild:49 d6d2657083e4 --></body>
 </html>

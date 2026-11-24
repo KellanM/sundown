@@ -218,6 +218,99 @@
         if(lum > 110){ if(y > 2 + (H1(sx * 7.3) * 6 | 0)) continue; d[o] = R0 * .62; d[o + 1] = G0 * .62; d[o + 2] = B0 * .68; d[o + 3] = 255; }
         else if(y < 12){ d[o] = R0 * .55; d[o + 1] = G0 * .6; d[o + 2] = B0 * .7 + 6; d[o + 3] = 255; } } }
     rg.putImageData(img, 0, 0); REF = rc; }
+  // ---------------------------------------------------------------- Tokyo Bay beyond the far shore: the Rainbow Bridge and the Fuji TV building (Kellan, 2026-11-23: "Add them")
+  /* A second, farther layer behind the panorama: the far tier (skyPar('far'), half the panorama's swing), anchored to the harbour side of the
+     screen so it stands over the water at every width, its foot hidden behind the Yokohama shore. Hazed a step toward the sky, smaller than
+     the Bay Bridge, which is nearer. Architecture only: no broadcaster mark, no lettering.
+     References inspected at pixel zoom (Wikimedia Commons; drawn from scratch, nothing copied):
+     - "Rainbow Bridge by night seen from Odaiba side" (CC0) and "Rainbow Bridge illumination" (CC BY 2.0): each tower a pale floodlit
+       portal, two slim legs under a deep crossbeam with a rounded arch inside it; at night the cables vanish and only their row of lamps
+       draws the catenary (white in the regular show, green in season); the double deck is a lit truss band with road lamps on top.
+       The rainbow show washes each tower red-orange at the top through yellow and green to blue at the foot.
+     - "Night view in Odaiba (29493285425)" (CC BY 2.0): from afar the bridge is two white portals and two dotted swoops; the deck a thin
+       lit band; low city lights behind, a few red aviation lamps.
+     - "Fuji TV Tower in Odaiba (2114208438)" (CC BY-SA 2.0), "Odaiba (53397695185)" (CC BY 2.0), "FCG Building 20180227 night"
+       (CC BY-SA 4.0): two gridded towers joined by sky corridors across a deep void; the dark metal sphere hangs at the top of the void
+       with a warm band of observatory windows round its upper half and a violet glow under it; pale frames, windows lit by floor.
+     Rules: the towers' white is the brightest thing in the layer but a step below the Bay Bridge's; cable lamps are single pixels every
+     3 px; the sphere is one value darker than the frames with one warm band; the layer stays calm: no motion, no flashing. */
+  const TKW = 164, TKH = 26, TKR = 14, TKV = ['white', 'season', 'rainbow'];
+  let TKC = null, TKRC = null, TKN = 0, TKX0 = 0, TKX1 = 0;   // (TKX0..TKX1: the reflection's lit columns, so the per-segment re-lay copies only those)
+  const tkVar = L => { if(!L) return 0; const h = H1((L.B0 || 0) * .731 + 17.3); return h < .55 ? 0 : h < .85 ? 1 : 2; };   // per visit: the regular white show, the seasonal green, now and then the rainbow
+  function buildTokyo(only){ if(TKN === TKV.length) return; if(!TKC){ TKC = []; TKRC = []; }   // (one show per call at warm-up, each under 3 ms; all at once if asked mid-ride)
+    for(let v = 0; v < TKV.length; v++){ if(TKC[v] || (only !== undefined && v !== only)) continue; TKN++; const c = document.createElement('canvas'); c.width = TKW; c.height = TKH; const g = c.getContext('2d');
+      const B = TKH - 1, p = (x, h, col) => { if(x < 0 || x >= TKW || h < 0 || h > B) return; g.fillStyle = col; g.fillRect(x, B - h, 1, 1); }, r = (x, h, w, hh, col) => { g.fillStyle = col; g.fillRect(x, B - h - hh + 1, w, hh); };
+      // the far Tokyo shore behind: Shibaura and Shinagawa towers, low and hazed, sparse dim windows, a few red lamps
+      for(const [bx, bw, bh] of [[0, 9, 6], [10, 6, 8], [18, 8, 5], [40, 7, 9], [49, 5, 7], [57, 9, 8], [70, 6, 6], [79, 8, 9], [90, 5, 7], [130, 6, 6], [156, 8, 7]]){ r(bx, 0, bw, bh, '#111a30');
+        for(let yy = 2; yy < bh - 1; yy += 2) for(let xx = bx + 1; xx < bx + bw - 1; xx += 2){ const hv = H1(xx * 5.7 + yy * 3.1 + bh); if(hv < .22) p(xx, yy, hv < .08 ? '#9a8a6c' : '#6a7698'); }
+        if(bh >= 8) p(bx + (bw >> 1), bh, '#a82424'); }
+      const t1 = 32, t2 = 108, a1 = t1 - 18, a2 = t2 + 18, DK = 8;
+      const tw = v === 2 ? ['#4a8cff', '#4a8cff', '#5ac8a0', '#6ad870', '#b8e060', '#ffd050', '#ffb040', '#ff8a3a', '#ff6a3a'] : null;   // the rainbow show, foot to top
+      const towerC = (h, lit) => { if(tw){ const c0 = tw[Math.min(tw.length - 1, Math.floor(h / 21 * tw.length))]; return lit ? c0 : mixc(c0, '#141a30', .3); } return lit ? (h > 17 ? '#d4dae8' : '#b8c0d4') : (h > 17 ? '#a8b0c6' : '#8a92aa'); };
+      const dotC = v === 1 ? ['#7ae89a', '#4ab874'] : v === 2 ? ['#d8f4e0', '#a8d8b8'] : ['#eef2fa', '#b4bed6'];
+      // the cable's height at x: the main span's catenary from the saddles (h 19) down to just over the deck, the side spans sagging to the anchorages
+      const capH = x => { if(x >= t1 && x <= t2){ const q = (x - (t1 + t2) / 2) / ((t2 - t1) / 2); return 9 + 10 * q * q; } if(x < t1 && x >= a1){ const q = (t1 - x) / (t1 - a1); return 19 - 11 * q - 2.2 * q * (1 - q); } if(x > t2 && x <= a2){ const q = (x - t2) / (a2 - t2); return 19 - 11 * q - 2.2 * q * (1 - q); } return -1; };
+      // hangers: the faintest verticals between the cable and the deck (only the harp's texture survives at this distance)
+      for(let x = a1 + 2; x <= a2 - 2; x += 4){ if(Math.abs(x - t1) < 3 || Math.abs(x - t2) < 3) continue; const ch = Math.round(capH(x)); for(let h = DK + 1; h < ch; h++) p(x, h, '#1a2240'); }
+      // the cable itself, a dim line the lamps sit on
+      for(let x = a1; x <= a2; x++){ const ch = capH(x); if(ch < 0) continue; p(x, Math.round(ch), '#232c4a'); }
+      // the deck: the approach from the Shibaura loop on the left, the double-deck truss, the ramp down to Odaiba on the right
+      for(let x = 2; x < 146; x++){ let h = DK; if(x < a1) h = Math.round(3 + (DK - 3) * (x - 2) / (a1 - 2)); else if(x > a2) h = Math.round(DK - (DK - 4) * (x - a2) / (146 - a2));
+        p(x, h, '#4a5474'); if(h - 1 >= 0) p(x, h - 1, x % 2 ? '#2a3350' : '#384266'); if(h - 2 >= 0 && x > a1 && x < a2) p(x, h - 2, '#1e2640');
+        if(x % 3 === 0) p(x, h, H1(x * 1.9) < .5 ? '#f0e0b0' : '#d8c898'); if(x > a1 && x < a2 && x % 5 === 2) p(x, h - 2, '#b8c4e0'); }
+      // the Shibaura loop: a ring of road lamps lying low on the left
+      for(let k = 0; k < 14; k++){ const an = k / 14 * Math.PI * 2, lx = Math.round(7 + Math.cos(an) * 6), lh = Math.round(3 + Math.sin(an) * 1.4); p(lx, lh, Math.sin(an) > 0 ? '#c8b890' : '#8a8070'); }
+      // the anchorages: low pale blocks where the side spans come down
+      for(const ax of [a1, a2]){ r(ax - 2, 0, 5, DK - 1, '#3a4258'); r(ax - 2, DK - 1, 5, 1, '#6a7290'); }
+      // the two towers: a deep crossbeam with the arch rounded inside it, two slim legs, a lower crossbeam under the deck, the piers
+      for(const tx of [t1, t2]){
+        for(let h = 1; h <= 20; h++){ p(tx - 2, h, towerC(h, true)); p(tx + 2, h, towerC(h, false)); }
+        for(let x = tx - 2; x <= tx + 2; x++){ p(x, 20, v === 2 ? towerC(20, true) : '#e2e6f2'); p(x, 19, towerC(19, x <= tx)); }
+        p(tx - 1, 18, towerC(18, true)); p(tx + 1, 18, towerC(18, false));   // the arch's shoulders
+        for(let x = tx - 1; x <= tx + 1; x++) p(x, DK - 2, towerC(DK - 2, false));   // the crossbeam under the deck
+        r(tx - 3, 0, 7, 2, '#2a3248'); p(tx - 3, 2, '#5a6280'); p(tx + 3, 2, '#5a6280');
+        p(tx - 2, 21, '#c02828'); p(tx + 2, 21, '#8a1c1c'); }
+      // the lamps on the cables: one pixel every 3, brighter and dimmer by turns (the two cables seen almost edge-on)
+      for(let x = a1 + 1; x <= a2 - 1; x++){ if(Math.abs(x - t1) < 3 || Math.abs(x - t2) < 3) continue; const ch = capH(x); if(ch < 0 || (x - a1) % 3) continue; p(x, Math.round(ch), dotC[((x - a1) / 3 | 0) % 2]); }
+      // the Fuji TV building (x 146..162): two gridded towers, the void between them crossed by sky corridors, the sphere hung at its top
+      { const fx = 146, FG = [
+          // 17 wide, rows from the antenna down (h 18 .. 0); the sphere stands clear of the frames by a pixel of void so it reads round. F frame, f frame shade, w lit window, k warm window, d dark window, v the void,
+          // c corridor (lit), o sphere, O sphere highlight, b the sphere's window band, g its violet underglow, r red lamp, a antenna
+          '.............ra..',
+          '.......OOo.......',
+          '.ffff.ooooo.fffff',
+          '.FwdFvbbbbbvfFdwF',
+          '.FkwFvooggovfFwwF',
+          '.FFFFvvoggvvfFFFF',
+          '.FdwFvvvfvvvfFwdF',
+          '.FwwFvvvfvvvfFkwF',
+          '.FFFFccccccccFFFF',
+          '.FwkFvvvfvvvfFwdF',
+          '.FdwFvvvfvvvfFwwF',
+          '.FFFFccccccccFFFF',
+          '.FwwFvvvfvvvfFdkF',
+          '.FkdFvvvfvvvfFwwF',
+          '.FFFFccccccccFFFF',
+          '.FwdFvvvfvvvfFwkF',
+          'fffffffffffffffff',
+          'fffffffffffffffff',
+          '.................' ];
+        const FC = { F:'#848aa4', f:'#5a6078', w:'#dce4fa', k:'#f4d8a0', d:'#1e2438', v:'#121a2e', c:'#c8d0e8', o:'#40465e', O:'#9aa2bc', b:'#ffe6b0', g:'#b070d8', r:'#c02828', a:'#6a7088' };
+        for(let j = 0; j < FG.length; j++){ const row = FG[j], h = FG.length - 1 - j; for(let i = 0; i < row.length; i++){ const col = FC[row[i]]; if(col) p(fx + i, h, col); } } }
+      TKC[v] = c;
+      // its reflection: only the strongest lights, as short broken columns (the towers' floodlit legs, the sphere's band, the corridors)
+      const rc = document.createElement('canvas'); rc.width = TKW; rc.height = TKR; const rg = rc.getContext('2d'), src = g.getImageData(0, 0, TKW, TKH).data, img = rg.createImageData(TKW, TKR), d = img.data;
+      for(let y = 0; y < TKR; y++){ const sy = B - 2 - y, sh = (y >> 1) % 3 === 1 ? 1 : 0; if(sy < 0) break;
+        for(let x = 0; x < TKW; x++){ const sx = Math.min(TKW - 1, x + sh), i = (sy * TKW + sx) * 4; if(!src[i + 3]) continue; const lum = (src[i] + src[i + 1] + src[i + 2]) / 3; if(lum < 150) continue;
+          if(y > 3 + (H1(sx * 3.7 + 1) * 9 | 0) || (y + (sx & 1)) % 4 === 3) continue; const o = (y * TKW + x) * 4, k = .34 * (1 - y / TKR * .6); d[o] = src[i] * k; d[o + 1] = src[i + 1] * k; d[o + 2] = Math.min(255, src[i + 2] * k * 1.1); d[o + 3] = 255; } }
+      rg.putImageData(img, 0, 0); TKRC[v] = rc; if(v === 0){ TKX0 = TKW; for(let x = 0; x < TKW; x++) for(let y = 0; y < TKR; y++) if(d[(y * TKW + x) * 4 + 3]){ TKX0 = Math.min(TKX0, x); TKX1 = x + 1; break; } } } }
+  // where the layer stands this frame (native px from the left). Wide screens: over Osanbashi pier in the panorama (x 380..544), the low
+  // gap between the Bay Bridge and Kannai's towers, so neither bridge crosses the other and the Fuji TV building clears the Hotel New Grand.
+  // Narrow screens see only the panorama's low city: there the layer keeps to the harbour edge, the left tower over the water. It swings
+  // with the far tier, half the panorama's swing (the whole ride moves it under 25 px against the panorama).
+  const tkX = () => { const nw = W / PX; return Math.round((nw >= 300 ? 380 : Math.max(nw * .5, nw - 118)) - skyPar('far') / PX); };
+  const TKQ = DBQ.has('mmtk') ? Math.min(2, Math.max(0, +DBQ.get('mmtk') | 0)) : -1;   // (test switch: ?mmtk=0|1|2 forces the white, seasonal or rainbow show)
+  let TKVF = -1, TKVV = 0; const tkV = () => { if(TKVF !== DRAWN){ TKVF = DRAWN; TKVV = TKQ >= 0 ? TKQ : tkVar(visitOf(Math.floor(camSeg()))); } return TKVV; };
 
   // ---------------------------------------------------------------- the road surface: promenade, quay and harbour on the right, the city's sidewalk on the left
   const KB = 1.14, QX = 2.5, SWL = 1.95;   // promenade starts (right), quay edge (right), sidewalk ends (left)
@@ -231,7 +324,8 @@
     if(qb < W + PX || qa < W + PX){ const wc = fog > .66 ? C.water[0] : fog > .33 ? C.water[1] : fog > .12 ? C.water[2] : C.water[3]; poly(qa, ay, W + 2, ay, W + 2, by, qb, by, F(wc));
       { const r0 = Math.max(0, Math.round(by / PX)), r1 = Math.min(QXR.length - 1, Math.round(ay / PX)); for(let r = r0; r <= r1; r++){ const t = (ay - r * PX) / Math.max(1, ay - by); QXR[r] = qa + (qb - qa) * clamp(t, 0, 1); } }
       if(REF){ const ry0 = b.y - HZ; if(ry0 >= 0 && ry0 < SHR * PX){ const off = (((skyPar('mid') / PX) % PW) + PW) % PW, sy = Math.floor(ry0 / PX), shh = Math.min(SHR - sy, Math.max(1, Math.round((ay - by) / PX))), L = Math.max(0, Math.max(qa, qb));
-          if(L < W && shh > 0) cx.drawImage(REF, off + L / PX, sy, (W - L) / PX, shh, snp(L), snp(b.y), W - snp(L), shh * PX); } }
+          if(L < W && shh > 0){ cx.drawImage(REF, off + L / PX, sy, (W - L) / PX, shh, snp(L), snp(b.y), W - snp(L), shh * PX);
+            const ty = sy - 3, th2 = Math.min(TKR - ty, shh); if(TKRC && ty >= 0 && th2 > 0 && !ABL.includes('tokyo')){ const tx = tkX(), s0 = Math.max(TKX0, Math.ceil(L / PX - tx)), sw2 = Math.min(TKX1, Math.ceil(W / PX - tx)) - s0; if(sw2 > 0) cx.drawImage(TKRC[tkV()], s0, ty, sw2, th2, (tx + s0) * PX, snp(b.y), sw2 * PX, th2 * PX); } } } }
       // near water: sparse ripple dashes catching the sky, easing between two hashed states (never re-rolled per frame)
       if(fog < .5 && i % 2 === 0){ const ph = reduce ? 0 : now / 1700 + H1(i * 1.3), p0 = Math.floor(ph), fe = sm(ph - p0); cx.fillStyle = F('#1c2c4e');
         for(let k = 0; k < 3; k++){ const hv = lerp(H1(i * 3.7 + k + p0 * .37), H1(i * 3.7 + k + (p0 + 1) * .37), fe); if(hv < .35) continue; const xx = a.x + a.w * (Q1 + .4 + H1(i * 7.1 + k) * 7), ww = snp(a.w * (.12 + hv * .3)); if(xx > W) continue; cx.fillRect(snp(xx), snp(by), Math.max(PX, ww), PX); } }
@@ -637,7 +731,7 @@
   const ODRAW = { landmark:drawLandmark, wheel:drawWheel, qs:drawQS, sail:drawSail, coaster:drawCoaster, rising:drawRising, marine:drawMarine, ship:drawShip, aka:drawAka, moor:drawMoor, pier:drawPier };
   function drawObj(o, now){ if(o.f === DRAWN) return; o.f = DRAWN; const fn = ODRAW[o.kind]; if(!fn || ABL.includes(o.kind)) return; const a = objFade(o); if(a <= .01) return; const ga = cx.globalAlpha; if(a < 1) cx.globalAlpha = ga * a; OBJ_ON = true; try{ fn(o, now); } finally { cx.globalAlpha = ga; OBJ_ON = false; } }
   // reflections, into the reflection buffer (things on the water side only)
-  const ABL = (DBQ.get('mmabl') || '').split(',');   // (test switch: ?mmabl=<kind>,refl skips those objects, or every reflection)
+  const ABL = (DBQ.get('mmabl') || '').split(',');   // (test switch: ?mmabl=<kind>,refl skips those objects, or every reflection; tokyo skips the Tokyo Bay layer)
   function reflObj(o, now){ if(o.x < 2) return; if(o.z1 < camSeg() + 1) return; if(ABL.includes('refl')) return;
     if(o.kind === 'wheel' && !o.gone){ const st = o.st || (o.st = { z:o.hz, x:o.x, h:WR + 1.35, yaw:.5, roll:0, rot:0 }); wheelGeo(st, now, true, objFog(o)); }
     else if(o.kind === 'sail') reflSail(o);
@@ -651,7 +745,9 @@
     // the water: bands darkening toward you, the sky's low light caught near the horizon
     const bands = [[0, '#16243e'], [.025, C.water[0]], [.07, C.water[1]], [.16, C.water[2]], [.32, C.water[3]]];
     for(let k = 0; k < bands.length; k++){ const y0 = snp(hz + (H - hz) * bands[k][0]), y1 = k + 1 < bands.length ? snp(hz + (H - hz) * bands[k + 1][0]) : H; cx.fillStyle = mixc(bands[k][1], sk.low, .15); cx.fillRect(0, y0, W, y1 - y0); }
-    cx.imageSmoothingEnabled = false; cx.drawImage(PAN, off, 0, sw, SH, 0, hz - (SH - 1) * PX, sw * PX, SH * PX); cx.drawImage(REF, off, 0, sw, SHR, 0, hz + PX, sw * PX, SHR * PX);
+    cx.imageSmoothingEnabled = false; buildTokyo(); const tkv = tkV(), tkx = ABL.includes('tokyo') ? -1e4 : tkX(); cx.drawImage(TKC[tkv], tkx * PX, hz - (TKH - 1) * PX, TKW * PX, TKH * PX);   // Tokyo Bay, farther than the panorama: drawn first, its foot behind the Yokohama shore
+    cx.drawImage(PAN, off, 0, sw, SH, 0, hz - (SH - 1) * PX, sw * PX, SH * PX); cx.drawImage(REF, off, 0, sw, SHR, 0, hz + PX, sw * PX, SHR * PX);
+    cx.drawImage(TKRC[tkv], tkx * PX, hz + 3 * PX, TKW * PX, TKR * PX);   // its strongest lights doubled in the water (opaque dashes, already dimmed: no composite switch)
     // the big objects: reflections first (all of them, into the reflection buffer), then the far ones drawn here
     const L = objsNow(); r2Clear(); if(rb2OK()) for(const ob of L) reflObj(ob, now);
     for(const ob of L) if(ob.z1 - camSeg() >= NEARN) drawObj(ob, now);
@@ -1339,13 +1435,13 @@
   // ---------------------------------------------------------------- warm-up: every canvas and pattern now, none mid-ride
   function* warmSteps(){
     if(!RB){ RB = document.createElement('canvas'); RG = RB.getContext('2d', { willReadFrequently:true }); } if(!RB2){ RB2 = document.createElement('canvas'); RG2 = RB2.getContext('2d', { willReadFrequently:true }); } rbOK(); rb2OK(); yield;
-    buildPan(); yield;
+    buildPan(); yield; for(let v = 0; v < TKV.length; v++){ buildTokyo(v); yield; }
     for(let si = 0; si < TREE_H.length; si++){ for(let v = 0; v < 3; v++) treeSpr(si, v); yield; }
     for(let si = 0; si < PPL_H.length; si++){ for(let v = 0; v < 4; v++) for(let f = 0; f < 4; f++) pplSpr(si, v, f); yield; }
     for(const c of ['#7a86b0']) for(const d of [.25]) try{ cx.fillStyle = pat(c, d); cx.fillRect(0, 0, PX, PX); }catch(e){}
     // run the far land and the overlay once over the night (JIT, colour and pattern caches), as Sakurajima does
     if(typeof skyAt === 'function' && W > 0 && segs.length) for(let t = 0; t <= 1.001; t += .25){ const sk = skyAt(t * .97); try{ cx.save(); backdrop({ hz:H / 2 + 2, sk, now:t * 9000, moonX:W / 2, moonY:H * .2, t, far:sk.mid, near:sk.mid, L:LANDS[landK()] }); overlay(1, t * 9000, sk); cx.restore(); }catch(e){ try{ cx.restore(); }catch(e2){} } yield; }
-    try{ cx.save(); cx.globalAlpha = .004; for(const key in SPR) if(key.startsWith(P) && SPR[key] instanceof HTMLCanvasElement) cx.drawImage(SPR[key], 0, 0, 1, 1); cx.drawImage(PAN, 0, 0, 1, 1); cx.drawImage(REF, 0, 0, 1, 1); cx.drawImage(RB, 0, 0, 1, 1); cx.drawImage(RB2, 0, 0, 1, 1); cx.restore(); }catch(e){}
+    try{ cx.save(); cx.globalAlpha = .004; for(const key in SPR) if(key.startsWith(P) && SPR[key] instanceof HTMLCanvasElement) cx.drawImage(SPR[key], 0, 0, 1, 1); cx.drawImage(PAN, 0, 0, 1, 1); cx.drawImage(REF, 0, 0, 1, 1); for(const tc of TKC.concat(TKRC)) cx.drawImage(tc, 0, 0, 1, 1); cx.drawImage(RB, 0, 0, 1, 1); cx.drawImage(RB2, 0, 0, 1, 1); cx.restore(); }catch(e){}
     cx.clearRect(0, 0, W, H); }
 
   // the reflection rows inside roadFX (each segment lays its own rows of the reflection on its water)

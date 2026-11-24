@@ -154,49 +154,54 @@ function txt(s, col){ const k = 'pol:t' + s + col; if(SPR[k]) return SPR[k]; con
   for(const [cc, o] of [['#000', 1], [col, 0]]){ g.fillStyle = cc; [...s].forEach((ch, n) => { const b = F3[ch] || F3[' ']; for(let i = 0; i < 15; i++) if(b[i] === '1') g.fillRect(n * 4 + i % 3 + o, (i / 3 | 0) + o, 1, 1); }); }
   return SPR[k] = c; }
 
-/* The chase car seen from the rider looking back: a Toyota Crown patrol car head-on, a little from above. 40 x 24, left half
-   mirrored (X/x lamps become Z/z, so each half of the bar flashes on its own). Read top to bottom: the long red bar on its
-   stand with a clear centre and the 警察 roof board, white roof and pillars, dark windscreen, white bonnet with the black
-   panda nose wedging up its middle, chrome grille with the gold sakura emblem, wide headlamps with amber corners, a black
-   bumper with red warning lamps, the plate. */
+/* The chase car seen from the rider looking back: a 1970s-80s Japanese patrol car head-on, a little from above (Kellan, review 2026-11-23:
+   keep 16 rows over the bike, "we should make the car wider"). 56 x 24 (was 40), left half mirrored (X/x lamps become Z/z, so each half
+   of the bar flashes on its own). References: the Toyota Crown S120 and the Nissan Cedric 430 head-on (Wikimedia Commons photos at pixel
+   zoom; the MPD Crowns and Cedrics of the era wore the same panda livery): a low, very wide, boxy body whose flat bonnet runs the full
+   width; the cabin set in from the fenders (the roof is about two thirds of the body's width), thin pillars, a tall flat windscreen; a
+   wide chrome grille of vertical slats with the emblem in the middle; rectangular headlamps with amber corner lamps; a thin chrome
+   bumper over a black valance with the plate; fender mirrors on the bonnet's front corners. Read top to bottom: the long red bar on
+   its stand with a clear centre and the 警察 roof board, white roof and pillars, dark windscreen, the white bonnet with its centre
+   crease and gold mascot, chrome grille and gold emblem, headlamps, chrome bumper, red warning lamps, the plate. */
 const COPF = [
-  '......KKKKKKKKKKKKKK',
-  '......KXXXXXXXXXXXcc',
-  '......KxxxxxxxxxxxcW',
-  '......KKKKKKKKKKKKKK',
-  '..........KVK..Kwkkw',
-  '.....KKKKKKKKKKKKKKK',
-  '....Kwwwwwwwwwwwwwww',
-  '...KwWWWWWWWWWWWWWWW',
-  '..KwKKKKKKKKKKKKKKKK',
-  '..KWKGgGGGGGGGGGGGGG',
-  '.KWKGGgGGGGGGGGGGGGG',
-  '.KWKGGGgGGGGGGGGGGGh',
-  'KNWKGGGGGGGGGGGGGGhh',
-  'KNKKKKKKKKKKKKKKKKKK',
-  'KwwwwwwwwwwwwwwwwwwN',
-  'KWWWWWWWWWWWNNNNNNNN',
-  'KVVVVVVNNNNNNNNnNNNN',
-  'KYYYYAKWWWWWWWWWWWWW',
-  'KYyYYAKkNkNkNkNkNkpP',
-  'KNNNNNKkNkNkNkNkNkPp',
-  'KNxXNNKWWWWWWWWWWWWW',
-  'KNxxNnNNNNNNNNKLLLLL',
-  'KKKKKKKKKKKKKKKLlLlL',
-  '.KTTTK........KKKKKK'];
+  '.............KKKKKKKKKKKKKKK',
+  '.............KXXXXXXXXXXXccc',
+  '.............KxxxxxxxxxxxccW',
+  '.............KKKKKKKKKKKKKKK',
+  '...............KVK.....Kwkkw',
+  '.........KKKKKKKKKKKKKKKKKKK',
+  '........Kwwwwwwwwwwwwwwwwwww',
+  '.......KwWWWWWWWWWWWWWWWWWWW',
+  '......KwKKKKKKKKKKKKKKKKKKKK',
+  '.....KWKGgGGGGGGGGGGGGGGGGGG',
+  '....KWKGGgGGGGGGGGGGGGGGGGGG',
+  '...KWKGGGgGGGGGGGGGGGGGGGGhh',
+  '..KWKGGGGGGGGGGGGGGGGGGGGhhh',
+  'KKKKKKKKKKKKKKKKKKKKKKKKKKKK',
+  'KwKKwwwwwwwwwwwwwwwwwwwwwwwV',
+  'KWWKWwwwwwwwwwwwwwwwwwwwwwwV',
+  'KVWWWWWWWWWWWWWWWWWWWWWWWWWP',
+  'KKKKKKKKKKKKKKKKKKKKKKKKKKKK',
+  'KAYYYYYYYKsSsSsSsSsSsSsSsSsP',
+  'KAyYYYYYYKsSsSsSsSsSsSsSsSsP',
+  'KSSSSSSSSSSSSSSSSSSSSSSSSSSS',
+  'KNRRNNNNNNNNNNNNNNNNKLLLLLLL',
+  'KNNNNNNNNNNNNNNNNNNNKLlLlLlL',
+  '.KTTTTK.............KKKKKKKK'];
+const COPW = COPF[0].length * 2, COPL = COPW / 2 - 5.5;   // its width, and each headlamp's centre from the middle (sprite px)
 const FMIR = { X:'Z', Z:'X', x:'z', z:'x' };
 function copFront(ph){ const key = 'pol:copF' + ph; if(SPR[key]) return SPR[key];
   const on = h => ph === 2 || (ph === 0) === (h === 0);   // h 0 = left half, 1 = right half
-  const pal = { K:'#0a0810', w:'#eae6f0', W:'#b8b4c8', V:'#7c7894', N:'#1c1a26', n:'#3a3850', k:'#0c0a12', G:'#18203a', g:'#4a5a8a', h:'#2a3456',
+  const pal = { S:'#e4e0ee', s:'#6e6a84', R:'#d01828', K:'#0a0810', w:'#eae6f0', W:'#b8b4c8', V:'#7c7894', N:'#1c1a26', n:'#3a3850', k:'#0c0a12', G:'#18203a', g:'#4a5a8a', h:'#2a3456',
     Y:'#fff4c0', y:'#ffe080', A:'#ff9a2a', P:'#ffd04a', p:'#a07010', L:'#e8e4d8', l:'#3a3a48', T:'#16141a', c:'#f4eef8',
     X:on(0) ? '#ffb0b0' : '#6a1420', x:on(0) ? '#ff2a3a' : '#3a0a14', Z:on(1) ? '#ffb0b0' : '#6a1420', z:on(1) ? '#ff2a3a' : '#3a0a14' };
-  const c = document.createElement('canvas'); c.width = 40; c.height = COPF.length; const g = c.getContext('2d');
+  const c = document.createElement('canvas'); c.width = COPW; c.height = COPF.length; const g = c.getContext('2d');
   COPF.forEach((r0, y) => { const r = r0 + [...r0].reverse().map(ch => FMIR[ch] || ch).join('');
     for(let x = 0; x < r.length; x++){ const col = pal[r[x]]; if(col){ g.fillStyle = col; g.fillRect(x, y, 1, 1); } } });
   return SPR[key] = c; }
 let ghost = null;   // a transparent stand-in, tall enough that the game's light-bar glow lands far above the screen
 P.parked = false;   // set by mech/arrival.js while it draws the parked patrol car itself (the pull-over staging)
-P.copSprite = ph => P.parked ? ghost || (ghost = (() => { const c = document.createElement('canvas'); c.width = 40; c.height = 4000; return c; })()) : copFront(ph);
+P.copSprite = ph => P.parked ? ghost || (ghost = (() => { const c = document.createElement('canvas'); c.width = COPW; c.height = 4000; return c; })()) : copFront(ph);
 P.copFront = copFront;
 function warm(){ sawSpr(0); sawSpr(1); for(const f of [0, 1]) for(const d of [1, -1]) offSpr(f, d); signSpr(); stripSpr(); copFront(0); copFront(1); copFront(2);
   for(const c of ['#ff3b5c', '#ffd04a']) kanji(c); for(const s of ['ROADBLOCK', 'CHECKPOINT', 'SPIKES']) for(const c of ['#f4ecdf']) txt(s, c); for(const ch of '0123456789M') txt(ch, '#ffd04a'); try{ warmChase(); }catch(err){ console.warn('chase warm', err); } try{ rimWarm(); }catch(err){ console.warn('rim warm', err); } }
@@ -351,7 +356,7 @@ P.drawSeg = (s, sx0, sy0, uw, fog, now) => {
   const ph = phase(now); GN = 0;
   cx.globalAlpha = al;
   // ground shadows first
-  for(const o of b.items){ if((o.t !== 'car' && o.t !== 'saw') || o.broken) continue; const w = (o.t === 'car' ? 28 : 11) * k; spanFill(sx0 + o.x * uw, sy0, w, Math.max(PX * .5, w * .08), 'rgba(0,0,0,.45)'); }   // whole-pixel rows
+  for(const o of b.items){ if((o.t !== 'car' && o.t !== 'saw') || o.broken) continue; const w = (o.t === 'car' ? 28 : 11); pxShadow(cx, sx0 + o.x * uw, sy0, w, Math.max(PX * .5 / k, w * .08), k, .45); }   // the core's stepped pixel shadow
   for(const t of LAYERS) for(const o of b.items){ if(o.t !== t || o.broken) continue; const x = sx0 + o.x * uw;
     if(t === 'car'){   // the same ray-cast Crown that chases you, side-on across the lane (one car, one look: no second hand-drawn model)
       const A = drawCar3('side', uw / MPH, ph, o.f > 0, x, sy0, al); if(!A.ok) continue; hc(A.x, A.y, A.w, A.h);
@@ -951,9 +956,9 @@ const q16 = v => Math.max(0, Math.min(16, Math.round(v * 16))) / 16, PA = { x:0,
 const fall = (d, d0) => 1 / (1 + (d / d0) * (d / d0));
 function pAt(a, b, t, P){ P.x = a.x + (b.x - a.x) * t; P.y = a.y + (b.y - a.y) * t; P.w = a.w + (b.w - a.w) * t; return P; }
 function subLamps(e, c){ if(e.lt === FR.now) return; e.lt = FR.now;   // where this frame's lamps sit (the car's x, as subwayCar places it), in road units at the bike
-  const kB = Math.max(PX, Math.round(Math.min(W * .2, H * .27) / 30 / PX) * PX), w = 40 * kB, xc = clamp(W / 2 + ((c.lx === undefined ? playerX : c.lx) - playerX) * W * .45, w * .5, W - w * .5);
+  const kB = Math.max(PX, Math.round(Math.min(W * .2, H * .27) / 30 / PX) * PX), w = COPW * kB, xc = clamp(W / 2 + ((c.lx === undefined ? playerX : c.lx) - playerX) * W * .45, w * .5, W - w * .5);
   const sb = segs[FR.bikeSeg], wr = sb && sb.p1.screen.w > 1 ? sb.p1.screen.w : W;
-  e.kB = kB; e.o0 = (xc - 17 * kB - W / 2) / wr; e.o1 = (xc + 17 * kB - W / 2) / wr; e.ay = H + 2 * kB;
+  e.kB = kB; e.o0 = (xc - COPL * kB - W / 2) / wr; e.o1 = (xc + COPL * kB - W / 2) / wr; e.ay = H + 2 * kB;
   // the falloff: its reach, its shape, and the distances (past the tyre) where the dither steps a level, nearest first, with the tyre itself
   e.R = SB.span + (e.flash ? 20 : SB.reach) * SEG; e.d0 = SB.d0 * (e.flash ? 1.35 : 1); e.fR = fall(e.R, e.d0); e.fN = fall(SB.span, e.d0) - e.fR;
   e.G = (c.subUp || 0) * e.k * (reduce ? .75 : 1); if(!e.bz) e.bz = new Float64Array(20); let n = 0, tyre = false; const vm = SB.vmax * e.G, top = Math.round(vm * 16);
@@ -1080,11 +1085,11 @@ function subwayCar(e, c, bs, now){
   const bx = x + Math.round(sh * (1 - 1.5 / 23)) * kB;   // the bar rides on the roof's shear
   // the bar's halves and the headlamps glow (lamps may be hot: the core's additive glow)
   const ph = reduce ? 2 : FR.ph, f = e.k;
-  for(let i = 0; i < 2; i++){ const lit = ph === 2 || ph === i, gx = bx + (i ? 27.5 : 12.5) * kB, gy = y + 1.5 * kB; glow(gx, gy, kB * (lit ? 7 : 3), WASH, (lit ? .55 : .2) * f); }
-  // the headlamps sit just under the bottom edge (rows 17-18): their bloom spills up over the bumper corners, stepped whole-pixel discs
+  for(let i = 0; i < 2; i++){ const lit = ph === 2 || ph === i, gx = bx + (i ? COPW - 19.5 : 19.5) * kB, gy = y + 1.5 * kB; glow(gx, gy, kB * (lit ? 7 : 3), WASH, (lit ? .55 : .2) * f); }
+  // the headlamps sit just under the bottom edge (rows 18-19): their bloom spills up over the bumper corners, stepped whole-pixel discs
   // (a dim outer ring, a half-dithered ring, a hot core), where the two beams start; flashed high beams open it up
   const fl = e.flash ? 1.35 : 1, lf = f * c.subUp * (reduce ? .75 : 1); cx.globalCompositeOperation = 'lighter';
-  for(const hx of [3, 37]){ const lx = x + hx * kB, ly = y + 18 * kB;
+  for(const hx of [COPW / 2 - COPL, COPW / 2 + COPL]){ const lx = x + hx * kB, ly = y + 19 * kB;
     spanFill(lx, ly, kB * 10 * fl, kB * 7.5 * fl, ditherPat(BEAM, qd(.25 * lf))); spanFill(lx, ly, kB * 6.5 * fl, kB * 5 * fl, ditherPat(LAMP, qd(.5 * lf)));
     cx.globalAlpha = Math.min(1, .7 * lf * fl); spanFill(lx, ly, kB * 4 * fl, kB * 3.4 * fl, '#fff4d8'); cx.globalAlpha = 1; }
   cx.globalCompositeOperation = 'source-over'; }

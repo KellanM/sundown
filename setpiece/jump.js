@@ -6,7 +6,7 @@
      at the apex, traffic immunity, and a landing thump with shake and sparks; onLand() runs on touchdown. MECH.sp_jump.flying() tells
      whether a jump is in the air. Returns false if one is already running. Keep the segments under the arc free of hazards yourself.
    Landmark jumps: one per road (harbour drawbridge, pass ravine, Sakurajima lava, Haneda taxiway, tunnels interchange, snow ski jump,
-   paddies railway, refinery pipeline), each telegraphed, with a bypass lane, a clean-landing bonus and a name card.
+   paddies railway, refinery pipeline, Kurobe gorge: placed by ENV.kurobe.jumpAt), each telegraphed, with a bypass lane, a clean-landing bonus and a name card.
    Two set pieces:
    1. Drawbridge (Harbour Line, once per visit). A bascule bridge over the channel opens as you come: bells, alternating red crossing lamps,
       gate arms, a 跳開橋 warning board and a lane gantry. Hit the rising leaf at speed and you fly the channel: a long AIR.h arc, a time-scale
@@ -87,6 +87,8 @@
       deck:['#c8d2e4', '#b6c2d8'], bar:['#5a8ad0', '#3a6ab0'], edge:'#ffffff', edge2:'#8aa0c8', paint:'#3a5a9a', side:['#9aaac8', '#8a9abc'], under:['#5a6a8a', '#4a5a7a'], girder:'#6a7a9a', tip:['#aab8d0', '#6a7a9a', '#ffffff'], lamp:['#bfe4ff', '#4a6a9a'], rail:'#d8ecff' },
     paddies:  { kj:'田', card:'線路越え',  name:'RAILWAY JUMP',     below:'rail',
       deck:['#4e3e2c', '#443624'], bar:['#f0e8c8', '#1a1814'], edge:'#e8d890', edge2:'#6a5a30', paint:'#f0ecd8', side:['#3a2e20', '#30261a'], under:['#1a1410', '#120e0c'], girder:'#3a2e20', tip:['#4a3a28', '#1a140e', '#e8d890'], lamp:['#ffe080', '#6a5a30'], rail:'#e8d890' },
+    kurobe:   { kj:'黒', card:'峡谷越え',  name:'GORGE LEAP',       below:'kurobe',   /* the gully below is env/kurobe.js's (jumpBelow); placed by ENV.kurobe.jumpAt */
+      deck:['#3c3e4c', '#353744'], bar:['#ffb458', '#d88a30'], edge:'#cfe0f0', edge2:'#4a5068', paint:'#e4e6ee', side:['#262836', '#20222e'], under:['#12131a', '#0e0f15'], girder:'#24262f', tip:['#363846', '#14151c', '#ffb458'], lamp:['#ffb458', '#6a4a2a'], rail:'#cfe0f0' },
     refinery: { kj:'油', card:'配管越え',  name:'PIPELINE JUMP',    below:'pipe',
       deck:['#5a3020', '#4a2a1c'], bar:['#3a8ac0', '#2a6a98'], edge:'#ff9a3a', edge2:'#6a3010', paint:'#e8dcc4', side:['#3a1e14', '#30180e'], under:['#1a0e0a', '#120a08'], girder:'#4a2416', tip:['#5a2a18', '#20100a', '#ff9a3a'], lamp:['#ffc060', '#7a3a10'], rail:'#ffb35a' } };
   for(const k in THEMES) THEMES[k].id = k;
@@ -415,8 +417,9 @@
     lastPlaced = i;
     if(pv0(i)) segs[i - 1].hz = null;   // hazards are rolled after place(): keep them off the bridge
     const pv = segs[i - 1], fresh = !pv || pv.land !== s.land;
-    if(fresh && THEMES[L.key] && !(window.DEMO && DEMO.jumpOff && DEMO.jumpOff(i))){ const th = THEMES[L.key];   /* (a demo level can turn a road's jump off) */ let b0 = i + LEAD; if(L.tunnel) while(b0 % 320 !== 214) b0++;   // tunnels: launch straight out of a portal
-      if(window.forkClear){ let d = forkClear(b0 - 210, b0 + TOT + 30); if(d){ b0 += d; if(L.tunnel) while(b0 % 320 !== 214) b0++; } }   // (?split=1: never in a fork's split window)
+    const JA = fresh && THEMES[L.key] && ENV[L.key] && ENV[L.key].jumpAt ? ENV[L.key].jumpAt(i) : undefined;   /* ENV[road].jumpAt(i): a road that lays its own sections (env/kurobe.js) places its jump itself: a segment, or null for none this visit */
+    if(fresh && THEMES[L.key] && JA !== null && !(window.DEMO && DEMO.jumpOff && DEMO.jumpOff(i))){ const th = THEMES[L.key];   /* (a demo level can turn a road's jump off) */ let b0 = JA !== undefined ? JA : i + LEAD; if(L.tunnel && JA === undefined) while(b0 % 320 !== 214) b0++;   /* tunnels: launch straight out of a portal */
+      if(window.forkClear && JA === undefined){ let d = forkClear(b0 - 210, b0 + TOT + 30); if(d){ b0 += d; if(L.tunnel) while(b0 % 320 !== 214) b0++; } }   // (?split=1: never in a fork's split window; a jumpAt road has kept its spot clear itself)
       let dress = true; if(DIR){ const jid = 'jump:' + L.key; DIR.request(jid, { tier:'landmark', seg:b0 }); dress = DIR.dress(jid); }
       plans.push({ kind:'bridge', th, start:i, b0, r:th.bridge ? 0 : 1, open:true, dress }); }
     if(fresh && L.key === 'haneda'){ const v = visits.haneda++; plans.push({ kind:'haneda', start:i, v }); }

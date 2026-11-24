@@ -120,7 +120,7 @@ function* buildSteps(){ const list = [];
   const AW = 512; let x = 0, y = 0, sh = 0; for(const it of list){ const w = it[1].width, h = it[1].height; if(x + w > AW){ x = 0; y += sh + 1; sh = 0; } it.push(x, y); x += w + 1; sh = Math.max(sh, h); }
   const cv = can(AW, y + sh + 1), g = cv.getContext('2d'), C2 = {}; let n = 0; for(const [key, c, sx, sy] of list){ g.drawImage(c, sx, sy); C2[key] = { sx, sy, w:c.width, h:c.height }; if(++n % 12 === 0) yield; }
   ATL = cv; CELL = C2; yield;
-  const G0 = MECH.gang && MECH.gang._dbg; if(G0 && G0.legSprite){ flipC(G0.cockSprite(LEGP)); for(let n2 = 4; n2 <= 14; n2 += 2) flipC(G0.legSprite(LEGP, n2)); } yield;
+  const G0 = MECH.gang && MECH.gang._dbg; if(G0 && G0.legSprite){ flipC(G0.cockSprite(LEGP)); for(let n2 = 4; n2 <= 14; n2 += 2) flipC(G0.legSprite(LEGP, n2)); if(G0.smearSprite) G0.smearSprite(LEGP, 12, 1); } yield;
   touch(); }
 function touch(){ try{ if(!TOUCH) TOUCH = can(4, 4); const g = TOUCH.getContext('2d'), L = [ATL]; const G0 = MECH.gang && MECH.gang._dbg;
     if(G0 && G0.legSprite){ const c = G0.cockSprite(LEGP); L.push(c, flipC(c)); for(let n = 4; n <= 14; n += 2){ const l = G0.legSprite(LEGP, n); L.push(l, flipC(l)); } }
@@ -283,7 +283,7 @@ function rider(r, dt, pz){ const gap = r.z - pz, dx = r.x - playerX; r.flagPh +=
 function drawRider(r, x, y, k, fog, now, am){ if(!ATL) return; const lv = r.a >= 1 ? 4 : Math.floor(r.a * 4); if(lv <= 0) return; const a = (1 - fog * .6) * (am === undefined ? 1 : am); if(a <= .01) return;
   const g = cx, hang = Math.round(clamp(r.lean / .5, -1, 1)), ph = Math.floor(now / 45 + r.id) % 3, dk = r.dark > .5, key = lv < 4 ? 'd' + lv + ph + hang : (dk ? 'k' : 'n') + (r.look ? (r.look < 0 ? 'L' : 'R') + ph : ph + '' + hang), c = CELL[key]; if(!c) return;
   g.save(); g.globalAlpha = a; g.imageSmoothingEnabled = false;
-  if(lv >= 3){ g.fillStyle = 'rgba(0,0,0,.45)'; g.beginPath(); g.ellipse(x, y, 9 * k, Math.max(1, 1.6 * k), 0, 0, 6.283); g.fill(); }
+  if(lv >= 3) pxShadow(g, x, y, 9, Math.max(1 / k, 1.6), k, .45);   // the core's stepped pixel shadow
   // lights on: the beam pools on the road ahead of him (his headlight faces away from you); lights out: nothing but the rim and the flames
   if(!dk && lv >= 2){ glow(x, y - 3 * k, 16 * k, '#bfe8ff', (r.flashT > 0 ? .6 : .16) * a); }
   g.translate(x, y); g.rotate(r.lean); g.drawImage(ATL, c.sx, c.sy, c.w, c.h, Math.round(-RCW / 2 * k), Math.round(-RGY * k), RCW * k, RCH * k);
@@ -293,7 +293,7 @@ function drawRider(r, x, y, k, fog, now, am){ if(!ATL) return; const lv = r.a >=
   // the kick: his leg cocks out toward you, then shoots out (mech/gang.js's leg in his white trousers)
   const G0 = MECH.gang && MECH.gang._dbg;
   if(G0 && G0.legSprite && (r.windT > 0 || r.kickT > 0)){ const sd = r.kickT > 0 ? r.kickSide : r.windSide, hip = -12;
-    if(r.kickT > 0){ const ext = Math.sin(clamp(1 - r.kickT / .25, 0, 1) * Math.PI), len = Math.max(4, Math.round(ext * 12 / 2) * 2), s0 = G0.legSprite(LEGP, len), s = sd < 0 ? s0 : flipC(s0); g.drawImage(s, sd < 0 ? (-9 - s.width) * k : 9 * k, (hip - 5) * k, s.width * k, s.height * k); }
+    if(r.kickT > 0){ const u = clamp(1 - r.kickT / .25, 0, 1), ext = Math.sin(u * Math.PI), len = Math.max(4, Math.round(ext * 12 / 2) * 2), sm = !!(G0.smearSprite && MECH.gang.smearOn && MECH.gang.smearOn(u)), s0 = G0.legSprite(LEGP, len), s = sm ? G0.smearSprite(LEGP, 12, sd) : sd < 0 ? s0 : flipC(s0); g.drawImage(s, sd < 0 ? (-9 - s.width) * k : 9 * k, (hip - (sm ? 6 : 5)) * k, s.width * k, s.height * k); }   // sm: gang.js's smear frame
     else { const s0 = G0.cockSprite(LEGP), s = sd < 0 ? s0 : flipC(s0); g.drawImage(s, sd < 0 ? (-9 - s.width) * k : 9 * k, (hip - 10) * k, s.width * k, s.height * k); glow(sd * 15 * k, (hip - 6) * k, 7 * k, '#9ae8ff', .45); } }
   g.restore();
   // two hitodama trail him, pixel flames that bob on their own beat (they stay when his lights are out: the tell that he is still there)

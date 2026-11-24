@@ -209,7 +209,7 @@ function buildLoops(){
   const t = ac.currentTime;
   E = { a:O('sawtooth', 150, t, 1e9), b:O('square', 75, t, 1e9), raspS:N(NB, t, 1e9), sum:G(1), bG:G(.32), raspF:F('bandpass', 600, .9), raspG:G(.0), am:G(.35), sh:ac.createWaveShaper(),
     lp:F('lowpass', 900, .9), hp:F('highpass', 115, .7), pk1:F('peaking', 460, 1), pk2:F('peaking', 1600, 1.2), out:G(0), pn:ac.createStereoPanner(),
-    gear:1, rev:0, dip:0, slw:1, lt:0, acc:0, popT:0, prevThr:1, prevTier:0, rpm:1200, lope:0, lopeT:0, bOn:false, bT:0, bLen:0, bTier:0, bShift:false, bDrop:0 };
+    gear:1, rev:0, dip:0, slw:1, lt:0, acc:0, popT:0, prevThr:1, prevTier:0, rpm:1200, lope:0, lopeT:0, bOn:false, bT:0, bLen:0, bTier:0, bShift:false, bDrop:0, stA:0, cruT:0, fat:0 };
   /* presence against the music: the highpass keeps it out of the 808 / sub band, and two peaks put its identity where nothing in the
      soundtrack sits for long: the exhaust growl (~460 Hz) and the intake rasp (~1.6 kHz) */
   E.pk1.gain.value = 6; E.pk2.gain.value = 5;
@@ -243,6 +243,9 @@ function buildLoops(){
 function wire(L, want, dt){ if(want){ L.offT = .6; if(!L.wired){ L.wired = true; L.pn.connect(bus); } } else if(L.wired && (L.offT -= dt) <= 0){ L.wired = false; try{ L.pn.disconnect(bus); }catch(e){} } }
 // the gearbox: six gears across the speed range; within a gear rpm runs 4,200 -> 11,000, so every upshift drops it and burbles
 const GEARS = [0, .2, .36, .52, .68, .84, 1];
+// the cruise ease: seconds steady before it starts, depth in dB, fade in / restore time constants (s), the speed that counts as top, steering-seconds that count as an act
+const FAT = { T:8, DB:3, IN:1.5, OUT:.1, SP:.93, STEER:.3 };
+SFX.fatigue = () => E ? { t:E.cruT, k:E.fat, dB:-FAT.DB * E.fat * (1 - (E.amb || 0)), gain:E.out.gain.value } : null;
 SFX.solo = null;   // tests: 'eng' | 'wind' | 'squeal' | 'grind' | 'siren' | 'rival' mutes the other loops
 const lv = k => SFX.solo && SFX.solo.split(',').indexOf(k) < 0 ? 0 : db(LOOPDB[k]);   // SFX.solo may list several: 'veh,rival'
 SFX.drive = function(P, dt){ if(!live || !E) return; const t = ac.currentTime, on = P.on, sp = Math.max(0, P.sp);
@@ -278,7 +281,16 @@ SFX.drive = function(P, dt){ if(!live || !E) return; const t = ac.currentTime, o
   E.lp.frequency.setTargetAtTime((650 + 1500 * thr * (1 - E.dip * 8) + 1300 * rn + E.rev * 1500 + 1600 * wot + (P.tunnel ? 350 : 0)), t, .04);
   // the quiet stretch (SFX.ambience, mech/director.js): the engine and the wind come up ~3 dB as the music steps back, eased over ~1.5 s
   E.amb = (E.amb || 0) + (SFX.ambK - (E.amb || 0)) * (1 - Math.exp(-rdt / .5)); const amb = 1 + .413 * E.amb;
-  E.out.gain.setTargetAtTime(on ? amb * lv('eng') * (.45 + .3 * thr + .25 * rn) * (1 + .7 * Math.min(1, E.rev) + .5 * E.acc) * (bNow ? (1.45 + .12 * E.bTier) * (bounce ? .6 : 1) : 1) * (E.dip > 0 ? .35 : 1) * (P.tunnel ? 1.25 : 1) : 0, t, on ? .03 : .25);
+  /* cruise ease (NFS Unbound's fatigue trick; research/sundown-craft/proposals.md #17): held steady at top speed for FAT.T s with nothing
+     happening, the engine sinks FAT.DB (about 3 dB) over a few seconds, so a long straight stops drilling one tone into the ear. Any act
+     (a held steer, a boost or pad, a drift, air, a close call, a scrape or crash, lifting off, slow motion, a rev) brings it back in ~0.1 s.
+     A tap or a lane nudge is not an act: the steering is integrated over about a second. Scaled out in the quiet stretch, where the engine
+     is meant to come up. Engine only: the wind, the music and its ducking are untouched. SFX.fatigue() reads it (tests). */
+  const cruise = on && sp > FAT.SP && thr >= .5 && !bNow && !P.drift && !P.air && !P.scrape && slT >= 1 && E.rev < .1 && E.acc < .2;
+  E.stA = E.stA * Math.exp(-dt / .8) + (P.steer || 0) * dt;   // seconds of steering over the last second or so
+  E.cruT = !cruise || P.act || E.stA > FAT.STEER ? 0 : E.cruT + dt; const fT = E.cruT > FAT.T ? 1 : 0;
+  E.fat += (fT - E.fat) * (1 - Math.exp(-rdt / (fT > E.fat ? FAT.IN : FAT.OUT))); const fat = db(-FAT.DB * E.fat * (1 - E.amb));
+  E.out.gain.setTargetAtTime(on ? amb * fat * lv('eng') * (.45 + .3 * thr + .25 * rn) * (1 + .7 * Math.min(1, E.rev) + .5 * E.acc) * (bNow ? (1.45 + .12 * E.bTier) * (bounce ? .6 : 1) : 1) * (E.dip > 0 ? .35 : 1) * (P.tunnel ? 1.25 : 1) : 0, t, on ? .03 : .25);
   if(on && thr < .5 && sp > .3 && (E.popT -= dt) <= 0){ E.popT = rr(.07, .3); SFX.play('pop', { at:t }); }   // decel crackle
   // wind
   const w = LP.wind; if((w.gT -= dt) <= 0){ w.gT = rr(.7, 2); w.gTo = rr(-.25, .3); } w.gust += (w.gTo - w.gust) * (1 - Math.exp(-1.5 * dt));
@@ -393,7 +405,7 @@ SFX.ui = function(kind){ try{ if(!uac){ uac = new (window.AudioContext || window
 /* ================================================================== MECH.sfx: watching the ride (reads core globals; no core edits needed) */
 if(!window.MECH) return;
 const S = MECH.sfx = {};
-const P = { on:false, sp:0, thr:0, boost:0, btier:0, air:false, drift:0, tier:0, scrape:false, scrapeSide:0, tunnel:false, cop:0, copSide:0, rv:[{ on:false, g:0, pan:0, f:120, dop:1, cut:3000 }, { on:false, g:0, pan:0, f:120, dop:1, cut:3000 }],
+const P = { on:false, sp:0, thr:0, boost:0, btier:0, air:false, drift:0, tier:0, steer:0, act:false, scrape:false, scrapeSide:0, tunnel:false, cop:0, copSide:0, rv:[{ on:false, g:0, pan:0, f:120, dop:1, cut:3000 }, { on:false, g:0, pan:0, f:120, dop:1, cut:3000 }],
   vh:[0, 1, 2, 3].map(() => ({ on:false, car:null, freeT:-9, truck:false, f:90, roar:900, d:0, g:0, pan:0, dop:1, cut:1500 })) };
 // traffic: the four nearest cars within ~9,000 units keep a voice for as long as they stay within 13,000; a released voice rests 0.25 s
 // before it takes another car (so it never glides from one car's pitch to the next). No allocation: fixed slots, a mark on each car.
@@ -411,12 +423,12 @@ function traffic(pz){ const VH = P.vh, on = state === 'play' || state === 'pulle
     // a car: a four at ~2,400-3,200 rpm (firing 80-107 Hz); a truck: a diesel six at ~1,500 rpm, low and lumpy. Each car a little different.
     const v = clamp(best.speed / MAXS, 0, 1.3), h = .94 + .12 * (((best.ci || 0) * 7 + (best.model || '').length) % 9) / 8;
     p.f = (p.truck ? 52 + 22 * v : 72 + 45 * v) * h; p.roar = (p.truck ? 500 : 750) + 600 * v; SFX.geom(p, best.z - pz, best.x - playerX, best.speed - speed); } }
-const PV = { boosts:0, pads:0, gates:0, air:false, airMax:0, kicks:0, landed:0, kickedBy:0, takedowns:0 }, RV = [null, null], RGAP = [0, 0];
+const PV = { boosts:0, pads:0, gates:0, close:0, crashes:0, air:false, airMax:0, kicks:0, landed:0, kickedBy:0, takedowns:0 }, RV = [null, null], RGAP = [0, 0];
 let scrapeAt = -9, kickSide = 0, clock = 0, hornT = 0, brakeT = 0;
 
 const gangST = () => { const g = MECH.gang; return g && !g.sfx && g._dbg && g._dbg.ST ? g._dbg.ST() : null; };
 const gangR = () => { const g = MECH.gang; return g && g._dbg && g._dbg.R ? g._dbg.R() : null; };
-function sync(){ PV.boosts = boosts; PV.pads = pads; PV.gates = gatesHit; PV.air = false; const st = gangST(); if(st){ PV.kicks = st.kicks; PV.landed = st.kicksLanded; PV.kickedBy = st.kickedBy; PV.takedowns = st.takedowns; } }
+function sync(){ PV.boosts = boosts; PV.pads = pads; PV.gates = gatesHit; PV.close = closeCalls; PV.crashes = crashes; PV.air = false; const st = gangST(); if(st){ PV.kicks = st.kicks; PV.landed = st.kicksLanded; PV.kickedBy = st.kickedBy; PV.takedowns = st.takedowns; } }
 // a close call (the core's M.close, called the frame the car is passed): find that car, whoosh if it wasn't predicted, then the stinger
 function closeCall(c0){ const pz = position + PZ; let c = c0 && c0.z != null ? c0 : null, bd = c ? 0 : 1e9; if(!c) for(let i = 0; i < cars.length; i++){ const x = cars[i]; if(!x.passed || x._sfxC) continue; const d = Math.abs(x.z - pz); if(d < bd){ bd = d; c = x; } }
   const gap = c ? Math.abs(c.x - playerX) : .4, pan = c ? Math.sign(c.x - playerX) || 1 : 0, k = clamp(1 - (gap - .3) / .2, 0, 1);
@@ -438,7 +450,8 @@ S.update = dt => { clock += dt; lastUpd = performance.now();
   const playing = state === 'play', pz = position + PZ, sp = speed / MAXS;
   P.on = playing || state === 'pulled'; P.sp = sp; P.air = AIR.h >= 6; P.slow = window.TIME && TIME.scale < 1 ? TIME.scale : 1;
   P.thr = state === 'pulled' ? 0 : playing && cool <= 0 && !offT ? 1 : .2; P.boost = playing ? boostT : 0; P.btier = boostTier || 1;
-  P.drift = playing && drift ? drift : 0; P.tier = tier;
+  P.drift = playing && drift ? drift : 0; P.tier = tier; P.steer = playing ? Math.abs(steer || 0) : 0;
+  P.act = playing && (closeCalls > PV.close || crashes > PV.crashes || boosts > PV.boosts || pads > PV.pads); PV.close = closeCalls; PV.crashes = crashes;   // acts that end the cruise ease (SFX.drive)
   P.scrape = playing && clock - scrapeAt < .08; P.scrapeSide = Math.sign(playerX) || 1;
   const sg = segAt(pz); P.tunnel = !!(sg && sg.tunnel);
   P.cop = P.on && copShown > .02 ? copShown : 0; P.copSide = copSide || 0;
@@ -489,6 +502,6 @@ setInterval(() => { try{ if(typeof state === 'undefined' || typeof M === 'undefi
   else { const mc = window.MUSIC && MUSIC.countAt ? MUSIC.countAt() : 0, z = mc && mc >= cdA - .15 && mc <= at ? mc : cdA, tt = at - z + .012;   // the count-in's zero once the music has it; .012: the rev's own rise
     while(cdList.length && cdList[0][0] <= tt){ const c = cdList.shift(); SFX.blip(c[1]); if(c[1] >= 1) for(let i = 0; i < 3; i++) SFX.play('pop', { at:at + .26 + i * .07 }); } }
   const dt = clamp((now - cdPrev) / 1000, .005, .1); cdPrev = now;
-  P.on = cdOn; P.slow = 1; P.sp = 0; P.thr = .6; P.boost = 0; P.air = false; P.drift = 0; P.tier = 0; P.scrape = false; P.tunnel = false; P.cop = 0; P.rv[0].on = false; P.rv[1].on = false;
+  P.on = cdOn; P.slow = 1; P.sp = 0; P.thr = .6; P.boost = 0; P.air = false; P.drift = 0; P.tier = 0; P.steer = 0; P.act = false; P.scrape = false; P.tunnel = false; P.cop = 0; P.rv[0].on = false; P.rv[1].on = false;
   SFX.drive(P, dt); }catch(e){} }, 10);
 })();

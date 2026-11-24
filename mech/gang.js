@@ -147,6 +147,22 @@ function legSprite(P, len){ const key = 'leg' + P.id + ':' + len; if(SPRC[key]) 
 function cockSprite(P){ const key = 'cock' + P.id; if(SPRC[key]) return SPRC[key];   // knee up and out, boot drawn back, sole showing: the wind-up
   const rows = ['...KKKK....', '..KaaaaKKK.', '.KabbbbbbbK', 'KabKKKccccK', 'KbcK..KKKK.', 'KbcK.......', 'KbcK.......', 'KPddK......', 'KPdddK.....', 'KPddddK....', '.KKKKKK....'];
   return SPRC[key] = mk(rows, { K:P.K, a:P.a, b:P.b, c:P.c, d:P.d, P:'#c8c4d0' }, true); }
+/* The kick's smear frame (proposals.md #13; anime and Slynyrd's attack pixelblogs: the strike is keyed on one stretched drawing, not on
+   in-betweens). Drawn for a frame or two as the leg shoots out, in place of the leg: the boot two texels longer (sole first, the leading
+   edge stays crisp), the shin a wedge as fat as the boot that thins and breaks into a checker toward the hip (the motion blur), and two
+   cream streaks trailing off the toe. Points LEFT like legSprite, one row taller each side (draw it at hip - 6, not hip - 5); sd > 0 is
+   the mirror. Same palette as the leg, so it reads as the same leg moving fast. Never under reduced motion (the callers check). */
+function smearSprite(P, len, sd){ const key = 'smr' + P.id + ':' + len; let c = SPRC[key];
+  if(!c){ const w = len + 9, L = w - 9; c = SPRC[key] = canvas(w, 11); const k = c.getContext('2d'), px = (x, y, col) => { k.fillStyle = col; k.fillRect(x, y, 1, 1); };
+    for(let x = 9; x < w; x++){ const f = (x - 9) / Math.max(1, L - 1), t = 2 + Math.round(f * 1.5), b = 9 - Math.round(f * 1.5), tail = f > .62;   // the wedge: rows t..b
+      for(let y = t; y <= b; y++){ if(tail && (x + y) % 2) continue; const edge = y === t || y === b;
+        px(x, y, edge ? (tail ? P.c : P.K) : y < (t + b) / 2 ? P.a : y < b - 1 ? P.b : P.c); } }
+    const SC = [0, 1, 2, 2, 3, 3, 4, 5, 6];   // the boot, stretched through its middle (legSprite's boot, rows 1..8 -> 2..9)
+    ['.KK....', 'KPdK...', 'KPllKK.', 'KPdddd.', 'KPdddd.', 'KPdddd.', 'KPKKdd.', 'KK..KK.'].forEach((r, y) => SC.forEach((sx, x) => { const ch = r[sx];
+      if(ch !== '.') px(x, y + 2, ch === 'K' ? P.K : ch === 'P' ? '#c8c4d0' : ch === 'l' ? P.dl : P.d); }));
+    for(const [y, x0, n] of [[1, 5, Math.round(L * .7) + 3], [10, 6, Math.round(L * .45) + 2]]) for(let x = x0; x < Math.min(w, x0 + n); x++) px(x, y, '#f4ecdf');   // the speed streaks, run off the silhouette's top and bottom edges
+  }
+  return sd > 0 ? flip(c) : c; }
 // the rider colours of the player's bikes (env/bikes.js), so the kicking leg matches the leathers; hip height in sprite px
 const PLEG = {
   sport:   { id:'sport', a:'#3ad0f0', b:'#1890b8', c:'#106a90', d:'#24222c', dl:'#3a3844', K:'#0a0810', hip:-13 },
@@ -204,7 +220,8 @@ function warm(){ if(warmed || typeof BIKE_TOP === 'undefined') return; warmed = 
   WHEEL2(0); WHEEL2(1); for(const r of [2, 3, 4]) SMOKE(r);
   for(let li = 0; li < 3; li++) for(let gi = 0; gi < 3; gi++){ const L = RLEG(gi)[li]; flip(cockSprite(L)); for(let n = 4; n <= 14; n += 2) flip(legSprite(L, n)); }
   for(let gi = 0; gi < 3; gi++) for(let ph = 0; ph < 3; ph++){ flagSprite(gi, ph); pennant(gi, ph); CHEV(gi); }
-  for(const id in PLEG) for(let n = 4; n <= 30; n += 2) flip(legSprite(PLEG[id], n));
+  for(const id in PLEG) for(let n = 4; n <= 30; n += 2){ flip(legSprite(PLEG[id], n)); if(n >= 8) smearSprite(PLEG[id], n, 1); }
+  for(let li = 0; li < 3; li++) for(let gi = 0; gi < 3; gi++) smearSprite(RLEG(gi)[li], 12, 1);   // the smear frames (both facings) before the ride
   for(let n = 0; n < 100; n++) for(const c of ['#ff8a96', '#4ff0ff']) txt(String(n), c);
   for(const g of GANGS) txt(g.name, g.col[1]); for(const t of [['YOU', '#4ff0ff'], ['VS', '#ffd04a'], ['WIN', '#ffd04a'], ['LOST', '#b9adc4']]) txt(t[0], t[1]);
   for(const t of ['Z', 'X', 'B', 'TAP']) txt(t, '#f4ecdf'); txt('KICK', '#ffd04a');   // the kick prompt's keycaps (they were built at the first duel: three canvases mid-ride)
@@ -478,7 +495,7 @@ function showButtons(){ const on = state === 'play' && document.getElementById('
 function nearScreen(r, z, x, cl){ z = z ?? r.z; x = x ?? r.x; const g = z - pzz(), f = PZ / Math.max(PZ * (cl || .35), PZ + g); return { x:W / 2 + (x - playerX) * W * f, y:H / 2 + (H / 2 - 8) * f, k:kP() * f, f }; }
 function legPal(r){ return RLEG(r.gi)[r.look]; }
 function drawRider(r, x, y, k, fog, now, am){ const L = LOOKS[r.look], a = (1 - fog * .6) * (am === undefined ? 1 : am), hang = Math.round(clamp(r.lean / .5, -1, 1)), ph = Math.floor(now / 45 + r.id) % 3;
-  cx.globalAlpha = a; cx.fillStyle = 'rgba(0,0,0,.45)'; cx.beginPath(); cx.ellipse(x, y, L.shadow * k, Math.max(1, 1.6 * k), 0, 0, 6.283); cx.fill();
+  cx.globalAlpha = a; pxShadow(cx, x, y, L.shadow, Math.max(1 / k, 1.6), k, .45);   // the core's stepped pixel shadow
   cx.save(); cx.translate(x, y); cx.rotate(r.lean); cx.imageSmoothingEnabled = false;
   const c = comp(r.look, r.gi, ph, hang); cx.drawImage(c, Math.round(-CW / 2 * k), Math.round(-GY * k), CW * k, CH * k);
   const fph = Math.floor(now / 110 + r.flagPh) % 3;
@@ -487,8 +504,8 @@ function drawRider(r, x, y, k, fog, now, am){ const L = LOOKS[r.look], a = (1 - 
   if(r.look === 2){ const p = pennant(r.gi, fph); cx.drawImage(p, 5 * k, (-4 - p.height) * k, p.width * k, p.height * k); }
   // legs: their wind-up and kick
   if(r.windT > 0 || r.kickT > 0){ const lp = legPal(r), sd = r.kickT > 0 ? r.kickSide : r.windSide, hip = L.legY;
-    if(r.kickT > 0){ const ext = Math.sin(clamp(1 - r.kickT / .25, 0, 1) * Math.PI), len = Math.max(4, Math.round(ext * 12 / 2) * 2), s0 = legSprite(lp, len), s = sd < 0 ? s0 : flip(s0);
-      cx.drawImage(s, sd < 0 ? (-8 - s.width) * k : 8 * k, (hip - 5) * k, s.width * k, s.height * k); }
+    if(r.kickT > 0){ const u = clamp(1 - r.kickT / .25, 0, 1), ext = Math.sin(u * Math.PI), len = Math.max(4, Math.round(ext * 12 / 2) * 2), sm = smearOn(u), s0 = legSprite(lp, len), s = sm ? smearSprite(lp, 12, sd) : sd < 0 ? s0 : flip(s0);
+      cx.drawImage(s, sd < 0 ? (-8 - s.width) * k : 8 * k, (hip - (sm ? 6 : 5)) * k, s.width * k, s.height * k); }
     else { const s0 = cockSprite(lp), s = sd < 0 ? s0 : flip(s0); cx.drawImage(s, sd < 0 ? (-8 - s.width) * k : 8 * k, (hip - 10) * k, s.width * k, s.height * k);
       glow(sd * 14 * k, (hip - 6) * k, 7 * k, '#ffb35a', .45); } }
   for(const [lx, ly, rad] of L.tail) glow(lx * k, ly * k, rad * k, '#ff2a3a', .55 * a);
@@ -519,7 +536,7 @@ function drawWreck(r, x, y, k, fog, now){ const D = r.down, a = 1 - fog * .6, sd
   cx.globalAlpha = 1; }
 function drawTumble(r, x, y, k, fog){ const D = r.down, a = 1 - fog * .6;
   const f = Math.floor(D.t * (reduce ? 4 : 10)) % 4, t = tumble(r.look, r.gi, D.t < 1.6 ? f : 1), bounce = D.t < 1.6 ? Math.abs(Math.sin(D.t * 7)) * (1.6 - D.t) * 12 * k : 0; k *= WR_K * .95;
-  cx.globalAlpha = a; cx.fillStyle = 'rgba(0,0,0,.35)'; cx.beginPath(); cx.ellipse(x, y, 5 * k, Math.max(1, k), 0, 0, 6.283); cx.fill();
+  cx.globalAlpha = a; pxShadow(cx, x, y, 5, Math.max(1 / k, 1), k, .35);
   cx.drawImage(t, Math.round(x - t.width * k / 2), Math.round(y - t.height * k - bounce), t.width * k, t.height * k); cx.globalAlpha = 1; }
 function drawDown(r, x, y, k, rx, ry, fog, now){ drawWreck(r, x, y, k, fog, now); drawTumble(r, rx, ry, k, fog); }
 
@@ -562,10 +579,10 @@ G.drawScreen = now => {
 function drawKick(now){ if(!kick || state !== 'play') return; const k = kP(), lp = PLEG[BIKE.id] || PLEG.sport, t = kick.t, sd = kick.side;
   const ext = t < .06 ? t / .06 : t < .17 ? 1 : 1 - (t - .17) / .08;
   let full = 12; if(kick.target){ const p = nearScreen(kick.target); full = clamp(Math.round((Math.abs(p.x - W / 2) / k - 18) / 2) * 2, 8, 30); }
-  const len = Math.max(4, Math.round(full * clamp(ext, 0, 1) / 2) * 2), s0 = legSprite(lp, len), s = sd < 0 ? s0 : flip(s0);
+  const sm = !reduce && t >= .02 && t < .06, len = Math.max(4, Math.round(full * clamp(ext, 0, 1) / 2) * 2), s0 = legSprite(lp, len), s = sm ? smearSprite(lp, full, sd) : sd < 0 ? s0 : flip(s0);   // sm: the smear frame (smearSprite), the frame or two before full extension
   cx.save(); cx.translate(W / 2, H - 8 - AIR.h); cx.rotate(leanV); cx.imageSmoothingEnabled = false;
-  const x0 = sd < 0 ? (-8 - s.width) * k : 8 * k, y0 = (lp.hip - 5) * k;
-  if(t >= .04 && t < .16){ cx.fillStyle = 'rgba(244,236,223,.55)'; for(const dy of [1, 4, 7]) cx.fillRect(sd < 0 ? x0 + s.width * k : x0 - 6 * k, y0 + dy * k, 6 * k, k); }   // speed lines behind the boot
+  const x0 = sd < 0 ? (-8 - s.width) * k : 8 * k, y0 = (lp.hip - (sm ? 6 : 5)) * k;
+  if(t >= .06 && t < .16){ cx.fillStyle = 'rgba(244,236,223,.55)'; for(const dy of [1, 4, 7]) cx.fillRect(sd < 0 ? x0 + s.width * k : x0 - 6 * k, y0 + dy * k, 6 * k, k); }   // speed lines behind the boot (after the smear: it carries its own)
   cx.drawImage(s, x0, y0, s.width * k, s.height * k);
   cx.restore(); }
 
@@ -645,5 +662,8 @@ function drawCallout(now){ const c = callout, P = PX, gg = GANGS[c.gi];
   const pop = !reduce && c.t < .18 ? 1 : 0; B_(cntb, x, y0 + 7 - pop);
   cx.restore(); }
 
-G._dbg = { drawRider, drawDown, drawMeter, drawKick, kickSet:k => { kick = k; }, R:() => R, E:() => E, ST:() => ST, takedown, landKick, spawnPack, comp, flagSprite, downBike, tumble, legSprite, PLEG, RLEG, cockSprite, pal, LOOKS, warm, set:o => { if(o.nextT !== undefined) nextT = o.nextT; } };
+// a rival's kick (0.25 s, u 0..1 through it): the smear frame sits on the fastest stretch of the shoot-out, u .14-.3 (two frames at 60 fps)
+const smearOn = u => !reduce && u >= .14 && u < .3;
+G.smearOn = smearOn;
+G._dbg = { smearSprite, drawRider, drawDown, drawMeter, drawKick, kickSet:k => { kick = k; }, R:() => R, E:() => E, ST:() => ST, takedown, landKick, spawnPack, comp, flagSprite, downBike, tumble, legSprite, PLEG, RLEG, cockSprite, pal, LOOKS, warm, set:o => { if(o.nextT !== undefined) nextT = o.nextT; } };
 })();

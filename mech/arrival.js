@@ -177,13 +177,46 @@ function* warmAllSteps(){ yield* warmNowSteps(); yield* warmLateSteps(); }
 function* warmNowSteps(){ if(typeof pixText !== 'function' || !cx) return; warmKey = sizeKey(); askFonts(); const soon = new Set([0]); try{ for(let z = 0; z <= 2; z++) soon.add(landIdx(z)); }catch(e){}
   for(const i of soon){ card(i); yield; } for(let n = 1; n <= 24; n++) seal(n); coWarm(); yield;
   try{ extLabel(); boxLabel('POLICE', CREAM, SIREN_B); cdWarm(); }catch(e){ console.warn('arrival warm labels', e); } yield;
-  try{ for(const k in MOML) cardFor(MOML[k].L, 97); }catch(e){ console.warn('moment rewarm', e); } }
+  try{ for(const k in MOML) cardFor(MOML[k].L, 97); }catch(e){ console.warn('moment rewarm', e); } yield;
+  try{ yield* sgSteps(); }catch(e){ console.warn('arrival warm sign steps', e); } }
 function* warmLateSteps(){ if(typeof pixText !== 'function' || !cx) return; for(let i = 0; i < LANDS.length; i++){ card(i); yield; }
   try{ pullWarm(); }catch(e){ console.warn('arrival warm pull', e); } yield;
   try{ cardFor(POL_L, 99); sealStr('御用', 0); glintSpr(); }catch(e){ console.warn('arrival warm', e); } yield;   // the pull-over: every figure pose, so nothing is built mid-arrest
   try{ if(MECH.police && MECH.police.officer) for(const p of ['idle', 'look', 'radio', 'point', 'reach', 'cuff', 'escort', 'head', 'kneel', 'kneel2', 'run', 'wave0', 'wave1']) for(let f = 0; f < 4; f++){ MECH.police.officer(p, f); MECH.police.officer(p, f, 'angry'); } }catch(e){ console.warn('arrival warm', e); } yield;
   try{ for(const [p, h] of [['up', ''], ['up', 'look'], ['back', 'look'], ['back', 'down'], ['back', 'cool'], ['push', 'down'], ['side', '']]) for(let f = 0; f < 4; f++) rider(p, f, h); for(const q of ['flung', 'prone']) for(let f = 0; f < 2; f++) riderH(q, f); }catch(e){ console.warn('arrival warm', e); } yield;
   try{ for(const k in MOML) cardFor(MOML[k].L, 97); }catch(e){ console.warn('moment rewarm', e); } }   // moment cards warmed by the director survive the font-load rebuild   // moment cards warmed by the director survive the font-load rebuild
+
+/* ---------- border-sign lettering in fixed size steps (Kellan, review card sign-steps: "Yes") ----------
+   The core's border signs (drawGate's expressway plates, fkPlate's fork plates, drawHinge's welcome sign and toll canopy) drew their text with
+   fillText at a new font size every frame as they approached, and each new size of the kana cost the browser a fresh shaping (~0.28 ms each, ~1 ms
+   a frame at a border). Here every glyph those signs use is drawn once per step of a fixed ladder of sizes (in canvas pixels), one atlas per step,
+   in the first-minute warm-up; the core's sgText() asks signText() to blit the nearest step on whole canvas pixels. The text holds still between
+   steps and grows one pixel at a time while small, about a tenth at a time once large. Latin (the road names) is kept to the steps a name can
+   reach; anything past the ladder, or asked before it is built, falls back to the live fillText. Nothing is created mid-ride. The glyphs are
+   white: a fogged sign fades its text with globalAlpha (tinting a copy per draw on a scratch canvas cost ~4.7 ms a call in a GPU sync). */
+const SG_STEP = [2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 16, 18, 20, 22, 24, 26, 29, 32, 35, 38, 42, 46, 50, 55, 60], SG_LATIN = 34;
+const SG = { at:[], gi:new Map(), ready:false };
+const sgChars = () => { let t = 'ようこそ料金所←→↑ '; try{ for(const L of LANDS) t += L.kanji + L.name; }catch(e){} return [...new Set(t)].join(''); };
+function sgAtlas(E, chars){ const f = E + 'px DotGothic16, monospace', pad = 1 + Math.ceil(E * .1), h = Math.ceil(E * 1.5) + 2, mid = h >> 1, n = chars.length;
+  const m = document.createElement('canvas').getContext('2d'); m.font = f; const SX = new Int16Array(n), SY = new Int16Array(n), GW = new Int16Array(n), ADV = new Float32Array(n); let x = 0, y = 0, aw = 1;
+  for(let i = 0; i < n; i++){ const ch = chars[i]; ADV[i] = m.measureText(ch).width; if(ch === ' ') continue;   // (a space only advances: GW 0)
+    if(ch.charCodeAt(0) < 256 && E > SG_LATIN){ GW[i] = -1; continue; } const w = Math.ceil(ADV[i]) + pad * 2; if(x + w > 1024){ x = 0; y += h; } SX[i] = x; SY[i] = y; GW[i] = w; x += w; if(x > aw) aw = x; }
+  const c = document.createElement('canvas'); c.width = aw; c.height = y + h; const k = c.getContext('2d'); k.font = f; k.fillStyle = '#ffffff'; k.textBaseline = 'middle'; k.textAlign = 'left';
+  for(let i = 0; i < n; i++) if(GW[i] > 0) k.fillText(chars[i], SX[i] + pad, SY[i] + mid);
+  return { c, E, h, mid, pad, SX, SY, GW, ADV }; }
+// built once (fonts in: the font-load rebuild clears SG.ready and builds again); slices of ~5 ms for the staged warm-up
+function* sgSteps(){ if(SG.ready || typeof LANDS === 'undefined') return; const chars = sgChars(); let ok = true; try{ ok = !document.fonts || document.fonts.check('16px DotGothic16', chars); }catch(e){}
+  SG.gi.clear(); for(let i = 0; i < chars.length; i++) SG.gi.set(chars.charCodeAt(i), i); let t0 = performance.now();
+  for(let si = 0; si < SG_STEP.length; si++){ SG.at[si] = sgAtlas(SG_STEP[si], chars); if(performance.now() - t0 > 5){ yield; t0 = performance.now(); } }
+  SG.ready = ok; }   // (built with the fallback face while the subsets load: not used, the live text stands in until the rebuild)
+// draw s in white with its font size n (CSS px, as fillText would), anchored like fillText with textBaseline 'middle' and textAlign al
+A.signText = (s, n, x, y, al) => { if(!SG.ready) return false; const E = n / PX, top = SG_STEP.length - 1; if(!(E > 0) || E > SG_STEP[top] * 1.08) return false;
+  let si = 0; while(si < top && SG_STEP[si + 1] <= E) si++; if(si < top && E * E > SG_STEP[si] * SG_STEP[si + 1]) si++;   // the nearest step (geometric midpoint)
+  const T = SG.at[si]; if(!T) return false; let w = 0; for(let i = 0; i < s.length; i++){ const g = SG.gi.get(s.charCodeAt(i)); if(g === undefined || T.GW[g] < 0) return false; w += T.ADV[g]; }
+  const X0 = Math.round(x / PX - (al === 'center' ? w / 2 : al === 'right' ? w : 0)) - T.pad, Y0 = Math.round(y / PX) - T.mid; cx.imageSmoothingEnabled = false; let cum = 0;
+  for(let i = 0; i < s.length; i++){ const g = SG.gi.get(s.charCodeAt(i)), gw = T.GW[g]; if(gw > 0) cx.drawImage(T.c, T.SX[g], T.SY[g], gw, T.h, (X0 + Math.round(cum)) * PX, Y0 * PX, gw * PX, T.h * PX); cum += T.ADV[g]; }
+  return true; };
+A._sg = () => SG;
 
 /* ---------- the sting: a taiko hit and a chord stab in the road's key, on the stamp ---------- */
 function sting(L){ if(!M.ac) return; const a = M.ac.currentTime + T_HIT, chord = L.prog[0]; let root = chord[0]; while(root >= 48) root -= 12; while(root < 36) root += 12;
@@ -209,12 +242,12 @@ A.reset = () => { cur = null; pol = null; mom = null; momQ = []; cd = null; CO =
   if(warmKey !== null && warmKey !== sizeKey()) warmAll(); else if(warmKey !== null && typeof BIKE !== 'undefined'){ try{ mugInk(0); mugInk(1); }catch(e){} } };
 A.warm = () => { for(const _ of warmNowSteps()); }; A.warmSteps = warmNowSteps; MECH.arrivalLate = { warm:() => { for(const _ of warmLateSteps()); }, warmSteps:warmLateSteps }; A._atlas = () => AT; A._slots = () => SLOTS; A._card = card; A._seal = seal; A._rider = (...a) => rider(...a); A._riderH = (...a) => riderH(...a);
 // every kanji a card stamps (the font loads in unicode-range subsets: a subset not loaded when a card is built leaves its kanji blank)
-const cardChars = () => { let t = '一二三四五六七八九十〇逮捕御用走れ三二一'; try{ for(const L of LANDS) t += L.kanji; for(const k in MOML) t += MOML[k].L.kanji; for(const t2 of coList()) t += t2; }catch(e){} return [...new Set(t)].join(''); };
+const cardChars = () => { let t = '一二三四五六七八九十〇逮捕御用走れ三二一'; try{ for(const L of LANDS) t += L.kanji; for(const k in MOML) t += MOML[k].L.kanji; for(const t2 of coList()) t += t2; t += sgChars(); }catch(e){} return [...new Set(t)].join(''); };
 // asked once, from the first warm-up (LANDS and the director's moments exist by then); when the subsets are in, everything is rebuilt
 let fontsAsked = false;
 function askFonts(){ if(fontsAsked || !document.fonts) return; fontsAsked = true; const chars = cardChars(); let have = false; try{ have = document.fonts.check('16px DotGothic16', chars); }catch(e){}
   if(have) return;   // the subsets are already in (the loader asks for them early): the first build is already right, no second build
-  document.fonts.load('16px DotGothic16', chars).then(() => setTimeout(() => { for(const k in C) delete C[k]; GM.clear(); if(AT.c) atlasLatin(); for(const S of SLOTS) S.key = null; if(!(window.warmLater && window.warmLater('mech.arrival.font', warmAllSteps))) warmAll(); }, 0)).catch(() => {}); }   // on the title: queued in slices
+  document.fonts.load('16px DotGothic16', chars).then(() => setTimeout(() => { for(const k in C) delete C[k]; GM.clear(); SG.ready = false; if(AT.c) atlasLatin(); for(const S of SLOTS) S.key = null; if(!(window.warmLater && window.warmLater('mech.arrival.font', warmAllSteps))) warmAll(); }, 0)).catch(() => {}); }   // on the title: queued in slices
 A.arrive = (L, z) => {
   const i = LANDS.indexOf(L); if(i < 0 || typeof pixText !== 'function') return false;
   let chip = false; if(z > 0){ document.querySelectorAll('.float').forEach(e => { if(e.textContent === '+' + GATE_BONUS + 's'){ e.remove(); chip = true; } });

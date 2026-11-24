@@ -291,7 +291,7 @@
      the drawn poses carry the shape. Pose angle + residual = the lean, so a pose switch changes the drawing, never the angle. */
   function render(g, id, x, y, k, lean, now, boost, f){ if(!B[id]) id = 'sport'; const b = B[id], A = build(id); lean = lean || 0; if(f === undefined) f = poseOf(lean);
     const noR = typeof BIKE !== 'undefined' && BIKE.noRider, res = clamp(lean - FR[Math.abs(f)].t * (f < 0 ? -1 : 1), -.14, .14);   // rider parts hidden while the rider is off the bike (arrest)
-    g.save(); g.imageSmoothingEnabled = false; g.fillStyle = 'rgba(0,0,0,.5)'; g.beginPath(); g.ellipse(x, y, b.shadow * k, 1.6 * k, 0, 0, 6.283); g.fill();
+    g.save(); g.imageSmoothingEnabled = false; if(typeof pxShadow === 'function') pxShadow(g, x, y, b.shadow, 1.6, k, .5);   // the core's stepped pixel shadow
     g.translate(Math.round(x), Math.round(y)); if(Math.abs(res) > .002) g.rotate(res);
     b.parts.forEach((p, i) => { if(p.hang && noR) return; const ph = p.ph ? Math.floor((now || 0) / p.ph[1]) % p.ph[0] : 0;
       cellAt(A, i + ':' + ph + ':' + f, 0, 0, k, g); });

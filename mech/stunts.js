@@ -444,7 +444,7 @@ function drawStripe(){ const st = stripe; if(!st) return; const len = Math.min(1
     if(i > 7){ cx.fillStyle = 'rgba(150,136,180,.5)'; cx.fillRect(snap(x - w / 2), snap(y) - PX, w, PX); } } }   // a wet sheen along its far edge
 S.drawUnderBike = now => { if(cam && !cam.shot) camGrab(); drawMarks(); drawStripe(); if(!sl) return; if(hidWas === null){ hidWas = !!BIKE.hidden; BIKE.hidden = true; }
   const S1 = playerSet(), i = poseOf(sl), g = poseGeo(S1, i, sl.dir), bob = speed > 10 && !RM() && hs <= 0 ? Math.round(Math.sin(now / 30)) * PX : 0;
-  cx.fillStyle = 'rgba(0,0,0,.5)'; cx.beginPath(); cx.ellipse(W / 2, H - 8, g.w * .46, PX * 2, 0, 0, 6.283); cx.fill();
+  pxShadow(cx, W / 2, H - 8, g.w * .46 / PX, 2, PX, .5);   // the core's stepped pixel shadow (the slide sprite is one canvas pixel a texel)
   // speed lines behind, in the slide's colour (none under reduced motion)
   if(!RM() && sl.rec < 0){ cx.fillStyle = 'rgba(255,179,90,.5)'; for(let j = 0; j < 4; j++){ const y = H - 8 - g.h * (.15 + j * .17), len = g.w * (.25 + hash(j + Math.floor(now / 60)) * .35), x = sl.dir > 0 ? g.left - len - PX * 4 : g.left + g.w + PX * 4; cx.fillRect(snap(x), snap(y), snap(len), PX); } }
   cx.imageSmoothingEnabled = false; cx.drawImage(g.c, g.left, snap(H - 8 + bob) - g.h, g.w, g.h);
