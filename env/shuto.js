@@ -143,7 +143,7 @@
     if(row === 0){ const L = run0(c, side); for(let q = 0; q < L.length; q++){ const r = L[q]; if(i >= r.b0 && i < r.b0 + r.len) return r; } return null; }
     if(row === 2){ const key = c * 2 + (side > 0 ? 1 : 0); let L = RUN2.get(key); if(L === undefined){ const l1 = 12 + Math.floor(h(1) * 16); L = [{ b0:c * per, len:l1, c }, { b0:c * per + l1, len:per - l1, c }]; if(RUN2.size > 1200) RUN2.clear(); RUN2.set(key, L); }
       return i < L[1].b0 ? L[0] : L[1]; }
-    const len = 32 + Math.floor(h(1) * 13), b0 = c * per + Math.floor(h(2) * (per - len)); return i >= b0 && i < b0 + len ? { b0, len, c } : null; }
+    const len = 24 + Math.floor(h(1) * 18), b0 = c * per + Math.floor(h(2) * (per - len)); return i >= b0 && i < b0 + len ? { b0, len, c } : null; }
   /* The street row, per 34-segment period: one building, or a pencil building beside a neighbour. The kind is a weighted pick for the zone,
      with the neighbour rule: a building never takes the kind of the one before it on its side (the chain restarts every 8 periods, so
      finding a kind never looks back more than 7 periods). Cached; the arrays are made once per period, at place() time. */
@@ -153,15 +153,12 @@
     const prev = c % 8 ? run0(c - 1, side) : null, last = prev && prev.length ? prev[prev.length - 1].kind : '';
     let k1 = pickK(WL, h(11)); if(k1 === last) k1 = pickK(WL, h(12)); if(k1 === last) k1 = WL[(WL.findIndex(q => q[0] === k1) + 1) % WL.length][0];
     const fk = typeof QS !== 'undefined' ? QS.get('shutokind') : null; if(fk && BST[fk]) k1 = fk;   // ?shutokind=<kind> for tests: every street-row building that kind
-    L = []; const st = h(3) < .2 ? 7 + Math.floor(h(4) * 4) : 0, room = per - st;   // st: a cross street at the period's end (the deeper rows show through it)
+    L = [];
     if(k1 === 'pencil'){ const lp = 5 + Math.floor(h(13) * 3); let k2 = pickK(WL, h(14)); if(k2 === 'pencil') k2 = WL[0][0] === 'pencil' ? WL[1][0] : WL[0][0];
-      const l2 = room - lp, pf = k2 === last || h(16) < .5;   // (the pencil first when the neighbour would repeat the last kind)
-      if(pf) L.push({ b0:c * per, len:lp, c, kind:'pencil' }, { b0:c * per + lp, len:l2, c, kind:k2 });
-      else L.push({ b0:c * per, len:l2, c, kind:k2 }, { b0:c * per + l2, len:lp, c, kind:'pencil' }); }
-    else { const LR = KLEN[k1] || KLEN.office, len = Math.min(room, LR[0] + Math.floor(h(1) * LR[1]));
-      if(room - len >= 7){ let k2 = pickK(WL, h(5)); if(k2 === k1 || k2 === 'pencil') k2 = WL[(WL.findIndex(q => q[0] === k1) + 2) % WL.length][0]; if(k2 === k1) k2 = k1 === 'office' ? 'tile' : 'office';   // the rest of the period: a neighbour of another kind
-        const fst = h(6) < .5; L.push({ b0:c * per + (fst ? room - len : 0), len, c, kind:k1 }, { b0:c * per + (fst ? 0 : len), len:room - len, c, kind:k2 }); if(fst) L.reverse(); }
-      else L.push({ b0:c * per, len:room, c, kind:k1 }); }
+      const l2 = 12 + Math.floor(h(15) * 9), off = Math.floor(h(2) * Math.max(0, per - lp - l2 - 2)), pf = k2 === last || h(16) < .5;   // (the pencil first when the neighbour would repeat the last kind)
+      if(pf) L.push({ b0:c * per + off, len:lp, c, kind:'pencil' }, { b0:c * per + off + lp + 1, len:l2, c, kind:k2 });
+      else L.push({ b0:c * per + off, len:l2, c, kind:k2 }, { b0:c * per + off + l2 + 1, len:lp, c, kind:'pencil' }); }
+    else { const LR = KLEN[k1] || KLEN.office, len = LR[0] + Math.floor(h(1) * LR[1]); L.push({ b0:c * per + Math.floor(h(2) * (per - len)), len, c, kind:k1 }); }
     if(RUN0.size > 1200) RUN0.clear(); RUN0.set(key, L); return L; }
   const BLD = new Map();
   function bldAt(i, side, row){ const r = runAt(i, side, row); if(!r) return null; const key = side + ':' + row + ':' + r.b0; let B = BLD.get(key); if(B !== undefined) return B;
@@ -308,12 +305,12 @@
   // the camera) stands taller than the ray there: skip it (measured: back rows were most of the overdraw in the canyon)
   function hidden(B, j, n){ if(B.row === 0 || B.x0 > 16) return false; const cz = (position + PZ) / SEG, d = j - cz; if(d < 4) return false;
     return occl(B, cz, d, n, 0, 2.1) || (B.row === 2 && occl(B, cz, d, n, 1, 4.6)); }
-  function occl(B, cz, d, n, row, xg){ const S0 = bldAt(Math.floor(cz + d * xg / B.x0), B.side, row); if(!S0 || S0.x0 >= B.x0) return false; const r = S0.x0 / B.x0, hTop = .3 + (B.h - .3) * r; return S0.h > hTop + .2 && bldAt(Math.floor(cz + d * S0.x0 / B.x0), B.side, row) === S0 && bldAt(Math.floor(cz + (d + n) * S0.x0 / B.x0), B.side, row) === S0; }
+  function occl(B, cz, d, n, row, xg){ const S0 = bldAt(Math.floor(cz + d * xg / B.x0), B.side, row); if(!S0 || S0.x0 >= B.x0) return false; const r = S0.x0 / B.x0, hTop = .3 + (B.h - .3) * r; return S0.h > hTop + .2 && bldAt(Math.floor(cz + (d + n) * S0.x0 / B.x0), B.side, row) === S0; }
   // the band partition of a building face (drawBld): bands fill upward from BCUR, the face colour BFCOL fills any gap below each one, capped at BHV
   let BCUR = 0, BHV = 0, BFCOL = '';
   function bandB(a, b, col){ if(b > BHV) b = BHV; if(b <= a) return; if(a > BCUR) FQ(BCUR, a, BFCOL); FQ(a, b, col); BCUR = b; }
   function flushB(f0, st0, f1, S, wb0, wb1){ if(st0 > 0 && f0 >= 0){ const col = st0 === 1 ? S.lit[0] : st0 === 2 ? S.warm : S.dim; bandB(f0 * FH + wb0, (f1 - 1) * FH + wb1, F0(col)); } }   // a run of same-state floors f0..f1 as one band
-  function drawBld(sp, x, y, uw, fog, now){ const B = sp.b, j = sp.k, end = B.b0 + B.len, n = spanOf(j, B.b0, end, fog, B.deep ? 4 : 1);   // (the deep row, seen only through gaps, never slices finer than 4 segments) if(!n) return; if(hidden(B, j, n)) return;
+  function drawBld(sp, x, y, uw, fog, now){ const B = sp.b, j = sp.k, end = B.b0 + B.len, n = spanOf(j, B.b0, end, fog, B.deep ? 8 : 1);   // (the deep row, seen only through gaps, never slices finer than 8 segments) if(!n) return; if(hidden(B, j, n)) return;
     FX1 = x; FY1 = y; FU1 = uw; if(!farEnd(j, n, sp.x)) return; KBD = -1;
     if(B.side < 0 ? Math.max(FX1, FX2) < -PX * 2 : Math.min(FX1, FX2) > W + PX * 2){ if(B.kbs.length) kbSlice(B, j, n, fog, now); if(!(j === B.b0)) return; KBD = j; }   // beside the camera, off the screen edge (its signs and the end wall may still show)
     const S = B.S, K = B.k, side = B.side, fq = fog; FF = fq; const F = F0;
@@ -328,7 +325,7 @@
     if(K === 'capsule' && !far) capFace(B, j, n, nf, hv, F, fpx);
     else if(far){   // far: the lit floors only, runs of the same state merged into one band
       let f0 = -1, st0 = -1;
-      const merge = fpx < 2.5 || lo && fpx < 4; for(let f = 0; f < nf; f++){ let st = floorState(B, f, sec); if(merge && st > 0 && st0 > 0) st = st0; if(st !== st0 || (st > 0 && !merge)){ flushB(f0, st0, f, S, wb0, wb1); f0 = f; st0 = st; } }
+      const merge = fpx < 2.5 || lo && fpx < 4 || B.deep; for(let f = 0; f < nf; f++){ let st = floorState(B, f, sec); if(merge && st > 0 && st0 > 0) st = st0; if(st !== st0 || (st > 0 && !merge)){ flushB(f0, st0, f, S, wb0, wb1); f0 = f; st0 = st; } }
       flushB(f0, st0, nf, S, wb0, wb1); if(BCUR < hv) FQ(BCUR, hv, fcol); }
     else {
       const near = fpx >= 15 && n === 1, mid = fpx >= 7, P = B.P, b0 = B.b0, ba = Math.floor((j - b0) / P), bz = Math.floor((j + n - 1 - b0) / P);   // the bays this slice crosses

@@ -795,7 +795,7 @@
       // foam where the sea laps the wall (only seen from above it), shifting slowly
       if(above && fog < .85){ const fo = (i + (reduce ? 0 : Math.floor(now / 700))) % 3; if(fo) poly(oa, sA + 1, oa + sd * a.w * (fo === 1 ? .1 : .05), sA + 1, ob + sd * b.w * (fo === 1 ? .06 : .1), sB, ob, sB, fc(fo === 1 ? '#8ab8c8' : '#4a7a90', fog)); }
       // a swell crest showing just behind the coping (over the wall top once your eye is below the sea)
-      if(fog < .8 && (s.aqD1 || s.aqD2) && a.w > W * .012){ const wA = swell(i) * kA, wB = swell(i + 1) * kB;   // (LOD: under ~15 px a half-width the crest is a pixel or two) poly(oa, cA, oa, cA - wA, ob, cB - wB, ob, cB, fc('#0e2a3e', fog));
+      if(fog < .8 && (s.aqD1 || s.aqD2) && a.w > W * .012){ const wA = swell(i) * kA, wB = swell(i + 1) * kB;   /* (LOD: under ~15 px a half-width the crest is a pixel or two) */ poly(oa, cA, oa, cA - wA, ob, cB - wB, ob, cB, fc('#0e2a3e', fog));
         if(wA > PX * .6 && a.w > W * .02) poly(oa, cA - wA, oa, cA - wA - Math.max(PX * 2, wA * .3), ob, cB - wB - Math.max(PX * 1.2, wB * .3), ob, cB - wB, fc('#bfe2ee', fog)); }
       // the coping's top, then the face: base kerb, concrete, a wet band under the lip, the pale lip
       poly(xa, cA, oa, cA, ob, cB, xb, cB, fc(wc.top, fog));
