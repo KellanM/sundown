@@ -1104,8 +1104,13 @@ const MUSIC = { THEMES:T, STINGS:ST, INST, MOTIF, compile, render, ROAD_THEME,
   get debug(){ return { amb:S.E && S.E.amb ? S.E.amb.v : 0, goAt:S.goAt, goLag:S.goLag, mode:S.mode, song:S.deck && S.deck.key, energy:S.deck && S.deck.e, build:S.deck && S.deck.x ? Object.assign({}, S.deck.x) : null, thinK:S.thinK, want:S.want, decks:S.E ? S.E.decks.length : 0, avgTickMs:S.ticks ? S.tickMs / S.ticks : 0, ticks:S.ticks, cues:Object.assign({}, S.cues), countT:S.countT }; } };
 if(HAS_WIN){ window.MUSIC = MUSIC; if(window.MECH) MECH.music = MUSIC; try{ wrapDirector(); wrapCountdown(); }catch(e){ console.warn('music wrap', e); }
   S.iv = setInterval(() => { try{ if(!S.M && typeof M !== 'undefined') S.M = M; tick(); }catch(e){ if(!S.err){ S.err = e; console.warn('music tick', e); } } }, TICK_MS);
-  // the title theme needs a running AudioContext, which needs a gesture: the first press on the attract screen opens it
-  const wake = () => { try{ if(typeof M !== 'undefined' && !M.ac && document.getElementById('attract')) M.init(); }catch(e){} };
-  addEventListener('pointerdown', wake, { capture:true, once:true }); addEventListener('keydown', wake, { capture:true, once:true }); }
+  /* the title's night bed needs a running AudioContext, which needs a gesture: the first press on the loader or the attract screen opens it.
+     Listens until M.ac exists (it used to be once:true, so a tap during the long loader, before #attract, spent it and the title stayed
+     silent until START). A touch opens it on touchend / pointerup / click, not pointerdown: those carry the user activation (iOS Safari
+     needs it there); after that M.init's own wake resumes a context the browser stopped. */
+  const WK = ['pointerdown', 'pointerup', 'touchend', 'click', 'keydown'], wkOff = () => WK.forEach(t => removeEventListener(t, wake, true));
+  function wake(e){ try{ if(typeof M === 'undefined') return; if(M.ac){ wkOff(); return; } if(e.type === 'pointerdown' && e.pointerType !== 'mouse') return;
+    const L = document.getElementById('loader'); if(document.getElementById('attract') || (L && !L.hidden)){ M.init(); if(M.ac) wkOff(); } }catch(x){} }
+  WK.forEach(t => addEventListener(t, wake, { capture:true, passive:true })); }
 if(typeof module !== 'undefined') module.exports = MUSIC;
 })();
