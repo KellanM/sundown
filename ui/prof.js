@@ -33,7 +33,7 @@ const LABEL = { sky:'sky+backdrop', road:'road+ground', roadmat:'roadmat', sprit
 const OPS = ['fillRect', 'drawImage', 'draw', 'state', 'comp'];
 const N = 600;   // ring of frames
 const R = { i:0, n:0, t:new Float64Array(N), dt:new Float32Array(N), draw:new Float32Array(N), upd:new Float32Array(N), cvl:new Float32Array(N), cva:new Float32Array(N), rb:new Float32Array(N),cat:CATS.map(() => new Float32Array(N)), op:OPS.map(() => new Float32Array(N)) };
-const lvl0 = () => { try{ const v = parseInt(localStorage.getItem('sundown.prof'), 10); return v >= 0 && v <= 3 ? v : 1; }catch(e){ return 1; } };   // (the console's last level)
+const lvl0 = () => 0;   // Kellan 2026-11-27: the overlay is off unless asked for (?prof=1..3, or `prof 1` in the console for this session); a saved level no longer turns it on
 const P = window.PROF = { level:QP.has('prof') ? (v => v >= 0 && v <= 3 ? v : 2)(parseInt(QP.get('prof'), 10)) : lvl0(), ops:true, sub:true, R, CATS, OPS, keys:new Map(), installed:false, dead:false };
 
 // ---------------------------------------------------------------- the per-frame accumulators and the bracket stack

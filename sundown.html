@@ -727,7 +727,9 @@ const M = { rev:0, fz:null, eng2:null, ac:null, out:null, t0:0, next:0, step:0, 
 };
 
 /* ================================================================== the road: pseudo-3D segments (Pole Position, OutRun), built ahead as you drive */
-const SEG = 200, RUMBLE = 3, ROADW = 2000, CAMH = 1000, DRAW = 360, FOV = 100, DEPTH = 1 / Math.tan(FOV / 2 * Math.PI / 180), PZ = CAMH * DEPTH;
+/* ?camh=K&fov=K (opt-in, trailer capture only: tools/trailer): camera height and field of view multipliers for a low or wide angle; absent or out of range = 1, the default camera exactly */
+const CAMK = (() => { try{ const q = new URLSearchParams(location.search), h = parseFloat(q.get('camh')), f = parseFloat(q.get('fov')); return [h >= .3 && h <= 2 ? h : 1, f >= .7 && f <= 1.5 ? f : 1]; }catch(e){ return [1, 1]; } })();
+const SEG = 200, RUMBLE = 3, ROADW = 2000, CAMH = 1000 * CAMK[0], DRAW = 360, FOV = 100 * CAMK[1], DEPTH = 1 / Math.tan(FOV / 2 * Math.PI / 180), PZ = CAMH * DEPTH;
 /* Draw distance (Kellan, 2026-11-19: "the draw distance is too low"): DRAW was 260 segments; it is 360. fog = (n / DRAW)^1.6 stays the one
    fog curve, so every fog-keyed cull and fade (props, signs, reflections) now reaches 1.38x farther in segments, and the haze at a given
    distance is lighter. fogPx(fog) gives the fog the old 260-segment draw distance had at the same place: use it for LOD tiers that are
@@ -3074,7 +3076,7 @@ if(!/[?&]con=off(&|$)/.test(location.search)){   /* Kellan 2026-11-23: the in-ga
    A new version downloads in the background and waits. It is applied only on the title (never mid-ride): by itself once
    the title has sat untouched for a few seconds, or at once when the player taps "Update ready". Tap the version to check now. */
 (() => {
-  const VER = 'v70 · bf2b17', $id = (i) => document.getElementById(i);
+  const VER = 'v71 · 35c542', $id = (i) => document.getElementById(i);
   const SDU = window.SDUPDATE = { version: VER, waiting: null, applied: false, checks: 0 };
   let reg = null, applying = false, asked = false, needReload = false, note = '', noteT = 0, lastInput = performance.now();
   ['keydown', 'pointerdown', 'touchstart', 'wheel'].forEach((t) => addEventListener(t, () => { lastInput = performance.now(); }, { capture: true, passive: true }));
@@ -3136,5 +3138,5 @@ if(!/[?&]con=off(&|$)/.test(location.search)){   /* Kellan 2026-11-23: the in-ga
   }, 1000);
 })();
 </script>
-<!-- __sdbuild:70 bf2b176a9949 --></body>
+<!-- __sdbuild:71 35c542cea402 --></body>
 </html>
